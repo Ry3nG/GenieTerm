@@ -1,0 +1,4 @@
+module CGenieTerm [system] {
+    header "include/genieterm_ffi.h"
+    export *
+}

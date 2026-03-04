@@ -1,0 +1,22 @@
+# Build artifacts
+/target/
+**/.build/
+**/.swiftpm/
+Cargo.lock
+/release/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+._*
+
+# Development
+.claude/
+.archive/
+docs/
