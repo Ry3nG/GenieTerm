@@ -17,30 +17,74 @@ echo -e "${BLUE}Building Swift app (release)...${NC}"
 cd native/GenieTerm
 swift build -c release
 
-# Get the built app path
-APP_PATH=".build/apple/Products/Release/GenieTerm.app"
+# Get the built executable
+EXECUTABLE_PATH=".build/release/GenieTerm"
 
-if [ ! -d "$APP_PATH" ]; then
+if [ ! -f "$EXECUTABLE_PATH" ]; then
     # Try alternative path
-    APP_PATH=".build/arm64-apple-macosx/release/GenieTerm.app"
+    EXECUTABLE_PATH=".build/arm64-apple-macosx/release/GenieTerm"
 fi
 
-if [ ! -d "$APP_PATH" ]; then
-    echo "❌ Error: Could not find built app"
+if [ ! -f "$EXECUTABLE_PATH" ]; then
+    echo "❌ Error: Could not find built executable"
+    ls -la .build/
     exit 1
 fi
 
-echo -e "${GREEN}✓ Build complete: $APP_PATH${NC}"
+echo -e "${GREEN}✓ Build complete: $EXECUTABLE_PATH${NC}"
 
 # Create release directory
 cd ../..
 RELEASE_DIR="release"
 mkdir -p "$RELEASE_DIR"
 
-# Copy app to release directory
-echo -e "${BLUE}Copying app to release directory...${NC}"
-rm -rf "$RELEASE_DIR/GenieTerm.app"
-cp -R "native/GenieTerm/$APP_PATH" "$RELEASE_DIR/"
+# Create .app bundle structure
+APP_BUNDLE="$RELEASE_DIR/GenieTerm.app"
+rm -rf "$APP_BUNDLE"
+mkdir -p "$APP_BUNDLE/Contents/MacOS"
+mkdir -p "$APP_BUNDLE/Contents/Resources"
+
+# Copy executable
+echo -e "${BLUE}Creating app bundle...${NC}"
+cp "native/GenieTerm/$EXECUTABLE_PATH" "$APP_BUNDLE/Contents/MacOS/GenieTerm"
+chmod +x "$APP_BUNDLE/Contents/MacOS/GenieTerm"
+
+# Copy icon
+if [ -f "assets/AppIcon.icns" ]; then
+    cp "assets/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
+fi
+
+# Create Info.plist
+cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>GenieTerm</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.genieterm.app</string>
+    <key>CFBundleName</key>
+    <string>GenieTerm</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Ry3nG. All rights reserved.</string>
+</dict>
+</plist>
+EOF
+
+echo -e "${GREEN}✓ App bundle created: $APP_BUNDLE${NC}"
 
 # Create DMG
 echo -e "${BLUE}Creating DMG installer...${NC}"
@@ -56,16 +100,16 @@ rm -rf "$DMG_TEMP"
 mkdir -p "$DMG_TEMP"
 
 # Copy app to temp directory
-cp -R "$RELEASE_DIR/GenieTerm.app" "$DMG_TEMP/"
+cp -R "$APP_BUNDLE" "$DMG_TEMP/"
 
 # Create symbolic link to Applications folder
 ln -s /Applications "$DMG_TEMP/Applications"
 
-# Create DMG
+# Create DMG (use absolute path)
 hdiutil create -volname "GenieTerm" \
     -srcfolder "$DMG_TEMP" \
     -ov -format UDZO \
-    "$DMG_PATH"
+    "$(pwd)/$DMG_PATH"
 
 # Clean up temp directory
 rm -rf "$DMG_TEMP"
@@ -79,7 +123,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}✨ Release build complete!${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📦 App bundle: $RELEASE_DIR/GenieTerm.app"
+echo "📦 App bundle: $APP_BUNDLE"
 echo "💿 DMG installer: $DMG_PATH ($DMG_SIZE)"
 echo ""
 echo "To install:"
