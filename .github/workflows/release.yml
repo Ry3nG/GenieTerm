@@ -27,7 +27,7 @@ jobs:
         xcodebuild -version
 
     - name: Cache Rust dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
@@ -35,62 +35,19 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Build Rust library (Release)
-      run: cargo build --release --lib
-
-    - name: Build Swift app (Release)
+    - name: Build release package
       run: |
-        cd native/GenieTerm
-        swift build -c release
+        # Build using our build script
+        ./build_release.sh
 
-    - name: Prepare app bundle
-      run: |
-        mkdir -p release
-
-        # Find the built app
-        if [ -d "native/GenieTerm/.build/apple/Products/Release/GenieTerm.app" ]; then
-          APP_PATH="native/GenieTerm/.build/apple/Products/Release/GenieTerm.app"
-        else
-          APP_PATH="native/GenieTerm/.build/arm64-apple-macosx/release/GenieTerm.app"
-        fi
-
-        # Copy app to release directory
-        cp -R "$APP_PATH" release/
-
-        # Copy icon if exists
-        if [ -f "assets/AppIcon.icns" ]; then
-          mkdir -p "release/GenieTerm.app/Contents/Resources"
-          cp assets/AppIcon.icns "release/GenieTerm.app/Contents/Resources/"
-        fi
-
-    - name: Create DMG
-      run: |
-        # Create temporary directory for DMG contents
-        mkdir -p dmg_temp
-        cp -R release/GenieTerm.app dmg_temp/
-        ln -s /Applications dmg_temp/Applications
-
-        # Get version from tag or use date
+        # Rename DMG with version if this is a tag
         if [[ "${{ github.ref }}" == refs/tags/* ]]; then
           VERSION="${GITHUB_REF#refs/tags/v}"
-          DMG_NAME="GenieTerm-${VERSION}.dmg"
-        else
-          DMG_NAME="GenieTerm-$(date +%Y%m%d).dmg"
+          mv release/GenieTerm-*.dmg "release/GenieTerm-${VERSION}.dmg"
         fi
 
-        # Create DMG
-        hdiutil create -volname "GenieTerm" \
-          -srcfolder dmg_temp \
-          -ov -format UDZO \
-          "release/$DMG_NAME"
-
-        # Clean up
-        rm -rf dmg_temp
-
-        echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
-
     - name: Upload DMG as artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: GenieTerm-DMG
         path: release/*.dmg
@@ -111,7 +68,7 @@ jobs:
         echo "## 🎉 Build Complete!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
-        echo "- DMG installer: \`$DMG_NAME\`" >> $GITHUB_STEP_SUMMARY
+        ls -lh release/*.dmg | awk '{print "- DMG installer: `" $9 "` (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📥 Installation" >> $GITHUB_STEP_SUMMARY
         echo "1. Download the DMG file" >> $GITHUB_STEP_SUMMARY
