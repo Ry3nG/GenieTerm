@@ -1,5 +1,7 @@
 # GenieTerm
 
+![GenieTerm Banner](assets/banner.png)
+
 A modern terminal for macOS.
 
 ## Download
@@ -38,7 +40,7 @@ Requires Rust 1.70+ and Swift 5.9+
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
 
 
