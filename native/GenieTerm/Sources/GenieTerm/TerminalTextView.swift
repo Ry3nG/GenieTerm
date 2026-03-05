@@ -332,6 +332,11 @@ struct TerminalTextView: NSViewRepresentable {
 }
 
 final class TerminalCanvasView: NSView {
+    private struct GridPosition: Equatable {
+        let line: Int
+        let col: Int
+    }
+
     weak var coordinator: TerminalTextView.Coordinator?
 
     var backgroundColor: NSColor = .textBackgroundColor {
@@ -341,6 +346,7 @@ final class TerminalCanvasView: NSView {
     }
 
     private var renderedCoreTextLines: [CTLine] = []
+    private var renderedPlainLines: [String] = []
     private var terminalRows: Int = 24
     private var terminalCols: Int = 80
 
@@ -348,6 +354,8 @@ final class TerminalCanvasView: NSView {
     private var textInset = NSSize(width: 16, height: 16)
     private var cellWidth: CGFloat = 8.0
     private var lineHeight: CGFloat = 18.0
+    private var selectionAnchor: GridPosition?
+    private var selectionFocus: GridPosition?
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -365,6 +373,7 @@ final class TerminalCanvasView: NSView {
 
     func replaceAllLines(lines: [TerminalLine], rows: Int, cols: Int) {
         renderedCoreTextLines = lines.map(Self.makeCTLine(from:))
+        renderedPlainLines = lines.map(Self.makePlainText(from:))
         terminalRows = max(rows, 1)
         terminalCols = max(cols, 1)
         updateFrameSize(forceRedraw: true)
@@ -373,9 +382,11 @@ final class TerminalCanvasView: NSView {
     func updateChangedLines(changedIndices: [Int], lines: [TerminalLine], rows: Int, cols: Int) {
         if renderedCoreTextLines.count != lines.count {
             renderedCoreTextLines = lines.map(Self.makeCTLine(from:))
+            renderedPlainLines = lines.map(Self.makePlainText(from:))
         } else {
             for index in changedIndices where index >= 0 && index < lines.count {
                 renderedCoreTextLines[index] = Self.makeCTLine(from: lines[index])
+                renderedPlainLines[index] = Self.makePlainText(from: lines[index])
             }
         }
         terminalRows = max(rows, 1)
@@ -435,6 +446,8 @@ final class TerminalCanvasView: NSView {
         let startLine = max(0, Int(floor((dirtyRect.minY - textInset.height) / lineHeight)))
         let endLine = min(renderedCoreTextLines.count, Int(ceil((dirtyRect.maxY - textInset.height) / lineHeight)))
         guard startLine < endLine else { return }
+
+        drawSelectionOverlay(startLine: startLine, endLine: endLine)
 
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
@@ -519,11 +532,20 @@ final class TerminalCanvasView: NSView {
         if event.modifierFlags.contains(.command),
            !event.modifierFlags.contains(.option),
            !event.modifierFlags.contains(.control),
-           event.charactersIgnoringModifiers?.lowercased() == "v" {
-            pasteFromClipboard()
-            return true
+           let key = event.charactersIgnoringModifiers?.lowercased() {
+            if key == "c" {
+                return copySelectionToPasteboard()
+            }
+            if key == "v" {
+                pasteFromClipboard()
+                return true
+            }
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    @objc func copy(_ sender: Any?) {
+        _ = copySelectionToPasteboard()
     }
 
     private func pasteFromClipboard() {
@@ -537,18 +559,30 @@ final class TerminalCanvasView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        if shouldHandleNativeSelection(for: event, button: 0) {
+            beginSelection(with: event)
+            return
+        }
         if !handleMouseButtonEvent(event, button: 0, pressed: true, dragged: false) {
             super.mouseDown(with: event)
         }
     }
 
     override func mouseUp(with event: NSEvent) {
+        if shouldHandleNativeSelection(for: event, button: 0), selectionAnchor != nil {
+            updateSelection(with: event)
+            return
+        }
         if !handleMouseButtonEvent(event, button: 0, pressed: false, dragged: false) {
             super.mouseUp(with: event)
         }
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if shouldHandleNativeSelection(for: event, button: 0), selectionAnchor != nil {
+            updateSelection(with: event)
+            return
+        }
         if !handleMouseButtonEvent(event, button: 0, pressed: true, dragged: true) {
             super.mouseDragged(with: event)
         }
@@ -749,6 +783,142 @@ final class TerminalCanvasView: NSView {
         max(lineHeight * 3, 24)
     }
 
+    private func shouldHandleNativeSelection(for event: NSEvent, button: Int) -> Bool {
+        guard button == 0 else { return false }
+        guard let coordinator else { return false }
+        guard !coordinator.terminal.mouseTrackingMode.supportsPress else { return false }
+        guard !event.modifierFlags.contains(.option), !event.modifierFlags.contains(.control) else {
+            return false
+        }
+        return true
+    }
+
+    private func beginSelection(with event: NSEvent) {
+        guard let point = gridPosition(for: event) else {
+            clearSelection()
+            return
+        }
+        selectionAnchor = point
+        selectionFocus = point
+        needsDisplay = true
+    }
+
+    private func updateSelection(with event: NSEvent) {
+        guard selectionAnchor != nil else { return }
+        guard let point = gridPosition(for: event) else { return }
+        if point != selectionFocus {
+            selectionFocus = point
+            needsDisplay = true
+        }
+    }
+
+    private func clearSelection() {
+        if selectionAnchor != nil || selectionFocus != nil {
+            selectionAnchor = nil
+            selectionFocus = nil
+            needsDisplay = true
+        }
+    }
+
+    private func hasSelection() -> Bool {
+        guard let anchor = selectionAnchor, let focus = selectionFocus else { return false }
+        return anchor != focus
+    }
+
+    private func normalizedSelection() -> (GridPosition, GridPosition)? {
+        guard let anchor = selectionAnchor, let focus = selectionFocus, anchor != focus else { return nil }
+        if anchor.line < focus.line {
+            return (anchor, focus)
+        }
+        if anchor.line > focus.line {
+            return (focus, anchor)
+        }
+        if anchor.col <= focus.col {
+            return (anchor, focus)
+        }
+        return (focus, anchor)
+    }
+
+    private func drawSelectionOverlay(startLine: Int, endLine: Int) {
+        guard let (start, end) = normalizedSelection() else { return }
+
+        let firstLine = max(start.line, startLine)
+        let lastLine = min(end.line, endLine - 1)
+        guard firstLine <= lastLine else { return }
+
+        NSColor.selectedTextBackgroundColor.withAlphaComponent(0.35).setFill()
+
+        for line in firstLine...lastLine {
+            let fromCol = (line == start.line) ? start.col : 0
+            let toCol = (line == end.line) ? end.col : terminalCols
+            guard toCol > fromCol else { continue }
+
+            let rect = NSRect(
+                x: textInset.width + CGFloat(fromCol) * cellWidth,
+                y: textInset.height + CGFloat(line) * lineHeight,
+                width: CGFloat(toCol - fromCol) * cellWidth,
+                height: lineHeight
+            )
+            rect.fill()
+        }
+    }
+
+    private func copySelectionToPasteboard() -> Bool {
+        guard hasSelection() else { return false }
+        guard let content = selectedText(), !content.isEmpty else { return false }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(content, forType: .string)
+        return true
+    }
+
+    private func selectedText() -> String? {
+        guard let (start, end) = normalizedSelection() else { return nil }
+        var parts: [String] = []
+        parts.reserveCapacity(max(1, end.line - start.line + 1))
+
+        for line in start.line...end.line {
+            let fromCol = (line == start.line) ? start.col : 0
+            let toCol = (line == end.line) ? end.col : terminalCols
+            guard toCol >= fromCol else { continue }
+            let raw = plainText(at: line)
+            parts.append(substring(raw, fromColumn: fromCol, toColumn: toCol))
+        }
+
+        return parts.joined(separator: "\n")
+    }
+
+    private func plainText(at line: Int) -> String {
+        guard line >= 0 && line < renderedPlainLines.count else { return "" }
+        return renderedPlainLines[line]
+    }
+
+    private func substring(_ text: String, fromColumn: Int, toColumn: Int) -> String {
+        guard toColumn > fromColumn else { return "" }
+        var chars = Array(text)
+        if chars.count < terminalCols {
+            chars.append(contentsOf: repeatElement(" ", count: terminalCols - chars.count))
+        }
+        let safeStart = max(0, min(fromColumn, chars.count))
+        let safeEnd = max(safeStart, min(toColumn, chars.count))
+        if safeStart == safeEnd { return "" }
+        return String(chars[safeStart..<safeEnd])
+    }
+
+    private func gridPosition(for event: NSEvent) -> GridPosition? {
+        let local = convert(event.locationInWindow, from: nil)
+        let x = local.x - textInset.width
+        let y = local.y - textInset.height
+
+        let lineCount = max(renderedCoreTextLines.count, terminalRows)
+        guard lineCount > 0 else { return nil }
+
+        let rawLine = Int(floor(y / max(lineHeight, 1)))
+        let rawCol = Int(floor(x / max(cellWidth, 1)))
+        let line = max(0, min(rawLine, lineCount - 1))
+        let col = max(0, min(rawCol, terminalCols))
+        return GridPosition(line: line, col: col)
+    }
+
     override func mouseMoved(with event: NSEvent) {
         guard let coordinator else {
             super.mouseMoved(with: event)
@@ -794,5 +964,13 @@ final class TerminalCanvasView: NSView {
     private static func makeCTLine(from line: TerminalLine) -> CTLine {
         let attributed = TerminalTextView.makeAttributedLine(line)
         return CTLineCreateWithAttributedString(attributed as CFAttributedString)
+    }
+
+    private static func makePlainText(from line: TerminalLine) -> String {
+        var output = String()
+        for span in line.spans {
+            output.append(span.text)
+        }
+        return output
     }
 }

@@ -78,7 +78,7 @@ struct GenieTermApp: App {
                 Button("Interrupt (^C)") {
                     terminal.interrupt()
                 }
-                .keyboardShortcut("c", modifiers: [.command])
+                .keyboardShortcut(".", modifiers: [.command])
 
                 Button("Clear Screen") {
                     terminal.clearScreen()
