@@ -85,6 +85,8 @@ struct CommandTextField: NSViewRepresentable {
     @Binding var text: String
     let onSubmit: () -> Void
     let onTab: () -> Void
+    let onHistoryUp: () -> Void
+    let onHistoryDown: () -> Void
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = CustomNSTextField()
@@ -101,21 +103,39 @@ struct CommandTextField: NSViewRepresentable {
         nsView.stringValue = text
         context.coordinator.onSubmit = onSubmit
         context.coordinator.onTab = onTab
+        context.coordinator.onHistoryUp = onHistoryUp
+        context.coordinator.onHistoryDown = onHistoryDown
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onSubmit: onSubmit, onTab: onTab)
+        Coordinator(
+            text: $text,
+            onSubmit: onSubmit,
+            onTab: onTab,
+            onHistoryUp: onHistoryUp,
+            onHistoryDown: onHistoryDown
+        )
     }
 
     class Coordinator: NSObject, NSTextFieldDelegate {
         @Binding var text: String
         var onSubmit: () -> Void
         var onTab: () -> Void
+        var onHistoryUp: () -> Void
+        var onHistoryDown: () -> Void
 
-        init(text: Binding<String>, onSubmit: @escaping () -> Void, onTab: @escaping () -> Void) {
+        init(
+            text: Binding<String>,
+            onSubmit: @escaping () -> Void,
+            onTab: @escaping () -> Void,
+            onHistoryUp: @escaping () -> Void,
+            onHistoryDown: @escaping () -> Void
+        ) {
             _text = text
             self.onSubmit = onSubmit
             self.onTab = onTab
+            self.onHistoryUp = onHistoryUp
+            self.onHistoryDown = onHistoryDown
         }
 
         func controlTextDidChange(_ obj: Notification) {
@@ -127,6 +147,18 @@ struct CommandTextField: NSViewRepresentable {
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.insertTab(_:)) {
                 onTab()
+                return true
+            }
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                onSubmit()
+                return true
+            }
+            if commandSelector == #selector(NSResponder.moveUp(_:)) {
+                onHistoryUp()
+                return true
+            }
+            if commandSelector == #selector(NSResponder.moveDown(_:)) {
+                onHistoryDown()
                 return true
             }
             return false

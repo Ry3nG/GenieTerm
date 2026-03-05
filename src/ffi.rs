@@ -61,28 +61,88 @@ pub unsafe extern "C" fn genieterm_resize(handle: *mut GenieTermHandle, cols: u1
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn genieterm_poll_screen_text(handle: *mut GenieTermHandle) -> *mut c_char {
+pub unsafe extern "C" fn genieterm_poll_snapshot_json(handle: *mut GenieTermHandle) -> *mut c_char {
     if handle.is_null() {
         return std::ptr::null_mut();
     }
 
-    let text = (*handle).engine.screen_text().replace('\0', " ");
-    match CString::new(text) {
+    let json = (*handle).engine.snapshot_json();
+    match CString::new(json) {
         Ok(cstr) => cstr.into_raw(),
         Err(_) => std::ptr::null_mut(),
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn genieterm_poll_snapshot_json(handle: *mut GenieTermHandle) -> *mut c_char {
+pub unsafe extern "C" fn genieterm_recent_scrollback_json(
+    handle: *mut GenieTermHandle,
+    limit: usize,
+) -> *mut c_char {
     if handle.is_null() {
         return std::ptr::null_mut();
     }
 
-    let json = (*handle).engine.snapshot_json().replace('\0', " ");
+    let json = (*handle).engine.recent_scrollback_json(limit);
     match CString::new(json) {
         Ok(cstr) => cstr.into_raw(),
         Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn genieterm_snapshot_version(handle: *mut GenieTermHandle) -> u64 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    (*handle).engine.snapshot_version()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn genieterm_bracketed_paste_enabled(handle: *mut GenieTermHandle) -> u8 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    if (*handle).engine.bracketed_paste_mode() {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn genieterm_mouse_tracking_mode(handle: *mut GenieTermHandle) -> u8 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    (*handle).engine.mouse_tracking_mode()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn genieterm_mouse_sgr_enabled(handle: *mut GenieTermHandle) -> u8 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    if (*handle).engine.mouse_sgr_mode() {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn genieterm_focus_reporting_enabled(handle: *mut GenieTermHandle) -> u8 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    if (*handle).engine.focus_event_mode() {
+        1
+    } else {
+        0
     }
 }
 
@@ -91,36 +151,4 @@ pub unsafe extern "C" fn genieterm_free_string(value: *mut c_char) {
     if !value.is_null() {
         let _ = CString::from_raw(value);
     }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn genieterm_cursor_row(handle: *mut GenieTermHandle) -> u16 {
-    if handle.is_null() {
-        return 0;
-    }
-    (*handle).engine.cursor().0
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn genieterm_cursor_col(handle: *mut GenieTermHandle) -> u16 {
-    if handle.is_null() {
-        return 0;
-    }
-    (*handle).engine.cursor().1
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn genieterm_rows(handle: *mut GenieTermHandle) -> u16 {
-    if handle.is_null() {
-        return 0;
-    }
-    (*handle).engine.size().0
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn genieterm_cols(handle: *mut GenieTermHandle) -> u16 {
-    if handle.is_null() {
-        return 0;
-    }
-    (*handle).engine.size().1
 }

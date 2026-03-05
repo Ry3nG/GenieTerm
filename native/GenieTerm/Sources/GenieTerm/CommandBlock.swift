@@ -8,10 +8,16 @@ struct CommandBlock: Identifiable {
     var isExecuting: Bool = false
 
     var formattedTime: String {
+        CommandBlockFormatter.shortTime.string(from: timestamp)
+    }
+}
+
+private enum CommandBlockFormatter {
+    static let shortTime: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
-        return formatter.string(from: timestamp)
-    }
+        return formatter
+    }()
 }
 
 /// Visual representation of a command block
