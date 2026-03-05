@@ -529,6 +529,10 @@ final class TerminalCanvasView: NSView {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard isCurrentFirstResponder else {
+            return super.performKeyEquivalent(with: event)
+        }
+
         if event.modifierFlags.contains(.command),
            !event.modifierFlags.contains(.option),
            !event.modifierFlags.contains(.control),
@@ -964,6 +968,11 @@ final class TerminalCanvasView: NSView {
     private static func makeCTLine(from line: TerminalLine) -> CTLine {
         let attributed = TerminalTextView.makeAttributedLine(line)
         return CTLineCreateWithAttributedString(attributed as CFAttributedString)
+    }
+
+    private var isCurrentFirstResponder: Bool {
+        guard let window else { return false }
+        return window.firstResponder === self
     }
 
     private static func makePlainText(from line: TerminalLine) -> String {
