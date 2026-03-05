@@ -145,8 +145,6 @@ final class TerminalBridge: ObservableObject {
 
         if enabled {
             snapshot = snapshotWithRecentScrollback(from: latestVisibleSnapshot)
-        } else {
-            snapshot = latestVisibleSnapshot
         }
     }
 

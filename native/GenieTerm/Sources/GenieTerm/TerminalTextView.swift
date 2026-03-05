@@ -38,6 +38,8 @@ struct TerminalTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let canvas = context.coordinator.canvas else { return }
         let coordinator = context.coordinator
+        let clipView = scrollView.contentView
+        let oldClipBounds = clipView.bounds
 
         if coordinator.lastRenderedVersion == terminal.snapshotVersion,
            coordinator.lastSnapshotRows == snapshot.rows,
@@ -62,6 +64,19 @@ struct TerminalTextView: NSViewRepresentable {
             let targetY = max(0, canvas.bounds.height - scrollView.contentView.bounds.height)
             scrollView.contentView.scroll(to: NSPoint(x: 0, y: targetY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
+        } else if coordinator.pendingBottomAnchorRestore {
+            let viewportHeight = oldClipBounds.height
+            var targetY = max(
+                0,
+                canvas.bounds.height - viewportHeight - coordinator.bottomDistanceBeforeViewportExpand
+            )
+            if coordinator.pendingScrollNudgeUp > 0 {
+                targetY = max(0, targetY - coordinator.pendingScrollNudgeUp)
+                coordinator.pendingScrollNudgeUp = 0
+            }
+            scrollView.contentView.scroll(to: NSPoint(x: oldClipBounds.origin.x, y: targetY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            coordinator.pendingBottomAnchorRestore = false
         }
     }
 
@@ -234,6 +249,10 @@ struct TerminalTextView: NSViewRepresentable {
         var lastCursorRow: UInt16 = 0
         var lastCursorCol: UInt16 = 0
         var lastRenderedLines: [TerminalLine] = []
+        var pendingBottomAnchorRestore = false
+        var bottomDistanceBeforeViewportExpand: CGFloat = 0
+        var pendingScrollNudgeUp: CGFloat = 0
+        var isScrollbackViewportEnabled = false
         private var observer: NSObjectProtocol?
         let terminal: TerminalBridge
 
@@ -270,9 +289,44 @@ struct TerminalTextView: NSViewRepresentable {
             autoScroll = (docRect.maxY - clipBounds.maxY) < 20
 
             if autoScroll != lastAutoScrollState {
-                terminal.setScrollbackViewportEnabled(!autoScroll)
+                if !autoScroll && !isScrollbackViewportEnabled {
+                    activateScrollbackViewport(withNudge: 0)
+                }
                 lastAutoScrollState = autoScroll
             }
+        }
+
+        func activateScrollbackViewport(withNudge nudge: CGFloat) {
+            guard !isScrollbackViewportEnabled else { return }
+            guard let scrollView else { return }
+            let clipBounds = scrollView.contentView.bounds
+            let docRect = scrollView.documentView?.bounds ?? .zero
+
+            bottomDistanceBeforeViewportExpand = max(0, docRect.maxY - clipBounds.maxY)
+            pendingBottomAnchorRestore = true
+            pendingScrollNudgeUp = max(0, nudge)
+            autoScroll = false
+            lastAutoScrollState = false
+            isScrollbackViewportEnabled = true
+            terminal.setScrollbackViewportEnabled(true)
+        }
+
+        func deactivateScrollbackViewport() {
+            guard isScrollbackViewportEnabled else { return }
+            guard let scrollView else { return }
+
+            let clipBounds = scrollView.contentView.bounds
+            let docRect = scrollView.documentView?.bounds ?? .zero
+            let targetY = max(0, docRect.maxY - clipBounds.height)
+            scrollView.contentView.scroll(to: NSPoint(x: clipBounds.origin.x, y: targetY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+
+            pendingBottomAnchorRestore = false
+            pendingScrollNudgeUp = 0
+            autoScroll = true
+            lastAutoScrollState = true
+            isScrollbackViewportEnabled = false
+            terminal.setScrollbackViewportEnabled(false)
         }
     }
 }
@@ -540,6 +594,14 @@ final class TerminalCanvasView: NSView {
 
     override func scrollWheel(with event: NSEvent) {
         if !handleScrollEvent(event) {
+            if shouldActivateScrollbackViewport(for: event) {
+                coordinator?.activateScrollbackViewport(withNudge: preferredScrollStep())
+                return
+            }
+            if shouldDeactivateScrollbackViewport(for: event) {
+                coordinator?.deactivateScrollbackViewport()
+                return
+            }
             super.scrollWheel(with: event)
         }
     }
@@ -652,6 +714,39 @@ final class TerminalCanvasView: NSView {
             max(1, min(col, cols)),
             max(1, min(row, rows))
         )
+    }
+
+    private func shouldActivateScrollbackViewport(for event: NSEvent) -> Bool {
+        guard let coordinator else { return false }
+        guard coordinator.autoScroll else { return false }
+        guard !coordinator.isScrollbackViewportEnabled else { return false }
+        guard !coordinator.terminal.mouseTrackingMode.supportsPress else { return false }
+
+        let dy = event.scrollingDeltaY
+        let dx = event.scrollingDeltaX
+        guard abs(dy) >= abs(dx) else { return false }
+        return dy > 0
+    }
+
+    private func shouldDeactivateScrollbackViewport(for event: NSEvent) -> Bool {
+        guard let coordinator else { return false }
+        guard coordinator.isScrollbackViewportEnabled else { return false }
+        guard !coordinator.terminal.mouseTrackingMode.supportsPress else { return false }
+        guard let scrollView = coordinator.scrollView else { return false }
+
+        let dy = event.scrollingDeltaY
+        let dx = event.scrollingDeltaX
+        guard abs(dy) >= abs(dx) else { return false }
+        guard dy < 0 else { return false }
+
+        let clipBounds = scrollView.contentView.bounds
+        let docRect = scrollView.documentView?.bounds ?? .zero
+        let distanceFromBottom = max(0, docRect.maxY - clipBounds.maxY)
+        return distanceFromBottom <= max(lineHeight * 2, 20)
+    }
+
+    private func preferredScrollStep() -> CGFloat {
+        max(lineHeight * 3, 24)
     }
 
     override func mouseMoved(with event: NSEvent) {
