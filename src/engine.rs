@@ -1,7 +1,10 @@
 use crossbeam_channel::{unbounded, Sender};
 use portable_pty::PtySize;
 use serde::Serialize;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::io::Write;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -18,7 +21,15 @@ pub struct TerminalSnapshot {
 }
 
 #[derive(Serialize)]
+pub struct ScrollbackChunk {
+    pub total: usize,
+    pub start: usize,
+    pub lines: Vec<TerminalLine>,
+}
+
+#[derive(Serialize)]
 pub struct TerminalLine {
+    pub sig: u64,
     pub spans: Vec<TerminalSpan>,
 }
 
@@ -74,6 +85,7 @@ fn push_span(spans: &mut Vec<TerminalSpan>, style: StyleKey, text: String) {
 
 pub struct TerminalEngine {
     screen_buffer: Arc<Mutex<ScreenBuffer>>,
+    snapshot_version: Arc<AtomicU64>,
     command_tx: Sender<EngineCommand>,
 }
 
@@ -87,6 +99,8 @@ impl TerminalEngine {
         let (command_tx, command_rx) = unbounded::<EngineCommand>();
         let screen_buffer = Arc::new(Mutex::new(ScreenBuffer::new(rows as usize, cols as usize)));
         let screen_buffer_for_output = Arc::clone(&screen_buffer);
+        let snapshot_version = Arc::new(AtomicU64::new(0));
+        let snapshot_version_for_output = Arc::clone(&snapshot_version);
 
         thread::spawn(move || {
             let mut pty = match PtyManager::new(cols, rows) {
@@ -137,6 +151,7 @@ impl TerminalEngine {
                         for &byte in &read_buf[..n] {
                             parser.process_byte(byte, &mut screen);
                         }
+                        snapshot_version_for_output.fetch_add(1, Ordering::Relaxed);
                     }
                     Ok(_) => {}
                     Err(err) => {
@@ -149,6 +164,7 @@ impl TerminalEngine {
 
         Self {
             screen_buffer,
+            snapshot_version,
             command_tx,
         }
     }
@@ -176,10 +192,7 @@ impl TerminalEngine {
         let _ = self.command_tx.send(EngineCommand::Resize { cols, rows });
         let mut screen = self.screen_buffer.lock().unwrap();
         screen.resize(rows as usize, cols as usize);
-    }
-
-    pub fn screen_text(&self) -> String {
-        self.screen_buffer.lock().unwrap().visible_text()
+        self.snapshot_version.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn snapshot_json(&self) -> String {
@@ -191,114 +204,125 @@ impl TerminalEngine {
         serde_json::to_string(&snapshot).unwrap_or_else(|_| "{}".to_string())
     }
 
-    pub fn cursor(&self) -> (u16, u16) {
-        let screen = self.screen_buffer.lock().unwrap();
-        (screen.cursor_row as u16, screen.cursor_col as u16)
+    pub fn recent_scrollback_json(&self, limit: usize) -> String {
+        let chunk = {
+            let screen = self.screen_buffer.lock().unwrap();
+            recent_scrollback_from_screen(&screen, limit)
+        };
+
+        serde_json::to_string(&chunk).unwrap_or_else(|_| "{}".to_string())
     }
 
-    pub fn size(&self) -> (u16, u16) {
-        let screen = self.screen_buffer.lock().unwrap();
-        (screen.rows as u16, screen.cols as u16)
+    pub fn bracketed_paste_mode(&self) -> bool {
+        self.screen_buffer.lock().unwrap().bracketed_paste_mode()
+    }
+
+    pub fn mouse_tracking_mode(&self) -> u8 {
+        self.screen_buffer.lock().unwrap().mouse_tracking_mode()
+    }
+
+    pub fn mouse_sgr_mode(&self) -> bool {
+        self.screen_buffer.lock().unwrap().mouse_sgr_mode()
+    }
+
+    pub fn focus_event_mode(&self) -> bool {
+        self.screen_buffer.lock().unwrap().focus_event_mode()
+    }
+
+    pub fn snapshot_version(&self) -> u64 {
+        self.snapshot_version.load(Ordering::Relaxed)
+    }
+}
+
+fn row_to_line(row: &[Cell]) -> TerminalLine {
+    let Some(last_non_blank) = row
+        .iter()
+        .rposition(|cell| cell.ch != ' ' && cell.ch != '\0')
+    else {
+        return TerminalLine {
+            sig: 0,
+            spans: Vec::new(),
+        };
+    };
+
+    let mut spans = Vec::new();
+    let mut current_style: Option<StyleKey> = None;
+    let mut current_text = String::new();
+
+    for cell in row.iter().take(last_non_blank + 1) {
+        let ch = if cell.ch == '\0' { ' ' } else { cell.ch };
+        let style = StyleKey::from_cell(cell);
+
+        match current_style {
+            Some(existing) if existing == style => {
+                current_text.push(ch);
+            }
+            Some(existing) => {
+                let completed = std::mem::take(&mut current_text);
+                push_span(&mut spans, existing, completed);
+                current_style = Some(style);
+                current_text.push(ch);
+            }
+            None => {
+                current_style = Some(style);
+                current_text.push(ch);
+            }
+        }
+    }
+
+    if let Some(style) = current_style {
+        push_span(&mut spans, style, current_text);
+    }
+
+    let mut hasher = DefaultHasher::new();
+    for span in &spans {
+        span.text.hash(&mut hasher);
+        span.fg.hash(&mut hasher);
+        span.bg.hash(&mut hasher);
+        span.bold.hash(&mut hasher);
+        span.italic.hash(&mut hasher);
+        span.underline.hash(&mut hasher);
+    }
+
+    TerminalLine {
+        sig: hasher.finish(),
+        spans,
     }
 }
 
 fn snapshot_from_screen(screen: &ScreenBuffer) -> TerminalSnapshot {
-    let mut lines = Vec::with_capacity(screen.scrollback.len() + screen.rows);
+    let mut lines = Vec::with_capacity(screen.rows);
 
-    // 首先包含 scrollback 历史
-    for row in &screen.scrollback {
-        let Some(last_non_blank) = row
-            .iter()
-            .rposition(|cell| cell.ch != ' ' && cell.ch != '\0')
-        else {
-            lines.push(TerminalLine { spans: Vec::new() });
-            continue;
-        };
-
-        let mut spans = Vec::new();
-        let mut current_style: Option<StyleKey> = None;
-        let mut current_text = String::new();
-
-        for cell in row.iter().take(last_non_blank + 1) {
-            let ch = if cell.ch == '\0' { ' ' } else { cell.ch };
-            let style = StyleKey::from_cell(cell);
-
-            match current_style {
-                Some(existing) if existing == style => {
-                    current_text.push(ch);
-                }
-                Some(existing) => {
-                    let completed = std::mem::take(&mut current_text);
-                    push_span(&mut spans, existing, completed);
-                    current_style = Some(style);
-                    current_text.push(ch);
-                }
-                None => {
-                    current_style = Some(style);
-                    current_text.push(ch);
-                }
-            }
-        }
-
-        if let Some(style) = current_style {
-            push_span(&mut spans, style, current_text);
-        }
-
-        lines.push(TerminalLine { spans });
-    }
-
-    // 然后包含当前可见的屏幕内容
     for row in &screen.cells {
-        let Some(last_non_blank) = row
-            .iter()
-            .rposition(|cell| cell.ch != ' ' && cell.ch != '\0')
-        else {
-            lines.push(TerminalLine { spans: Vec::new() });
-            continue
-        };
-
-        let mut spans = Vec::new();
-        let mut current_style: Option<StyleKey> = None;
-        let mut current_text = String::new();
-
-        for cell in row.iter().take(last_non_blank + 1) {
-            let ch = if cell.ch == '\0' { ' ' } else { cell.ch };
-            let style = StyleKey::from_cell(cell);
-
-            match current_style {
-                Some(existing) if existing == style => {
-                    current_text.push(ch);
-                }
-                Some(existing) => {
-                    let completed = std::mem::take(&mut current_text);
-                    push_span(&mut spans, existing, completed);
-                    current_style = Some(style);
-                    current_text.push(ch);
-                }
-                None => {
-                    current_style = Some(style);
-                    current_text.push(ch);
-                }
-            }
-        }
-
-        if let Some(style) = current_style {
-            push_span(&mut spans, style, current_text);
-        }
-
-        lines.push(TerminalLine { spans });
+        lines.push(row_to_line(row));
     }
-
-    // 不要删除末尾的空行！保持完整的行数
-    // while lines.last().is_some_and(|line| line.spans.is_empty()) {
-    //     lines.pop();
-    // }
 
     TerminalSnapshot {
         rows: screen.rows as u16,
         cols: screen.cols as u16,
-        cursor_row: (screen.scrollback.len() + screen.cursor_row) as u16,
+        cursor_row: screen.cursor_row as u16,
         cursor_col: screen.cursor_col as u16,
         lines,
     }
+}
+
+fn recent_scrollback_from_screen(screen: &ScreenBuffer, limit: usize) -> ScrollbackChunk {
+    if screen.is_alternate_screen() {
+        return ScrollbackChunk {
+            total: 0,
+            start: 0,
+            lines: Vec::new(),
+        };
+    }
+
+    let total = screen.scrollback.len();
+    let take = limit.min(total);
+    let start = total.saturating_sub(take);
+    let mut lines = Vec::with_capacity(take);
+
+    for row in screen.scrollback.iter().skip(start) {
+        lines.push(row_to_line(row));
+    }
+
+    ScrollbackChunk { total, start, lines }
 }

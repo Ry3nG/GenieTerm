@@ -1,6 +1,6 @@
 import Foundation
 
-struct TerminalSnapshot: Decodable, Equatable, Hashable {
+struct TerminalSnapshot: Decodable, Equatable {
     let rows: UInt16
     let cols: UInt16
     let cursor_row: UInt16
@@ -14,23 +14,14 @@ struct TerminalSnapshot: Decodable, Equatable, Hashable {
         cursor_col: 0,
         lines: []
     )
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(rows)
-        hasher.combine(cols)
-        hasher.combine(cursor_row)
-        hasher.combine(cursor_col)
-        for line in lines {
-            hasher.combine(line)
-        }
-    }
 }
 
-struct TerminalLine: Decodable, Equatable, Hashable {
+struct TerminalLine: Decodable, Equatable {
+    let sig: UInt64
     let spans: [TerminalSpan]
 }
 
-struct TerminalSpan: Decodable, Equatable, Hashable {
+struct TerminalSpan: Decodable, Equatable {
     let text: String
     let fg: UInt32
     let bg: UInt32
