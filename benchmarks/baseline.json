@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "benchmark": "core_bench",
+  "commit": "642206b",
+  "platform": "macos-aarch64",
+  "rustc_release": "unknown",
+  "config": {
+    "rows": 50,
+    "cols": 120,
+    "plain_lines": 100000,
+    "ansi_lines": 80000,
+    "snapshot_iterations": 30,
+    "scrollback_chunk_limit": 5000
+  },
+  "metrics": {
+    "parser_plain_lines_per_sec": 1335075.607000469,
+    "parser_plain_bytes_per_sec": 160209072.84005627,
+    "parser_ansi_lines_per_sec": 1476804.9325284748,
+    "parser_ansi_bytes_per_sec": 190507836.29617324,
+    "scrollback_plain_lines_per_sec": 1335075.607000469,
+    "snapshot_visible_ms_p50": 0.030209000000000003,
+    "snapshot_visible_ms_p95": 0.043459,
+    "snapshot_visible_json_bytes": 11857,
+    "snapshot_recent_scrollback_ms_p50": 3.098542,
+    "snapshot_recent_scrollback_ms_p95": 3.53125,
+    "snapshot_recent_scrollback_json_bytes": 1202010,
+    "scrollback_lines_after_workload": 10000
+  },
+  "total_runtime_ms": 259.96358299999997
+}

@@ -1,0 +1,37 @@
+\documentclass[tikz,border=6pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{xcolor}
+\usetikzlibrary{arrows.meta,positioning}
+\begin{document}
+\begin{tikzpicture}[x=1pt,y=1pt]
+\definecolor{text}{HTML}{1D1D1F}
+\definecolor{sub}{HTML}{6E6E73}
+\definecolor{line}{HTML}{E5E5EA}
+\definecolor{card}{HTML}{FAFAFC}
+\definecolor{blue}{HTML}{0071E3}
+\definecolor{warnbg}{HTML}{FFF8E6}
+\definecolor{warn}{HTML}{9A6700}
+
+\fill[white] (0,0) rectangle (1200,470);
+
+\node[anchor=west,text=text,font=\bfseries\fontsize{34}{38}\selectfont] at (52,425) {Hot Path Architecture};
+\node[anchor=west,text=sub,font=\fontsize{16}{20}\selectfont] at (52,395) {Only visible rows flow through the real-time frame pipeline};
+
+\tikzset{box/.style={draw=line,fill=card,rounded corners=14pt,minimum width=240pt,minimum height=118pt,align=left,inner sep=16pt}}
+\node[box] (pty) at (170,255) {\textcolor{text}{\bfseries\fontsize{20}{24}\selectfont PTY}\\[5pt]\textcolor{sub}{\fontsize{14}{18}\selectfont shell output}};
+\node[box] (engine) at (450,255) {\textcolor{text}{\bfseries\fontsize{20}{24}\selectfont Rust Engine}\\[5pt]\textcolor{sub}{\fontsize{14}{18}\selectfont ANSI parse + screen buffer}};
+\node[box] (snapshot) at (730,255) {\textcolor{text}{\bfseries\fontsize{20}{24}\selectfont Visible Snapshot}\\[5pt]\textcolor{sub}{\fontsize{14}{18}\selectfont screen.cells only}};
+\node[box] (swift) at (1010,255) {\textcolor{text}{\bfseries\fontsize{20}{24}\selectfont Swift + CoreText}\\[5pt]\textcolor{sub}{\fontsize{14}{18}\selectfont decode + draw canvas}};
+
+\draw[-{Latex[length=8pt,width=8pt]},blue,line width=2pt] (290,255) -- (330,255);
+\draw[-{Latex[length=8pt,width=8pt]},blue,line width=2pt] (570,255) -- (610,255);
+\draw[-{Latex[length=8pt,width=8pt]},blue,line width=2pt] (850,255) -- (890,255);
+
+\draw[dashed,line width=1.8pt,color=sub] (730,196) -- (730,140);
+\fill[warnbg,rounded corners=12pt] (470,70) rectangle (990,126);
+\draw[line,rounded corners=12pt] (470,70) rectangle (990,126);
+\node[anchor=west,text=warn,font=\bfseries\fontsize{18}{22}\selectfont] at (495,102) {Scrollback is outside hot path (loaded on demand)};
+\end{tikzpicture}
+\end{document}

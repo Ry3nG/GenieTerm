@@ -196,21 +196,13 @@ impl TerminalEngine {
     }
 
     pub fn snapshot_json(&self) -> String {
-        let snapshot = {
-            let screen = self.screen_buffer.lock().unwrap();
-            snapshot_from_screen(&screen)
-        };
-
-        serde_json::to_string(&snapshot).unwrap_or_else(|_| "{}".to_string())
+        let screen = self.screen_buffer.lock().unwrap();
+        snapshot_json_from_screen(&screen)
     }
 
     pub fn recent_scrollback_json(&self, limit: usize) -> String {
-        let chunk = {
-            let screen = self.screen_buffer.lock().unwrap();
-            recent_scrollback_from_screen(&screen, limit)
-        };
-
-        serde_json::to_string(&chunk).unwrap_or_else(|_| "{}".to_string())
+        let screen = self.screen_buffer.lock().unwrap();
+        recent_scrollback_json_from_screen(&screen, limit)
     }
 
     pub fn bracketed_paste_mode(&self) -> bool {
@@ -306,6 +298,11 @@ fn snapshot_from_screen(screen: &ScreenBuffer) -> TerminalSnapshot {
     }
 }
 
+pub fn snapshot_json_from_screen(screen: &ScreenBuffer) -> String {
+    let snapshot = snapshot_from_screen(screen);
+    serde_json::to_string(&snapshot).unwrap_or_else(|_| "{}".to_string())
+}
+
 fn recent_scrollback_from_screen(screen: &ScreenBuffer, limit: usize) -> ScrollbackChunk {
     if screen.is_alternate_screen() {
         return ScrollbackChunk {
@@ -324,5 +321,14 @@ fn recent_scrollback_from_screen(screen: &ScreenBuffer, limit: usize) -> Scrollb
         lines.push(row_to_line(row));
     }
 
-    ScrollbackChunk { total, start, lines }
+    ScrollbackChunk {
+        total,
+        start,
+        lines,
+    }
+}
+
+pub fn recent_scrollback_json_from_screen(screen: &ScreenBuffer, limit: usize) -> String {
+    let chunk = recent_scrollback_from_screen(screen, limit);
+    serde_json::to_string(&chunk).unwrap_or_else(|_| "{}".to_string())
 }

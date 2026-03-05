@@ -1,0 +1,32 @@
+{
+  "benchmark" : "swift_e2e_bench",
+  "commit" : "642206b",
+  "config" : {
+    "cols" : 120,
+    "command" : "seq 1 100000",
+    "idle_settle_ms" : 350,
+    "input_latency_samples" : 20,
+    "min_samples" : 40,
+    "rows" : 50,
+    "timeout_ms" : 15000
+  },
+  "final_snapshot_json_bytes" : 1224,
+  "final_snapshot_lines" : 50,
+  "frames" : 40,
+  "metrics" : {
+    "e2e_coretext_build_ms_p50" : 0.032832980155944824,
+    "e2e_coretext_build_ms_p95" : 0.30412501096725464,
+    "e2e_decode_ms_p50" : 0.05479198694229126,
+    "e2e_decode_ms_p95" : 0.2374579906463623,
+    "e2e_frame_total_ms_p50" : 0.15870898962020874,
+    "e2e_frame_total_ms_p95" : 0.47008299827575684,
+    "e2e_input_to_render_ms_p50" : 1.5500829815864563,
+    "e2e_input_to_render_ms_p95" : 1.7158339619636536,
+    "e2e_input_to_render_timeout_count" : 0,
+    "e2e_poll_json_ms_p50" : 0.07095801830291748,
+    "e2e_poll_json_ms_p95" : 0.15333300828933716
+  },
+  "platform" : "Version 26.3 (Build 25D125) (zerui-mbp.local)",
+  "schema_version" : 1,
+  "total_runtime_ms" : 392.3942919969559
+}

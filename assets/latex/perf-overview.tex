@@ -1,0 +1,76 @@
+\documentclass[tikz,border=6pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{xcolor}
+\begin{document}
+\begin{tikzpicture}[x=1pt,y=1pt]
+\definecolor{text}{HTML}{1D1D1F}
+\definecolor{sub}{HTML}{6E6E73}
+\definecolor{line}{HTML}{E5E5EA}
+\definecolor{card}{HTML}{FAFAFC}
+\definecolor{blue}{HTML}{0071E3}
+\definecolor{green}{HTML}{1D9A57}
+
+\fill[white] (0,0) rectangle (1200,700);
+
+\node[anchor=west,text=text,font=\bfseries\fontsize{34}{38}\selectfont] at (52,654) {Performance Snapshot};
+\node[anchor=west,text=sub,font=\fontsize{16}{20}\selectfont] at (52,623) {GenieTerm v0.2.0 vs v0.1.0 \;\textbullet\; 20-run median \;\textbullet\; March 5, 2026};
+
+% KPI cards
+\foreach \x/\title/\big/\small in {
+52/Parser throughput/+6.63x/{213,241 \;\textrightarrow\; 1,414,651 lines/s},
+424/Hot snapshot latency/185.33x faster/{5.660 ms \;\textrightarrow\; 0.031 ms p95},
+796/Snapshot payload/203.61x smaller/{2,150,565 \;\textrightarrow\; 10,562 bytes}
+}{
+  \fill[card,rounded corners=16pt] (\x,450) rectangle ++(352,148);
+  \draw[line,rounded corners=16pt] (\x,450) rectangle ++(352,148);
+  \node[anchor=west,text=sub,font=\fontsize{14}{18}\selectfont] at (\x+22,571) {\title};
+  \node[anchor=west,text=blue,font=\bfseries\fontsize{36}{40}\selectfont] at (\x+22,528) {\big};
+  \node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (\x+22,495) {\small};
+};
+
+% Table title
+\node[anchor=west,text=text,font=\bfseries\fontsize{22}{26}\selectfont] at (52,404) {Raw medians by metric};
+
+% Table frame
+\draw[line] (52,368) -- (1148,368);
+\draw[line] (52,330) -- (1148,330);
+\draw[line] (52,282) -- (1148,282);
+\draw[line] (52,234) -- (1148,234);
+\draw[line] (52,186) -- (1148,186);
+\draw[line] (52,138) -- (1148,138);
+\draw[line] (52,368) -- (52,138);
+\draw[line] (1148,368) -- (1148,138);
+\draw[line] (470,368) -- (470,138);
+\draw[line] (710,368) -- (710,138);
+\draw[line] (930,368) -- (930,138);
+
+\node[anchor=west,text=sub,font=\fontsize{13}{16}\selectfont] at (68,344) {Metric};
+\node[anchor=west,text=sub,font=\fontsize{13}{16}\selectfont] at (486,344) {v0.1.0};
+\node[anchor=west,text=sub,font=\fontsize{13}{16}\selectfont] at (726,344) {v0.2.0};
+\node[anchor=west,text=sub,font=\fontsize{13}{16}\selectfont] at (946,344) {Delta};
+
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (68,304) {Parser throughput (plain lines/s)};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (486,304) {213,241};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (726,304) {1,414,651};
+\node[anchor=west,text=green,font=\bfseries\fontsize{14}{18}\selectfont] at (946,304) {+6.63x};
+
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (68,256) {Parser throughput (ANSI lines/s)};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (486,256) {215,352};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (726,256) {1,300,569};
+\node[anchor=west,text=green,font=\bfseries\fontsize{14}{18}\selectfont] at (946,256) {+6.04x};
+
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (68,208) {Hot snapshot latency p95 (ms)};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (486,208) {5.660};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (726,208) {0.031};
+\node[anchor=west,text=green,font=\bfseries\fontsize{14}{18}\selectfont] at (946,208) {185.33x faster};
+
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (68,160) {Hot snapshot JSON payload (bytes)};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (486,160) {2,150,565};
+\node[anchor=west,text=text,font=\fontsize{14}{18}\selectfont] at (726,160) {10,562};
+\node[anchor=west,text=green,font=\bfseries\fontsize{14}{18}\selectfont] at (946,160) {203.61x smaller};
+
+\node[anchor=west,text=sub,font=\fontsize{12}{16}\selectfont] at (52,96) {Source: benchmarks/results/release-compare-20260305-062412};
+\end{tikzpicture}
+\end{document}

@@ -1,583 +1,173 @@
-# GenieTerm Optimization Roadmap
+# GenieTerm Roadmap (Performance-First)
 
-## Overview
+## Product Direction
 
-This document outlines potential improvements and optimizations for GenieTerm, organized by priority and implementation complexity. Each item includes estimated effort and impact.
+GenieTerm 的第一目标不是“功能最多”，而是成为 **macOS Terminal 的上位替代**：
 
----
+- 更轻量（低 CPU、低内存、低空闲唤醒）
+- 更快（低输入延迟、稳定 60/30fps 体感、长输出不掉帧）
+- 更稳（兼容主流 CLI、长时间运行可靠）
+- 更原生（符合 macOS 交互预期）
 
-## 🔥 High Priority - Quick Wins
-
-### 1. Command History Persistence
-**Effort:** Low | **Impact:** High
-
-Currently, command history is lost when the app closes. Implement persistent storage:
-
-- Save command history to `~/Library/Application Support/GenieTerm/history.json`
-- Load on startup
-- Configurable history size (default: 1000 commands)
-- Search through history with Cmd+R (reverse search like bash)
-
-**Implementation:**
-- Add `HistoryManager` class in Swift
-- Use `UserDefaults` or JSON file storage
-- Hook into `ImprovedDialogView` to save/load
-
-### 2. Keyboard Shortcuts
-**Effort:** Low | **Impact:** High
-
-Add essential keyboard shortcuts:
-
-- `Cmd+T` - New tab/window
-- `Cmd+W` - Close tab/window
-- `Cmd+K` - Clear screen
-- `Cmd+F` - Find in output
-- `Cmd+,` - Preferences
-- `Cmd+Up/Down` - Navigate command history
-- `Ctrl+C` - Interrupt (already works, but add visual feedback)
-
-**Implementation:**
-- Add `.keyboardShortcut()` modifiers in SwiftUI
-- Create `KeyboardShortcutHandler` to centralize logic
-
-### 3. Copy/Paste Improvements
-**Effort:** Low | **Impact:** Medium
-
-- Right-click context menu with Copy/Paste
-- Copy selected text from terminal output
-- Paste with Cmd+V (currently works, but add visual feedback)
-- Smart paste: detect multi-line and ask for confirmation
-
-**Implementation:**
-- Add `NSTextView` selection support in `TerminalTextView`
-- Implement context menu with `NSMenu`
-
-### 4. Visual Feedback for Running Commands
-**Effort:** Low | **Impact:** Medium
-
-- Show spinner/progress indicator when command is executing
-- Highlight the currently running command block
-- Show elapsed time for long-running commands
-- Add "Stop" button to send Ctrl+C
-
-**Implementation:**
-- Track command execution state in `CommandBlock`
-- Add timer to measure duration
-- Update UI with animation
+只有在上述目标达标后，才推进 Warp 风格的增强体验。
 
 ---
 
-## 🎯 Medium Priority - Core Features
+## Priority Rules (Hard Constraints)
 
-### 5. Tab Support
-**Effort:** Medium | **Impact:** High
-
-Multiple terminal sessions in tabs:
-
-- Tab bar at the top
-- Cmd+T to create new tab
-- Cmd+1-9 to switch tabs
-- Drag to reorder tabs
-- Each tab has independent PTY and history
-
-**Implementation:**
-- Create `TabManager` to manage multiple `TerminalBridge` instances
-- Update `ContentView` with `TabView`
-- Handle PTY lifecycle per tab
-
-### 6. Split Panes
-**Effort:** Medium | **Impact:** High
-
-Split terminal into multiple panes:
-
-- Cmd+D - Split horizontally
-- Cmd+Shift+D - Split vertically
-- Cmd+[ / Cmd+] - Navigate between panes
-- Drag divider to resize
-- Close pane with Cmd+W
-
-**Implementation:**
-- Create `PaneManager` with tree structure
-- Use `HSplitView` / `VSplitView` in SwiftUI
-- Each pane has its own `TerminalBridge`
-
-### 7. Search in Output
-**Effort:** Medium | **Impact:** Medium
-
-Find text in terminal output:
-
-- Cmd+F to open search bar
-- Highlight all matches
-- Next/Previous navigation
-- Regex support
-- Case-sensitive toggle
-
-**Implementation:**
-- Add search bar overlay in `ContentView`
-- Implement search in `TerminalSnapshot`
-- Highlight matches in `TerminalTextView`
-
-### 8. Themes and Customization
-**Effort:** Medium | **Impact:** Medium
-
-Customizable appearance:
-
-- Built-in themes (Dracula, Solarized, Nord, etc.)
-- Custom color schemes
-- Font selection and size
-- Background opacity
-- Cursor style (block, underline, bar)
-
-**Implementation:**
-- Create `Theme` struct with color definitions
-- Add `ThemeManager` for loading/saving
-- Preferences window with theme picker
-- Store in `UserDefaults`
-
-### 9. Smart Suggestions
-**Effort:** Medium | **Impact:** Medium
-
-Context-aware command suggestions:
-
-- Suggest based on current directory (e.g., `npm` commands in Node projects)
-- Learn from frequently used commands
-- Suggest flags and options for common commands
-- Show command descriptions/help
-
-**Implementation:**
-- Extend `CommandCompletion` with context awareness
-- Add command database (JSON file with common commands)
-- Machine learning for personalized suggestions (optional)
+1. **性能和稳定性优先于新功能**。
+2. 任意新功能必须通过性能门槛，不允许明显回退。
+3. 先做“终端基础能力完整”，再做“智能/设计加成”。
+4. Warp 风格能力默认按“可选增强层”设计，不能拖慢基础终端路径。
 
 ---
 
-## 🚀 Advanced Features
+## Current Architecture Findings
 
-### 10. AI Integration
-**Effort:** High | **Impact:** High
+基于当前代码（Rust core + SwiftUI/AppKit）梳理出的关键瓶颈：
 
-Integrate AI assistance:
-
-- Cmd+Shift+A - Ask AI about command/error
-- Explain command before running
-- Suggest fixes for errors
-- Natural language to command conversion
-- "What does this command do?"
-
-**Implementation:**
-- Add OpenAI/Anthropic API integration
-- Create `AIAssistant` service
-- Add UI for AI chat/suggestions
-- Privacy: make it opt-in, allow local models
-
-### 11. Session Recording and Playback
-**Effort:** High | **Impact:** Medium
-
-Record and replay terminal sessions:
-
-- Record all input/output
-- Save as `.cast` file (asciinema format)
-- Playback with speed control
-- Share recordings
-- Export to GIF/video
-
-**Implementation:**
-- Add `SessionRecorder` to capture PTY I/O
-- Implement asciinema format writer
-- Create playback UI with timeline
-- Use `AVFoundation` for video export
-
-### 12. Remote SSH Sessions
-**Effort:** High | **Impact:** High
-
-Built-in SSH client:
-
-- Connect to remote servers
-- Save connection profiles
-- Key-based authentication
-- Port forwarding
-- SFTP integration for file transfer
-
-**Implementation:**
-- Integrate `libssh2` or use `ssh` command
-- Create connection manager UI
-- Store credentials securely in Keychain
-- Handle connection lifecycle
-
-### 13. Command Palette
-**Effort:** Medium | **Impact:** Medium
-
-Warp-style command palette:
-
-- Cmd+K to open
-- Fuzzy search for commands
-- Recent commands
-- Saved snippets
-- Quick actions (clear, split, new tab, etc.)
-
-**Implementation:**
-- Create overlay UI with search
-- Implement fuzzy matching algorithm
-- Add command registry
-- Keyboard navigation
-
-### 14. Notifications and Alerts
-**Effort:** Low | **Impact:** Low
-
-Notify when long-running commands complete:
-
-- macOS notification when command finishes
-- Configurable threshold (e.g., notify if > 10 seconds)
-- Sound alert option
-- Badge on dock icon
-
-**Implementation:**
-- Use `UNUserNotificationCenter`
-- Track command duration
-- Request notification permissions
+- 热路径仍依赖 JSON 快照（已收敛到可见区，但仍有序列化/解码成本）。
+- 可见区渲染已切到 CoreText canvas，后续应继续推进“脏行/增量”数据路径。
+- scrollback 已拆分为按需视口模式，仍需持续验证滚动手感与滚动条稳定性。
+- 兼容性与可量化基准（性能、长稳）仍是当前主要缺口。
 
 ---
 
-## 🎨 UI/UX Improvements
+## v0.2.0 Completed Baseline
 
-### 15. Smooth Scrolling
-**Effort:** Low | **Impact:** Medium
-
-Improve scrolling experience:
-
-- Momentum scrolling
-- Smooth animation
-- Scroll to bottom on new output
-- "Jump to bottom" button when scrolled up
-
-**Implementation:**
-- Optimize `TerminalTextView` rendering
-- Add scroll position tracking
-- Implement auto-scroll logic
-
-### 16. Minimap
-**Effort:** Medium | **Impact:** Low
-
-VSCode-style minimap for long output:
-
-- Show overview of entire buffer
-- Click to jump to position
-- Highlight search results
-- Show current viewport
-
-**Implementation:**
-- Create minimap view with scaled-down text
-- Render in separate view
-- Update on scroll/output changes
-
-### 17. Status Bar
-**Effort:** Low | **Impact:** Low
-
-Bottom status bar showing:
-
-- Current directory
-- Git branch (if in repo)
-- Command execution time
-- Cursor position (row, col)
-- Encoding
-
-**Implementation:**
-- Add status bar view at bottom
-- Parse git info from shell
-- Update on directory change
-
-### 18. Welcome Screen
-**Effort:** Low | **Impact:** Low
-
-First-run experience:
-
-- Welcome message
-- Quick tutorial
-- Keyboard shortcuts reference
-- Sample commands to try
-
-**Implementation:**
-- Show on first launch
-- Store flag in `UserDefaults`
-- Create onboarding UI
+- [x] 终端渲染从 `NSTextView` 重写为 CoreText canvas。
+- [x] 热快照仅包含可见行；scrollback 通过单独接口按需拉取。
+- [x] Alternate screen 快照隔离修复（不混入 scrollback）。
+- [x] Tab 行为修复（右边界钳制）。
+- [x] 上半区鼠标框选 + `Cmd+C` 复制；粘贴按 first responder 路由。
+- [x] 下半区简化为单行输入；移除 multiline toggle 与历史块展示；支持 `Up/Down` 历史导航。
 
 ---
 
-## 🔧 Technical Improvements
+## Phase 0: Foundation (Now - v0.2.x)
 
-### 19. Performance Optimization
-**Effort:** Medium | **Impact:** High
+目标：先把“轻量、高性能、可持续迭代”地基打稳。
 
-Optimize for large outputs:
+### 0.1 Data Path Optimization
 
-- Virtual scrolling (only render visible lines)
-- Incremental rendering
-- Buffer size limits with circular buffer
-- Lazy loading of history
+- [x] 增加快照版本号（snapshot version），只有内容变化才拉取快照。
+- [x] Swift 轮询改为“先读版本，再决定是否拉 JSON”。
+- [x] 空闲时降频轮询，活跃时恢复高频轮询。
+- [x] 渲染层由 `hashValue` 全量比较切换为 `version` 比较。
+- [x] 上半区渲染切换到 CoreText canvas（替代 NSTextView 全量富文本布局）。
 
-**Implementation:**
-- Refactor `TerminalTextView` with virtual scrolling
-- Optimize `ScreenBuffer` in Rust
-- Profile and benchmark
+### 0.2 Buffer Efficiency
 
-### 20. Better ANSI Support
-**Effort:** Medium | **Impact:** Medium
+- [x] `scrollback` 改为 `VecDeque`，避免头删线性代价。
+- [ ] 引入环形缓冲策略（固定上限 + 回收复用）。
+- [ ] 评估/实现增量快照（仅变化行），减少大 JSON 负载。
 
-Improve terminal compatibility:
+### 0.3 Baseline Instrumentation
 
-- Support more ANSI escape sequences
-- Hyperlinks (OSC 8)
-- Images (iTerm2 inline images)
-- Sixel graphics
-- True color (24-bit)
+- [x] 增加基准脚本框架（`benchmarks/run_benchmarks.sh` + `core_bench`）。
+- [x] 在本地脚本输出关键指标并落盘 JSON（`benchmarks/results/*.json`）。
+- [x] 增加 Swift E2E 基准（FFI 拉取 + JSON decode + CoreText 构建）与独立回归阈值。
+- [ ] 建立“性能回归红线”并在 PR 里执行。
 
-**Implementation:**
-- Extend `parser.rs` with more sequences
-- Add image rendering in Swift
-- Test with various CLI tools
+### Phase 0 Exit Criteria
 
-### 21. Shell Integration
-**Effort:** Medium | **Impact:** High
-
-Deep shell integration:
-
-- Detect command boundaries
-- Show exit codes
-- Jump between commands
-- Semantic history (know what's a command vs output)
-
-**Implementation:**
-- Inject shell hooks (like iTerm2 shell integration)
-- Parse shell prompts
-- Track command execution
-
-### 22. Plugin System
-**Effort:** High | **Impact:** Medium
-
-Extensibility via plugins:
-
-- JavaScript/Lua plugin API
-- Custom commands
-- UI extensions
-- Theme plugins
-- Share plugins via registry
-
-**Implementation:**
-- Embed JavaScript engine (JavaScriptCore)
-- Define plugin API
-- Create plugin manager
-- Sandbox for security
+- 空闲 CPU：M 系列机器长期保持低占用（目标 < 2%）。
+- 高频输出时 UI 可交互，不出现明显输入卡顿。
+- 50k+ 行输出仍可平滑滚动与选择。
 
 ---
 
-## 📊 Analytics and Insights
+## Phase 1: macOS Terminal Replacement (v0.3.x)
 
-### 23. Command Analytics
-**Effort:** Low | **Impact:** Low
+目标：功能上成为 macOS Terminal 的可靠上位替代。
 
-Track usage patterns (privacy-respecting):
+### 1.1 Core Usability (Must-have)
 
-- Most used commands
-- Time spent in terminal
-- Command success/failure rates
-- Productivity insights
+- [x] 基础快捷键语义（复制、粘贴、清屏、中断）。
+- [ ] 查找等高级菜单语义补全。
+- [x] 稳定文本选择与 `Cmd+C` 复制（上半区）。
+- [ ] 右键菜单、拖拽粘贴。
+- [ ] 命令历史持久化与基础检索（不引入重 UI）。
+- [ ] 稳定窗口/字体/主题配置（保持默认轻量）。
 
-**Implementation:**
-- Local-only analytics (no telemetry)
-- Store in SQLite database
-- Visualization dashboard
+### 1.2 Compatibility & Correctness
 
-### 24. Error Detection
-**Effort:** Medium | **Impact:** Medium
+- [ ] ANSI/CSI 支持补全（优先真实使用频率高的序列）。
+- [ ] tmux/vim/less/top 等兼容性专项测试。
+- [ ] Shell 集成最小集：命令边界、退出码、工作目录追踪。
 
-Smart error handling:
+### 1.3 Reliability
 
-- Detect common errors (command not found, permission denied)
-- Suggest fixes
-- Link to documentation
-- Stack Overflow integration
+- [ ] 长会话压力测试（8h+）与内存增长控制。
+- [ ] PTY 断连、异常 shell 退出、自恢复策略。
 
-**Implementation:**
-- Pattern matching on stderr
-- Error database with solutions
-- Web search integration
+### Phase 1 Exit Criteria
+
+- 日常开发工作可 100% 用 GenieTerm 完成。
+- 与 macOS Terminal 对比，输入响应与滚动体验不落后。
+- 关键命令行工具兼容性通过率达到发布标准。
 
 ---
 
-## 🔐 Security and Privacy
+## Phase 2: Pro Native Terminal (v0.4.x)
 
-### 25. Secure Input
-**Effort:** Low | **Impact:** High
+目标：在不牺牲性能前提下，提供专业用户需要的效率能力。
 
-Protect sensitive data:
+- [ ] 多标签（Tab）与稳定会话管理。
+- [ ] 分屏（Pane）和焦点切换。
+- [ ] 输出搜索（含大小写/regex 基础能力）。
+- [ ] 通知与长任务完成提醒。
+- [ ] 会话恢复与崩溃保护。
 
-- Mask password input
-- Don't save sensitive commands to history
-- Detect API keys and warn
-- Secure clipboard handling
-
-**Implementation:**
-- Detect password prompts
-- Pattern matching for secrets
-- Add "sensitive mode" toggle
-
-### 26. Sandboxing
-**Effort:** High | **Impact:** Medium
-
-macOS App Sandbox support:
-
-- Enable sandbox for App Store distribution
-- Request necessary entitlements
-- Handle file access properly
-
-**Implementation:**
-- Update entitlements
-- Test with sandbox enabled
-- Handle permission requests
+性能约束：以上能力全部启用时，仍需通过 Phase 0 的性能红线。
 
 ---
 
-## 🌐 Cloud and Sync
+## Phase 3: Warp-Inspired Layer (v0.5.x+)
 
-### 27. Settings Sync
-**Effort:** Medium | **Impact:** Low
+目标：在“基础终端已足够强”的前提下，再做设计和智能增强。
 
-Sync settings across devices:
+- [ ] 命令块（Command Blocks）与命令级导航。
+- [ ] 命令面板（Command Palette）与模糊搜索。
+- [ ] 智能建议（上下文补全、常用命令学习）。
+- [ ] AI 辅助（解释报错/生成命令），默认可选、严格隐私边界。
 
-- iCloud sync for preferences
-- Command history sync
-- Theme sync
-- SSH profiles sync
-
-**Implementation:**
-- Use `NSUbiquitousKeyValueStore`
-- CloudKit for larger data
-- Conflict resolution
-
-### 28. Snippet Library
-**Effort:** Medium | **Impact:** Medium
-
-Save and share command snippets:
-
-- Local snippet storage
-- Tags and categories
-- Variables/placeholders
-- Share via URL or file
-
-**Implementation:**
-- Create snippet manager
-- UI for browsing/editing
-- Export/import functionality
+说明：Warp 风格能力应设计为可关闭的增强层，不影响基础终端速度与稳定性。
 
 ---
 
-## 📱 Platform Expansion
+## De-Prioritized (Before v0.5)
 
-### 29. iOS/iPadOS Version
-**Effort:** Very High | **Impact:** High
+以下方向在基础目标完成前暂不作为主线：
 
-Mobile terminal app:
-
-- Shared Rust core
-- SwiftUI for iOS
-- Touch-optimized UI
-- External keyboard support
-
-**Implementation:**
-- Make Rust core platform-agnostic
-- Create iOS target
-- Adapt UI for mobile
-
-### 30. Linux/Windows Support
-**Effort:** Very High | **Impact:** Medium
-
-Cross-platform terminal:
-
-- Keep Rust core
-- Platform-specific UI (GTK/WPF)
-- Or use cross-platform framework (Tauri, Flutter)
-
-**Implementation:**
-- Abstract platform-specific code
-- Create platform layers
-- Test on each platform
+- 插件系统
+- 云同步
+- iOS/iPadOS 版本
+- Linux/Windows 扩展
+- 会话录制与分享平台化
 
 ---
 
-## 📝 Implementation Priority Matrix
+## Release Gates
 
-### Phase 1 (v0.2.0) - Quick Wins
-- Command history persistence
-- Keyboard shortcuts
-- Copy/paste improvements
-- Visual feedback for running commands
+每个版本发布前必须满足：
 
-### Phase 2 (v0.3.0) - Core Features
-- Tab support
-- Themes and customization
-- Search in output
-- Smart suggestions
-
-### Phase 3 (v0.4.0) - Advanced
-- Split panes
-- Command palette
-- Shell integration
-- Performance optimization
-
-### Phase 4 (v0.5.0+) - Future
-- AI integration
-- Remote SSH
-- Plugin system
-- Session recording
+- 无阻塞级崩溃（P0/P1）
+- 性能基准不回退
+- 关键兼容性清单通过
+- 至少一次长时稳定性回归
 
 ---
 
-## 🎯 Success Metrics
+## Success Metrics
 
-Track these to measure improvement:
-
-- **Performance:** Time to render 10,000 lines
-- **Usability:** Keyboard shortcut usage rate
-- **Stability:** Crash-free sessions
-- **Adoption:** GitHub stars, downloads
-- **Engagement:** Daily active users, session duration
-
----
-
-## 🤝 Community Contributions
-
-Encourage contributions:
-
-- Label issues as "good first issue"
-- Create contribution guidelines
-- Set up CI/CD for PRs
-- Code review process
-- Recognition for contributors
+- Startup time（冷启动）
+- Idle CPU / memory
+- 输入到回显延迟（p50/p95）
+- 大输出渲染耗时（10k/50k 行）
+- Crash-free session rate
+- 每日活跃用户中的“默认终端替换率”
 
 ---
 
-## 📚 Documentation Needs
-
-- User guide with screenshots
-- Keyboard shortcuts reference
-- API documentation for plugins
-- Architecture overview
-- Contributing guide
-- FAQ
-
----
-
-## 🔄 Continuous Improvement
-
-Regular maintenance:
-
-- Update dependencies
-- Fix bugs reported by users
-- Performance profiling
-- Security audits
-- Accessibility improvements
-- Localization (i18n)
-
----
-
-*This roadmap is a living document. Priorities may change based on user feedback and technical constraints.*
+*This roadmap is intentionally strict: performance and terminal fundamentals first, Warp-like enhancements second.*

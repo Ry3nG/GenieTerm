@@ -2,45 +2,71 @@
 
 ![GenieTerm Banner](assets/banner.png)
 
-A modern terminal for macOS.
+GenieTerm is a native macOS terminal focused on one thing: **terminal-grade performance with a minimal UI**.
 
-## Download
+Top half is a real terminal. Bottom half is a simple command composer you can edit with mouse/keyboard and send instantly.
 
-[Download the latest version](https://github.com/Ry3nG/GenieTerm/releases/latest)
+## Product Principles
 
-Drag GenieTerm to your Applications folder and launch.
+- Fast by default: keep the hot path small and predictable.
+- Native by default: behave like a macOS app, not a web wrapper.
+- Minimal by default: only ship features that improve daily terminal work.
 
-## Features
+## What We Open Source
 
-**Command History** - See your recent commands at a glance. Click to edit or rerun.
+This repository includes the full product-critical stack:
 
-**Smart Completion** - Press Tab to complete file paths and commands.
+- Rust terminal core (PTY, ANSI parser, screen buffer)
+- Native macOS app (SwiftUI/AppKit + CoreText rendering path)
+- FFI boundary and headers
+- Benchmark and regression tooling
+- Documentation, roadmap, and contribution guides
 
-**Multi-line Editing** - Write complex commands with ease.
+Open-source scope details: [OPEN_SOURCE_SCOPE.md](OPEN_SOURCE_SCOPE.md)
 
-**Native macOS** - Built with SwiftUI for a fast, native experience.
+## Quick Start
 
-## Requirements
+Download:
 
-macOS 13.0 or later
+- [Latest release](https://github.com/Ry3nG/GenieTerm/releases/latest)
 
-## Support
-
-Questions or feedback? [Open an issue](https://github.com/Ry3nG/GenieTerm/issues)
-
----
-
-## Building from Source
+Build from source:
 
 ```bash
 ./run.sh
 ```
 
-Requires Rust 1.70+ and Swift 5.9+
+Manual build:
+
+```bash
+cargo build --lib
+cd native/GenieTerm
+swift build
+swift run
+```
+
+Requirements:
+
+- macOS 13+
+- Rust 1.70+
+- Swift 5.9+
+
+## Performance
+
+v0.2.0 vs v0.1.0 (20-run median): parser throughput improved ~6x, hot snapshot latency improved ~185x, snapshot payload reduced ~203x.
+
+![Performance Overview](assets/perf-overview.png)
+
+Reproduce and inspect full results:
+
+- [benchmarks/README.md](benchmarks/README.md)
+
+## Project Docs
+
+- [ROADMAP.md](ROADMAP.md)
+- [CLAUDE.md](CLAUDE.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
 [MIT](LICENSE)
-
-
-

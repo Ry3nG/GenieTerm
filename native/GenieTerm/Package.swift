@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [
         .executable(name: "GenieTerm", targets: ["GenieTerm"]),
+        .executable(name: "GenieTermE2EBench", targets: ["GenieTermE2EBench"]),
     ],
     targets: [
         .systemLibrary(
@@ -19,6 +20,18 @@ let package = Package(
             resources: [
                 .process("Resources")
             ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L../../target/debug",
+                    "-L../../target/release",
+                    "-lgenieterm_ffi",
+                ]),
+            ]
+        ),
+        .executableTarget(
+            name: "GenieTermE2EBench",
+            dependencies: ["CGenieTerm"],
+            path: "Sources/GenieTermE2EBench",
             linkerSettings: [
                 .unsafeFlags([
                     "-L../../target/debug",

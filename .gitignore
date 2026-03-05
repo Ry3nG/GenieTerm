@@ -20,3 +20,5 @@ Cargo.lock
 .claude/
 .archive/
 docs/
+benchmarks/results/**
+!benchmarks/results/.gitkeep

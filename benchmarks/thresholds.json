@@ -1,0 +1,28 @@
+{
+  "metrics": {
+    "parser_plain_lines_per_sec": {
+      "direction": "higher_better",
+      "max_regression_pct": 12.0
+    },
+    "parser_plain_bytes_per_sec": {
+      "direction": "higher_better",
+      "max_regression_pct": 12.0
+    },
+    "parser_ansi_lines_per_sec": {
+      "direction": "higher_better",
+      "max_regression_pct": 12.0
+    },
+    "parser_ansi_bytes_per_sec": {
+      "direction": "higher_better",
+      "max_regression_pct": 12.0
+    },
+    "snapshot_visible_ms_p95": {
+      "direction": "lower_better",
+      "max_regression_pct": 15.0
+    },
+    "snapshot_recent_scrollback_ms_p95": {
+      "direction": "lower_better",
+      "max_regression_pct": 35.0
+    }
+  }
+}
