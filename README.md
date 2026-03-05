@@ -2,7 +2,7 @@
 
 ![GenieTerm Banner](assets/banner.png)
 
-GenieTerm is a native macOS terminal focused on one thing: **terminal-grade performance with a minimal UI**.
+GenieTerm is a native macOS terminal focused on performance and usability.
 
 Top half is a real terminal. Bottom half is a simple command composer you can edit with mouse/keyboard and send instantly.
 
