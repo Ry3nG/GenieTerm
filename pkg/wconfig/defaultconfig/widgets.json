@@ -10,16 +10,6 @@
             }
         }
     },
-    "defwidget@agents": {
-        "display:order": -4.9,
-        "icon": "robot",
-        "label": "agents",
-        "blockdef": {
-            "meta": {
-                "view": "agents"
-            }
-        }
-    },
     "defwidget@files": {
         "display:order": -4,
         "icon": "folder",
