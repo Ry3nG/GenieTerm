@@ -718,6 +718,10 @@ func getLocalShellOpts(blockMeta waveobj.MetaMapType) []string {
 func createCmdStrAndOpts(blockId string, blockMeta waveobj.MetaMapType, connName string) (string, *shellexec.CommandOptsType, error) {
 	var cmdStr string
 	var cmdOpts shellexec.CommandOptsType
+	// Run cmd blocks through a login shell so launched programs (e.g. the claude/codex
+	// CLIs) resolve against the user's full PATH, not Electron's minimal GUI-launch PATH
+	// (which omits /opt/homebrew/bin, ~/.local/bin, etc.).
+	cmdOpts.Login = true
 	cmdStr = blockMeta.GetString(waveobj.MetaKey_Cmd, "")
 	if cmdStr == "" {
 		return "", nil, fmt.Errorf("missing cmd in block meta")

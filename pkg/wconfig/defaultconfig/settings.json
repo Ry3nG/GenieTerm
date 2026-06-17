@@ -9,7 +9,7 @@
     "app:hideaibutton": false,
     "app:hidetabbar": false,
     "app:hidesidebar": false,
-    "app:rightclickpaste": false,
+    "app:rightclickpaste": true,
     "term:showsplitbuttons": false,
     "app:disablectrlshiftarrows": false,
     "app:disablectrlshiftdisplay": false,

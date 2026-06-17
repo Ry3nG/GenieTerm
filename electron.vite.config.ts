@@ -142,6 +142,15 @@ export default defineConfig({
                         }
                         if (p.includes("node_modules/cytoscape") || p.includes("node_modules/@cytoscape"))
                             return "cytoscape";
+                        if (
+                            p.includes("node_modules/@observablehq/plot") ||
+                            p.includes("node_modules/d3-") ||
+                            p.includes("node_modules/d3/") ||
+                            p.includes("node_modules/internmap") ||
+                            p.includes("node_modules/isoformat") ||
+                            p.includes("node_modules/htl")
+                        )
+                            return "plot";
                         return undefined;
                     },
                 },

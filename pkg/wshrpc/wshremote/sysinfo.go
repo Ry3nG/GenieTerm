@@ -5,6 +5,8 @@ package wshremote
 
 import (
 	"log"
+	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -48,8 +50,20 @@ func getMemData(values map[string]float64) {
 	values["mem:free"] = float64(memData.Free) / BYTES_PER_GB
 }
 
+// diskRoot returns the mountpoint to report disk usage for, per the OS this
+// code runs on (which is the remote host for SSH connections).
+func diskRoot() string {
+	if runtime.GOOS == "windows" {
+		if sysDrive := os.Getenv("SystemDrive"); sysDrive != "" {
+			return sysDrive + "\\"
+		}
+		return "C:\\"
+	}
+	return "/"
+}
+
 func getDiskData(values map[string]float64) {
-	usage, err := disk.Usage("/")
+	usage, err := disk.Usage(diskRoot())
 	if err != nil {
 		return
 	}
@@ -105,7 +119,7 @@ func generateSingleServerData(client *wshutil.WshRpc, connName string, netState 
 		Event:   wps.Event_SysInfo,
 		Scopes:  []string{connName},
 		Data:    tsData,
-		Persist: 1024,
+		Persist: 150,
 	}
 	wshclient.EventPublishCommand(client, event, &wshrpc.RpcOpts{NoResponse: true})
 }

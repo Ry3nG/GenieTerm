@@ -89,7 +89,7 @@ const DefaultPlotMeta = {
     "mem:free": defaultMemMeta("Memory Free", "mem:total"),
     "mem:available": defaultMemMeta("Memory Available", "mem:total"),
 };
-for (let i = 0; i < 32; i++) {
+for (let i = 0; i < 128; i++) {
     DefaultPlotMeta[`cpu:${i}`] = defaultCpuMeta(`Core ${i}`);
 }
 
@@ -182,8 +182,7 @@ class SysinfoViewModel implements ViewModel {
             try {
                 const latestItemTs = newPoint?.ts ?? 0;
                 const cutoffTs = latestItemTs - 1000 * targetLen;
-                data.push(newPoint);
-                const newData = data.filter((dataItem) => dataItem.ts >= cutoffTs);
+                const newData = [...data, newPoint].filter((dataItem) => dataItem.ts >= cutoffTs);
                 set(this.dataAtom, newData);
             } catch (e) {
                 console.log("Error adding data to sysinfo", e);
@@ -373,6 +372,9 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
                     return;
                 }
                 const dataItem = convertWaveEventToDataItem(event);
+                if (dataItem == null) {
+                    return;
+                }
                 const prevData = globalStore.get(model.dataAtom);
                 const prevLastTs = prevData[prevData.length - 1]?.ts ?? 0;
                 if (dataItem.ts - prevLastTs > 2000) {
