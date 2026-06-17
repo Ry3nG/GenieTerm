@@ -7,8 +7,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
-	"github.com/wavetermdev/waveterm/pkg/web/sse"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/web/sse"
 )
 
 type ApprovalRequest struct {

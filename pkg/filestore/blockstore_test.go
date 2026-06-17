@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wavetermdev/waveterm/pkg/ijson"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/ijson"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 func initDb(t *testing.T) {

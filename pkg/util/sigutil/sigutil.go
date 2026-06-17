@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 )
 
 func InstallShutdownSignalHandlers(doShutdown func(string)) {

@@ -4,7 +4,7 @@
 package gemini
 
 import (
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
 )
 
 const (

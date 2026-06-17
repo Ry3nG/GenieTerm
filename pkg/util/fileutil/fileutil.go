@@ -16,7 +16,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 )
 
 type ByteRangeType struct {

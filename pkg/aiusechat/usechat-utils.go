@@ -4,7 +4,7 @@
 package aiusechat
 
 import (
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
 )
 
 // CombineConsecutiveSameRoleMessages combines consecutive UIMessages with the same role

@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wavetermdev/waveterm/tsunami/rpctypes"
-	"github.com/wavetermdev/waveterm/tsunami/util"
-	"github.com/wavetermdev/waveterm/tsunami/vdom"
+	"github.com/Ry3nG/GenieTerm/tsunami/rpctypes"
+	"github.com/Ry3nG/GenieTerm/tsunami/util"
+	"github.com/Ry3nG/GenieTerm/tsunami/vdom"
 )
 
 const SSEKeepAliveDuration = 5 * time.Second

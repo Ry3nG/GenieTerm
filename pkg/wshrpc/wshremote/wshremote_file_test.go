@@ -6,7 +6,7 @@ package wshremote
 import (
 	"testing"
 
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 )
 
 func TestRouteForFileSourceHostUsesDefaultRouteForLocalFileSource(t *testing.T) {

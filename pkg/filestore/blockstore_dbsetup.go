@@ -13,14 +13,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/util/migrateutil"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/util/migrateutil"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sawka/txwrap"
 
-	dbfs "github.com/wavetermdev/waveterm/db"
+	dbfs "github.com/Ry3nG/GenieTerm/db"
 )
 
 const FilestoreDBName = "filestore.db"

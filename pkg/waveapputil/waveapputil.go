@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/wconfig"
-	"github.com/wavetermdev/waveterm/tsunami/build"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
+	"github.com/Ry3nG/GenieTerm/tsunami/build"
 )
 
 const DefaultTsunamiSdkVersion = "v0.12.4"

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 type AckSender interface {
