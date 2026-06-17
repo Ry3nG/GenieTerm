@@ -59,6 +59,9 @@ function defaultMemMeta(name: string, maxY: string): TimeSeriesMeta {
 }
 
 const PlotTypes: object = {
+    Overview: function (_dataItem: DataItem): Array<string> {
+        return ["cpu"];
+    },
     CPU: function (_dataItem: DataItem): Array<string> {
         return ["cpu"];
     },
@@ -213,7 +216,7 @@ class SysinfoViewModel implements ViewModel {
         this.plotTypeSelectedAtom = jotai.atom((get) => {
             const plotType = get(this.env.getBlockMetaKeyAtom(blockId, "sysinfo:type"));
             if (plotType == null || typeof plotType != "string") {
-                return "CPU";
+                return "Overview";
             }
             return plotType;
         });
@@ -522,12 +525,155 @@ function SingleLinePlot({
     return <div ref={containerRef} className="min-h-[100px]" />;
 }
 
+// Severity gradient for usage meters: calm accent -> warning -> error, tied to theme tokens.
+function usageColor(pct: number): string {
+    if (pct == null || isNaN(pct)) {
+        return "var(--grey-text-color)";
+    }
+    if (pct >= 85) {
+        return "var(--error-color)";
+    }
+    if (pct >= 60) {
+        return "var(--warning-color)";
+    }
+    return "var(--accent-color)";
+}
+
+// Most-recent non-NaN value for a key (the data is gap-filled with NaN, so scan back).
+function latestValidValue(data: Array<DataItem>, key: string): number {
+    for (let i = data.length - 1; i >= 0; i--) {
+        const v = data[i]?.[key];
+        if (v != null && !isNaN(v)) {
+            return v;
+        }
+    }
+    return NaN;
+}
+
+function cpuCoreKeys(item: DataItem): string[] {
+    if (item == null) {
+        return [];
+    }
+    return Object.keys(item)
+        .filter((k) => k.startsWith("cpu:"))
+        .sort((a, b) => parseInt(a.slice(4)) - parseInt(b.slice(4)));
+}
+
+function fmtPct(v: number): string {
+    return isNaN(v) ? "—" : `${Math.round(v)}%`;
+}
+
+function fmtGB(v: number): string {
+    return isNaN(v) ? "—" : v.toFixed(1);
+}
+
+const CoreMeter = React.memo(({ label, pct }: { label: string; pct: number }) => {
+    const width = isNaN(pct) ? 0 : Math.max(0, Math.min(100, pct));
+    return (
+        <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[11px] text-muted w-[26px] shrink-0">{label}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-hoverbg overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: usageColor(pct) }} />
+            </div>
+            <span className="font-mono text-[11px] text-secondary w-[30px] text-right shrink-0">{fmtPct(pct)}</span>
+        </div>
+    );
+});
+CoreMeter.displayName = "CoreMeter";
+
+type SysinfoDashboardProps = {
+    model: SysinfoViewModel;
+    plotData: Array<DataItem>;
+    plotMeta: Map<string, TimeSeriesMeta>;
+    targetLen: number;
+};
+
+function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashboardProps) {
+    const latest = plotData[plotData.length - 1];
+    const cpu = latestValidValue(plotData, "cpu");
+    const coreKeys = cpuCoreKeys(latest);
+    const memUsed = latestValidValue(plotData, "mem:used");
+    const memTotal = latestValidValue(plotData, "mem:total");
+    const memAvail = latestValidValue(plotData, "mem:available");
+    const memFree = latestValidValue(plotData, "mem:free");
+    const memPct = !isNaN(memUsed) && memTotal > 0 ? (memUsed / memTotal) * 100 : NaN;
+
+    return (
+        <div className="flex flex-col gap-[10px] p-0.5">
+            <div className="bg-modalbg border border-border rounded-[10px] px-3.5 py-3">
+                <div className="flex items-center gap-2.5">
+                    <i className="fa-sharp fa-solid fa-microchip text-[16px]" style={{ color: "var(--accent-color)" }} />
+                    <span className="text-foreground text-[13px]">CPU</span>
+                    {coreKeys.length > 0 && <span className="text-muted text-[12px]">{coreKeys.length} cores</span>}
+                    <span className="ml-auto font-mono text-[26px] font-medium leading-none" style={{ color: usageColor(cpu) }}>
+                        {fmtPct(cpu)}
+                    </span>
+                </div>
+                <div className="h-[100px] mt-2">
+                    <SingleLinePlot
+                        plotData={plotData}
+                        yval="cpu"
+                        yvalMeta={plotMeta.get("cpu")}
+                        blockId={model.blockId}
+                        defaultColor="var(--accent-color)"
+                        sparkline={true}
+                        targetLen={targetLen}
+                    />
+                </div>
+                {coreKeys.length > 0 && (
+                    <div
+                        className="mt-2.5 grid gap-x-4 gap-y-1.5"
+                        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))" }}
+                    >
+                        {coreKeys.map((key) => (
+                            <CoreMeter key={key} label={`C${key.slice(4)}`} pct={latestValidValue(plotData, key)} />
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="bg-modalbg border border-border rounded-[10px] px-3.5 py-3">
+                <div className="flex items-center gap-2.5 mb-2">
+                    <i className="fa-sharp fa-solid fa-memory text-[16px]" style={{ color: "var(--accent-color)" }} />
+                    <span className="text-foreground text-[13px]">Memory</span>
+                    {!isNaN(memTotal) && (
+                        <span className="text-muted font-mono text-[12px]">
+                            {fmtGB(memUsed)} / {fmtGB(memTotal)} GB
+                        </span>
+                    )}
+                    <span className="ml-auto font-mono text-[20px] font-medium leading-none" style={{ color: usageColor(memPct) }}>
+                        {fmtPct(memPct)}
+                    </span>
+                </div>
+                <div className="h-2.5 rounded-full bg-hoverbg overflow-hidden">
+                    <div
+                        className="h-full rounded-full"
+                        style={{ width: `${isNaN(memPct) ? 0 : memPct}%`, backgroundColor: usageColor(memPct) }}
+                    />
+                </div>
+                <div className="flex gap-4 mt-1.5">
+                    <span className="text-muted text-[11px]">
+                        used <span className="text-secondary font-mono">{fmtGB(memUsed)}G</span>
+                    </span>
+                    <span className="text-muted text-[11px]">
+                        avail <span className="text-secondary font-mono">{fmtGB(memAvail)}G</span>
+                    </span>
+                    <span className="text-muted text-[11px]">
+                        free <span className="text-secondary font-mono">{fmtGB(memFree)}G</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const SysinfoViewInner = React.memo(({ model }: SysinfoViewProps) => {
     const plotData = jotai.useAtomValue(model.dataAtom);
     const yvals = jotai.useAtomValue(model.metrics);
     const plotMeta = jotai.useAtomValue(model.plotMetaAtom);
     const osRef = React.useRef<OverlayScrollbarsComponentRef>(null);
     const targetLen = jotai.useAtomValue(model.numPoints) + 1;
+    const plotType = jotai.useAtomValue(model.plotTypeSelectedAtom);
     let title = false;
     let cols2 = false;
     if (yvals.length > 1) {
@@ -535,6 +681,20 @@ const SysinfoViewInner = React.memo(({ model }: SysinfoViewProps) => {
     }
     if (yvals.length > 2) {
         cols2 = true;
+    }
+
+    if (plotType === "Overview") {
+        return (
+            <OverlayScrollbarsComponent
+                ref={osRef}
+                className="flex flex-col flex-grow mb-0 overflow-y-auto"
+                options={{ scrollbars: { autoHide: "leave" } }}
+            >
+                {plotData && plotData.length > 0 && (
+                    <SysinfoDashboard model={model} plotData={plotData} plotMeta={plotMeta} targetLen={targetLen} />
+                )}
+            </OverlayScrollbarsComponent>
+        );
     }
 
     return (
