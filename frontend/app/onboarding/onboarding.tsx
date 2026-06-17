@@ -133,7 +133,7 @@ const InitPage = ({
                                     rel="noopener"
                                     className="text-accent"
                                 >
-                                    View the GenieTerm&nbsp;source&nbsp;repository
+                                    View the Wave&nbsp;Terminal&nbsp;repository
                                 </a>
                             </div>
                         </div>

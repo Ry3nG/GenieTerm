@@ -28,7 +28,7 @@ export function StarAskPage({ onClose, page = "upgrade" }: StarAskPageProps) {
             oref: WOS.makeORef("client", clientId),
             meta: { "onboarding:githubstar": true },
         });
-        window.open(`https://github.com/wavetermdev/waveterm?ref=${page}`, "_blank");
+        window.open(`https://github.com/Ry3nG/GenieTerm?ref=${page}`, "_blank");
         onClose();
     };
 
@@ -58,7 +58,7 @@ export function StarAskPage({ onClose, page = "upgrade" }: StarAskPageProps) {
             },
             { noresponse: true }
         );
-        window.open("https://github.com/wavetermdev/waveterm", "_blank");
+        window.open("https://github.com/Ry3nG/GenieTerm", "_blank");
     };
 
     const handleMaybeLater = async () => {
@@ -98,7 +98,7 @@ export function StarAskPage({ onClose, page = "upgrade" }: StarAskPageProps) {
                     >
                         <i className="fa-brands fa-github text-foreground text-lg group-hover:text-accent transition-colors" />
                         <span className="text-foreground font-mono text-sm group-hover:text-accent group-hover:underline transition-colors">
-                            wavetermdev/waveterm
+                            Ry3nG/GenieTerm
                         </span>
                     </div>
                 </div>
