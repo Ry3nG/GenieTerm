@@ -26,6 +26,7 @@ import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { registerDownloadFolderHandler } from "./transfer/download-folder";
 
 const electronApp = electron.app;
 
@@ -250,6 +251,7 @@ export function initIpcHandlers() {
             getWebServerEndpoint() + "/wave/stream-file/" + baseName + "?path=" + encodeURIComponent(payload.filePath);
         event.sender.downloadURL(streamingUrl);
     });
+    registerDownloadFolderHandler();
 
     electron.ipcMain.on("get-cursor-point", (event) => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
