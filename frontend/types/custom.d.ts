@@ -98,6 +98,7 @@ declare global {
         onNavigate: (callback: (url: string) => void) => void;
         onIframeNavigate: (callback: (url: string) => void) => void;
         downloadFile: (path: string) => void; // download
+        downloadFolder: (path: string) => void; // download-folder
         openExternal: (url: string) => void; // open-external
         onFullScreenChange: (callback: (isFullScreen: boolean) => void) => void; // fullscreen-change
         onZoomFactorChange: (callback: (zoomFactor: number) => void) => void; // zoom-factor-change

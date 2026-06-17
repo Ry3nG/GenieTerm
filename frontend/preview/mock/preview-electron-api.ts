@@ -22,6 +22,7 @@ const previewElectronApi: ElectronApi = {
     onNavigate: (_callback: (url: string) => void) => {},
     onIframeNavigate: (_callback: (url: string) => void) => {},
     downloadFile: (_path: string) => {},
+    downloadFolder: (_path: string) => {},
     openExternal: (_url: string) => {},
     onFullScreenChange: (_callback: (isFullScreen: boolean) => void) => {},
     onZoomFactorChange: (_callback: (zoomFactor: number) => void) => {},

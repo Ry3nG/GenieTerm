@@ -30,10 +30,14 @@ export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: F
         }
     } else {
         menu.push({
-            label: "Download File",
+            label: finfo.isdir ? "Download Folder" : "Download File",
             click: () => {
                 const remoteUri = formatRemoteUri(finfo.path, conn);
-                getApi().downloadFile(remoteUri);
+                if (finfo.isdir) {
+                    getApi().downloadFolder(remoteUri);
+                } else {
+                    getApi().downloadFile(remoteUri);
+                }
             },
         });
     }
