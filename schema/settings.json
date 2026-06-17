@@ -50,6 +50,9 @@
             "left"
           ]
         },
+        "app:keybindings": {
+          "type": "object"
+        },
         "feature:waveappbuilder": {
           "type": "boolean"
         },
