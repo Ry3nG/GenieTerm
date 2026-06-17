@@ -1,11 +1,11 @@
 {
     "name": "genieterm",
     "author": {
-        "name": "Command Line Inc",
-        "email": "info@commandline.dev"
+        "name": "Gong Zerui",
+        "email": "gongzerui@team6907.org"
     },
     "productName": "GenieTerm",
-    "description": "Private terminal focused on remote file workflows",
+    "description": "Remote-first terminal for files, sessions, and everyday development",
     "license": "Apache-2.0",
     "version": "0.14.5",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
