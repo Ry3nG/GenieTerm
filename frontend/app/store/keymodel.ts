@@ -21,6 +21,8 @@ import {
     WOS,
 } from "@/app/store/global";
 import { getActiveTabModel } from "@/app/store/tab-model";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
@@ -500,6 +502,11 @@ function countTermBlocks(): number {
     return count;
 }
 
+function toggleBoolSetting(key: keyof SettingsType) {
+    const current = globalStore.get(getSettingsKeyAtom(key)) ?? false;
+    fireAndForget(() => RpcApi.SetConfigCommand(TabRpcClient, { [key]: !current }));
+}
+
 // A named, rebindable global action. defaultBinding is one or more key
 // descriptions (e.g. "Ctrl:Shift:k"); users override per-action id via the
 // "app:keybindings" setting. This is the single source of truth for defaults.
@@ -698,6 +705,22 @@ function registerGlobalKeys() {
             handler: () => {
                 const currentVisible = WorkspaceLayoutModel.getInstance().getAIPanelVisible();
                 WorkspaceLayoutModel.getInstance().setAIPanelVisible(!currentVisible);
+                return true;
+            },
+        },
+        {
+            id: "view:toggle-sidebar",
+            defaultBinding: "Cmd:b",
+            handler: () => {
+                toggleBoolSetting("app:hidesidebar");
+                return true;
+            },
+        },
+        {
+            id: "view:toggle-tabbar",
+            defaultBinding: "Cmd:Shift:b",
+            handler: () => {
+                toggleBoolSetting("app:hidetabbar");
                 return true;
             },
         },

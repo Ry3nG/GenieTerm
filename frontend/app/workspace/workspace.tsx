@@ -44,7 +44,9 @@ const WorkspaceElem = memo(() => {
     const tabId = useAtomValue(atoms.staticTabId);
     const ws = useAtomValue(atoms.workspace);
     const tabBarPosition = useAtomValue(getSettingsKeyAtom("app:tabbar")) ?? "top";
-    const showLeftTabBar = tabBarPosition === "left";
+    const hideTabBar = useAtomValue(getSettingsKeyAtom("app:hidetabbar"));
+    const hideSidebar = useAtomValue(getSettingsKeyAtom("app:hidesidebar"));
+    const showLeftTabBar = tabBarPosition === "left" && !hideSidebar;
     const aiPanelVisible = useAtomValue(workspaceLayoutModel.panelVisibleAtom);
     const widgetsSidebarVisible = useAtomValue(workspaceLayoutModel.widgetsSidebarVisibleAtom);
     const windowWidth = window.innerWidth;
@@ -109,8 +111,10 @@ const WorkspaceElem = memo(() => {
 
     return (
         <div className="flex flex-col w-full flex-grow overflow-hidden">
-            {!(showLeftTabBar && isMacOS()) && <TabBar key={ws.oid} workspace={ws} noTabs={showLeftTabBar} />}
-            {showLeftTabBar && isMacOS() && <MacOSTabBarSpacer />}
+            {!hideTabBar && !(showLeftTabBar && isMacOS()) && (
+                <TabBar key={ws.oid} workspace={ws} noTabs={showLeftTabBar} />
+            )}
+            {(hideTabBar || showLeftTabBar) && isMacOS() && <MacOSTabBarSpacer />}
             <div ref={panelContainerRef} className="flex flex-row flex-grow overflow-hidden">
                 <ErrorBoundary key={tabId}>
                     <PanelGroup
@@ -159,7 +163,7 @@ const WorkspaceElem = memo(() => {
                             ) : (
                                 <div className="flex flex-row h-full">
                                     <TabContent key={tabId} tabId={tabId} noTopPadding={showLeftTabBar && isMacOS()} />
-                                    {widgetsSidebarVisible && <Widgets />}
+                                    {widgetsSidebarVisible && !hideSidebar && <Widgets />}
                                 </div>
                             )}
                         </Panel>
