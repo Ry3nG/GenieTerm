@@ -312,18 +312,20 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
             const marker = terminal.registerMarker(0);
             if (marker) {
                 termWrap.promptMarkers.push(marker);
-                // addTestMarkerDecoration(terminal, marker, termWrap);
                 marker.onDispose(() => {
                     const idx = termWrap.promptMarkers.indexOf(marker);
                     if (idx !== -1) {
                         termWrap.promptMarkers.splice(idx, 1);
                     }
+                    termWrap.handleCmdBlockMarkerDisposed(marker);
                 });
+                termWrap.onPromptStart(marker);
             }
             break;
         }
         case "C":
             handleShellIntegrationCommandStart(termWrap, blockId, cmd, rtInfo);
+            termWrap.onCommandStart(globalStore.get(termWrap.lastCommandAtom));
             break;
         case "M":
             if (cmd.data.shell) {
@@ -352,6 +354,7 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
             } else {
                 rtInfo["shell:lastcmdexitcode"] = null;
             }
+            termWrap.onCommandDone(cmd.data.exitcode ?? null);
             break;
         case "I":
             if (cmd.data.inputempty != null) {

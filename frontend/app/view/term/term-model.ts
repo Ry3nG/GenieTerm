@@ -39,6 +39,7 @@ import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
+import { blockHasCommand } from "./cmdblocks";
 import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, DefaultTermTheme, isLikelyOnSameHost, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
@@ -535,6 +536,38 @@ export class TermViewModel implements ViewModel {
         }
         const renderer = this.termRef.current.getTermRenderer() === "webgl" ? "dom" : "webgl";
         this.termRef.current.setTermRenderer(renderer);
+    }
+
+    // Jump the viewport to the previous/next command block's prompt line. This is the
+    // Warp "navigate between commands" affordance; it scrolls (xterm can't fold lines),
+    // it doesn't move the shell cursor.
+    jumpToBlock(dir: "prev" | "next") {
+        const termWrap = this.termRef.current;
+        if (!termWrap?.terminal) {
+            return;
+        }
+        const terminal = termWrap.terminal;
+        const buffer = terminal.buffer.active;
+        if (buffer.type === "alternate") {
+            return;
+        }
+        const lines = termWrap.cmdBlocks
+            .filter((b) => blockHasCommand(b) && b.startMarker != null && b.startMarker.line >= 0)
+            .map((b) => b.startMarker.line)
+            .sort((a, b) => a - b);
+        if (lines.length === 0) {
+            return;
+        }
+        const viewportY = buffer.viewportY;
+        let target: number;
+        if (dir === "prev") {
+            const prev = lines.filter((l) => l < viewportY);
+            target = prev.length > 0 ? prev[prev.length - 1] : lines[0];
+        } else {
+            const next = lines.filter((l) => l > viewportY);
+            target = next.length > 0 ? next[0] : lines[lines.length - 1];
+        }
+        terminal.scrollToLine(target);
     }
 
     triggerRestartAtom() {

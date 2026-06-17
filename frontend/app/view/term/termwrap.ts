@@ -44,6 +44,7 @@ import {
     quoteForPosixShell,
     trimTerminalSelection,
 } from "./termutil";
+import { type CmdBlock, blockHasCommand } from "./cmdblocks";
 
 const dlog = debug("wave:termwrap");
 
@@ -99,6 +100,11 @@ export class TermWrap {
     pasteActive: boolean = false;
     lastUpdated: number;
     promptMarkers: TermTypes.IMarker[] = [];
+    cmdBlocks: CmdBlock[] = [];
+    cmdBlocksAtom: jotai.PrimitiveAtom<CmdBlock[]>;
+    pendingCmdBlock: CmdBlock | null = null;
+    cmdBlockIdCounter = 0;
+    publishCmdBlocks: () => void;
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
     claudeCodeActiveAtom: jotai.PrimitiveAtom<boolean>;
@@ -139,6 +145,7 @@ export class TermWrap {
         this.hasResized = false;
         this.lastUpdated = Date.now();
         this.promptMarkers = [];
+        this.cmdBlocksAtom = jotai.atom([]) as jotai.PrimitiveAtom<CmdBlock[]>;
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
@@ -281,6 +288,9 @@ export class TermWrap {
         this.mainFileSubject = null;
         this.heldData = [];
         this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
+        this.publishCmdBlocks = debounce(16, () => {
+            globalStore.set(this.cmdBlocksAtom, [...this.cmdBlocks]);
+        });
         this.terminal.open(this.connectElem);
 
         const dragoverHandler = (e: DragEvent) => {
@@ -450,6 +460,8 @@ export class TermWrap {
             }
         });
         this.promptMarkers = [];
+        this.cmdBlocks = [];
+        this.pendingCmdBlock = null;
         this.webglContextLossDisposable?.dispose();
         this.webglContextLossDisposable = null;
         this.terminal.dispose();
@@ -480,6 +492,7 @@ export class TermWrap {
         if (msg.fileop == "truncate") {
             this.terminal.clear();
             this.heldData = [];
+            this.resetCmdBlocks();
         } else if (msg.fileop == "append") {
             const decodedData = base64ToArray(msg.data64);
             if (this.loaded) {
@@ -646,5 +659,68 @@ export class TermWrap {
         const buffer = this.terminal.buffer.active;
         const lines = bufferLinesToText(buffer, 0, buffer.length);
         return lines.join("\n");
+    }
+
+    // Command-block index lifecycle, driven by shell-integration OSC 16162 (A/C/D).
+    // A new command block spans from one prompt-start (A) marker to the next.
+    onPromptStart(marker: TermTypes.IMarker) {
+        const prev = this.pendingCmdBlock;
+        if (prev != null) {
+            prev.endMarker = marker;
+            if (!blockHasCommand(prev)) {
+                // an A with no following C = empty Enter; don't keep it as a block
+                this.cmdBlocks = this.cmdBlocks.filter((b) => b !== prev);
+            }
+        }
+        const block: CmdBlock = {
+            id: ++this.cmdBlockIdCounter,
+            startMarker: marker,
+            endMarker: null,
+            command: null,
+            exitCode: null,
+            state: "running",
+            startTs: 0,
+            doneTs: null,
+            cwd: null,
+        };
+        this.pendingCmdBlock = block;
+        this.cmdBlocks.push(block);
+        this.publishCmdBlocks();
+    }
+
+    onCommandStart(command: string | null) {
+        if (this.pendingCmdBlock == null) {
+            return;
+        }
+        this.pendingCmdBlock.command = command;
+        this.pendingCmdBlock.startTs = Date.now();
+        this.publishCmdBlocks();
+    }
+
+    onCommandDone(exitCode: number | null) {
+        if (this.pendingCmdBlock == null) {
+            return;
+        }
+        this.pendingCmdBlock.exitCode = exitCode;
+        this.pendingCmdBlock.state = "done";
+        this.pendingCmdBlock.doneTs = Date.now();
+        this.publishCmdBlocks();
+    }
+
+    handleCmdBlockMarkerDisposed(marker: TermTypes.IMarker) {
+        const before = this.cmdBlocks.length;
+        this.cmdBlocks = this.cmdBlocks.filter((b) => b.startMarker !== marker);
+        if (this.pendingCmdBlock?.startMarker === marker) {
+            this.pendingCmdBlock = null;
+        }
+        if (this.cmdBlocks.length !== before) {
+            this.publishCmdBlocks();
+        }
+    }
+
+    resetCmdBlocks() {
+        this.cmdBlocks = [];
+        this.pendingCmdBlock = null;
+        this.publishCmdBlocks();
     }
 }

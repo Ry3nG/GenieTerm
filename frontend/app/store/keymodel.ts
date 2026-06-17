@@ -567,6 +567,8 @@ const PALETTE_LABELS: Record<string, string> = {
     "block:nav-right": "Focus Block Right",
     "conn:switch": "Switch Connection",
     "term:multi-input": "Toggle Multi-Input",
+    "term:jump-prev-block": "Jump to Previous Command",
+    "term:jump-next-block": "Jump to Next Command",
     "view:toggle-sidebar": "Toggle Sidebar",
     "view:toggle-tabbar": "Toggle Tab Bar",
     "app:refocus": "Refocus Terminal",
@@ -639,6 +641,15 @@ function registerGlobalKeys() {
             return true;
         }
         return false;
+    }
+    function jumpFocusedTerm(dir: "prev" | "next"): boolean {
+        const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
+        const vm = bcm?.viewModel as any;
+        if (vm?.viewType !== "term" || typeof vm.jumpToBlock !== "function") {
+            return false;
+        }
+        vm.jumpToBlock(dir);
+        return true;
     }
     // Block focus navigation is gated by the app:disablectrlshiftarrows setting; returning
     // false on disable lets the key fall through to the focused block/shell.
@@ -786,6 +797,8 @@ function registerGlobalKeys() {
                 return true;
             },
         },
+        { id: "term:jump-prev-block", defaultBinding: "Cmd:Shift:ArrowUp", handler: () => jumpFocusedTerm("prev") },
+        { id: "term:jump-next-block", defaultBinding: "Cmd:Shift:ArrowDown", handler: () => jumpFocusedTerm("next") },
     ];
 
     for (let idx = 1; idx <= 9; idx++) {
