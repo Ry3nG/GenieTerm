@@ -2,8 +2,13 @@ const { Arch } = require("electron-builder");
 const pkg = require("./package.json");
 const fs = require("fs");
 const path = require("path");
+const childProcess = require("node:child_process");
 
 const windowsShouldSign = !!process.env.SM_CODE_SIGNING_CERT_SHA1_HASH;
+
+function deleteXattrRecursive(attributeName, targetPath) {
+    childProcess.execFileSync("xattr", ["-dr", attributeName, targetPath], { stdio: "ignore" });
+}
 
 /**
  * @type {import('electron-builder').Configuration}
@@ -38,7 +43,7 @@ const config = {
         },
     ],
     directories: {
-        output: "make",
+        output: process.env.GENIETERM_BUILD_OUTPUT || "make",
     },
     asarUnpack: [
         "dist/bin/**/*", // wavesrv and wsh binaries
@@ -119,6 +124,14 @@ const config = {
     },
     publish: null,
     afterPack: (context) => {
+        if (context.electronPlatformName === "darwin") {
+            const appBundlePath = path.resolve(context.appOutDir, `${pkg.productName}.app`);
+            childProcess.execFileSync("xattr", ["-cr", appBundlePath], { stdio: "ignore" });
+            deleteXattrRecursive("com.apple.FinderInfo", appBundlePath);
+            deleteXattrRecursive("com.apple.ResourceFork", appBundlePath);
+            deleteXattrRecursive("com.apple.fileprovider.fpfs#P", appBundlePath);
+        }
+
         // This is a workaround to restore file permissions to the wavesrv binaries on macOS after packaging the universal binary.
         if (context.electronPlatformName === "darwin" && context.arch === Arch.universal) {
             const packageBinDir = path.resolve(
