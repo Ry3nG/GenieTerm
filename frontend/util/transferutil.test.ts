@@ -4,6 +4,7 @@ import {
     buildRsyncFolderArgs,
     ensureTrailingSlash,
     getRemotePathBaseName,
+    parseTransferPath,
     parseWshRemoteUri,
 } from "./transferutil";
 
@@ -52,5 +53,27 @@ describe("transferutil", () => {
             "paw-5090-ws:~/projects/out/",
             "/Users/me/Desktop/out/",
         ]);
+    });
+
+    it("parses remote and local transfer paths with stable basenames", () => {
+        expect(parseTransferPath("wsh://paw-5090-ws/~/projects/out/")).toEqual({
+            kind: "remote",
+            uri: "wsh://paw-5090-ws/~/projects/out/",
+            connection: "paw-5090-ws",
+            path: "~/projects/out/",
+            basename: "out",
+        });
+        expect(parseTransferPath("file:///tmp/output%20dir")).toEqual({
+            kind: "local",
+            uri: "file:///tmp/output%20dir",
+            path: "/tmp/output dir",
+            basename: "output dir",
+        });
+        expect(parseTransferPath("/tmp/output dir/")).toEqual({
+            kind: "local",
+            uri: "file:///tmp/output%20dir/",
+            path: "/tmp/output dir/",
+            basename: "output dir",
+        });
     });
 });
