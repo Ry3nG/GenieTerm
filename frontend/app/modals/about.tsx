@@ -29,53 +29,55 @@ const AboutModalV = ({ versionString, updaterChannel, onClose }: AboutModalVProp
                 <div className="flex flex-col items-center justify-center gap-4 self-stretch w-full text-center">
                     <Logo />
                     <div className="text-[25px]">GenieTerm</div>
-                    <div className="leading-5">
-                        Your terminal, files, sessions, and AI
+                    <div className="text-secondary text-[13px] leading-5">
+                        An open, modern terminal for commands,
                         <br />
-                        together in one developer workspace
+                        files, sessions, and remote work
                     </div>
                 </div>
-                <div className="items-center gap-4 self-stretch w-full text-center">
-                    Client Version {versionString}
+                <div className="text-secondary text-[13px] text-center self-stretch w-full leading-6">
+                    Version {versionString}
                     <br />
-                    Update Channel: {updaterChannel}
+                    Update channel: {updaterChannel}
                 </div>
                 <div className="grid grid-cols-2 gap-[10px] self-stretch w-full">
                     <a
                         href="https://github.com/Ry3nG/GenieTerm"
                         target="_blank"
                         rel="noopener"
-                        className="inline-flex items-center justify-center px-4 py-2 rounded border border-border hover:bg-hoverbg transition-colors duration-200"
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-border hover:bg-hoverbg transition-colors duration-200 cursor-pointer"
                     >
                         <i className="fa-brands fa-github mr-2"></i>GitHub
                     </a>
                     <a
-                        href="https://github.com/Ry3nG/GenieTerm"
+                        href="https://github.com/Ry3nG/GenieTerm/issues"
                         target="_blank"
                         rel="noopener"
-                        className="inline-flex items-center justify-center px-4 py-2 rounded border border-border hover:bg-hoverbg transition-colors duration-200"
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-border hover:bg-hoverbg transition-colors duration-200 cursor-pointer"
                     >
-                        <i className="fa-sharp fa-light fa-globe mr-2"></i>Repo
-                    </a>
-                    <a
-                        href="https://github.com/wavetermdev/waveterm/blob/main/ACKNOWLEDGEMENTS.md"
-                        target="_blank"
-                        rel="noopener"
-                        className="inline-flex items-center justify-center px-4 py-2 rounded border border-border hover:bg-hoverbg transition-colors duration-200"
-                    >
-                        <i className="fa-sharp fa-light fa-book mr-2"></i>Open Source
+                        <i className="fa-sharp fa-light fa-circle-exclamation mr-2"></i>Report an issue
                     </a>
                     <a
                         href="https://github.com/wavetermdev/waveterm"
                         target="_blank"
                         rel="noopener"
-                        className="inline-flex items-center justify-center px-4 py-2 rounded border border-border hover:bg-hoverbg transition-colors duration-200"
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-border hover:bg-hoverbg transition-colors duration-200 cursor-pointer"
                     >
-                        <i className="fa-sharp fa-light fa-heart mr-2"></i>Upstream
+                        <i className="fa-sharp fa-light fa-code-fork mr-2"></i>Built on Wave
+                    </a>
+                    <a
+                        href="https://github.com/wavetermdev/waveterm/blob/main/ACKNOWLEDGEMENTS.md"
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-border hover:bg-hoverbg transition-colors duration-200 cursor-pointer"
+                    >
+                        <i className="fa-sharp fa-light fa-book mr-2"></i>Acknowledgements
                     </a>
                 </div>
-                <div className="items-center gap-4 self-stretch w-full text-center">
-                    &copy; {currentDate.getFullYear()} Command Line Inc.
+                <div className="text-muted text-[12px] text-center self-stretch w-full leading-5">
+                    A fork of Wave Terminal (&copy; Command Line Inc.), licensed under Apache-2.0
+                    <br />
+                    &copy; {currentDate.getFullYear()} GenieTerm
                 </div>
             </div>
         </Modal>
