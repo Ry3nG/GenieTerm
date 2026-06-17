@@ -539,6 +539,58 @@ function resolveBindings(id: string, defaultBinding: string | string[], override
     return toBindingArray(defaultBinding);
 }
 
+// Most recently built action list, captured so the command palette can present
+// the same actions that drive the keybindings (single source of truth).
+let lastBuiltActions: GlobalAction[] = [];
+
+export type CommandPaletteCommand = { id: string; label: string; binding: string; run: () => void };
+
+// Human labels for the actions worth surfacing in the command palette. Actions
+// without a label here (numbered tab/block switches, ai:focus) are omitted.
+const PALETTE_LABELS: Record<string, string> = {
+    "app:command-palette": "Command Palette",
+    "tab:new": "New Tab",
+    "tab:next": "Next Tab",
+    "tab:prev": "Previous Tab",
+    "tab:close": "Close Tab",
+    "tab:rename": "Rename Tab",
+    "block:new": "New Block",
+    "block:close": "Close Block",
+    "block:split-right": "Split Block Right",
+    "block:split-down": "Split Block Down",
+    "block:magnify": "Magnify Block",
+    "block:search": "Find in Block",
+    "block:reset": "Reset Block to Launcher",
+    "block:nav-up": "Focus Block Above",
+    "block:nav-down": "Focus Block Below",
+    "block:nav-left": "Focus Block Left",
+    "block:nav-right": "Focus Block Right",
+    "conn:switch": "Switch Connection",
+    "term:multi-input": "Toggle Multi-Input",
+    "view:toggle-sidebar": "Toggle Sidebar",
+    "view:toggle-tabbar": "Toggle Tab Bar",
+    "app:refocus": "Refocus Terminal",
+};
+
+export function getCommandPaletteCommands(): CommandPaletteCommand[] {
+    const overrides = (globalStore.get(getSettingsKeyAtom("app:keybindings")) as Record<string, any>) ?? {};
+    const cmds: CommandPaletteCommand[] = [];
+    for (const action of lastBuiltActions) {
+        const label = PALETTE_LABELS[action.id];
+        if (label == null) {
+            continue;
+        }
+        const binding = resolveBindings(action.id, action.defaultBinding, overrides)[0] ?? "";
+        cmds.push({
+            id: action.id,
+            label,
+            binding,
+            run: () => action.handler({} as WaveKeyboardEvent),
+        });
+    }
+    return cmds;
+}
+
 let keybindingHotReloadInit = false;
 
 // Rebuild keymaps whenever the user's "app:keybindings" config changes, so
@@ -724,6 +776,16 @@ function registerGlobalKeys() {
                 return true;
             },
         },
+        {
+            id: "app:command-palette",
+            defaultBinding: "Cmd:Shift:p",
+            handler: () => {
+                if (!modalsModel.isModalOpen("CommandPalette")) {
+                    modalsModel.pushModal("CommandPalette");
+                }
+                return true;
+            },
+        },
     ];
 
     for (let idx = 1; idx <= 9; idx++) {
@@ -741,6 +803,7 @@ function registerGlobalKeys() {
             : ["Ctrl:Shift:c{Digit0}", "Ctrl:Shift:c{Numpad0}"],
         handler: () => { WaveAIModel.getInstance().focusInput(); return true; },
     });
+    lastBuiltActions = actions;
 
     const overrides = (globalStore.get(getSettingsKeyAtom("app:keybindings")) as Record<string, any>) ?? {};
     for (const action of actions) {

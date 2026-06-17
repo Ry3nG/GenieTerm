@@ -8,9 +8,11 @@ import { UpgradeOnboardingPatch } from "@/app/onboarding/onboarding-upgrade-patc
 import { DeleteFileModal, PublishAppModal, RenameFileModal } from "@/builder/builder-apppanel";
 import { SetSecretDialog } from "@/builder/tabs/builder-secrettab";
 import { AboutModal } from "./about";
+import { CommandPalette } from "./commandpalette";
 import { UserInputModal } from "./userinputmodal";
 
 const modalRegistry: { [key: string]: React.ComponentType<any> } = {
+    [CommandPalette.displayName || "CommandPalette"]: CommandPalette,
     [NewInstallOnboardingModal.displayName || "NewInstallOnboardingModal"]: NewInstallOnboardingModal,
     [UpgradeOnboardingModal.displayName || "UpgradeOnboardingModal"]: UpgradeOnboardingModal,
     [UpgradeOnboardingPatch.displayName || "UpgradeOnboardingPatch"]: UpgradeOnboardingPatch,
