@@ -32,6 +32,14 @@ precise plans for what's deferred — so work continues step by step without re-
 - Built-in AI chat removed from default UX (no auto-open, AI button hidden); workspace default color → blue.
 - **Command palette** (`Cmd:Shift:P`) driven by the keybinding action table.
 - Occam cleanup: Wave doc links → GenieTerm repo, dead Discord CTAs removed, About modal fixed, logo rounded.
+- **Command Blocks foundation** (v0.2.0): per-command block index from the OSC A/C/D markers, jump-between-commands
+  (`Cmd:Shift:Up/Down`), and palette "Copy Last Command" / "Copy Last Command Output". Decoration UI still ⏳.
+- sysinfo: Observable Plot memoized (rebuilds only on data/size change, not every render).
+- Occam v2: star-ask onboarding panels now link/display the real GenieTerm repo (were starring Wave); "Upstream Project"
+  link relabeled to the Wave repo it points at; redundant `rounded-[22%]` mask dropped from the logo (PNG is already a squircle).
+- Preview mocks realigned to current types (`numthreads`, config `version`/`buildtime`). Remaining tsc noise = 3 errors in
+  `preview-directory-utils.tsx` only — a discriminated-union narrowing quirk under `strictNullChecks: false` in upstream Wave code.
+- Version bumped 0.1.0 → **0.2.0**; pushed to `origin/main`.
 
 ## In flight: Command Blocks (Warp flagship)
 
@@ -39,11 +47,11 @@ The signature Warp feature. Feasible because shell integration (OSC 16162 A/C/D)
 xterm markers (`termWrap.promptMarkers`) at every command boundary.
 
 - ✅ `frontend/app/view/term/cmdblocks.ts` — data model + buffer-range/output helpers.
-- ⏳ `termwrap.ts` — block index (`cmdBlocks` + atom + publish + marker-disposal cleanup).
-- ⏳ `osc-handlers.ts` — build/finalize blocks on A/C/D (gate on normal buffer; skip empty Enters & alt-screen TUIs).
-- ⏳ `term.tsx` — `<TermBlockDecorations>` → one xterm decoration per block (gutter accent + exit-code badge).
-- ⏳ `keymodel.ts` + `term-model.ts` — jump prev/next (`Cmd:Shift:Up/Down`), copy command/output (palette + ctx menu).
-- Later: sticky header, hover toolbar, re-run, "jump past output".
+- ✅ `termwrap.ts` — block index (`cmdBlocks` + `cmdBlocksAtom` + debounced publish + marker-disposal cleanup; reset on truncate/dispose).
+- ✅ `osc-handlers.ts` — build/finalize blocks on A/C/D (`onPromptStart`/`onCommandStart`/`onCommandDone`); empty Enters (A with no C) are dropped via `blockHasCommand`.
+- ✅ `keymodel.ts` + `term-model.ts` — jump prev/next (`Cmd:Shift:Up/Down`, `term:jump-prev/next-block`) scrolls to the prev/next command's prompt line; `term:copy-last-command` / `term:copy-last-output` (palette-first, no default key). All gated on a focused term + normal buffer.
+- ⏳ `term.tsx` — `<TermBlockDecorations>` → one xterm decoration per block (gutter accent + exit-code badge). **Deferred to a runtime-verified session** — decoration positioning/layering (avoid covering text, gutter vs inline, z-index) needs visual iteration against the live app; shipping it blind risks looking broken. xterm v6 `registerDecoration` is stable (no `allowProposedApi` needed for it).
+- Later: sticky header, hover toolbar, re-run, "jump past output" (have `blockEndLine` helper ready).
 
 **Hard constraint (do not forget):** xterm cannot fold/hide buffer lines (fixed char-grid; Warp built a
 custom renderer for this). **True collapse is deferred / out of scope.** Ship "jump past output"
@@ -96,4 +104,19 @@ install `genie` as an additional symlink/copy alongside `wsh` (additive, non-bre
    the user is present (don't disrupt a live session unattended).
 
 ## How to continue
-Pick the next ⏳ item, implement incrementally, `go build`/`tsc` to verify, commit, push. Keep this doc current.
+
+**State as of v0.2.0 (pushed to `origin/main`):** Command Blocks foundation + jump + copy shipped; sysinfo memoized;
+Occam polish done. `npx tsc --noEmit` is clean except the 3 documented upstream `preview-directory-utils.tsx` errors.
+
+**Reinstall is intentionally NOT done** — `task package` + replacing `/Applications/GenieTerm.app` quits the user's
+running app and any live SSH session. The owner asked to reinstall but is AFK; do it when they're present (release
+checklist step 4). The version bump + push are done, so the next `task package` will build 0.2.0 cleanly.
+
+**Next ⏳ items, in order of safety×value:**
+1. Command Blocks decoration UI (`term.tsx` `<TermBlockDecorations>`) — the flagship's visible layer. Needs the live app
+   to tune positioning; do it in a verified session, not blind.
+2. Keybindings editor UI (#19) — settings view over the `keymodel.ts` action table (labels already exported).
+3. "View" menu toggles for hide-tabbar/hide-sidebar (discoverability).
+4. genie-cli rename (#21) — still gated on a real-shell + real-SSH test.
+
+Pick the next ⏳ item, implement incrementally, `tsc`/VSCode-errors to verify, commit, push. Keep this doc current.
