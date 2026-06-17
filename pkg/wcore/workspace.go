@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/eventbus"
 	"github.com/Ry3nG/GenieTerm/pkg/telemetry"
 	"github.com/Ry3nG/GenieTerm/pkg/telemetry/telemetrydata"
@@ -21,6 +20,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
+	"github.com/google/uuid"
 )
 
 var WorkspaceColors = [...]string{

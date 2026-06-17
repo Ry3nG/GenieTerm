@@ -4,6 +4,7 @@ go 1.25.6
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
+	github.com/Ry3nG/GenieTerm/tsunami v0.12.3
 	github.com/alexflint/go-filemutex v1.3.0
 	github.com/creack/pty v1.1.24
 	github.com/ebitengine/purego v0.10.0
@@ -30,7 +31,6 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/ubuntu/gowsl v0.0.0-20240906163211-049fd49bd93b
 	github.com/wavetermdev/htmltoken v0.2.0
-	github.com/Ry3nG/GenieTerm/tsunami v0.12.3
 	golang.org/x/crypto v0.52.0
 	golang.org/x/mod v0.35.0
 	golang.org/x/sync v0.20.0
