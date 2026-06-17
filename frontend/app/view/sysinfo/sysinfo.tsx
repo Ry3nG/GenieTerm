@@ -567,6 +567,19 @@ function fmtGB(v: number): string {
     return isNaN(v) ? "—" : v.toFixed(1);
 }
 
+function fmtRate(bps: number): string {
+    if (bps == null || isNaN(bps)) {
+        return "—";
+    }
+    if (bps < 1024) {
+        return `${Math.round(bps)} B/s`;
+    }
+    if (bps < 1024 * 1024) {
+        return `${(bps / 1024).toFixed(1)} KB/s`;
+    }
+    return `${(bps / 1024 / 1024).toFixed(1)} MB/s`;
+}
+
 const CoreMeter = React.memo(({ label, pct }: { label: string; pct: number }) => {
     const width = isNaN(pct) ? 0 : Math.max(0, Math.min(100, pct));
     return (
@@ -597,6 +610,13 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
     const memAvail = latestValidValue(plotData, "mem:available");
     const memFree = latestValidValue(plotData, "mem:free");
     const memPct = !isNaN(memUsed) && memTotal > 0 ? (memUsed / memTotal) * 100 : NaN;
+    const netUp = latestValidValue(plotData, "net:up");
+    const netDown = latestValidValue(plotData, "net:down");
+    const diskUsed = latestValidValue(plotData, "disk:used");
+    const diskTotal = latestValidValue(plotData, "disk:total");
+    const diskFree = latestValidValue(plotData, "disk:free");
+    const diskPct = latestValidValue(plotData, "disk:percent");
+    const [coresExpanded, setCoresExpanded] = React.useState(true);
 
     return (
         <div className="flex flex-col gap-[10px] p-0.5">
@@ -604,7 +624,20 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
                 <div className="flex items-center gap-2.5">
                     <i className="fa-sharp fa-solid fa-microchip text-[16px]" style={{ color: "var(--accent-color)" }} />
                     <span className="text-foreground text-[13px]">CPU</span>
-                    {coreKeys.length > 0 && <span className="text-muted text-[12px]">{coreKeys.length} cores</span>}
+                    {coreKeys.length > 0 && (
+                        <button
+                            className="flex items-center gap-1 bg-transparent border-0 p-0 text-muted text-[12px] cursor-pointer hover:text-secondary"
+                            onClick={() => setCoresExpanded((v) => !v)}
+                        >
+                            {coreKeys.length} cores
+                            <i
+                                className={clsx(
+                                    "fa-sharp fa-solid text-[9px]",
+                                    coresExpanded ? "fa-chevron-up" : "fa-chevron-down"
+                                )}
+                            />
+                        </button>
+                    )}
                     <span className="ml-auto font-mono text-[26px] font-medium leading-none" style={{ color: usageColor(cpu) }}>
                         {fmtPct(cpu)}
                     </span>
@@ -620,7 +653,7 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
                         targetLen={targetLen}
                     />
                 </div>
-                {coreKeys.length > 0 && (
+                {coreKeys.length > 0 && coresExpanded && (
                     <div
                         className="mt-2.5 grid gap-x-4 gap-y-1.5"
                         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))" }}
@@ -660,6 +693,55 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
                     </span>
                     <span className="text-muted text-[11px]">
                         free <span className="text-secondary font-mono">{fmtGB(memFree)}G</span>
+                    </span>
+                </div>
+            </div>
+
+            <div className="bg-modalbg border border-border rounded-[10px] px-3.5 py-3">
+                <div className="flex items-center gap-2.5">
+                    <i className="fa-sharp fa-solid fa-arrows-up-down text-[16px]" style={{ color: "var(--accent-color)" }} />
+                    <span className="text-foreground text-[13px]">Network</span>
+                    <span className="ml-auto flex items-center gap-4 font-mono text-[13px]">
+                        <span style={{ color: "var(--accent-color)" }}>
+                            <i className="fa-sharp fa-solid fa-arrow-down text-[10px] mr-1" />
+                            {fmtRate(netDown)}
+                        </span>
+                        <span className="text-secondary">
+                            <i className="fa-sharp fa-solid fa-arrow-up text-[10px] mr-1" />
+                            {fmtRate(netUp)}
+                        </span>
+                    </span>
+                </div>
+            </div>
+
+            <div className="bg-modalbg border border-border rounded-[10px] px-3.5 py-3">
+                <div className="flex items-center gap-2.5 mb-2">
+                    <i className="fa-sharp fa-solid fa-hard-drive text-[16px]" style={{ color: "var(--accent-color)" }} />
+                    <span className="text-foreground text-[13px]">Disk</span>
+                    {!isNaN(diskTotal) && (
+                        <span className="text-muted font-mono text-[12px]">
+                            {fmtGB(diskUsed)} / {fmtGB(diskTotal)} GB
+                        </span>
+                    )}
+                    <span
+                        className="ml-auto font-mono text-[20px] font-medium leading-none"
+                        style={{ color: usageColor(diskPct) }}
+                    >
+                        {fmtPct(diskPct)}
+                    </span>
+                </div>
+                <div className="h-2.5 rounded-full bg-hoverbg overflow-hidden">
+                    <div
+                        className="h-full rounded-full"
+                        style={{ width: `${isNaN(diskPct) ? 0 : diskPct}%`, backgroundColor: usageColor(diskPct) }}
+                    />
+                </div>
+                <div className="flex gap-4 mt-1.5">
+                    <span className="text-muted text-[11px]">
+                        used <span className="text-secondary font-mono">{fmtGB(diskUsed)}G</span>
+                    </span>
+                    <span className="text-muted text-[11px]">
+                        free <span className="text-secondary font-mono">{fmtGB(diskFree)}G</span>
                     </span>
                 </div>
             </div>
