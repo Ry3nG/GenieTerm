@@ -38,7 +38,7 @@ export const OnboardingFooter = ({
             </div>
             {!isLastStep && onSkip && (
                 <button
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-muted cursor-pointer hover:text-muted-hover text-[13px]"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-muted cursor-pointer hover:text-foreground text-[13px]"
                     onClick={onSkip}
                 >
                     Skip Feature Tour &gt;

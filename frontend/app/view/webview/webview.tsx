@@ -789,7 +789,7 @@ const BookmarkTypeahead = memo(
                         </p>
                         <button
                             onClick={openBookmarksJson}
-                            className="mt-3 px-4 py-2 text-sm font-medium text-black bg-accent hover:bg-accenthover rounded-lg cursor-pointer"
+                            className="mt-3 px-4 py-2 text-sm font-medium text-primary bg-accent hover:bg-accenthover rounded-lg cursor-pointer"
                         >
                             Open bookmarks.json
                         </button>
@@ -801,7 +801,7 @@ const BookmarkTypeahead = memo(
                         <p className="text-sm text-gray-400">No matching bookmarks</p>
                         <button
                             onClick={openBookmarksJson}
-                            className="mt-3 px-4 py-2 text-sm font-medium text-black bg-accent hover:bg-accenthover rounded-lg cursor-pointer"
+                            className="mt-3 px-4 py-2 text-sm font-medium text-primary bg-accent hover:bg-accenthover rounded-lg cursor-pointer"
                         >
                             Edit bookmarks.json
                         </button>

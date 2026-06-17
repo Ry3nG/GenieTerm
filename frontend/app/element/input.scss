@@ -9,9 +9,9 @@
     background-color: transparent;
     color: var(--form-element-text-color);
     background: var(--form-element-bg-color);
-    border: 2px solid var(--form-element-border-color);
-    border-radius: 6px;
-    padding: 4px 7px;
+    border: 1px solid var(--form-element-border-color);
+    border-radius: 8px;
+    padding: 6px 10px;
 
     &:focus {
         border-color: var(--form-element-primary-color);
@@ -30,10 +30,10 @@
 .input-group {
     display: flex;
     align-items: center;
-    border-radius: 6px;
+    border-radius: 8px;
     position: relative;
     width: 100%;
-    border: 2px solid var(--form-element-border-color);
+    border: 1px solid var(--form-element-border-color);
     background: var(--form-element-bg-color);
 
     /* Focus style for InputGroup */

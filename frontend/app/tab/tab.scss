@@ -27,7 +27,7 @@
         width: calc(100% - 6px);
         height: 100%;
         white-space: nowrap;
-        border-radius: 6px;
+        border-radius: 8px;
     }
 
     &.animate {
@@ -39,7 +39,7 @@
     &.active {
         .tab-inner {
             border-color: transparent;
-            border-radius: 6px;
+            border-radius: 8px;
             background: rgb(from var(--main-text-color) r g b / 0.1);
         }
 

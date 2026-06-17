@@ -16,7 +16,7 @@ const chatConfigs: ChatConfig[] = [
         userPrompt: "Check out ~/waveterm and summarize the project — what it does and how it's organized.",
         toolName: "read_dir",
         toolDescription: 'reading directory "~/waveterm"',
-        markdownResponse: `Here's a quick, file-structure–driven overview of this repo (Wave Terminal):
+        markdownResponse: `Here's a quick, file-structure–driven overview of this repo (GenieTerm):
 
 ## What it is
 - Electron + React front end with a Go backend ("wavesrv"). Provides a terminal with GUI widgets, previews, web, and AI. (README.md)
@@ -204,7 +204,7 @@ const FakeAIPanelHeader = memo(() => {
         <div className="py-2 pl-3 pr-1 border-b border-gray-600 flex items-center justify-between min-w-0 bg-zinc-900">
             <h2 className="text-white text-sm font-semibold flex items-center gap-2 flex-shrink-0 whitespace-nowrap">
                 <i className="fa fa-sparkles text-accent"></i>
-                Wave AI
+                GenieTerm AI
             </h2>
 
             <div className="flex items-center flex-shrink-0 whitespace-nowrap">

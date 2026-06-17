@@ -8,12 +8,12 @@
     width: 100vw;
     height: 100%;
     z-index: var(--zindex-elem-modal);
-    background-color: rgba(21, 23, 21, 0.7);
+    background-color: rgba(0, 0, 0, 0.45);
 
     .modal {
         display: flex;
         flex-direction: column;
-        border-radius: 10px;
+        border-radius: var(--modal-border-radius);
         padding: 0;
         width: 80%;
         margin-top: 25vh;

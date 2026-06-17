@@ -503,7 +503,7 @@ func main() {
 	}
 	waveLock, err := wavebase.AcquireWaveLock()
 	if err != nil {
-		log.Printf("error acquiring wave lock (another instance of Wave is likely running): %v\n", err)
+		log.Printf("error acquiring wave lock (another instance of GenieTerm is likely running): %v\n", err)
 		return
 	}
 	defer func() {

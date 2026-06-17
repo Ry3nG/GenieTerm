@@ -8,7 +8,7 @@ import { makeORef } from "../store/wos";
 import type { TabEnv } from "./tab";
 
 const FlagColors: { label: string; value: string }[] = [
-    { label: "Green", value: "#58C142" },
+    { label: "Green", value: "#30D158" },
     { label: "Teal", value: "#00FFDB" },
     { label: "Blue", value: "#429DFF" },
     { label: "Purple", value: "#BF55EC" },

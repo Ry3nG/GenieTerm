@@ -51,7 +51,7 @@ function CreateNewWaveApp({ onCreateApp }: { onCreateApp: (appName: string) => P
 
     return (
         <div className="min-h-[80px]">
-            <h3 className="text-base font-medium mb-1 text-muted-foreground">Create New WaveApp</h3>
+            <h3 className="text-base font-medium mb-1 text-muted-foreground">Create New Widget</h3>
             <div className="relative">
                 <div className="flex w-full">
                     <input
@@ -81,7 +81,7 @@ function CreateNewWaveApp({ onCreateApp }: { onCreateApp: (appName: string) => P
                         className={`px-4 py-2 rounded-r transition-colors font-medium whitespace-nowrap ${
                             !newAppName.trim() || inputError || isCreating
                                 ? "bg-panel border border-l-0 border-border text-muted cursor-not-allowed"
-                                : "bg-accent text-black hover:bg-accent-hover cursor-pointer"
+                                : "bg-accent text-primary hover:bg-accenthover cursor-pointer"
                         }`}
                     >
                         Create
@@ -142,7 +142,7 @@ export function AppSelectionModal() {
             data: { "builder:appid": appIdToUse },
         });
         globalStore.set(atoms.builderAppId, appIdToUse);
-        document.title = `WaveApp Builder (${appIdToUse})`;
+        document.title = `Widget Builder (${appIdToUse})`;
         getApi().setBuilderWindowAppId(appIdToUse);
     };
 
@@ -155,7 +155,7 @@ export function AppSelectionModal() {
             data: { "builder:appid": draftAppId },
         });
         globalStore.set(atoms.builderAppId, draftAppId);
-        document.title = `WaveApp Builder (${draftAppId})`;
+        document.title = `Widget Builder (${draftAppId})`;
         getApi().setBuilderWindowAppId(draftAppId);
     };
 
@@ -183,7 +183,7 @@ export function AppSelectionModal() {
     return (
         <FlexiModal className="min-w-[600px] w-[600px] max-h-[90vh] overflow-y-auto">
             <div className="w-full px-2 pt-0 pb-4">
-                <h2 className="text-2xl mb-2">Select a WaveApp to Edit</h2>
+                <h2 className="text-2xl mb-2">Select a Widget to Edit</h2>
 
                 {error && (
                     <div className="mb-6 px-4 py-3 bg-panel rounded">
@@ -196,7 +196,7 @@ export function AppSelectionModal() {
 
                 {apps.length > 0 && (
                     <div className="mb-2">
-                        <h3 className="text-base font-medium mb-1 text-muted-foreground">Existing WaveApps</h3>
+                        <h3 className="text-base font-medium mb-1 text-muted-foreground">Existing Widgets</h3>
                         <div className="space-y-2 max-h-[220px] overflow-y-auto">
                             {apps.map((appInfo) => (
                                 <button

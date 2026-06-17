@@ -120,7 +120,7 @@ function computeWaveCloudSections(
 
     if (waveProviderConfigs.length > 0) {
         sections.push({
-            sectionName: "Wave AI Cloud",
+            sectionName: "Cloud AI",
             configs: waveProviderConfigs,
             noTelemetry: !telemetryEnabled,
         });
@@ -230,7 +230,7 @@ export const AIModeDropdown = memo(({ compatibilityMode = false }: AIModeDropdow
                     content={
                         <div className="max-w-xs">
                             Warning: This custom mode was configured without the "tools" capability in the
-                            "ai:capabilities" array. Without tool support, Wave AI will not be able to interact with
+                            "ai:capabilities" array. Without tool support, GenieTerm AI will not be able to interact with
                             widgets or files.
                         </div>
                     }
@@ -274,7 +274,7 @@ export const AIModeDropdown = memo(({ compatibilityMode = false }: AIModeDropdow
                                                     onClick={handleEnableTelemetry}
                                                     className="text-center text-[11px] text-green-300 hover:text-green-200 pb-1 cursor-pointer transition-colors w-full"
                                                 >
-                                                    (enable telemetry to unlock Wave AI Cloud)
+                                                    (enable telemetry to unlock Cloud AI)
                                                 </button>
                                             )}
                                         </>

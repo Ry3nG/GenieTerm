@@ -56,7 +56,7 @@ var fileCmd = &cobra.Command{
 	Short: "manage files across local and remote systems",
 	Long: `Manage files across local and remote systems.
     
-Wave Terminal is capable of managing files from remote SSH hosts and your local
+GenieTerm is capable of managing files from remote SSH hosts and your local
 computer. Files are addressed via URIs.` + UriHelpText}
 
 var fileTimeout int64

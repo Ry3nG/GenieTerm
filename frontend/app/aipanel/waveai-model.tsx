@@ -70,7 +70,7 @@ export class WaveAIModel {
     useChatSetMessages: UseChatSetMessagesType | null = null;
     useChatStatus: ChatStatus = "ready";
     useChatStop: (() => void) | null = null;
-    // Used for injecting Wave-specific message data into DefaultChatTransport's prepareSendMessagesRequest
+    // Used for injecting GenieTerm-specific message data into DefaultChatTransport's prepareSendMessagesRequest
     realMessage: AIMessage | null = null;
     orefContext: ORef;
     inBuilder: boolean = false;
@@ -226,7 +226,7 @@ export class WaveAIModel {
 
     async addFileFromRemoteUri(draggedFile: DraggedFile): Promise<void> {
         if (draggedFile.isDir) {
-            this.setError("Cannot add directories to Wave AI. Please select a file.");
+            this.setError("Cannot add directories to GenieTerm AI. Please select a file.");
             return;
         }
 
@@ -237,7 +237,7 @@ export class WaveAIModel {
                 return;
             }
             if (fileInfo.isdir) {
-                this.setError("Cannot add directories to Wave AI. Please select a file.");
+                this.setError("Cannot add directories to GenieTerm AI. Please select a file.");
                 return;
             }
 

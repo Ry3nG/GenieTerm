@@ -56,7 +56,7 @@ class TsunamiViewModel extends WebViewModel {
         });
         this.viewName = jotai.atom((get) => {
             const meta = get(this.appMeta);
-            return meta?.title || "WaveApp";
+            return meta?.title || "Widget";
         });
         const initialRTInfo = RpcApi.GetRTInfoCommand(TabRpcClient, {
             oref: WOS.makeORef("block", this.blockId),
@@ -199,15 +199,15 @@ class TsunamiViewModel extends WebViewModel {
         // Add tsunami-specific menu items at the beginning
         const tsunamiItems: ContextMenuItem[] = [
             {
-                label: "Stop WaveApp",
+                label: "Stop Widget",
                 click: () => this.destroyController(),
             },
             {
-                label: "Restart WaveApp",
+                label: "Restart Widget",
                 click: () => this.restartController(),
             },
             {
-                label: "Restart WaveApp and Force Rebuild",
+                label: "Restart Widget and Force Rebuild",
                 click: () => this.restartAndForceRebuild(),
             },
             {
@@ -218,7 +218,7 @@ class TsunamiViewModel extends WebViewModel {
         if (showRemixOption) {
             tsunamiItems.push(
                 {
-                    label: "Remix WaveApp in Builder",
+                    label: "Remix Widget in Builder",
                     click: () => this.remixInBuilder(),
                 },
                 {
@@ -259,7 +259,7 @@ const TsunamiView = memo((props: ViewComponentProps<TsunamiViewModel>) => {
     if (errors.length > 0) {
         return (
             <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-                <h1 className="text-4xl font-bold text-main-text-color">Tsunami</h1>
+                <h1 className="text-4xl font-bold text-foreground">Tsunami</h1>
                 <div className="flex flex-col gap-2">
                     {errors.map((error, index) => (
                         <div key={index} className="text-sm" style={{ color: "var(--color-error)" }}>
@@ -291,17 +291,17 @@ const TsunamiView = memo((props: ViewComponentProps<TsunamiViewModel>) => {
 
     return (
         <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-            <h1 className="text-4xl font-bold text-main-text-color">Tsunami</h1>
-            {(appPath || appId) && <div className="text-sm text-main-text-color opacity-70">{appPath || appId}</div>}
+            <h1 className="text-4xl font-bold text-foreground">Tsunami</h1>
+            {(appPath || appId) && <div className="text-sm text-foreground opacity-70">{appPath || appId}</div>}
             {isNotRunning && !isRestarting && (
                 <button
                     onClick={() => model.forceRestartController()}
-                    className="px-4 py-2 bg-accent-color text-primary-text-color rounded hover:bg-accent-color/80 transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer"
                 >
                     Start
                 </button>
             )}
-            {isRestarting && <div className="text-sm text-success-color">Starting...</div>}
+            {isRestarting && <div className="text-sm text-success">Starting...</div>}
         </div>
     );
 });

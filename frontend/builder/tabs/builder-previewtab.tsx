@@ -16,7 +16,7 @@ const EmptyStateView = memo(() => {
                 <div className="flex flex-col gap-3">
                     <h2 className="text-2xl font-semibold text-primary">No App to Preview</h2>
                     <p className="text-base text-secondary leading-relaxed">
-                        Get started by using the AI chat interface on the left to create your WaveApp. Describe what you
+                        Get started by using the AI chat interface on the left to create your Widget. Describe what you
                         want to build, and the AI will help you generate the code.
                     </p>
                 </div>
@@ -128,7 +128,7 @@ const BuildingStateView = memo(() => {
                 <div className="flex flex-col gap-3">
                     <h2 className="text-2xl font-semibold text-primary">App is Building...</h2>
                     <p className="text-base text-secondary leading-relaxed">
-                        Your WaveApp is being compiled and prepared. This may take a few moments.
+                        Your Widget is being compiled and prepared. This may take a few moments.
                     </p>
                 </div>
             </div>
@@ -153,7 +153,7 @@ const StoppedStateView = memo(({ onStart }: { onStart: () => void }) => {
                 <div className="flex flex-col gap-3">
                     <h2 className="text-2xl font-semibold text-primary">App is Not Running</h2>
                     <p className="text-base text-secondary leading-relaxed">
-                        Your WaveApp is currently not running. Click the button below to start it.
+                        Your Widget is currently not running. Click the button below to start it.
                     </p>
                 </div>
                 {!isStarting && (

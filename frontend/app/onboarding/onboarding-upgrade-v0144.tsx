@@ -6,7 +6,7 @@ const UpgradeOnboardingModal_v0_14_4_Content = () => {
         <div className="flex flex-col items-start gap-6 w-full mb-4 unselectable">
             <div className="text-secondary leading-relaxed">
                 <p className="mb-0">
-                    Wave v0.14.4 introduces vertical tabs, upgrades to xterm.js v6, and includes bug fixes and UI
+                    GenieTerm v0.14.4 introduces vertical tabs, upgrades to xterm.js v6, and includes bug fixes and UI
                     improvements.
                 </p>
             </div>

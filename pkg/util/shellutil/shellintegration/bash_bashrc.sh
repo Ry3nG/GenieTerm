@@ -55,7 +55,7 @@ fi
 
 _WAVETERM_SI_FIRSTPROMPT=1
 
-# Wave Terminal Shell Integration
+# GenieTerm Shell Integration
 _waveterm_si_blocked() {
     [[ -n "$TMUX" || -n "$STY" || "$TERM" == tmux* || "$TERM" == screen* ]]
 }

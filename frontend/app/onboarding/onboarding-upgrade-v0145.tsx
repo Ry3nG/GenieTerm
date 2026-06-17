@@ -6,7 +6,7 @@ const UpgradeOnboardingModal_v0_14_5_Content = () => {
         <div className="flex flex-col items-start gap-6 w-full mb-4 unselectable">
             <div className="text-secondary leading-relaxed">
                 <p className="mb-0">
-                    Wave v0.14.5 introduces a new Process Viewer widget, several quality-of-life improvements, and a
+                    GenieTerm v0.14.5 introduces a new Process Viewer widget, several quality-of-life improvements, and a
                     fix for creating new config files from the Settings widget.
                 </p>
             </div>
@@ -34,7 +34,7 @@ const UpgradeOnboardingModal_v0_14_5_Content = () => {
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
                                 <strong>Quake Mode</strong> &mdash; global hotkey (
-                                <code>app:globalhotkey</code>) now toggles a Wave window visible and invisible
+                                <code>app:globalhotkey</code>) now toggles a GenieTerm window visible and invisible
                             </li>
                             <li>
                                 <strong>Drag &amp; Drop Files into Terminal</strong>
