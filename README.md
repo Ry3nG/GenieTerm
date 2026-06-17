@@ -1,3 +1,7 @@
+<p align="center">
+  <img alt="GenieTerm logo" src="./assets/genieterm-logo.png" width="128">
+</p>
+
 # GenieTerm
 
 GenieTerm is a remote-first terminal for files, sessions, and everyday development workflows.

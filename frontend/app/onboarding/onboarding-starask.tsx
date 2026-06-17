@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import Logo from "@/app/asset/logo.svg";
+import Logo from "@/app/asset/logo";
 import { Button } from "@/app/element/button";
 import { ClientModel } from "@/app/store/client-model";
 import * as WOS from "@/app/store/wos";
@@ -119,4 +119,3 @@ export function StarAskPage({ onClose, page = "upgrade" }: StarAskPageProps) {
         </div>
     );
 }
-

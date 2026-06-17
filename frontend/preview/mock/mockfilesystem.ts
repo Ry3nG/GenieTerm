@@ -293,7 +293,7 @@ function createMockFilesystemEntries(): MockFsEntryInput[] {
         makeMockFsInput(`${MockHomePath}/waveterm/docs/connections.md`),
         makeMockFsInput(`${MockHomePath}/waveterm/docs/preview-gallery.md`),
         makeMockFsInput(`${MockHomePath}/waveterm/docs/release-notes.md`),
-        makeMockFsInput(`${MockHomePath}/waveterm/images/wave-logo.png`, TinyPngBytes, "image/png"),
+        makeMockFsInput(`${MockHomePath}/genieterm/images/genieterm-logo.png`, TinyPngBytes, "image/png"),
         makeMockFsInput(`${MockHomePath}/waveterm/images/hero.png`),
         makeMockFsInput(`${MockHomePath}/waveterm/images/avatar.jpg`),
         makeMockFsInput(`${MockHomePath}/waveterm/images/icon-16.png`),
@@ -303,7 +303,7 @@ function createMockFilesystemEntries(): MockFsEntryInput[] {
             `${MockHomePath}/.config/settings.json`,
             JSON.stringify(
                 {
-                    "app:theme": "wave-dark",
+                    "app:theme": "genieterm-dark",
                     "preview:lastpath": `${MockHomePath}/Documents/meeting-notes.md`,
                     "window:magnifiedblockopacity": 0.92,
                 },

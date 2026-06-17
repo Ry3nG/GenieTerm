@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import Logo from "@/app/asset/logo.svg";
+import Logo from "@/app/asset/logo";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { atoms } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
@@ -30,9 +30,9 @@ const AboutModalV = ({ versionString, updaterChannel, onClose }: AboutModalVProp
                     <Logo />
                     <div className="text-[25px]">GenieTerm</div>
                     <div className="leading-5">
-                        Private Terminal
+                        Remote-first terminal
                         <br />
-                        Focused on Remote File Workflows
+                        for files, sessions, and everyday development
                     </div>
                 </div>
                 <div className="items-center gap-4 self-stretch w-full text-center">
