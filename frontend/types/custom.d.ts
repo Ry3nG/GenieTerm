@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { WaveEnv } from "@/app/waveenv/waveenv";
+import type { TransferQueue } from "@/util/transferqueue";
 import { type Placement } from "@floating-ui/react";
 import type * as jotai from "jotai";
 import type * as rxjs from "rxjs";
@@ -99,6 +100,8 @@ declare global {
         onIframeNavigate: (callback: (url: string) => void) => void;
         downloadFile: (path: string) => void; // download
         downloadFolder: (path: string) => void; // download-folder
+        getTransferQueue: () => Promise<TransferQueue>; // transfer-queue:get
+        onTransferQueueUpdate: (callback: (queue: TransferQueue) => void) => () => void; // transfer-queue:update
         openExternal: (url: string) => void; // open-external
         onFullScreenChange: (callback: (isFullScreen: boolean) => void) => void; // fullscreen-change
         onZoomFactorChange: (callback: (zoomFactor: number) => void) => void; // zoom-factor-change

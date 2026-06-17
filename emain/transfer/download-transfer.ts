@@ -30,7 +30,10 @@ export type DownloadTransferTracker = {
     cancel(jobId: string): TransferJob;
     getJob(jobId: string): TransferJob;
     getQueue(): TransferQueue;
+    subscribe(listener: TransferQueueListener): () => void;
 };
+
+export type TransferQueueListener = (queue: TransferQueue) => void;
 
 let nextDownloadTransferSeq = 0;
 
@@ -57,26 +60,39 @@ export function buildFileDownloadTransferJobInput(source: string, id: string): T
 
 export function createDownloadTransferTracker(nowFn: NowFn = () => Date.now()): DownloadTransferTracker {
     let queue = createTransferQueue();
+    const listeners = new Set<TransferQueueListener>();
+
+    function notify() {
+        for (const listener of listeners) {
+            listener(queue);
+        }
+    }
+
+    function commit(nextQueue: TransferQueue): TransferQueue {
+        queue = nextQueue;
+        notify();
+        return queue;
+    }
 
     return {
         enqueue(input) {
-            queue = enqueueTransferJob(queue, input, nowFn());
+            commit(enqueueTransferJob(queue, input, nowFn()));
             return getTransferJob(queue, input.id);
         },
         start(jobId) {
-            queue = startTransferJob(queue, jobId, nowFn());
+            commit(startTransferJob(queue, jobId, nowFn()));
             return getTransferJob(queue, jobId);
         },
         complete(jobId) {
-            queue = completeTransferJob(queue, jobId, nowFn());
+            commit(completeTransferJob(queue, jobId, nowFn()));
             return getTransferJob(queue, jobId);
         },
         fail(jobId, error) {
-            queue = failTransferJob(queue, jobId, error, nowFn());
+            commit(failTransferJob(queue, jobId, error, nowFn()));
             return getTransferJob(queue, jobId);
         },
         cancel(jobId) {
-            queue = cancelTransferJob(queue, jobId, nowFn());
+            commit(cancelTransferJob(queue, jobId, nowFn()));
             return getTransferJob(queue, jobId);
         },
         getJob(jobId) {
@@ -84,6 +100,13 @@ export function createDownloadTransferTracker(nowFn: NowFn = () => Date.now()): 
         },
         getQueue() {
             return queue;
+        },
+        subscribe(listener) {
+            listeners.add(listener);
+            listener(queue);
+            return () => {
+                listeners.delete(listener);
+            };
         },
     };
 }

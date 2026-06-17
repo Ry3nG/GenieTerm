@@ -1,6 +1,8 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { TransferQueue } from "@/util/transferqueue";
+
 const previewElectronApi: ElectronApi = {
     getAuthKey: () => "",
     getIsDev: () => false,
@@ -23,6 +25,8 @@ const previewElectronApi: ElectronApi = {
     onIframeNavigate: (_callback: (url: string) => void) => {},
     downloadFile: (_path: string) => {},
     downloadFolder: (_path: string) => {},
+    getTransferQueue: () => Promise.resolve({ jobs: [] }),
+    onTransferQueueUpdate: (_callback: (queue: TransferQueue) => void) => () => {},
     openExternal: (_url: string) => {},
     onFullScreenChange: (_callback: (isFullScreen: boolean) => void) => {},
     onZoomFactorChange: (_callback: (zoomFactor: number) => void) => {},
@@ -58,6 +62,7 @@ const previewElectronApi: ElectronApi = {
     openBuilder: (_appId?: string) => {},
     setBuilderWindowAppId: (_appId: string) => {},
     doRefresh: () => {},
+    getPathForFile: (_file: File) => "",
     saveTextFile: (_fileName: string, _content: string) => Promise.resolve(false),
     setIsActive: async () => {},
 };

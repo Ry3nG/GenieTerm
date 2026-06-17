@@ -38,6 +38,10 @@ const electronApp = electron.app;
 
 let webviewFocusId: number = null;
 let webviewKeys: string[] = [];
+const TransferQueueGetChannel = "transfer-queue:get";
+const TransferQueueUpdateChannel = "transfer-queue:update";
+const transferQueueSubscribers = new Map<number, electron.WebContents>();
+let transferQueueBridgeRegistered = false;
 
 export function openBuilderWindow(appId?: string) {
     const normalizedAppId = appId || "";
@@ -199,7 +203,41 @@ function saveImageFileWithNativeDialog(
         });
 }
 
+function registerTransferQueueSubscriber(webContents: electron.WebContents) {
+    transferQueueSubscribers.set(webContents.id, webContents);
+    webContents.once("destroyed", () => {
+        transferQueueSubscribers.delete(webContents.id);
+    });
+}
+
+function broadcastTransferQueue(queue: ReturnType<typeof downloadTransferTracker.getQueue>) {
+    for (const [webContentsId, webContents] of transferQueueSubscribers) {
+        if (webContents.isDestroyed()) {
+            transferQueueSubscribers.delete(webContentsId);
+            continue;
+        }
+        webContents.send(TransferQueueUpdateChannel, queue);
+    }
+}
+
+function registerTransferQueueBridge() {
+    if (transferQueueBridgeRegistered) {
+        return;
+    }
+    transferQueueBridgeRegistered = true;
+
+    electron.ipcMain.handle(TransferQueueGetChannel, (event) => {
+        registerTransferQueueSubscriber(event.sender);
+        return downloadTransferTracker.getQueue();
+    });
+    downloadTransferTracker.subscribe((queue) => {
+        broadcastTransferQueue(queue);
+    });
+}
+
 export function initIpcHandlers() {
+    registerTransferQueueBridge();
+
     electron.ipcMain.on("open-external", (event, url) => {
         if (url && typeof url === "string") {
             fireAndForget(() =>

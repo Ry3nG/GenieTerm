@@ -151,6 +151,10 @@ Ubuntu gates:
 - `task build:preview`.
 - Component preview or Playwright screenshots for desktop and narrow viewports, checked for text overlap and clipped controls.
 
+Implementation note:
+
+- The M3 Ubuntu implementation exposes active and terminal queue state in the Files UI. Cancel/retry controls remain a #16 follow-up until Electron native downloads and spawned `rsync` jobs attach cancellable handles and retry executors to queue jobs.
+
 ### M4: Drag-And-Drop Upload And Quoted Terminal Paths
 
 Acceptance:

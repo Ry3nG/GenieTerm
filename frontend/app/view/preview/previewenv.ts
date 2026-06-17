@@ -6,6 +6,8 @@ import { SettingsKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/wav
 export type PreviewEnv = WaveEnvSubset<{
     electron: {
         onQuicklook: WaveEnv["electron"]["onQuicklook"];
+        getTransferQueue: WaveEnv["electron"]["getTransferQueue"];
+        onTransferQueueUpdate: WaveEnv["electron"]["onTransferQueueUpdate"];
     };
     rpc: {
         ConnEnsureCommand: WaveEnv["rpc"]["ConnEnsureCommand"];

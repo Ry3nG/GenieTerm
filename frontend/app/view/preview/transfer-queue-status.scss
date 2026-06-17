@@ -1,0 +1,177 @@
+// Copyright 2026, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+.transfer-queue-status {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgb(from var(--block-bg-color) r g b / 0.42);
+
+    .transfer-queue-status-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-width: 0;
+        font-size: 11px;
+        line-height: 14px;
+    }
+
+    .transfer-queue-status-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        font-weight: 600;
+        color: var(--main-text-color);
+        white-space: nowrap;
+    }
+
+    .transfer-queue-status-count {
+        flex: 0 0 auto;
+        color: var(--secondary-text-color);
+        white-space: nowrap;
+    }
+
+    .transfer-queue-bridge-error {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        color: var(--error-color);
+        font-size: 11px;
+        line-height: 14px;
+
+        span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
+    .transfer-queue-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .transfer-queue-row {
+        display: grid;
+        grid-template-columns: 16px minmax(0, 1fr);
+        gap: 7px;
+        align-items: start;
+        min-width: 0;
+        padding: 5px 6px;
+        border: 1px solid rgb(from var(--main-text-color) r g b / 0.08);
+        border-radius: 5px;
+        background: rgb(from var(--main-bg-color) r g b / 0.38);
+    }
+
+    .transfer-queue-row-icon {
+        margin-top: 1px;
+        width: 14px;
+        text-align: center;
+        font-size: 12px;
+        line-height: 14px;
+    }
+
+    .transfer-queue-row[data-tone="active"] .transfer-queue-row-icon,
+    .transfer-queue-row[data-tone="active"] .transfer-queue-row-status {
+        color: var(--accent-color);
+    }
+
+    .transfer-queue-row[data-tone="success"] .transfer-queue-row-icon,
+    .transfer-queue-row[data-tone="success"] .transfer-queue-row-status {
+        color: var(--success-color);
+    }
+
+    .transfer-queue-row[data-tone="danger"] .transfer-queue-row-icon,
+    .transfer-queue-row[data-tone="danger"] .transfer-queue-row-status,
+    .transfer-queue-row-error {
+        color: var(--error-color);
+    }
+
+    .transfer-queue-row[data-tone="muted"] .transfer-queue-row-icon,
+    .transfer-queue-row[data-tone="muted"] .transfer-queue-row-status {
+        color: var(--secondary-text-color);
+    }
+
+    .transfer-queue-row-main {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .transfer-queue-row-topline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        font-size: 11px;
+        line-height: 14px;
+    }
+
+    .transfer-queue-row-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 600;
+        color: var(--main-text-color);
+    }
+
+    .transfer-queue-row-status {
+        flex: 0 0 auto;
+        margin-left: auto;
+        font-size: 10px;
+        line-height: 13px;
+        white-space: nowrap;
+    }
+
+    .transfer-queue-row-detail,
+    .transfer-queue-row-subdetail,
+    .transfer-queue-row-error,
+    .transfer-queue-more {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+        line-height: 14px;
+    }
+
+    .transfer-queue-row-detail,
+    .transfer-queue-row-subdetail,
+    .transfer-queue-more {
+        color: var(--secondary-text-color);
+    }
+
+    .transfer-queue-more {
+        padding: 0 6px;
+    }
+}
+
+@media (max-width: 480px) {
+    .transfer-queue-status {
+        padding: 7px 8px;
+
+        .transfer-queue-status-head,
+        .transfer-queue-row-topline {
+            align-items: flex-start;
+        }
+
+        .transfer-queue-row-topline {
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .transfer-queue-row-status {
+            margin-left: 0;
+        }
+    }
+}

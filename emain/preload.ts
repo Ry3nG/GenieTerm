@@ -1,7 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent, Rectangle, webUtils, WebviewTag } from "electron";
+import type { TransferQueue } from "../frontend/util/transferqueue";
 
 // update type in custom.d.ts (ElectronApi type)
 contextBridge.exposeInMainWorld("api", {
@@ -25,6 +26,12 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("contextmenu-click", (_event, id: string | null) => callback(id)),
     downloadFile: (filePath) => ipcRenderer.send("download", { filePath }),
     downloadFolder: (filePath) => ipcRenderer.send("download-folder", { filePath }),
+    getTransferQueue: () => ipcRenderer.invoke("transfer-queue:get"),
+    onTransferQueueUpdate: (callback: (queue: TransferQueue) => void) => {
+        const listener = (_event: IpcRendererEvent, queue: TransferQueue) => callback(queue);
+        ipcRenderer.on("transfer-queue:update", listener);
+        return () => ipcRenderer.off("transfer-queue:update", listener);
+    },
     openExternal: (url) => {
         if (url && typeof url === "string") {
             ipcRenderer.send("open-external", url);

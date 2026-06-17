@@ -45,6 +45,7 @@ import {
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
+import { DirectoryTransferQueueStatus } from "./transfer-queue-status";
 
 const PageJumpSize = 20;
 
@@ -877,6 +878,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 onContextMenu={(e) => handleFileContextMenu(e)}
                 onClick={() => setEntryManagerProps(undefined)}
             >
+                <DirectoryTransferQueueStatus />
                 <DirectoryTable
                     model={model}
                     data={filteredData}
