@@ -10,29 +10,13 @@
             }
         }
     },
-    "defwidget@claude": {
+    "defwidget@agents": {
         "display:order": -4.9,
-        "icon": "sparkles",
-        "label": "Claude Code",
-        "blockdef": {
-            "meta": {
-                "view": "term",
-                "controller": "cmd",
-                "cmd": "claude",
-                "cmd:shell": true
-            }
-        }
-    },
-    "defwidget@codex": {
-        "display:order": -4.8,
         "icon": "robot",
-        "label": "Codex",
+        "label": "agents",
         "blockdef": {
             "meta": {
-                "view": "term",
-                "controller": "cmd",
-                "cmd": "codex",
-                "cmd:shell": true
+                "view": "agents"
             }
         }
     },
