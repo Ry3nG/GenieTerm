@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 )
 
 func init() {

@@ -7,11 +7,11 @@ import (
 	"log"
 	"sync"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
-	"github.com/wavetermdev/waveterm/pkg/wps"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/Ry3nG/GenieTerm/pkg/baseds"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wps"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 )
 
 // BadgeStore is an in-memory store for transient badges.

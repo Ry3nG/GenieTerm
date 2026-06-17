@@ -17,11 +17,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/chatstore"
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
-	"github.com/wavetermdev/waveterm/pkg/util/logutil"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/chatstore"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/util/logutil"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 )
 
 // these conversions are based off the anthropic spec

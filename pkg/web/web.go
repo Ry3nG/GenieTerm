@@ -20,17 +20,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/wavetermdev/waveterm/pkg/aiusechat"
-	"github.com/wavetermdev/waveterm/pkg/authkey"
-	"github.com/wavetermdev/waveterm/pkg/filestore"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
-	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/wshfs"
-	"github.com/wavetermdev/waveterm/pkg/schema"
-	"github.com/wavetermdev/waveterm/pkg/service"
-	"github.com/wavetermdev/waveterm/pkg/util/fileutil"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat"
+	"github.com/Ry3nG/GenieTerm/pkg/authkey"
+	"github.com/Ry3nG/GenieTerm/pkg/filestore"
+	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/wshfs"
+	"github.com/Ry3nG/GenieTerm/pkg/schema"
+	"github.com/Ry3nG/GenieTerm/pkg/service"
+	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 )
 
 type WebFnType = func(http.ResponseWriter, *http.Request)

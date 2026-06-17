@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/wavetermdev/waveterm/tsunami/app"
-	"github.com/wavetermdev/waveterm/tsunami/vdom"
+	"github.com/Ry3nG/GenieTerm/tsunami/app"
+	"github.com/Ry3nG/GenieTerm/tsunami/vdom"
 )
 
 var AppMeta = app.AppMeta{

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/tsgen/tsgenmeta"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
-	"github.com/wavetermdev/waveterm/pkg/wcore"
-	"github.com/wavetermdev/waveterm/pkg/wps"
-	"github.com/wavetermdev/waveterm/pkg/wstore"
+	"github.com/Ry3nG/GenieTerm/pkg/tsgen/tsgenmeta"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wcore"
+	"github.com/Ry3nG/GenieTerm/pkg/wps"
+	"github.com/Ry3nG/GenieTerm/pkg/wstore"
 )
 
 type ObjectService struct{}

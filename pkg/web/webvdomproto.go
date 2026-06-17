@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshserver"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshserver"
+	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 )
 
 // Add the new handler function

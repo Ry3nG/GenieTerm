@@ -12,11 +12,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wavetermdev/waveterm/pkg/secretstore"
-	"github.com/wavetermdev/waveterm/pkg/util/fileutil"
-	"github.com/wavetermdev/waveterm/pkg/waveapputil"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/secretstore"
+	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
+	"github.com/Ry3nG/GenieTerm/pkg/waveapputil"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 const (

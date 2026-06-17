@@ -8,10 +8,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/wavetermdev/waveterm/pkg/remote/connparse"
-	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/fspath"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/fspath"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 func GetParentPath(conn *connparse.Connection) string {

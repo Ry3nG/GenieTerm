@@ -14,14 +14,14 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
-	"github.com/wavetermdev/waveterm/pkg/utilds"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/wavejwt"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/Ry3nG/GenieTerm/pkg/baseds"
+	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/utilds"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/wavejwt"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 )
 
 const JobAccessTokenLabel = "Wave-JobAccessToken"

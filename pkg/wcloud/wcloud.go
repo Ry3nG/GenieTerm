@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/telemetry"
-	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
-	"github.com/wavetermdev/waveterm/pkg/util/daystr"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/telemetry"
+	"github.com/Ry3nG/GenieTerm/pkg/telemetry/telemetrydata"
+	"github.com/Ry3nG/GenieTerm/pkg/util/daystr"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 )
 
 const WCloudEndpoint = "https://api.waveterm.dev/central"

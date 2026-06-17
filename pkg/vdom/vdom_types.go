@@ -6,7 +6,7 @@ package vdom
 import (
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 )
 
 const TextTag = "#text"

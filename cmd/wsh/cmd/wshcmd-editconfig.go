@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 )
 
 var editConfigMagnified bool

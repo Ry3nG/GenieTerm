@@ -16,13 +16,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
-	"github.com/wavetermdev/waveterm/pkg/streamclient"
-	"github.com/wavetermdev/waveterm/pkg/util/ds"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wps"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/baseds"
+	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/streamclient"
+	"github.com/Ry3nG/GenieTerm/pkg/util/ds"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wps"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 const DefaultTimeoutMs = 5000

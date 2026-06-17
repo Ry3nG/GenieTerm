@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 )
 
 const (

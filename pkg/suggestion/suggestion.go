@@ -16,12 +16,12 @@ import (
 
 	"github.com/junegunn/fzf/src/algo"
 	"github.com/junegunn/fzf/src/util"
-	"github.com/wavetermdev/waveterm/pkg/faviconcache"
-	"github.com/wavetermdev/waveterm/pkg/util/fileutil"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/wconfig"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/faviconcache"
+	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 const MaxSuggestions = 50

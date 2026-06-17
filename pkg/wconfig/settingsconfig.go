@@ -16,11 +16,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wavetermdev/waveterm/pkg/util/fileutil"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
-	"github.com/wavetermdev/waveterm/pkg/wconfig/defaultconfig"
+	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wconfig/defaultconfig"
 )
 
 const SettingsFile = "settings.json"

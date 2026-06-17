@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
-	"github.com/wavetermdev/waveterm/pkg/wcore"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
-	"github.com/wavetermdev/waveterm/pkg/wstore"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wcore"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/Ry3nG/GenieTerm/pkg/wstore"
 )
 
 type TermGetScrollbackToolInput struct {

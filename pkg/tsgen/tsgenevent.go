@@ -9,14 +9,14 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
-	"github.com/wavetermdev/waveterm/pkg/userinput"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
-	"github.com/wavetermdev/waveterm/pkg/wconfig"
-	"github.com/wavetermdev/waveterm/pkg/wps"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/baseds"
+	"github.com/Ry3nG/GenieTerm/pkg/blockcontroller"
+	"github.com/Ry3nG/GenieTerm/pkg/userinput"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
+	"github.com/Ry3nG/GenieTerm/pkg/wps"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 var waveEventRType = reflect.TypeOf(wps.WaveEvent{})

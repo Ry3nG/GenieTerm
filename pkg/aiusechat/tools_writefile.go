@@ -8,11 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
-	"github.com/wavetermdev/waveterm/pkg/filebackup"
-	"github.com/wavetermdev/waveterm/pkg/util/fileutil"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/filebackup"
+	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 )
 
 const MaxEditFileSize = 100 * 1024 // 100KB

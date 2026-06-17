@@ -14,10 +14,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/aiutil"
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/chatstore"
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/aiutil"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/chatstore"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 )
 
 const (

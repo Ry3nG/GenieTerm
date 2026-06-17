@@ -13,16 +13,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
-	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
-	"github.com/wavetermdev/waveterm/pkg/util/daystr"
-	"github.com/wavetermdev/waveterm/pkg/util/dbutil"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
-	"github.com/wavetermdev/waveterm/pkg/wconfig"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
-	"github.com/wavetermdev/waveterm/pkg/wstore"
+	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/telemetry/telemetrydata"
+	"github.com/Ry3nG/GenieTerm/pkg/util/daystr"
+	"github.com/Ry3nG/GenieTerm/pkg/util/dbutil"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/Ry3nG/GenieTerm/pkg/wstore"
 )
 
 const MaxTzNameLen = 50

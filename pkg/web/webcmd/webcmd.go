@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/wavetermdev/waveterm/pkg/tsgen/tsgenmeta"
-	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/Ry3nG/GenieTerm/pkg/tsgen/tsgenmeta"
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 )
 
 const (

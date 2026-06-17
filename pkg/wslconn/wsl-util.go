@@ -16,12 +16,12 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/blocklogger"
-	"github.com/wavetermdev/waveterm/pkg/genconn"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
-	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
-	"github.com/wavetermdev/waveterm/pkg/wavebase"
-	"github.com/wavetermdev/waveterm/pkg/wsl"
+	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
+	"github.com/Ry3nG/GenieTerm/pkg/genconn"
+	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/util/shellutil"
+	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"github.com/Ry3nG/GenieTerm/pkg/wsl"
 )
 
 func hasBashInstalled(ctx context.Context, client *wsl.Distro) (bool, error) {
