@@ -24,9 +24,9 @@ import (
 )
 
 var WorkspaceColors = [...]string{
-	"#58C142", // Green (accent)
+	"#2997ff", // Blue (accent)
 	"#00FFDB", // Teal
-	"#429DFF", // Blue
+	"#30D158", // Green
 	"#BF55EC", // Purple
 	"#FF453A", // Red
 	"#FF9500", // Orange
