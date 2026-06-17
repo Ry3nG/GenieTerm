@@ -8,7 +8,7 @@ export default function Logo({ className }: { className?: string }) {
         <img
             src={logoUrl}
             alt="GenieTerm"
-            className={["h-12 w-12 select-none", className].filter(Boolean).join(" ")}
+            className={["h-12 w-12 select-none rounded-[22%] border-0", className].filter(Boolean).join(" ")}
             draggable={false}
         />
     );
