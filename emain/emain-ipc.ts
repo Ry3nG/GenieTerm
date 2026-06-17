@@ -27,6 +27,12 @@ import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { registerDownloadFolderHandler } from "./transfer/download-folder";
+import {
+    buildFileDownloadTransferJobInput,
+    createDownloadTransferJobId,
+    downloadTransferTracker,
+    mapNativeDownloadState,
+} from "./transfer/download-transfer";
 
 const electronApp = electron.app;
 
@@ -249,7 +255,45 @@ export function initIpcHandlers() {
         const baseName = encodeURIComponent(path.basename(payload.filePath));
         const streamingUrl =
             getWebServerEndpoint() + "/wave/stream-file/" + baseName + "?path=" + encodeURIComponent(payload.filePath);
-        event.sender.downloadURL(streamingUrl);
+        const jobInput = buildFileDownloadTransferJobInput(
+            payload.filePath,
+            createDownloadTransferJobId("file-download")
+        );
+        downloadTransferTracker.enqueue(jobInput);
+        downloadTransferTracker.start(jobInput.id);
+        const sender = event.sender;
+        const onWillDownload = (
+            _downloadEvent: Electron.Event,
+            item: Electron.DownloadItem,
+            webContents: Electron.WebContents
+        ) => {
+            if (webContents.id !== sender.id || item.getURL() !== streamingUrl) {
+                return;
+            }
+            sender.session.off("will-download", onWillDownload);
+            item.once("done", (_doneEvent, state) => {
+                const result = mapNativeDownloadState(state);
+                if (result.status === "completed") {
+                    downloadTransferTracker.complete(jobInput.id);
+                } else if (result.status === "canceled") {
+                    downloadTransferTracker.cancel(jobInput.id);
+                } else {
+                    downloadTransferTracker.fail(jobInput.id, result.error);
+                }
+            });
+        };
+        sender.session.on("will-download", onWillDownload);
+        try {
+            sender.downloadURL(streamingUrl);
+        } catch (err) {
+            sender.session.off("will-download", onWillDownload);
+            downloadTransferTracker.fail(jobInput.id, {
+                code: "native_download_failed",
+                message: "Could not start native download.",
+                retryable: true,
+            });
+            throw err;
+        }
     });
     registerDownloadFolderHandler();
 
