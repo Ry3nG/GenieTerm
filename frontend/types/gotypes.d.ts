@@ -1388,6 +1388,9 @@ declare global {
         "app:focusfollowscursor"?: string;
         "app:tabbar"?: string;
         "app:keybindings"?: {[key: string]: any};
+        "app:hidetabbar"?: boolean;
+        "app:hidesidebar"?: boolean;
+        "app:rightclickpaste"?: boolean;
         "feature:waveappbuilder"?: boolean;
         "ai:*"?: boolean;
         "ai:preset"?: string;

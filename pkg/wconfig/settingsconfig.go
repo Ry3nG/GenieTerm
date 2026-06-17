@@ -57,19 +57,22 @@ type AiSettingsType struct {
 }
 
 type SettingsType struct {
-	AppClear                      bool   `json:"app:*,omitempty"`
-	AppGlobalHotkey               string `json:"app:globalhotkey,omitempty"`
-	AppDismissArchitectureWarning bool   `json:"app:dismissarchitecturewarning,omitempty"`
-	AppDefaultNewBlock            string `json:"app:defaultnewblock,omitempty"`
-	AppShowOverlayBlockNums       *bool  `json:"app:showoverlayblocknums,omitempty"`
-	AppCtrlVPaste                 *bool  `json:"app:ctrlvpaste,omitempty"`
-	AppConfirmQuit                *bool  `json:"app:confirmquit,omitempty"`
-	AppHideAiButton               bool   `json:"app:hideaibutton,omitempty"`
-	AppDisableCtrlShiftArrows     bool   `json:"app:disablectrlshiftarrows,omitempty"`
-	AppDisableCtrlShiftDisplay    bool   `json:"app:disablectrlshiftdisplay,omitempty"`
-	AppFocusFollowsCursor         string `json:"app:focusfollowscursor,omitempty" jsonschema:"enum=off,enum=on,enum=term"`
-	AppTabBar                     string `json:"app:tabbar,omitempty" jsonschema:"enum=top,enum=left"`
+	AppClear                      bool           `json:"app:*,omitempty"`
+	AppGlobalHotkey               string         `json:"app:globalhotkey,omitempty"`
+	AppDismissArchitectureWarning bool           `json:"app:dismissarchitecturewarning,omitempty"`
+	AppDefaultNewBlock            string         `json:"app:defaultnewblock,omitempty"`
+	AppShowOverlayBlockNums       *bool          `json:"app:showoverlayblocknums,omitempty"`
+	AppCtrlVPaste                 *bool          `json:"app:ctrlvpaste,omitempty"`
+	AppConfirmQuit                *bool          `json:"app:confirmquit,omitempty"`
+	AppHideAiButton               bool           `json:"app:hideaibutton,omitempty"`
+	AppDisableCtrlShiftArrows     bool           `json:"app:disablectrlshiftarrows,omitempty"`
+	AppDisableCtrlShiftDisplay    bool           `json:"app:disablectrlshiftdisplay,omitempty"`
+	AppFocusFollowsCursor         string         `json:"app:focusfollowscursor,omitempty" jsonschema:"enum=off,enum=on,enum=term"`
+	AppTabBar                     string         `json:"app:tabbar,omitempty" jsonschema:"enum=top,enum=left"`
 	AppKeybindings                map[string]any `json:"app:keybindings,omitempty"`
+	AppHideTabBar                 bool           `json:"app:hidetabbar,omitempty"`
+	AppHideSidebar                bool           `json:"app:hidesidebar,omitempty"`
+	AppRightClickPaste            bool           `json:"app:rightclickpaste,omitempty"`
 
 	FeatureWaveAppBuilder bool `json:"feature:waveappbuilder,omitempty"`
 
@@ -91,28 +94,28 @@ type SettingsType struct {
 	WaveAiShowCloudModes bool   `json:"waveai:showcloudmodes,omitempty"`
 	WaveAiDefaultMode    string `json:"waveai:defaultmode,omitempty"`
 
-	TermClear               bool     `json:"term:*,omitempty"`
-	TermFontSize            float64  `json:"term:fontsize,omitempty"`
-	TermFontFamily          string   `json:"term:fontfamily,omitempty"`
-	TermTheme               string   `json:"term:theme,omitempty"`
-	TermDisableWebGl        bool     `json:"term:disablewebgl,omitempty"`
-	TermLocalShellPath      string   `json:"term:localshellpath,omitempty"`
-	TermLocalShellOpts      []string `json:"term:localshellopts,omitempty"`
-	TermGitBashPath         string   `json:"term:gitbashpath,omitempty"`
-	TermScrollback          *int64   `json:"term:scrollback,omitempty"`
-	TermCopyOnSelect        *bool    `json:"term:copyonselect,omitempty"`
-	TermTransparency        *float64 `json:"term:transparency,omitempty"`
-	TermAllowBracketedPaste *bool    `json:"term:allowbracketedpaste,omitempty"`
-	TermShiftEnterNewline   *bool    `json:"term:shiftenternewline,omitempty"`
-	TermMacOptionIsMeta     *bool    `json:"term:macoptionismeta,omitempty"`
-	TermCursor              string   `json:"term:cursor,omitempty"`
-	TermCursorBlink         *bool    `json:"term:cursorblink,omitempty"`
-	TermBellSound           *bool    `json:"term:bellsound,omitempty"`
-	TermBellIndicator       *bool    `json:"term:bellindicator,omitempty"`
-	TermOsc52               string   `json:"term:osc52,omitempty" jsonschema:"enum=focus,enum=always"`
-	TermDurable                    *bool    `json:"term:durable,omitempty"`
-	TermShowSplitButtons           bool     `json:"term:showsplitbuttons,omitempty"`
-	TermTrimTrailingWhitespace     *bool    `json:"term:trimtrailingwhitespace,omitempty"`
+	TermClear                  bool     `json:"term:*,omitempty"`
+	TermFontSize               float64  `json:"term:fontsize,omitempty"`
+	TermFontFamily             string   `json:"term:fontfamily,omitempty"`
+	TermTheme                  string   `json:"term:theme,omitempty"`
+	TermDisableWebGl           bool     `json:"term:disablewebgl,omitempty"`
+	TermLocalShellPath         string   `json:"term:localshellpath,omitempty"`
+	TermLocalShellOpts         []string `json:"term:localshellopts,omitempty"`
+	TermGitBashPath            string   `json:"term:gitbashpath,omitempty"`
+	TermScrollback             *int64   `json:"term:scrollback,omitempty"`
+	TermCopyOnSelect           *bool    `json:"term:copyonselect,omitempty"`
+	TermTransparency           *float64 `json:"term:transparency,omitempty"`
+	TermAllowBracketedPaste    *bool    `json:"term:allowbracketedpaste,omitempty"`
+	TermShiftEnterNewline      *bool    `json:"term:shiftenternewline,omitempty"`
+	TermMacOptionIsMeta        *bool    `json:"term:macoptionismeta,omitempty"`
+	TermCursor                 string   `json:"term:cursor,omitempty"`
+	TermCursorBlink            *bool    `json:"term:cursorblink,omitempty"`
+	TermBellSound              *bool    `json:"term:bellsound,omitempty"`
+	TermBellIndicator          *bool    `json:"term:bellindicator,omitempty"`
+	TermOsc52                  string   `json:"term:osc52,omitempty" jsonschema:"enum=focus,enum=always"`
+	TermDurable                *bool    `json:"term:durable,omitempty"`
+	TermShowSplitButtons       bool     `json:"term:showsplitbuttons,omitempty"`
+	TermTrimTrailingWhitespace *bool    `json:"term:trimtrailingwhitespace,omitempty"`
 
 	EditorMinimapEnabled      bool    `json:"editor:minimapenabled,omitempty"`
 	EditorStickyScrollEnabled bool    `json:"editor:stickyscrollenabled,omitempty"`

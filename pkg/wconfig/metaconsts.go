@@ -19,6 +19,9 @@ const (
 	ConfigKey_AppFocusFollowsCursor          = "app:focusfollowscursor"
 	ConfigKey_AppTabBar                      = "app:tabbar"
 	ConfigKey_AppKeybindings                 = "app:keybindings"
+	ConfigKey_AppHideTabBar                  = "app:hidetabbar"
+	ConfigKey_AppHideSidebar                 = "app:hidesidebar"
+	ConfigKey_AppRightClickPaste             = "app:rightclickpaste"
 
 	ConfigKey_FeatureWaveAppBuilder          = "feature:waveappbuilder"
 
