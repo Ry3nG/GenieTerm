@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLocalUploadTransferPlans, createUploadTransferJobId, createUploadTransferGroupId } from "./transferupload";
+import {
+    buildLocalUploadTransferPlans,
+    createUploadTransferGroupId,
+    createUploadTransferJobId,
+} from "./transferupload";
 
 describe("transferupload", () => {
     it("builds a file upload plan that preserves local basename and remote directory semantics", () => {
@@ -54,6 +58,16 @@ describe("transferupload", () => {
                 createId: () => "upload-job-1",
             })
         ).toThrow("Upload destination must be a remote wsh:// directory");
+    });
+
+    it("rejects root paths from drops instead of building file root upload sources", () => {
+        expect(() =>
+            buildLocalUploadTransferPlans(
+                [{ path: "/", name: "real_exec_aligned.mp4", itemType: "file" }],
+                "wsh://devbox/~/workspace/uploads",
+                { createId: () => "upload-job-1" }
+            )
+        ).toThrow("Upload item path must be an absolute local file path");
     });
 
     it("creates stable upload ids and group ids with requested prefixes", () => {

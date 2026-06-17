@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("api", {
     downloadFile: (filePath) => ipcRenderer.send("download", { filePath }),
     downloadFolder: (filePath) => ipcRenderer.send("download-folder", { filePath }),
     getTransferQueue: () => ipcRenderer.invoke("transfer-queue:get"),
+    clearTransferQueue: () => ipcRenderer.invoke("transfer-queue:clear"),
     onTransferQueueUpdate: (callback: (queue: TransferQueue) => void) => {
         const listener = (_event: IpcRendererEvent, queue: TransferQueue) => callback(queue);
         ipcRenderer.on("transfer-queue:update", listener);

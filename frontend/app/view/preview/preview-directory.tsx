@@ -48,8 +48,9 @@ import {
     handleRename,
     isIconValid,
     makeDirectoryDefaultMenuItems,
-    mergeError,
-    overwriteError,
+    copyWithOverwriteConfirmation,
+    type FileCopyFailureResult,
+    type FileCopyResult,
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
@@ -57,9 +58,6 @@ import { DirectoryTransferQueueStatus } from "./transfer-queue-status";
 
 const PageJumpSize = 20;
 const CopyTimeoutYear = 31536000000;
-
-type FileCopyResult = { ok: true } | { ok: false; errorText: string; retryable: boolean };
-type FileCopyFailureResult = Extract<FileCopyResult, { ok: false }>;
 
 type WebKitDataTransferItem = DataTransferItem & {
     webkitGetAsEntry?: () => { isDirectory?: boolean; isFile?: boolean; name?: string };
@@ -750,49 +748,13 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     });
 
     const handleDropCopy = useCallback(
-        async (data: CommandFileCopyData, isDir: boolean): Promise<FileCopyResult> => {
-            try {
-                await env.rpc.FileCopyCommand(TabRpcClient, data, { timeout: data.opts.timeout });
-                return { ok: true };
-            } catch (e) {
-                console.warn("Copy failed:", e);
-                const copyError = `${e}`;
-                const allowRetry = copyError.includes(overwriteError) || copyError.includes(mergeError);
-                let errorMsg: ErrorMsg;
-                if (allowRetry) {
-                    errorMsg = {
-                        status: "Confirm Overwrite File(s)",
-                        text: "This copy operation will overwrite an existing file. Would you like to continue?",
-                        level: "warning",
-                        buttons: [
-                            {
-                                text: "Delete Then Copy",
-                                onClick: async () => {
-                                    data.opts.overwrite = true;
-                                    await handleDropCopy(data, isDir);
-                                },
-                            },
-                            {
-                                text: "Sync",
-                                onClick: async () => {
-                                    data.opts.merge = true;
-                                    await handleDropCopy(data, isDir);
-                                },
-                            },
-                        ],
-                    };
-                } else {
-                    errorMsg = {
-                        status: "Copy Failed",
-                        text: copyError,
-                        level: "error",
-                    };
-                }
-                setErrorMsg(errorMsg);
-                return { ok: false, errorText: copyError, retryable: allowRetry };
-            } finally {
-                model.refreshCallback?.();
-            }
+        async (data: CommandFileCopyData, itemType: TransferItemType): Promise<FileCopyResult> => {
+            return copyWithOverwriteConfirmation(data, itemType, {
+                copyFile: (nextData) =>
+                    env.rpc.FileCopyCommand(TabRpcClient, nextData, { timeout: nextData.opts?.timeout }),
+                refresh: () => model.refreshCallback?.(),
+                setErrorMsg,
+            });
         },
         [env.rpc, model.refreshCallback, setErrorMsg]
     );
@@ -845,14 +807,18 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                                 timeout: CopyTimeoutYear,
                             },
                         },
-                        plan.jobInput.itemType === "folder"
+                        plan.jobInput.itemType
                     );
                     if (!result.ok) {
                         const failureResult = result as FileCopyFailureResult;
-                        await env.electron.finishTransferJob(plan.jobInput.id, {
-                            status: "failed",
-                            error: makeUploadFailure(failureResult.errorText, failureResult.retryable),
-                        });
+                        if (failureResult.canceled) {
+                            await env.electron.finishTransferJob(plan.jobInput.id, { status: "canceled" });
+                        } else {
+                            await env.electron.finishTransferJob(plan.jobInput.id, {
+                                status: "failed",
+                                error: makeUploadFailure(failureResult.errorText, failureResult.retryable),
+                            });
+                        }
                     } else {
                         await env.electron.finishTransferJob(plan.jobInput.id, { status: "completed" });
                     }
@@ -938,7 +904,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                         desturi,
                         opts,
                     };
-                    await handleDropCopy(data, draggedFile.isDir);
+                    await handleDropCopy(data, draggedFile.isDir ? "folder" : "file");
                 }
             },
             // TODO: mabe add a hover option?

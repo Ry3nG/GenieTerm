@@ -435,16 +435,22 @@ tasks:
         desc: Run the tsunami frontend vite dev server
         cmd: npm run dev
         dir: tsunami/frontend
+        deps:
+            - npm:install
 
     tsunami:frontend:build:
         desc: Build the tsunami frontend
         cmd: npm run build
         dir: tsunami/frontend
+        deps:
+            - npm:install
 
     tsunami:frontend:devbuild:
         desc: Build the tsunami frontend in development mode (with source maps and symbols)
         cmd: npm run build:dev
         dir: tsunami/frontend
+        deps:
+            - npm:install
 
     tsunami:scaffold:
         desc: Build scaffold for tsunami frontend development

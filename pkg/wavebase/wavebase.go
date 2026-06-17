@@ -61,6 +61,7 @@ const DomainSocketBaseName = "wave.sock"
 const RemoteDomainSocketBaseName = "wave-remote.sock"
 const WaveDBDir = "db"
 const ConfigDir = "config"
+const LocalAppBundleName = "genieterm"
 const RemoteWaveHomeDirName = ".waveterm"
 const RemoteWshBinDirName = "bin"
 const RemoteFullWshBinPath = "~/.waveterm/bin/wsh"
@@ -207,9 +208,9 @@ func EnsureWavePresetsDir() error {
 
 func resolveWaveCachesDir() string {
 	var cacheDir string
-	appBundle := "waveterm"
+	appBundle := LocalAppBundleName
 	if IsDevMode() {
-		appBundle = "waveterm-dev"
+		appBundle = LocalAppBundleName + "-dev"
 	}
 
 	switch runtime.GOOS {

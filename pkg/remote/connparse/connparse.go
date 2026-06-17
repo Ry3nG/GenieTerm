@@ -43,7 +43,7 @@ func (c *Connection) GetType() string {
 
 func (c *Connection) GetPathWithHost() string {
 	if c.Host == "" {
-		return ""
+		return c.Path
 	}
 	if c.Path == "" {
 		return c.Host
@@ -147,6 +147,9 @@ func ParseURI(uri string) (*Connection, error) {
 		parseWshPath()
 	} else {
 		parseGenericPath()
+		if host == "" && strings.HasPrefix(rest, "/") && !strings.HasPrefix(remotePath, "/") {
+			remotePath = "/" + remotePath
+		}
 	}
 
 	if scheme == ConnectionTypeWsh {

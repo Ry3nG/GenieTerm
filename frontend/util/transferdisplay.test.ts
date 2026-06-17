@@ -92,6 +92,7 @@ describe("transferdisplay", () => {
         const summary = summarizeTransferQueue(queue, 3);
 
         expect(summary.activeCount).toBe(2);
+        expect(summary.clearableCount).toBe(3);
         expect(summary.hiddenCount).toBe(2);
         expect(summary.jobs.map((display) => display.id)).toEqual(["running", "queued", "failed-new"]);
     });

@@ -185,6 +185,9 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const connectElemRef = React.useRef<HTMLDivElement>(null);
     const [termWrapInst, setTermWrapInst] = React.useState<TermWrap | null>(null);
     const [blockData] = WOS.useWaveObjectValue<Block>(WOS.makeORef("block", blockId));
+    const connStatus = jotai.useAtomValue(model.connStatus);
+    const shellIntegrationStatus = useAtomValueSafe(termWrapInst?.shellIntegrationStatusAtom);
+    const lastCommand = useAtomValueSafe(termWrapInst?.lastCommandAtom);
     const termSettingsAtom = getSettingsPrefixAtom("term");
     const termSettings = jotai.useAtomValue(termSettingsAtom);
     let termMode = blockData?.meta?.["term:mode"] ?? "term";
@@ -388,14 +391,18 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
 
     const handleDraggedFileDrop = React.useCallback(
         (draggedFile: DraggedFile) => {
-            const pasteText = formatDraggedFileTerminalPaste(draggedFile);
+            const pasteText = formatDraggedFileTerminalPaste(draggedFile, {
+                terminalConnection: connStatus?.connection ?? blockData?.meta?.connection ?? "local",
+                terminalShellIntegrationStatus: shellIntegrationStatus,
+                terminalLastCommand: lastCommand,
+            });
             if (!pasteText) {
                 return;
             }
             model.termRef.current?.terminal?.paste(pasteText);
             model.giveFocus();
         },
-        [model]
+        [blockData?.meta?.connection, connStatus?.connection, lastCommand, model, shellIntegrationStatus]
     );
 
     const [, drop] = useDrop(

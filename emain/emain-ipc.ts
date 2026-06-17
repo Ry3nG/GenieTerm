@@ -41,6 +41,7 @@ let webviewFocusId: number = null;
 let webviewKeys: string[] = [];
 const TransferQueueGetChannel = "transfer-queue:get";
 const TransferQueueUpdateChannel = "transfer-queue:update";
+const TransferQueueClearChannel = "transfer-queue:clear";
 const TransferJobStartChannel = "transfer-job:start";
 const TransferJobFinishChannel = "transfer-job:finish";
 const transferQueueSubscribers = new Map<number, electron.WebContents>();
@@ -237,6 +238,9 @@ function registerTransferQueueBridge() {
     electron.ipcMain.handle(TransferQueueGetChannel, (event) => {
         registerTransferQueueSubscriber(event.sender);
         return downloadTransferTracker.getQueue();
+    });
+    electron.ipcMain.handle(TransferQueueClearChannel, () => {
+        return downloadTransferTracker.clearInactive();
     });
     electron.ipcMain.handle(TransferJobStartChannel, (_event, input: TransferJobInput) => {
         downloadTransferTracker.enqueue(input);

@@ -53,6 +53,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshremote"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wsl"
 	"github.com/wavetermdev/waveterm/pkg/wslconn"
@@ -67,6 +68,7 @@ type WshServer struct{}
 func (*WshServer) WshServerImpl() {}
 
 var WshServerImpl = WshServer{}
+var localRemoteFileServer = &wshremote.ServerImpl{}
 
 func (ws *WshServer) GetJwtPublicKeyCommand(ctx context.Context) (string, error) {
 	return wavejwt.GetPublicKeyBase64(), nil
@@ -385,6 +387,14 @@ func (ws *WshServer) FileReadCommand(ctx context.Context, data wshrpc.FileData) 
 
 func (ws *WshServer) FileStreamCommand(ctx context.Context, data wshrpc.CommandFileStreamData) (*wshrpc.FileInfo, error) {
 	return wshfs.FileStream(ctx, data)
+}
+
+func (ws *WshServer) RemoteFileInfoCommand(ctx context.Context, path string) (*wshrpc.FileInfo, error) {
+	return localRemoteFileServer.RemoteFileInfoCommand(ctx, path)
+}
+
+func (ws *WshServer) RemoteFileStreamCommand(ctx context.Context, data wshrpc.CommandRemoteFileStreamData) (*wshrpc.FileInfo, error) {
+	return localRemoteFileServer.RemoteFileStreamCommand(ctx, data)
 }
 
 func (ws *WshServer) FileCopyCommand(ctx context.Context, data wshrpc.CommandFileCopyData) error {

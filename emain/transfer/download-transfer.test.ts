@@ -70,6 +70,24 @@ describe("download-transfer helpers", () => {
         expect(snapshots).toEqual([[], ["file-job-1:queued"], ["file-job-1:running"], ["file-job-1:completed"]]);
     });
 
+    it("clears inactive jobs and notifies subscribers", () => {
+        const tracker = createDownloadTransferTracker(() => 1000);
+        const snapshots: string[][] = [];
+        tracker.subscribe((queue) => {
+            snapshots.push(queue.jobs.map((job) => `${job.id}:${job.status}`));
+        });
+
+        tracker.enqueue(buildFileDownloadTransferJobInput("wsh://paw-5090-ws/~/projects/active.txt", "active"));
+        tracker.start("active");
+        tracker.enqueue(buildFileDownloadTransferJobInput("wsh://paw-5090-ws/~/projects/done.txt", "done"));
+        tracker.start("done");
+        tracker.complete("done");
+        tracker.clearInactive();
+
+        expect(tracker.getQueue().jobs.map((job) => `${job.id}:${job.status}`)).toEqual(["active:running"]);
+        expect(snapshots[snapshots.length - 1]).toEqual(["active:running"]);
+    });
+
     it("maps native Electron download completion states to transfer outcomes", () => {
         expect(mapNativeDownloadState("completed")).toEqual({ status: "completed" });
         expect(mapNativeDownloadState("cancelled")).toEqual({

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     cancelTransferJob,
+    clearInactiveTransferJobs,
     completeTransferJob,
     createTransferQueue,
     enqueueTransferJobGroup,
@@ -129,6 +130,35 @@ describe("transferqueue", () => {
 
         const completed = completeTransferJob(running, "job-1", 2300);
         expect(() => cancelTransferJob(completed, "job-1", 2400)).toThrow("Cannot cancel completed transfer job");
+    });
+
+    it("clears inactive transfer jobs without removing active work", () => {
+        const queued = enqueueTransferJob(createTransferQueue(), { ...baseJobInput, id: "queued" }, 1000);
+        const running = startTransferJob(
+            enqueueTransferJob(queued, { ...baseJobInput, id: "running" }, 1100),
+            "running",
+            1200
+        );
+        const completed = completeTransferJob(
+            startTransferJob(enqueueTransferJob(running, { ...baseJobInput, id: "completed" }, 1300), "completed", 1400),
+            "completed",
+            1500
+        );
+        const failed = failTransferJob(
+            startTransferJob(enqueueTransferJob(completed, { ...baseJobInput, id: "failed" }, 1600), "failed", 1700),
+            "failed",
+            { code: "failed", message: "Failed" },
+            1800
+        );
+        const canceled = cancelTransferJob(
+            enqueueTransferJob(failed, { ...baseJobInput, id: "canceled" }, 1900),
+            "canceled",
+            2000
+        );
+
+        const cleared = clearInactiveTransferJobs(canceled);
+
+        expect(cleared.jobs.map((job) => job.id)).toEqual(["queued", "running"]);
     });
 
     it("rejects invalid transitions and unknown jobs", () => {

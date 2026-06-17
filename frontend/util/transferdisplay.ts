@@ -1,4 +1,4 @@
-import type { TransferJob, TransferJobStatus, TransferQueue } from "./transferqueue";
+import { isInactiveTransferStatus, type TransferJob, type TransferJobStatus, type TransferQueue } from "./transferqueue";
 
 export type TransferDisplayTone = "active" | "success" | "danger" | "muted";
 
@@ -17,6 +17,7 @@ export type TransferJobDisplay = {
 export type TransferQueueDisplay = {
     jobs: TransferJobDisplay[];
     activeCount: number;
+    clearableCount: number;
     hiddenCount: number;
     totalCount: number;
 };
@@ -53,6 +54,7 @@ export function summarizeTransferQueue(queue: TransferQueue, limit = 5): Transfe
     return {
         jobs: visibleJobs.map(summarizeTransferJob),
         activeCount: orderedJobs.filter((job) => job.status === "queued" || job.status === "running").length,
+        clearableCount: orderedJobs.filter((job) => isInactiveTransferStatus(job.status)).length,
         hiddenCount: Math.max(0, orderedJobs.length - visibleJobs.length),
         totalCount: orderedJobs.length,
     };

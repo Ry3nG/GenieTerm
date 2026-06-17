@@ -36,6 +36,33 @@
         white-space: nowrap;
     }
 
+    .transfer-queue-status-actions {
+        display: flex;
+        align-items: center;
+        flex: 0 0 auto;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .transfer-queue-clear-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        color: var(--secondary-text-color);
+        background: transparent;
+        cursor: pointer;
+
+        &:hover {
+            color: var(--main-text-color);
+            background: rgb(from var(--main-text-color) r g b / 0.08);
+        }
+    }
+
     .transfer-queue-bridge-error {
         display: flex;
         align-items: center;

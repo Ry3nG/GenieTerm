@@ -12,6 +12,15 @@ export const recursiveError = "recursive flag must be set for directory operatio
 export const overwriteError = "set overwrite flag to delete the existing file";
 export const mergeError = "set overwrite flag to delete the existing contents or set merge flag to merge the contents";
 
+export type FileCopyResult = { ok: true } | { ok: false; errorText: string; retryable: boolean; canceled?: boolean };
+export type FileCopyFailureResult = Extract<FileCopyResult, { ok: false }>;
+
+type CopyWithOverwriteConfirmationDeps = {
+    copyFile: (data: CommandFileCopyData) => Promise<void>;
+    refresh?: () => void;
+    setErrorMsg: (msg: ErrorMsg) => void;
+};
+
 export const displaySuffixes = {
     B: "b",
     kB: "k",
@@ -79,6 +88,106 @@ export function getSortIcon(sortType: string | boolean): React.ReactNode {
 export function cleanMimetype(input: string): string {
     const truncated = input.split(";")[0];
     return truncated.trim();
+}
+
+export async function copyWithOverwriteConfirmation(
+    data: CommandFileCopyData,
+    itemType: "file" | "folder",
+    deps: CopyWithOverwriteConfirmationDeps
+): Promise<FileCopyResult> {
+    const initialResult = await runFileCopy(data, deps);
+    if (initialResult.ok) {
+        return initialResult;
+    }
+    if (!initialResult.retryable) {
+        deps.setErrorMsg({
+            status: "Copy Failed",
+            text: initialResult.errorText,
+            level: "error",
+        });
+        return initialResult;
+    }
+
+    return new Promise<FileCopyResult>((resolve) => {
+        let settled = false;
+        const settle = (result: FileCopyResult) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            resolve(result);
+        };
+        const runConfirmedCopy = async (opts: Partial<CommandFileCopyData["opts"]>) => {
+            const result = await runFileCopy(
+                {
+                    ...data,
+                    opts: {
+                        ...(data.opts ?? {}),
+                        ...opts,
+                    },
+                },
+                deps
+            );
+            if (!result.ok) {
+                deps.setErrorMsg({
+                    status: "Copy Failed",
+                    text: result.errorText,
+                    level: "error",
+                });
+            }
+            settle(result);
+        };
+        const buttons: ErrorButtonDef[] = [
+            {
+                text: "Delete Then Copy",
+                onClick: () => {
+                    void runConfirmedCopy({ overwrite: true, merge: undefined });
+                },
+            },
+        ];
+        if (itemType === "folder") {
+            buttons.push({
+                text: "Sync",
+                onClick: () => {
+                    void runConfirmedCopy({ overwrite: undefined, merge: true });
+                },
+            });
+        }
+        deps.setErrorMsg({
+            status: "Confirm Overwrite File(s)",
+            text: "This copy operation will overwrite an existing file. Would you like to continue?",
+            level: "warning",
+            buttons,
+            closeAction: () => {
+                settle({
+                    ok: false,
+                    errorText: "Upload confirmation dismissed.",
+                    retryable: false,
+                    canceled: true,
+                });
+            },
+        });
+    });
+}
+
+async function runFileCopy(
+    data: CommandFileCopyData,
+    deps: CopyWithOverwriteConfirmationDeps
+): Promise<FileCopyResult> {
+    try {
+        await deps.copyFile(data);
+        return { ok: true };
+    } catch (e) {
+        const copyError = `${e}`;
+        console.warn("Copy failed:", e);
+        return {
+            ok: false,
+            errorText: copyError,
+            retryable: copyError.includes(overwriteError) || copyError.includes(mergeError),
+        };
+    } finally {
+        deps.refresh?.();
+    }
 }
 
 export function handleRename(

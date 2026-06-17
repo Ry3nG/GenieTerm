@@ -85,6 +85,9 @@ function normalizeLocalPath(localPath: string): string {
     if (typeof localPath !== "string" || localPath.length === 0) {
         throw new Error("Upload item path must be a non-empty string");
     }
+    if (localPath === "/" || localPath.startsWith("file://") || localPath.startsWith("wsh://")) {
+        throw new Error("Upload item path must be an absolute local file path");
+    }
     return localPath;
 }
 

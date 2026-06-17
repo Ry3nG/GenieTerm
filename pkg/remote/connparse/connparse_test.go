@@ -324,6 +324,26 @@ func TestParseURI_WSHLocalShorthand(t *testing.T) {
 	}
 }
 
+func TestParseURI_FileURIWithAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	cstr := "file:///Users/me/Desktop/real_exec_aligned.mp4"
+	c, err := connparse.ParseURI(cstr)
+	if err != nil {
+		t.Fatalf("failed to parse URI: %v", err)
+	}
+	expected := "/Users/me/Desktop/real_exec_aligned.mp4"
+	if c.Path != expected {
+		t.Fatalf("expected path to be %q, got %q", expected, c.Path)
+	}
+	if c.Host != "" {
+		t.Fatalf("expected host to be empty, got %q", c.Host)
+	}
+	if c.GetFullURI() != cstr {
+		t.Fatalf("expected full URI to be %q, got %q", cstr, c.GetFullURI())
+	}
+}
+
 func TestParseURI_WSHWSL(t *testing.T) {
 	t.Parallel()
 	cstr := "wsh://wsl://Ubuntu/path/to/file"

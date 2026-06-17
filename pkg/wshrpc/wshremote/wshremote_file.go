@@ -32,6 +32,13 @@ const RemoteFileTransferSizeLimit = 32 * 1024 * 1024
 
 var DisableRecursiveFileOpts = true
 
+func routeForFileSourceHost(host string) string {
+	if host == "" {
+		return wshutil.DefaultRoute
+	}
+	return wshutil.MakeConnectionRouteId(host)
+}
+
 // prepareDestForCopy resolves the final destination path and handles overwrite logic.
 // destPath is the raw destination path (may be a directory or file path).
 // srcBaseName is the basename of the source file (used when dest is a directory or ends with slash).
@@ -146,7 +153,7 @@ func (impl *ServerImpl) RemoteFileCopyCommand(ctx context.Context, data wshrpc.C
 	defer timeoutCancel()
 	copyStart := time.Now()
 
-	srcFileInfo, err := wshclient.RemoteFileInfoCommand(wshfs.RpcClient, srcConn.Path, &wshrpc.RpcOpts{Timeout: opts.Timeout, Route: wshutil.MakeConnectionRouteId(srcConn.Host)})
+	srcFileInfo, err := wshclient.RemoteFileInfoCommand(wshfs.RpcClient, srcConn.Path, &wshrpc.RpcOpts{Timeout: opts.Timeout, Route: routeForFileSourceHost(srcConn.Host)})
 	if err != nil {
 		return false, fmt.Errorf("cannot get info for source file %q: %w", data.SrcUri, err)
 	}
@@ -171,7 +178,7 @@ func (impl *ServerImpl) RemoteFileCopyCommand(ctx context.Context, data wshrpc.C
 	if wshfs.RpcClientRouteId == "" {
 		return false, fmt.Errorf("stream broker route id not available for file copy")
 	}
-	writerRouteId := wshutil.MakeConnectionRouteId(srcConn.Host)
+	writerRouteId := routeForFileSourceHost(srcConn.Host)
 	reader, streamMeta := wshfs.RpcClient.StreamBroker.CreateStreamReader(wshfs.RpcClientRouteId, writerRouteId, 256*1024)
 	log.Printf("RemoteFileCopyCommand: readroute=%s writeroute=%s", streamMeta.ReaderRouteId, streamMeta.WriterRouteId)
 	defer reader.Close()

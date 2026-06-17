@@ -2,7 +2,7 @@ import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { summarizeTransferQueue } from "@/util/transferdisplay";
 import { createTransferQueue, type TransferQueue } from "@/util/transferqueue";
 import clsx from "clsx";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PreviewEnv } from "./previewenv";
 import "./transfer-queue-status.scss";
 
@@ -12,6 +12,7 @@ type TransferQueueStatusProps = {
     queue: TransferQueue;
     bridgeError?: string;
     maxJobs?: number;
+    onClearInactive?: () => void;
 };
 
 function DirectoryTransferQueueStatus() {
@@ -50,10 +51,22 @@ function DirectoryTransferQueueStatus() {
         };
     }, [env.electron]);
 
-    return <TransferQueueStatus queue={queue} bridgeError={bridgeError} />;
+    const handleClearInactive = useCallback(() => {
+        env.electron
+            .clearTransferQueue()
+            .then((nextQueue) => {
+                setQueue(nextQueue ?? createTransferQueue());
+                setBridgeError(null);
+            })
+            .catch((err) => {
+                setBridgeError(`Transfer status unavailable: ${err}`);
+            });
+    }, [env.electron]);
+
+    return <TransferQueueStatus queue={queue} bridgeError={bridgeError} onClearInactive={handleClearInactive} />;
 }
 
-function TransferQueueStatus({ queue, bridgeError, maxJobs = MaxVisibleTransfers }: TransferQueueStatusProps) {
+function TransferQueueStatus({ queue, bridgeError, maxJobs = MaxVisibleTransfers, onClearInactive }: TransferQueueStatusProps) {
     const display = useMemo(() => summarizeTransferQueue(queue, maxJobs), [queue, maxJobs]);
 
     if (display.totalCount === 0 && !bridgeError) {
@@ -67,8 +80,21 @@ function TransferQueueStatus({ queue, bridgeError, maxJobs = MaxVisibleTransfers
                     <i className="fa-solid fa-circle-down" aria-hidden="true" />
                     <span>Transfers</span>
                 </div>
-                <div className="transfer-queue-status-count">
-                    {display.activeCount > 0 ? `${display.activeCount} active` : `${display.totalCount} recent`}
+                <div className="transfer-queue-status-actions">
+                    <div className="transfer-queue-status-count">
+                        {display.activeCount > 0 ? `${display.activeCount} active` : `${display.totalCount} recent`}
+                    </div>
+                    {display.clearableCount > 0 && onClearInactive && (
+                        <button
+                            type="button"
+                            className="transfer-queue-clear-button"
+                            onClick={onClearInactive}
+                            title="Clear recent transfers"
+                            aria-label="Clear recent transfers"
+                        >
+                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                        </button>
+                    )}
                 </div>
             </div>
             {bridgeError && (

@@ -258,6 +258,13 @@ export function cancelTransferJob(queue: TransferQueue, jobId: string, now: numb
     });
 }
 
+export function clearInactiveTransferJobs(queue: TransferQueue): TransferQueue {
+    return {
+        ...queue,
+        jobs: queue.jobs.filter((job) => !isInactiveTransferStatus(job.status)),
+    };
+}
+
 function updateJob(queue: TransferQueue, jobId: string, update: (job: TransferJob) => TransferJob): TransferQueue {
     let found = false;
     const jobs = queue.jobs.map((job) => {
@@ -280,6 +287,10 @@ function assertStatus(job: TransferJob, allowed: TransferJobStatus[], action: st
     if (!allowed.includes(job.status)) {
         throw new Error(`Cannot ${action} ${job.status} transfer job: ${job.id}`);
     }
+}
+
+export function isInactiveTransferStatus(status: TransferJobStatus): boolean {
+    return status === "completed" || status === "failed" || status === "canceled";
 }
 
 function clampProgress(progress: TransferProgress): TransferProgress {
