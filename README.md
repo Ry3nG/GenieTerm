@@ -4,9 +4,9 @@
 
 # GenieTerm
 
-GenieTerm is a remote-first terminal for files, sessions, and everyday development workflows.
+GenieTerm is a workspace-native terminal designed to make commands, files, sessions, and AI work together more naturally.
 
-It is built on top of the Wave Terminal codebase and keeps Wave's strong foundation: block-based workspaces, durable remote sessions, inline previews, built-in editing, `wsh`, and cross-platform Electron/Go packaging. GenieTerm's product direction is narrower and more opinionated: make remote development feel local, especially around files.
+It is built on top of the Wave Terminal codebase and keeps Wave's strong foundation: block-based workspaces, durable remote sessions, inline previews, built-in editing, `wsh`, and cross-platform Electron/Go packaging. GenieTerm's product direction is narrower and more opinionated: make the development workspace feel coherent across commands, remote files, long-running sessions, and AI-assisted context.
 
 ## Current Focus
 

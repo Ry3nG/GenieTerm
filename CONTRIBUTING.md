@@ -1,6 +1,6 @@
 # Contributing To GenieTerm
 
-GenieTerm is currently a private product fork. Keep changes focused on the product direction: remote files, durable sessions, and development workflows that make remote machines feel local.
+GenieTerm is currently a private product fork. Keep changes focused on the product direction: commands, files, sessions, and AI working together in one developer workspace.
 
 ## Expectations
 
@@ -16,4 +16,4 @@ See [BUILD.md](./BUILD.md) for setup, local running, packaging, and focused test
 
 ## Issues
 
-Use issues for product work items, bugs, and workflow ideas. Remote-file ergonomics should be the default priority unless we explicitly decide otherwise.
+Use issues for product work items, bugs, and workflow ideas. Remote-file ergonomics and workspace continuity should be the default priority unless we explicitly decide otherwise.

@@ -1,6 +1,6 @@
 # GenieTerm Roadmap
 
-GenieTerm focuses on remote-first terminal workflows, especially the parts that usually feel clumsy: finding files, moving data, previewing results, and recovering from interrupted sessions.
+GenieTerm is a workspace-native terminal designed to make commands, files, sessions, and AI work together more naturally. The roadmap starts with the parts that usually feel clumsy: finding files, moving data, previewing results, and recovering from interrupted sessions.
 
 ## Current Slice
 

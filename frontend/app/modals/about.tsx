@@ -30,9 +30,9 @@ const AboutModalV = ({ versionString, updaterChannel, onClose }: AboutModalVProp
                     <Logo />
                     <div className="text-[25px]">GenieTerm</div>
                     <div className="leading-5">
-                        Remote-first terminal
+                        Your terminal, files, sessions, and AI
                         <br />
-                        for files, sessions, and everyday development
+                        together in one developer workspace
                     </div>
                 </div>
                 <div className="items-center gap-4 self-stretch w-full text-center">

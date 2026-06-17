@@ -6,7 +6,7 @@
 - Read and follow all guidelines in `.kilocode/rules/rules.md`.
 - GenieTerm is a private product fork built on the Wave Terminal codebase. User-facing product copy should say GenieTerm.
 - Preserve internal API names such as `wsh`, `WaveEnv`, and WPS unless there is an explicit product decision to migrate them.
-- Prefer remote-file workflow improvements over broad AI assistant surface area.
+- Prefer workspace-native workflow improvements over broad AI assistant surface area.
 
 ## Skill Guides
 

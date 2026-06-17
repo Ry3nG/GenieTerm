@@ -72,7 +72,7 @@ Run:
 ```bash
 gh repo create Ry3nG/GenieTerm \
   --private \
-  --description "Remote-first terminal for files, sessions, and everyday development"
+  --description "Workspace-native terminal for commands, files, sessions, and AI"
 ```
 
 Expected: GitHub CLI prints the new private repository URL.
@@ -128,7 +128,7 @@ Edit `package.json` with this identity:
 {
   "name": "genieterm",
   "productName": "GenieTerm",
-  "description": "Remote-first terminal for files, sessions, and everyday development",
+  "description": "Workspace-native terminal for commands, files, sessions, and AI",
   "homepage": "https://github.com/Ry3nG/GenieTerm",
   "build": {
     "appId": "dev.ry3ng.genieterm"
