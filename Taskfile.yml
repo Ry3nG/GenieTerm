@@ -4,15 +4,12 @@
 version: "3"
 
 vars:
-    APP_NAME: "Wave"
+    APP_NAME: "GenieTerm"
     BIN_DIR: "bin"
     VERSION:
         sh: node version.cjs
     RMRF: '{{if eq OS "windows"}}powershell -NoProfile -NonInteractive Remove-Item -Force -Recurse -ErrorAction SilentlyContinue{{else}}rm -rf{{end}}'
     DATE: '{{if eq OS "windows"}}powershell -NoProfile -NonInteractive Get-Date -UFormat{{else}}date{{end}}'
-    ARTIFACTS_BUCKET: waveterm-github-artifacts/staging-w2
-    RELEASES_BUCKET: dl.waveterm.dev/releases-w2
-    WINGET_PACKAGE: CommandLine.Wave
 
 tasks:
     electron:dev:
@@ -83,43 +80,6 @@ tasks:
             WCLOUD_PING_ENDPOINT: "https://ping-dev.waveterm.dev/central"
             WCLOUD_ENDPOINT: "https://api-dev.waveterm.dev/central"
             WCLOUD_WS_ENDPOINT: "wss://wsapi-dev.waveterm.dev/"
-
-    docs:npm:install:
-        desc: Runs `npm install` in docs directory
-        internal: true
-        generates:
-            - docs/node_modules/**/*
-            - docs/package-lock.json
-        sources:
-            - docs/package-lock.json
-            - docs/package.json
-        cmd: npm install
-        dir: docs
-
-    docsite:start:
-        desc: Start the docsite dev server.
-        cmd: npm run start
-        dir: docs
-        aliases:
-            - docsite
-        deps:
-            - docs:npm:install
-
-    docsite:build:public:
-        desc: Build the full docsite.
-        cmds:
-            - cd docs && npm run build
-        env:
-            USE_SIMPLE_CSS_MINIFIER: "true"
-        sources:
-            - "docs/*"
-            - "docs/src/**/*"
-            - "docs/docs/**/*"
-            - "docs/static/**/*"
-        generates:
-            - "docs/build/**/*"
-        deps:
-            - docs:npm:install
 
     package:
         desc: Package the application for the current platform.
@@ -381,61 +341,6 @@ tasks:
         desc: Get the current package version, or bump version if args are present. To pass args to `version.cjs`, add them after `--`. See `version.cjs` for usage definitions for the arguments.
         cmd: node version.cjs {{.CLI_ARGS}}
 
-    artifacts:upload:
-        desc: Uploads build artifacts to the staging bucket in S3. To add additional AWS CLI arguments, add them after `--`.
-        vars:
-            ORIGIN: "make/"
-            DESTINATION: "{{.ARTIFACTS_BUCKET}}/{{.VERSION}}"
-        cmd: aws s3 cp {{.ORIGIN}}/ s3://{{.DESTINATION}}/ --recursive --exclude "*/*" --exclude "builder-*.yml" {{.CLI_ARGS}}
-
-    artifacts:download:*:
-        desc: Downloads the specified artifacts version from the staging bucket. To add additional AWS CLI arguments, add them after `--`.
-        vars:
-            DL_VERSION: '{{ replace "v" "" (index .MATCH 0)}}'
-            ORIGIN: "{{.ARTIFACTS_BUCKET}}/{{.DL_VERSION}}"
-            DESTINATION: "artifacts/{{.DL_VERSION}}"
-        cmds:
-            - '{{.RMRF}} "{{.DESTINATION}}"'
-            - aws s3 cp s3://{{.ORIGIN}}/ {{.DESTINATION}}/ --recursive {{.CLI_ARGS}}
-
-    artifacts:publish:*:
-        desc: Publishes the specified artifacts version from the staging bucket to the releases bucket. To add additional AWS CLI arguments, add them after `--`.
-        vars:
-            UP_VERSION: '{{ replace "v" "" (index .MATCH 0)}}'
-            ORIGIN: "{{.ARTIFACTS_BUCKET}}/{{.UP_VERSION}}"
-            DESTINATION: "{{.RELEASES_BUCKET}}"
-        cmd: |
-            OUTPUT=$(aws s3 cp s3://{{.ORIGIN}}/ s3://{{.DESTINATION}}/ --recursive {{.CLI_ARGS}})
-
-            for line in $OUTPUT; do
-                PREFIX=${line%%{{.DESTINATION}}*}
-                SUFFIX=${line:${#PREFIX}}
-                if [[ -n "$SUFFIX" ]]; then
-                    echo "https://$SUFFIX"
-                fi
-            done
-    artifacts:snap:publish:*:
-        desc: Publishes the specified artifacts version to Snapcraft.
-        vars:
-            UP_VERSION: '{{ replace "v" "" (index .MATCH 0)}}'
-            CHANNEL: '{{if contains "beta" .UP_VERSION}}beta{{else}}beta,stable{{end}}'
-        cmd: |
-            echo "Releasing to channels: [{{.CHANNEL}}]"
-            for file in waveterm_{{.UP_VERSION}}_*.snap; do
-                echo "Publishing $file"
-                snapcraft upload --release={{.CHANNEL}} $file
-                echo "Finished publishing $file"
-            done
-
-    artifacts:winget:publish:*:
-        desc: Submits a version bump request to WinGet for the latest release.
-        status:
-            - exit {{if contains "beta" .UP_VERSION}}0{{else}}1{{end}}
-        vars:
-            UP_VERSION: '{{ replace "v" "" (index .MATCH 0)}}'
-        cmd: |
-            wingetcreate update {{.WINGET_PACKAGE}} -s -v {{.UP_VERSION}} -u "https://{{.RELEASES_BUCKET}}/{{.APP_NAME}}-win32-x64-{{.UP_VERSION}}.msi" -t {{.GITHUB_TOKEN}}
-
     dev:installwsh:
         desc: quick shortcut to rebuild wsh and install for macos arm64
         requires:
@@ -446,14 +351,14 @@ tasks:
               vars:
                   GOOS: darwin
                   GOARCH: arm64
-            - cp dist/bin/wsh-{{.VERSION}}-darwin.arm64 ~/Library/Application\ Support/waveterm-dev/bin/wsh
+            - cp dist/bin/wsh-{{.VERSION}}-darwin.arm64 ~/Library/Application\ Support/genieterm-dev/bin/wsh
 
     dev:clearconfig:
-        desc: Clear the config directory for waveterm-dev
-        cmd: "{{.RMRF}} ~/.config/waveterm-dev"
+        desc: Clear the config directory for genieterm-dev
+        cmd: "{{.RMRF}} ~/.config/genieterm-dev"
 
     dev:cleardata:
-        desc: Clear the data directory for waveterm-dev
+        desc: Clear the data directory for genieterm-dev
         cmds:
             - task: dev:cleardata:windows
             - task: dev:cleardata:linux
@@ -470,22 +375,21 @@ tasks:
         cmds:
             - npm install
             - go mod tidy
-            - cd docs && npm install
 
     dev:cleardata:windows:
         internal: true
         platforms: [windows]
-        cmd: '{{.RMRF}} %LOCALAPPDATA%\waveterm-dev\Data'
+        cmd: '{{.RMRF}} %LOCALAPPDATA%\genieterm-dev\Data'
 
     dev:cleardata:linux:
         internal: true
         platforms: [linux]
-        cmd: "rm -rf ~/.local/share/waveterm-dev"
+        cmd: "rm -rf ~/.local/share/genieterm-dev"
 
     dev:cleardata:macos:
         internal: true
         platforms: [darwin]
-        cmd: 'rm -rf ~/Library/Application\ Support/waveterm-dev'
+        cmd: 'rm -rf ~/Library/Application\ Support/genieterm-dev'
 
     npm:install:
         desc: Runs `npm install`
@@ -569,8 +473,8 @@ tasks:
             - npm --no-workspaces init -y --init-license Apache-2.0
             - npm pkg set name=tsunami-scaffold
             - npm pkg delete author
-            - npm pkg set author.name="Command Line Inc"
-            - npm pkg set author.email="info@commandline.dev"
+            - npm pkg set author.name="Gong Zerui"
+            - npm pkg set author.email="gongzerui@team6907.org"
             - npm --no-workspaces install tailwindcss@4.1.13 @tailwindcss/cli@4.1.13
 
     tsunami:scaffold:internal:

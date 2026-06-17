@@ -72,24 +72,24 @@ Run:
 ```bash
 gh repo create Ry3nG/GenieTerm \
   --private \
-  --description "Private terminal focused on remote file workflows"
+  --description "Remote-first terminal for files, sessions, and everyday development"
 ```
 
 Expected: GitHub CLI prints the new private repository URL.
 
-- [ ] **Step 4: Clone Wave as the new GenieTerm working repository**
+- [ ] **Step 4: Clone the upstream base as the new GenieTerm working repository**
 
 Run:
 
 ```bash
 rm -rf work/GenieTerm
-git clone https://github.com/wavetermdev/waveterm.git work/GenieTerm
+git clone <upstream-terminal-base-url> work/GenieTerm
 git -C work/GenieTerm remote rename origin upstream
 git -C work/GenieTerm remote add origin https://github.com/Ry3nG/GenieTerm.git
 git -C work/GenieTerm push -u origin main
 ```
 
-Expected: `work/GenieTerm` exists, `upstream` points to Wave, `origin` points to private GenieTerm, and `main` is pushed.
+Expected: `work/GenieTerm` exists, `upstream` points to the upstream base, `origin` points to private GenieTerm, and `main` is pushed.
 
 - [ ] **Step 5: Copy approved spec and this plan into GenieTerm**
 
@@ -128,7 +128,7 @@ Edit `package.json` with this identity:
 {
   "name": "genieterm",
   "productName": "GenieTerm",
-  "description": "Private terminal focused on remote file workflows",
+  "description": "Remote-first terminal for files, sessions, and everyday development",
   "homepage": "https://github.com/Ry3nG/GenieTerm",
   "build": {
     "appId": "dev.ry3ng.genieterm"
@@ -179,11 +179,11 @@ Keep `appId: pkg.build.appId`, `productName: pkg.productName`, output directory,
 Change these exact user-facing strings:
 
 ```text
-Are you sure you want to quit Wave Terminal? -> Are you sure you want to quit GenieTerm?
-About Wave Terminal -> About GenieTerm
-Wave Terminal -> GenieTerm
-Wave has detected a performance issue -> GenieTerm has detected a performance issue
-Wave is running in ARM64 translation mode... -> GenieTerm is running in ARM64 translation mode...
+legacy quit confirmation -> GenieTerm quit confirmation
+legacy about title -> About GenieTerm
+legacy app label -> GenieTerm
+legacy performance warning -> GenieTerm performance warning
+legacy architecture warning -> GenieTerm architecture warning
 ```
 
 Apply them in:
@@ -202,7 +202,7 @@ frontend/app/onboarding/onboarding.tsx
 Run:
 
 ```bash
-rg -n "Wave Terminal|About Wave|quit Wave|Wave has detected|waveterm/electron|envPaths\\(\"waveterm\"|dev\\.commandline\\.waveterm" package.json electron-builder.config.cjs emain frontend
+rg -n "legacy product label|legacy bundle id|legacy data directory" package.json electron-builder.config.cjs emain frontend
 npm run build:dev
 ```
 

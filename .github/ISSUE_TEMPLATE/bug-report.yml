@@ -1,5 +1,5 @@
-name: 🐞 Bug Report
-description: Create a bug report to help us improve.
+name: Bug Report
+description: Report a GenieTerm bug.
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:
@@ -36,18 +36,18 @@ body:
           value: |
               ## Environment details
 
-              We require that you provide us the version of Wave you're running so we can track issues across versions. To find the Wave version, go to the app menu (this always visible on macOS, for Windows and Linux, click the `...` button) and navigate to `Wave -> About Wave Terminal`. This will bring up the About modal. Copy the client version and paste it below.
+              Include the GenieTerm version so we can track issues across builds. On macOS, open the app menu and choose `GenieTerm -> About GenieTerm`, then copy the client version below.
     - type: input
       attributes:
-          label: Wave Version
-          description: The version of Wave you are running
-          placeholder: v0.8.8
+          label: GenieTerm Version
+          description: The version of GenieTerm you are running.
+          placeholder: v0.14.5
       validations:
           required: true
     - type: dropdown
       attributes:
           label: Platform
-          description: The OS platform of the computer where you are running Wave
+          description: The OS platform of the computer where you are running GenieTerm.
           options:
               - macOS
               - Linux
@@ -57,14 +57,14 @@ body:
     - type: input
       attributes:
           label: OS Version/Distribution
-          description: The version of the operating system of the computer where you are running Wave
+          description: The version of the operating system of the computer where you are running GenieTerm.
           placeholder: Ubuntu 24.04
       validations:
           required: false
     - type: dropdown
       attributes:
           label: Architecture
-          description: The architecture of the computer where you are running Wave
+          description: The architecture of the computer where you are running GenieTerm.
           options:
               - arm64
               - x64

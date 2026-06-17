@@ -1,138 +1,62 @@
-# Building Wave Terminal
+# Building GenieTerm
 
-These instructions are for setting up dependencies and building Wave Terminal from source on macOS, Linux, and Windows.
+These notes cover local development and packaging for GenieTerm.
 
 ## Prerequisites
 
-### OS-specific dependencies
+- Node.js 22
+- Go 1.25 or newer
+- Task: https://taskfile.dev/installation/
+- npm
 
-See [Minimum requirements](README.md#minimum-requirements) to learn whether your OS is supported.
+Linux packaging also needs `zip`, `rpm`, `snapd`, `snapcraft`, `lxd`, `libarchive-tools`, `binutils`, `libopenjp2-tools`, `squashfs-tools`, and Zig.
 
-#### macOS
-
-macOS does not have any platform-specific dependencies.
-
-#### Linux
-
-You must have `zip` installed. We also require the [Zig](https://ziglang.org/) compiler for statically linking CGO.
-
-Debian/Ubuntu:
+## Clone
 
 ```sh
-sudo apt install zip snapd
-sudo snap install zig --classic --beta
+git clone git@github.com:Ry3nG/GenieTerm.git
+cd GenieTerm
 ```
 
-Fedora/RHEL:
-
-```sh
-sudo dnf install zip zig
-```
-
-Arch:
-
-```sh
-sudo pacman -S zip zig
-```
-
-##### For packaging
-
-For packaging, the following additional packages are required:
-
-- `fpm` &mdash; If you're on x64 you can skip this. If you're on ARM64, install fpm via [Gem](https://rubygems.org/gems/fpm)
-- `rpm` &mdash; If you're not on Fedora, install RPM via your package manager.
-- `snapd` &mdash; If your distro doesn't already include it, [install `snapd`](https://snapcraft.io/docs/installing-snapd)
-- `lxd` &mdash; [Installation instructions](https://canonical.com/lxd/install)
-- `snapcraft` &mdash; Run `sudo snap install snapcraft --classic`
-- `libarchive-tools` &mdash; Install via your package manager
-- `binutils` &mdash; Install via your package manager
-- `libopenjp2-tools` &mdash; Install via your package manager
-- `squashfs-tools` &mdash; Install via your package manager
-
-#### Windows
-
-You will need the [Zig](https://ziglang.org/) compiler for statically linking CGO.
-
-You can find installation instructions for Zig on Windows [here](https://ziglang.org/learn/getting-started/#managers).
-
-### Task
-
-Download and install Task (to run the build commands): https://taskfile.dev/installation/
-
-Task is a modern equivalent to GNU Make. We use it to coordinate our build steps. You can find our full Task configuration in [Taskfile.yml](Taskfile.yml).
-
-### Go
-
-Download and install Go via your package manager or directly from the website: https://go.dev/doc/install
-
-### NodeJS
-
-Make sure you have a NodeJS 22 LTS installed.
-
-See NodeJS's website for platform-specific instructions: https://nodejs.org/en/download
-
-We now use `npm`, so you can just run an `npm install` to install node dependencies.
-
-## Clone the Repo
-
-```sh
-git clone git@github.com:wavetermdev/waveterm.git
-```
-
-or
-
-```sh
-git clone https://github.com/wavetermdev/waveterm.git
-```
-
-## Install code dependencies
-
-The first time you clone the repo, you'll need to run the following to load the dependencies. If you ever have issues building the app, try running this again:
+## Install Dependencies
 
 ```sh
 task init
 ```
 
-## Build and Run
+## Run Locally
 
-All the methods below will install Node and Go dependencies when they run the first time. All these should be run from within the Git repository.
-
-### Development server
-
-Run the following command to build the app and run it via Vite's development server (this enables Hot Module Reloading):
+Run the Electron/Vite development server:
 
 ```sh
 task dev
 ```
 
-### Standalone
-
-Run the following command to build the app and run it standalone, without the development server. This will not reload on change:
+Run a standalone local build:
 
 ```sh
 task start
 ```
 
-### Packaged
+## Package Locally
 
-Run the following command to generate a production build and package it. This lets you install the app locally. All artifacts will be placed in `make/`.
-
-```sh
-task package
-```
-
-If you're on Linux ARM64, run the following:
+When building from a File Provider-managed folder on macOS, place build output outside that folder to avoid extended attribute signing errors:
 
 ```sh
-USE_SYSTEM_FPM=1 task package
+GENIETERM_BUILD_OUTPUT=/private/tmp/genieterm-make task package
 ```
 
-## Debugging
+Install the arm64 app locally:
 
-### Frontend logs
+```sh
+rm -rf /Applications/GenieTerm.app
+ditto --norsrc /private/tmp/genieterm-make/mac-arm64/GenieTerm.app /Applications/GenieTerm.app
+```
 
-You can use the regular Chrome DevTools to debug the frontend application. You can open the DevTools using the keyboard shortcut `Cmd+Option+I` on macOS or `Ctrl+Option+I` on Linux and Windows. Logs will be sent to the Console tab in DevTools.
+## Focused Tests
 
-### Backend logs
+Run the transfer tests used by CI:
 
-Backend logs for the development version of Wave can be found at `~/.waveterm-dev/waveapp.log`. Both the NodeJS backend from Electron and the main Go backend will log here.
+```sh
+npm test -- frontend/util/transferutil.test.ts emain/transfer/download-folder.test.ts frontend/util/previewutil.test.ts --run
+```

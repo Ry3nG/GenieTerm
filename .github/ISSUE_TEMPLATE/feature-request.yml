@@ -1,12 +1,12 @@
-name: 🚀 Feature Request / Idea
-description: Suggest a new idea for this project.
+name: Feature Request / Idea
+description: Suggest a new GenieTerm product idea.
 title: "[Feature]: "
 labels: ["enhancement", "triage"]
 body:
     - type: textarea
       attributes:
           label: Feature description
-          description: Describe the issue in detail and why we should add it. To help us out, please poke through our issue tracker and make sure it's not a duplicate issue. Ex. As a user, I can do [...]
+          description: Describe the workflow in detail, why it matters, and what a good GenieTerm experience would feel like.
       validations:
           required: true
     - type: textarea
