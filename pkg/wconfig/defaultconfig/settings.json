@@ -6,7 +6,7 @@
     "app:defaultnewblock": "term",
     "app:tabbar": "top",
     "app:confirmquit": true,
-    "app:hideaibutton": false,
+    "app:hideaibutton": true,
     "app:hidetabbar": false,
     "app:hidesidebar": false,
     "app:rightclickpaste": true,
