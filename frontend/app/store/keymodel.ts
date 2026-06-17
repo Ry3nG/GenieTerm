@@ -569,6 +569,8 @@ const PALETTE_LABELS: Record<string, string> = {
     "term:multi-input": "Toggle Multi-Input",
     "term:jump-prev-block": "Jump to Previous Command",
     "term:jump-next-block": "Jump to Next Command",
+    "term:copy-last-command": "Copy Last Command",
+    "term:copy-last-output": "Copy Last Command Output",
     "view:toggle-sidebar": "Toggle Sidebar",
     "view:toggle-tabbar": "Toggle Tab Bar",
     "app:refocus": "Refocus Terminal",
@@ -650,6 +652,22 @@ function registerGlobalKeys() {
         }
         vm.jumpToBlock(dir);
         return true;
+    }
+    function copyFocusedTermBlock(kind: "command" | "output"): boolean {
+        const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
+        const vm = bcm?.viewModel as any;
+        if (vm?.viewType !== "term") {
+            return false;
+        }
+        if (kind === "command" && typeof vm.copyLastCommand === "function") {
+            vm.copyLastCommand();
+            return true;
+        }
+        if (kind === "output" && typeof vm.copyLastCommandOutput === "function") {
+            vm.copyLastCommandOutput();
+            return true;
+        }
+        return false;
     }
     // Block focus navigation is gated by the app:disablectrlshiftarrows setting; returning
     // false on disable lets the key fall through to the focused block/shell.
@@ -799,6 +817,8 @@ function registerGlobalKeys() {
         },
         { id: "term:jump-prev-block", defaultBinding: "Cmd:Shift:ArrowUp", handler: () => jumpFocusedTerm("prev") },
         { id: "term:jump-next-block", defaultBinding: "Cmd:Shift:ArrowDown", handler: () => jumpFocusedTerm("next") },
+        { id: "term:copy-last-command", defaultBinding: [], handler: () => copyFocusedTermBlock("command") },
+        { id: "term:copy-last-output", defaultBinding: [], handler: () => copyFocusedTermBlock("output") },
     ];
 
     for (let idx = 1; idx <= 9; idx++) {

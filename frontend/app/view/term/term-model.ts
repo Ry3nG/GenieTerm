@@ -39,7 +39,7 @@ import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
-import { blockHasCommand } from "./cmdblocks";
+import { type CmdBlock, blockHasCommand, getBlockOutputText } from "./cmdblocks";
 import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, DefaultTermTheme, isLikelyOnSameHost, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
@@ -568,6 +568,40 @@ export class TermViewModel implements ViewModel {
             target = next.length > 0 ? next[0] : lines[lines.length - 1];
         }
         terminal.scrollToLine(target);
+    }
+
+    findLastCommandBlock(): CmdBlock {
+        const termWrap = this.termRef.current;
+        if (termWrap == null) {
+            return null;
+        }
+        for (let i = termWrap.cmdBlocks.length - 1; i >= 0; i--) {
+            if (blockHasCommand(termWrap.cmdBlocks[i])) {
+                return termWrap.cmdBlocks[i];
+            }
+        }
+        return null;
+    }
+
+    copyLastCommand() {
+        const block = this.findLastCommandBlock();
+        if (block?.command == null) {
+            return;
+        }
+        navigator.clipboard.writeText(block.command);
+    }
+
+    copyLastCommandOutput() {
+        const termWrap = this.termRef.current;
+        const block = this.findLastCommandBlock();
+        if (block == null || termWrap?.terminal == null) {
+            return;
+        }
+        const text = getBlockOutputText(block, termWrap.terminal);
+        if (!text) {
+            return;
+        }
+        navigator.clipboard.writeText(text);
     }
 
     triggerRestartAtom() {
