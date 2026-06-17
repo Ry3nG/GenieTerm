@@ -4,10 +4,13 @@ import {
     cancelTransferJob,
     completeTransferJob,
     createTransferQueue,
+    enqueueTransferJobGroup,
     enqueueTransferJob,
     failTransferJob,
+    getTransferGroupJobs,
     getTransferJob,
     retryTransferJob,
+    summarizeTransferGroup,
     startTransferJob,
     updateTransferProgress,
     type TransferJobInput,
@@ -137,5 +140,75 @@ describe("transferqueue", () => {
         expect(() => failTransferJob(queued, "missing", { code: "missing", message: "Missing job" }, 1300)).toThrow(
             "Unknown transfer job"
         );
+    });
+
+    it("enqueues grouped jobs with a shared group id", () => {
+        const grouped = enqueueTransferJobGroup(
+            createTransferQueue(),
+            [
+                { ...baseJobInput, id: "job-1", label: "first.txt" },
+                { ...baseJobInput, id: "job-2", label: "second.txt" },
+            ],
+            "group-1",
+            1000
+        );
+
+        expect(getTransferGroupJobs(grouped, "group-1").map((job) => `${job.id}:${job.groupId}`)).toEqual([
+            "job-1:group-1",
+            "job-2:group-1",
+        ]);
+        expect(summarizeTransferGroup(grouped, "group-1")).toMatchObject({
+            groupId: "group-1",
+            totalCount: 2,
+            statusCounts: {
+                queued: 2,
+                running: 0,
+                completed: 0,
+                failed: 0,
+                canceled: 0,
+            },
+            hasPartialFailure: false,
+        });
+    });
+
+    it("summarizes grouped partial failure and retry/cancel affordances per item", () => {
+        const grouped = enqueueTransferJobGroup(
+            createTransferQueue(),
+            [
+                { ...baseJobInput, id: "job-1", label: "first.txt" },
+                { ...baseJobInput, id: "job-2", label: "second.txt" },
+                { ...baseJobInput, id: "job-3", label: "third.txt" },
+            ],
+            "group-1",
+            1000
+        );
+        const running1 = startTransferJob(grouped, "job-1", 1100);
+        const failed = failTransferJob(
+            running1,
+            "job-1",
+            { code: "copy_failed", message: "Copy failed", retryable: true },
+            1200
+        );
+        const running2 = startTransferJob(failed, "job-2", 1300);
+        const completed = completeTransferJob(running2, "job-2", 1400);
+
+        expect(summarizeTransferGroup(completed, "group-1")).toMatchObject({
+            totalCount: 3,
+            statusCounts: {
+                queued: 1,
+                running: 0,
+                completed: 1,
+                failed: 1,
+                canceled: 0,
+            },
+            hasPartialFailure: true,
+            failedJobIds: ["job-1"],
+            retryableFailedJobIds: ["job-1"],
+            cancelableJobIds: ["job-3"],
+        });
+
+        const retried = retryTransferJob(completed, "job-1", 1500);
+        expect(getTransferJob(retried, "job-1").groupId).toBe("group-1");
+        expect(getTransferJob(retried, "job-1").status).toBe("queued");
     });
 });

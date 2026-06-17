@@ -11,6 +11,7 @@ import { Readable } from "stream";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import * as keyutil from "../frontend/util/keyutil";
+import type { TransferError, TransferJobInput } from "../frontend/util/transferqueue";
 import { fireAndForget, parseDataUrl } from "../frontend/util/util";
 import {
     incrementTermCommandsDurable,
@@ -40,8 +41,15 @@ let webviewFocusId: number = null;
 let webviewKeys: string[] = [];
 const TransferQueueGetChannel = "transfer-queue:get";
 const TransferQueueUpdateChannel = "transfer-queue:update";
+const TransferJobStartChannel = "transfer-job:start";
+const TransferJobFinishChannel = "transfer-job:finish";
 const transferQueueSubscribers = new Map<number, electron.WebContents>();
 let transferQueueBridgeRegistered = false;
+
+type RendererTransferJobOutcome =
+    | { status: "completed" }
+    | { status: "failed"; error: TransferError }
+    | { status: "canceled"; error?: TransferError };
 
 export function openBuilderWindow(appId?: string) {
     const normalizedAppId = appId || "";
@@ -229,6 +237,21 @@ function registerTransferQueueBridge() {
     electron.ipcMain.handle(TransferQueueGetChannel, (event) => {
         registerTransferQueueSubscriber(event.sender);
         return downloadTransferTracker.getQueue();
+    });
+    electron.ipcMain.handle(TransferJobStartChannel, (_event, input: TransferJobInput) => {
+        downloadTransferTracker.enqueue(input);
+        downloadTransferTracker.start(input.id);
+    });
+    electron.ipcMain.handle(TransferJobFinishChannel, (_event, jobId: string, outcome: RendererTransferJobOutcome) => {
+        if (outcome.status === "completed") {
+            downloadTransferTracker.complete(jobId);
+            return;
+        }
+        if (outcome.status === "canceled") {
+            downloadTransferTracker.cancel(jobId);
+            return;
+        }
+        downloadTransferTracker.fail(jobId, outcome.error);
     });
     downloadTransferTracker.subscribe((queue) => {
         broadcastTransferQueue(queue);

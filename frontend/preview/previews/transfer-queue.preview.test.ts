@@ -7,6 +7,10 @@ describe("transfer queue preview state", () => {
         const queue = makeTransferQueuePreviewState();
 
         expect(queue.jobs.map((job) => job.status)).toEqual(["queued", "running", "completed", "failed", "canceled"]);
-        expect(queue.jobs.find((job) => job.status === "failed")?.lastError?.message).toBe("Folder transfer failed.");
+        expect(queue.jobs.filter((job) => job.groupId === "preview-upload-group").map((job) => job.status)).toEqual([
+            "completed",
+            "failed",
+        ]);
+        expect(queue.jobs.find((job) => job.status === "failed")?.lastError?.message).toBe("Upload failed.");
     });
 });

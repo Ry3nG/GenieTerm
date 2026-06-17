@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { WaveEnv } from "@/app/waveenv/waveenv";
-import type { TransferQueue } from "@/util/transferqueue";
+import type { TransferError, TransferJobInput, TransferQueue } from "@/util/transferqueue";
 import { type Placement } from "@floating-ui/react";
 import type * as jotai from "jotai";
 import type * as rxjs from "rxjs";
@@ -102,6 +102,8 @@ declare global {
         downloadFolder: (path: string) => void; // download-folder
         getTransferQueue: () => Promise<TransferQueue>; // transfer-queue:get
         onTransferQueueUpdate: (callback: (queue: TransferQueue) => void) => () => void; // transfer-queue:update
+        startTransferJob: (input: TransferJobInput) => Promise<void>; // transfer-job:start
+        finishTransferJob: (jobId: string, outcome: TransferJobOutcome) => Promise<void>; // transfer-job:finish
         openExternal: (url: string) => void; // open-external
         onFullScreenChange: (callback: (isFullScreen: boolean) => void) => void; // fullscreen-change
         onZoomFactorChange: (callback: (zoomFactor: number) => void) => void; // zoom-factor-change
@@ -141,6 +143,11 @@ declare global {
         saveTextFile: (fileName: string, content: string) => Promise<boolean>; // save-text-file
         setIsActive: () => Promise<void>; // set-is-active
     };
+
+    type TransferJobOutcome =
+        | { status: "completed" }
+        | { status: "failed"; error: TransferError }
+        | { status: "canceled"; error?: TransferError };
 
     type ElectronContextMenuItem = {
         id: string; // unique id, used for communication
@@ -452,6 +459,7 @@ declare global {
         uri: string;
         absParent: string;
         relName: string;
+        path?: string;
         isDir: boolean;
     };
 

@@ -52,6 +52,21 @@ export type TransferQueue = {
     jobs: TransferJob[];
 };
 
+export type TransferStatusCounts = Record<TransferJobStatus, number>;
+
+export type TransferGroupSummary = {
+    groupId: string;
+    jobs: TransferJob[];
+    totalCount: number;
+    statusCounts: TransferStatusCounts;
+    hasPartialFailure: boolean;
+    failedJobIds: string[];
+    retryableFailedJobIds: string[];
+    cancelableJobIds: string[];
+};
+
+const TransferStatuses: TransferJobStatus[] = ["queued", "running", "completed", "failed", "canceled"];
+
 export function createTransferQueue(): TransferQueue {
     return { jobs: [] };
 }
@@ -80,6 +95,61 @@ export function enqueueTransferJob(queue: TransferQueue, input: TransferJobInput
     return {
         ...queue,
         jobs: [...queue.jobs, job],
+    };
+}
+
+export function enqueueTransferJobGroup(
+    queue: TransferQueue,
+    inputs: TransferJobInput[],
+    groupId: string,
+    now: number
+): TransferQueue {
+    if (!groupId) {
+        throw new Error("Transfer group id must be non-empty");
+    }
+    if (inputs.length === 0) {
+        throw new Error(`Transfer group ${groupId} must include at least one job`);
+    }
+    return inputs.reduce(
+        (nextQueue, input) => enqueueTransferJob(nextQueue, { ...input, groupId }, now),
+        queue
+    );
+}
+
+export function getTransferGroupJobs(queue: TransferQueue, groupId: string): TransferJob[] {
+    return queue.jobs.filter((job) => job.groupId === groupId);
+}
+
+export function summarizeTransferGroup(queue: TransferQueue, groupId: string): TransferGroupSummary {
+    const jobs = getTransferGroupJobs(queue, groupId);
+    const statusCounts = createEmptyStatusCounts();
+    const failedJobIds: string[] = [];
+    const retryableFailedJobIds: string[] = [];
+    const cancelableJobIds: string[] = [];
+
+    for (const job of jobs) {
+        statusCounts[job.status] += 1;
+        if (job.status === "failed") {
+            failedJobIds.push(job.id);
+            if (job.lastError?.retryable !== false) {
+                retryableFailedJobIds.push(job.id);
+            }
+        }
+        if (job.status === "queued" || job.status === "running") {
+            cancelableJobIds.push(job.id);
+        }
+    }
+
+    const hasPartialFailure = statusCounts.failed > 0 && statusCounts.failed < jobs.length;
+    return {
+        groupId,
+        jobs,
+        totalCount: jobs.length,
+        statusCounts,
+        hasPartialFailure,
+        failedJobIds,
+        retryableFailedJobIds,
+        cancelableJobIds,
     };
 }
 
@@ -225,4 +295,11 @@ function clampProgress(progress: TransferProgress): TransferProgress {
         next.percent = Math.max(0, Math.min(100, next.percent));
     }
     return next;
+}
+
+function createEmptyStatusCounts(): TransferStatusCounts {
+    return TransferStatuses.reduce((counts, status) => {
+        counts[status] = 0;
+        return counts;
+    }, {} as TransferStatusCounts);
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 .dir-table-container {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -185,6 +186,43 @@
                         }
                     }
                 }
+            }
+        }
+    }
+
+    .dir-upload-drop-overlay {
+        position: absolute;
+        z-index: 30;
+        inset: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        border: 1px dashed var(--accent-color);
+        border-radius: 6px;
+        background: rgb(from var(--block-bg-color) r g b / 0.72);
+        box-shadow: inset 0 0 0 1px rgb(from var(--accent-color) r g b / 0.16);
+
+        .dir-upload-drop-panel {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            max-width: calc(100% - 24px);
+            padding: 8px 10px;
+            border: 1px solid rgb(from var(--accent-color) r g b / 0.32);
+            border-radius: 6px;
+            background: var(--main-bg-color);
+            color: var(--main-text-color);
+            font-size: 12px;
+            line-height: 16px;
+            font-weight: 600;
+            white-space: nowrap;
+
+            span {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
         }
     }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent, Rectangle, webUtils, WebviewTag } from "electron";
-import type { TransferQueue } from "../frontend/util/transferqueue";
+import type { TransferJobInput, TransferQueue } from "../frontend/util/transferqueue";
 
 // update type in custom.d.ts (ElectronApi type)
 contextBridge.exposeInMainWorld("api", {
@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("transfer-queue:update", listener);
         return () => ipcRenderer.off("transfer-queue:update", listener);
     },
+    startTransferJob: (input: TransferJobInput) => ipcRenderer.invoke("transfer-job:start", input),
+    finishTransferJob: (jobId: string, outcome: TransferJobOutcome) =>
+        ipcRenderer.invoke("transfer-job:finish", jobId, outcome),
     openExternal: (url) => {
         if (url && typeof url === "string") {
             ipcRenderer.send("open-external", url);

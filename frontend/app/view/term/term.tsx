@@ -21,6 +21,8 @@ import clsx from "clsx";
 import debug from "debug";
 import * as jotai from "jotai";
 import * as React from "react";
+import { useDrop } from "react-dnd";
+import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import { TermLinkTooltip } from "./term-tooltip";
 import { TermStickers } from "./termsticker";
 import { TermThemeUpdater } from "./termtheme";
@@ -384,8 +386,41 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
         [model]
     );
 
+    const handleDraggedFileDrop = React.useCallback(
+        (draggedFile: DraggedFile) => {
+            const pasteText = formatDraggedFileTerminalPaste(draggedFile);
+            if (!pasteText) {
+                return;
+            }
+            model.termRef.current?.terminal?.paste(pasteText);
+            model.giveFocus();
+        },
+        [model]
+    );
+
+    const [, drop] = useDrop(
+        () => ({
+            accept: "FILE_ITEM",
+            drop: (draggedFile: DraggedFile, monitor) => {
+                if (monitor.didDrop()) {
+                    return;
+                }
+                handleDraggedFileDrop(draggedFile);
+            },
+        }),
+        [handleDraggedFileDrop]
+    );
+
+    const viewDropRef = React.useCallback(
+        (node: HTMLDivElement | null) => {
+            viewRef.current = node;
+            drop(node);
+        },
+        [drop]
+    );
+
     return (
-        <div className={clsx("view-term", "term-mode-" + termMode)} ref={viewRef} onContextMenu={handleContextMenu}>
+        <div className={clsx("view-term", "term-mode-" + termMode)} ref={viewDropRef} onContextMenu={handleContextMenu}>
             {termBg && <div key="term-bg" className="absolute inset-0 z-0 pointer-events-none" style={termBg} />}
             <TermResyncHandler blockId={blockId} model={model} />
             <TermThemeUpdater blockId={blockId} model={model} termRef={model.termRef} />

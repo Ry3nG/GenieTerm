@@ -8,6 +8,13 @@ import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { checkKeyPressed, isCharacterKeyEvent } from "@/util/keyutil";
 import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { addOpenMenuItems } from "@/util/previewutil";
+import type { TransferError, TransferItemType } from "@/util/transferqueue";
+import {
+    buildLocalUploadTransferPlans,
+    createUploadTransferGroupId,
+    createUploadTransferJobId,
+    type LocalUploadItem,
+} from "@/util/transferupload";
 import { fireAndForget } from "@/util/util";
 import { formatRemoteUri } from "@/util/waveutil";
 import { offset, useDismiss, useFloating, useInteractions } from "@floating-ui/react";
@@ -30,6 +37,7 @@ import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
 import "./directorypreview.scss";
+import { DirectoryUploadDropOverlay } from "./directory-upload-drop-overlay";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
 import {
     cleanMimetype,
@@ -48,6 +56,33 @@ import type { PreviewEnv } from "./previewenv";
 import { DirectoryTransferQueueStatus } from "./transfer-queue-status";
 
 const PageJumpSize = 20;
+const CopyTimeoutYear = 31536000000;
+
+type FileCopyResult = { ok: true } | { ok: false; errorText: string; retryable: boolean };
+type FileCopyFailureResult = Extract<FileCopyResult, { ok: false }>;
+
+type WebKitDataTransferItem = DataTransferItem & {
+    webkitGetAsEntry?: () => { isDirectory?: boolean; isFile?: boolean; name?: string };
+};
+
+function hasNativeFiles(dataTransfer: DataTransfer): boolean {
+    return dataTransfer.types.includes("Files");
+}
+
+function getDroppedItemType(dataTransfer: DataTransfer, index: number): TransferItemType {
+    const item = dataTransfer.items?.[index] as WebKitDataTransferItem;
+    const entry = item?.webkitGetAsEntry?.();
+    return entry?.isDirectory ? "folder" : "file";
+}
+
+function makeUploadFailure(errorText: string, retryable: boolean): TransferError {
+    return {
+        code: retryable ? "upload_confirmation_required" : "upload_failed",
+        message: retryable ? "Upload needs confirmation." : "Upload failed.",
+        detail: errorText,
+        retryable,
+    };
+}
 
 interface DirectoryTableHeaderCellProps {
     header: Header<FileInfo, unknown>;
@@ -506,6 +541,7 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
     const dragItem: DraggedFile = {
         relName: row.getValue("name") as string,
         absParent: dirPath,
+        path: row.getValue("path") as string,
         uri: formatRemoteUri(row.getValue("path") as string, connection),
         isDir: row.original.isdir,
     };
@@ -569,6 +605,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const showHiddenFiles = useAtomValue(model.showHiddenFiles);
     const [selectedPath, setSelectedPath] = useState("");
     const [refreshVersion, setRefreshVersion] = useAtom(model.refreshVersion);
+    const [isLocalDragOver, setIsLocalDragOver] = useState(false);
     const conn = useAtomValue(model.connection);
     const blockData = useAtomValue(model.blockAtom);
     const finfo = useAtomValue(model.statFile);
@@ -713,9 +750,10 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     });
 
     const handleDropCopy = useCallback(
-        async (data: CommandFileCopyData, isDir: boolean) => {
+        async (data: CommandFileCopyData, isDir: boolean): Promise<FileCopyResult> => {
             try {
                 await env.rpc.FileCopyCommand(TabRpcClient, data, { timeout: data.opts.timeout });
+                return { ok: true };
             } catch (e) {
                 console.warn("Copy failed:", e);
                 const copyError = `${e}`;
@@ -751,10 +789,130 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     };
                 }
                 setErrorMsg(errorMsg);
+                return { ok: false, errorText: copyError, retryable: allowRetry };
+            } finally {
+                model.refreshCallback?.();
             }
-            model.refreshCallback();
         },
-        [model.refreshCallback]
+        [env.rpc, model.refreshCallback, setErrorMsg]
+    );
+
+    const buildLocalUploadItems = useCallback(
+        (dataTransfer: DataTransfer): LocalUploadItem[] =>
+            Array.from(dataTransfer.files)
+                .map((file, index): LocalUploadItem | null => {
+                    const localPath = env.electron.getPathForFile(file);
+                    if (!localPath) {
+                        return null;
+                    }
+                    return {
+                        path: localPath,
+                        name: file.name,
+                        itemType: getDroppedItemType(dataTransfer, index),
+                    };
+                })
+                .filter((item): item is LocalUploadItem => item != null),
+        [env.electron]
+    );
+
+    const handleLocalUploadDrop = useCallback(
+        async (dataTransfer: DataTransfer) => {
+            const uploadItems = buildLocalUploadItems(dataTransfer);
+            if (uploadItems.length === 0) {
+                setErrorMsg({
+                    status: "Upload Failed",
+                    text: "No local file paths were available from the drop.",
+                    level: "error",
+                });
+                return;
+            }
+
+            try {
+                const desturi = await model.formatRemoteUri(dirPath, globalStore.get);
+                const groupId = uploadItems.length > 1 ? createUploadTransferGroupId("upload") : undefined;
+                const plans = buildLocalUploadTransferPlans(uploadItems, desturi, {
+                    groupId,
+                    createId: () => createUploadTransferJobId("upload"),
+                });
+
+                await Promise.all(plans.map((plan) => env.electron.startTransferJob(plan.jobInput)));
+                for (const plan of plans) {
+                    const result = await handleDropCopy(
+                        {
+                            srcuri: plan.srcuri,
+                            desturi: plan.desturi,
+                            opts: {
+                                timeout: CopyTimeoutYear,
+                            },
+                        },
+                        plan.jobInput.itemType === "folder"
+                    );
+                    if (!result.ok) {
+                        const failureResult = result as FileCopyFailureResult;
+                        await env.electron.finishTransferJob(plan.jobInput.id, {
+                            status: "failed",
+                            error: makeUploadFailure(failureResult.errorText, failureResult.retryable),
+                        });
+                    } else {
+                        await env.electron.finishTransferJob(plan.jobInput.id, { status: "completed" });
+                    }
+                }
+            } catch (e) {
+                setErrorMsg({
+                    status: "Upload Failed",
+                    text: `${e}`,
+                    level: "error",
+                });
+            }
+        },
+        [buildLocalUploadItems, dirPath, env.electron, handleDropCopy, model.formatRemoteUri, setErrorMsg]
+    );
+
+    const handleLocalDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        if (!hasNativeFiles(e.dataTransfer)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+        setIsLocalDragOver(true);
+    }, []);
+
+    const handleLocalDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        if (!hasNativeFiles(e.dataTransfer)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        setIsLocalDragOver(true);
+    }, []);
+
+    const handleLocalDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        if (!hasNativeFiles(e.dataTransfer)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+        if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+            setIsLocalDragOver(false);
+        }
+    }, []);
+
+    const handleLocalDrop = useCallback(
+        (e: React.DragEvent<HTMLDivElement>) => {
+            if (!hasNativeFiles(e.dataTransfer) || e.dataTransfer.files.length === 0) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const { dataTransfer } = e;
+            setIsLocalDragOver(false);
+            fireAndForget(() => handleLocalUploadDrop(dataTransfer));
+        },
+        [handleLocalUploadDrop]
     );
 
     const [, drop] = useDrop(
@@ -771,9 +929,8 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             },
             drop: async (draggedFile: DraggedFile, monitor) => {
                 if (!monitor.didDrop()) {
-                    const timeoutYear = 31536000000; // one year
                     const opts: FileCopyOpts = {
-                        timeout: timeoutYear,
+                        timeout: CopyTimeoutYear,
                     };
                     const desturi = await model.formatRemoteUri(dirPath, globalStore.get);
                     const data: CommandFileCopyData = {
@@ -877,7 +1034,12 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 {...getReferenceProps()}
                 onContextMenu={(e) => handleFileContextMenu(e)}
                 onClick={() => setEntryManagerProps(undefined)}
+                onDragEnter={handleLocalDragEnter}
+                onDragOver={handleLocalDragOver}
+                onDragLeave={handleLocalDragLeave}
+                onDrop={handleLocalDrop}
             >
+                {isLocalDragOver && <DirectoryUploadDropOverlay />}
                 <DirectoryTransferQueueStatus />
                 <DirectoryTable
                     model={model}

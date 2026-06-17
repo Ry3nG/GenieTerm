@@ -157,6 +157,8 @@ Implementation note:
 
 ### M4: Drag-And-Drop Upload And Quoted Terminal Paths
 
+Status: Ubuntu implementation complete; macOS drag/drop smoke remains part of the final Mac gate.
+
 Acceptance:
 
 - Dropping local files or folders onto a remote directory creates upload jobs.
@@ -169,7 +171,15 @@ Ubuntu gates:
 - Targeted Vitest for path parsing, path quoting, transfer queue state, and upload job creation.
 - Preview/Playwright screenshot gate for any visible drag affordances.
 
+Implementation note:
+
+- Local OS file drops into a remote Files directory use the existing `FileCopyCommand` transport and add renderer-observed upload jobs to the shared transfer queue.
+- Multi-file drops receive a shared group id; the current UI remains per-item so partial failures are visible without adding a larger transfer panel.
+- Built-in Files widget drags into terminal blocks paste the remote path through the existing POSIX shell quoting helper.
+
 ### M5: Multi-Select And Fallback Transport
+
+Status: Ubuntu grouped transfer semantics complete; SFTP fallback remains design-gated by #22 resource and transport evidence.
 
 Acceptance:
 
@@ -182,6 +192,11 @@ Ubuntu gates:
 
 - Unit tests for grouped queue behavior and retry/cancel semantics.
 - Build checks for TypeScript and feasible Go targets on Ubuntu.
+
+Implementation note:
+
+- The pure transfer queue exposes grouped job enqueue, group lookup, partial-failure summary, retryable failed item ids, and cancelable item ids.
+- No SFTP transport or Rust code is introduced in V1 without #22 evidence.
 
 ## Validation Matrix
 

@@ -27,6 +27,8 @@ const previewElectronApi: ElectronApi = {
     downloadFolder: (_path: string) => {},
     getTransferQueue: () => Promise.resolve({ jobs: [] }),
     onTransferQueueUpdate: (_callback: (queue: TransferQueue) => void) => () => {},
+    startTransferJob: (_input) => Promise.resolve(),
+    finishTransferJob: (_jobId, _outcome) => Promise.resolve(),
     openExternal: (_url: string) => {},
     onFullScreenChange: (_callback: (isFullScreen: boolean) => void) => {},
     onZoomFactorChange: (_callback: (zoomFactor: number) => void) => {},
