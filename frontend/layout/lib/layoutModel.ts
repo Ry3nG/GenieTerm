@@ -1498,6 +1498,10 @@ export class LayoutModel {
                 return leaf;
             }
         }
+        const ephemeralNode = this.getter(this.ephemeralNode);
+        if (ephemeralNode?.data.blockId === blockId) {
+            return ephemeralNode;
+        }
         return null;
     }
 
