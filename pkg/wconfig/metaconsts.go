@@ -18,6 +18,7 @@ const (
 	ConfigKey_AppDisableCtrlShiftDisplay    = "app:disablectrlshiftdisplay"
 	ConfigKey_AppFocusFollowsCursor         = "app:focusfollowscursor"
 	ConfigKey_AppTabBar                     = "app:tabbar"
+	ConfigKey_AppTheme                      = "app:theme"
 	ConfigKey_AppKeybindings                = "app:keybindings"
 	ConfigKey_AppHideTabBar                 = "app:hidetabbar"
 	ConfigKey_AppHideSidebar                = "app:hidesidebar"

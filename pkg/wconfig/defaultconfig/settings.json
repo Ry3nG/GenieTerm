@@ -5,6 +5,7 @@
     "ai:timeoutms": 60000,
     "app:defaultnewblock": "term",
     "app:tabbar": "top",
+    "app:theme": "dark",
     "app:confirmquit": true,
     "app:hideaibutton": true,
     "app:hidetabbar": false,

@@ -6,6 +6,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import type { TabModel } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { GeneralSettingsContent } from "@/app/view/waveconfig/generalcontent";
 import { SecretsContent } from "@/app/view/waveconfig/secretscontent";
 import { WaveConfigView } from "@/app/view/waveconfig/waveconfig";
 import type { WaveConfigEnv } from "@/app/view/waveconfig/waveconfigenv";
@@ -63,6 +64,7 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             language: "json",
             docsUrl: "https://github.com/Ry3nG/GenieTerm",
             hasJsonView: true,
+            visualComponent: GeneralSettingsContent,
         },
         {
             name: "Connections",
