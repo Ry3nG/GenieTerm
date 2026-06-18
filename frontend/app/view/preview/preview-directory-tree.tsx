@@ -14,6 +14,10 @@ import type { PreviewEnv } from "./previewenv";
 
 const IndentPx = 14;
 
+export function makeTreeNodeKey(connName: string, path: string): string {
+    return `${connName ?? "local"}:${path}`;
+}
+
 type TreeCtx = {
     model: PreviewModel;
     rpc: PreviewEnv["rpc"];
@@ -156,7 +160,14 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
                 {isExpanded && loading && <i className="fa fa-solid fa-spinner fa-spin text-muted text-[10px] ml-1" />}
             </div>
             {isExpanded &&
-                visibleChildren.map((c) => <FileTreeNode key={c.path} ctx={ctx} fileInfo={c} depth={depth + 1} />)}
+                visibleChildren.map((c) => (
+                    <FileTreeNode
+                        key={makeTreeNodeKey(ctx.connName, c.path)}
+                        ctx={ctx}
+                        fileInfo={c}
+                        depth={depth + 1}
+                    />
+                ))}
         </>
     );
 }
@@ -225,7 +236,7 @@ export function DirectoryTreeView({
             onDrop={onRootDrop}
         >
             {rootEntries.map((fi) => (
-                <FileTreeNode key={fi.path} ctx={ctx} fileInfo={fi} depth={0} />
+                <FileTreeNode key={makeTreeNodeKey(connName, fi.path)} ctx={ctx} fileInfo={fi} depth={0} />
             ))}
         </div>
     );
