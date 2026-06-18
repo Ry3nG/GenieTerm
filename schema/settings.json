@@ -50,6 +50,13 @@
             "left"
           ]
         },
+        "app:theme": {
+          "type": "string",
+          "enum": [
+            "dark",
+            "light"
+          ]
+        },
         "app:keybindings": {
           "type": "object"
         },

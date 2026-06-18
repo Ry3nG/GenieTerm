@@ -8,6 +8,7 @@ import "monaco-editor/esm/vs/language/json/monaco.contribution";
 import "monaco-editor/esm/vs/language/typescript/monaco.contribution";
 import { configureMonacoYaml } from "monaco-yaml";
 
+import { AppThemeChangeEventName, normalizeAppTheme } from "@/app/app-theme";
 import { MonacoSchemas } from "@/app/monaco/schemaendpoints";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
@@ -17,6 +18,10 @@ import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 import ymlWorker from "./yamlworker?worker";
 
 let monacoConfigured = false;
+
+function getMonacoThemeName(theme: unknown): string {
+    return normalizeAppTheme(theme) === "light" ? "wave-theme-light" : "wave-theme-dark";
+}
 
 window.MonacoEnvironment = {
     getWorker(_, label) {
@@ -68,7 +73,10 @@ export function loadMonaco() {
         validate: true,
         schemas: [],
     });
-    monaco.editor.setTheme("wave-theme-dark");
+    monaco.editor.setTheme(getMonacoThemeName(document.documentElement.dataset.appTheme));
+    window.addEventListener(AppThemeChangeEventName, (event) => {
+        monaco.editor.setTheme(getMonacoThemeName((event as CustomEvent<{ theme: unknown }>).detail?.theme));
+    });
     // Disable default validation errors for typescript and javascript
     monaco.typescript.typescriptDefaults.setDiagnosticsOptions({
         noSemanticValidation: true,

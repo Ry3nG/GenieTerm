@@ -1413,6 +1413,7 @@ declare global {
         "app:disablectrlshiftdisplay"?: boolean;
         "app:focusfollowscursor"?: string;
         "app:tabbar"?: string;
+        "app:theme"?: string;
         "app:keybindings"?: {[key: string]: any};
         "app:hidetabbar"?: boolean;
         "app:hidesidebar"?: boolean;
