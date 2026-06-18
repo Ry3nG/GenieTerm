@@ -478,6 +478,7 @@ const PALETTE_LABELS: Record<string, string> = {
     "tab:new": "New Tab",
     "tab:next": "Next Tab",
     "tab:prev": "Previous Tab",
+    "tab:reload": "Reload Tab",
     "tab:close": "Close Tab",
     "tab:rename": "Rename Tab",
     "block:new": "New Block",
@@ -814,6 +815,14 @@ function registerGlobalKeys() {
             defaultBinding: "Cmd:t",
             handler: () => {
                 createTab();
+                return true;
+            },
+        },
+        {
+            id: "tab:reload",
+            defaultBinding: "Shift:Cmd:r",
+            handler: () => {
+                getApi().doRefresh();
                 return true;
             },
         },
