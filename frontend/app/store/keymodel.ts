@@ -11,6 +11,7 @@ import {
     getApi,
     getBlockComponentModel,
     getFocusedBlockId,
+    getOrefMetaKeyAtom,
     getSettingsKeyAtom,
     globalStore,
     recordTEvent,
@@ -31,8 +32,11 @@ import * as keyutil from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { menuItemsToCommandPaletteCommands, type CommandPaletteCommand } from "./commandpalette";
 import { modalsModel } from "./modalmodel";
 import { isBuilderWindow, isTabWindow } from "./windowtype";
+
+export type { CommandPaletteCommand } from "./commandpalette";
 
 type KeyHandler = (event: WaveKeyboardEvent) => boolean;
 
@@ -71,7 +75,7 @@ export function keyboardMouseDownHandler(e: MouseEvent) {
 function getFocusedBlockInStaticTab(): string {
     const layoutModel = getLayoutModelForStaticTab();
     const focusedNode = globalStore.get(layoutModel.focusedNode);
-    return focusedNode.data?.blockId;
+    return focusedNode?.data?.blockId;
 }
 
 function getSimpleControlShiftAtom() {
@@ -467,8 +471,6 @@ function resolveBindings(id: string, defaultBinding: string | string[], override
 // the same actions that drive the keybindings (single source of truth).
 let lastBuiltActions: GlobalAction[] = [];
 
-export type CommandPaletteCommand = { id: string; label: string; binding: string; run: () => void };
-
 // Human labels for the actions worth surfacing in the command palette. Actions
 // without a label here (numbered tab/block switches) are omitted.
 const PALETTE_LABELS: Record<string, string> = {
@@ -501,6 +503,144 @@ const PALETTE_LABELS: Record<string, string> = {
     "app:refocus": "Refocus Terminal",
 };
 
+const FlagColors: { label: string; value: string }[] = [
+    { label: "Green", value: "#30D158" },
+    { label: "Teal", value: "#00FFDB" },
+    { label: "Blue", value: "#429DFF" },
+    { label: "Purple", value: "#BF55EC" },
+    { label: "Red", value: "#FF453A" },
+    { label: "Orange", value: "#FF9500" },
+    { label: "Yellow", value: "#FFE900" },
+];
+
+function makePaletteCommand(id: string, label: string, run: () => void, binding = ""): CommandPaletteCommand {
+    return { id, label, binding, run };
+}
+
+function setCurrentTabMeta(meta: MetaType) {
+    const tabId = globalStore.get(atoms.staticTabId);
+    if (tabId == null) {
+        return;
+    }
+    fireAndForget(() => RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("tab", tabId), meta }));
+}
+
+function setConfigValue(key: keyof SettingsType, value: any) {
+    fireAndForget(() => RpcApi.SetConfigCommand(TabRpcClient, { [key]: value }));
+}
+
+function openConfigFile(fileName: string) {
+    fireAndForget(() =>
+        createBlock(
+            {
+                meta: {
+                    view: "waveconfig",
+                    file: fileName,
+                },
+            },
+            false,
+            true
+        )
+    );
+}
+
+function getFocusedBlockMenuCommands(): CommandPaletteCommand[] {
+    const blockId = getFocusedBlockInStaticTab();
+    if (blockId == null) {
+        return [];
+    }
+    const bcm = getBlockComponentModel(blockId);
+    const vm = bcm?.viewModel as any;
+    if (vm == null) {
+        return [];
+    }
+    let menuItems: ContextMenuItem[] = null;
+    if (typeof vm.getCommandPaletteItems === "function") {
+        menuItems = vm.getCommandPaletteItems();
+    } else if (typeof vm.getContextMenuItems === "function") {
+        menuItems = vm.getContextMenuItems();
+    } else if (typeof vm.getSettingsMenuItems === "function") {
+        menuItems = vm.getSettingsMenuItems();
+    }
+    if (!menuItems?.length) {
+        return [];
+    }
+    const viewLabel = vm.viewType === "term" ? "Terminal" : "Block";
+    return menuItemsToCommandPaletteCommands(`block:${blockId}`, menuItems, { prefix: viewLabel });
+}
+
+function getCurrentTabCommands(): CommandPaletteCommand[] {
+    const tabId = globalStore.get(atoms.staticTabId);
+    if (tabId == null) {
+        return [];
+    }
+    const commands: CommandPaletteCommand[] = [
+        makePaletteCommand("tab:copy-id", "Tab: Copy Tab ID", () => {
+            fireAndForget(() => navigator.clipboard.writeText(tabId));
+        }),
+        makePaletteCommand("tab:flag-none", "Tab: Clear Flag Color", () =>
+            setCurrentTabMeta({ "tab:flagcolor": null })
+        ),
+        ...FlagColors.map((fc) =>
+            makePaletteCommand(`tab:flag-${fc.label.toLowerCase()}`, `Tab: Flag ${fc.label}`, () =>
+                setCurrentTabMeta({ "tab:flagcolor": fc.value })
+            )
+        ),
+        makePaletteCommand("view:tabbar-top", "View: Move Tab Bar to Top", () => setConfigValue("app:tabbar", "top")),
+        makePaletteCommand("view:tabbar-left", "View: Move Tab Bar to Left", () =>
+            setConfigValue("app:tabbar", "left")
+        ),
+    ];
+
+    const fullConfig = globalStore.get(atoms.fullConfigAtom);
+    const backgrounds = fullConfig?.backgrounds ?? {};
+    const bgKeys = Object.keys(backgrounds).filter((k) => backgrounds[k] != null);
+    bgKeys.sort((a, b) => {
+        return (backgrounds[a]["display:order"] ?? 0) - (backgrounds[b]["display:order"] ?? 0);
+    });
+    commands.push(
+        makePaletteCommand("tab:background-default", "Tab: Background Default", () => {
+            setCurrentTabMeta({ "bg:*": true, "tab:background": null });
+            RpcApi.ActivityCommand(TabRpcClient, { settabtheme: 1 }, { noresponse: true });
+            recordTEvent("action:settabtheme");
+        })
+    );
+    for (const bgKey of bgKeys) {
+        const bg = backgrounds[bgKey];
+        const label = bg["display:name"] ?? bgKey;
+        commands.push(
+            makePaletteCommand(`tab:background-${bgKey}`, `Tab: Background ${label}`, () => {
+                setCurrentTabMeta({ "bg:*": true, "tab:background": bgKey });
+                RpcApi.ActivityCommand(TabRpcClient, { settabtheme: 1 }, { noresponse: true });
+                recordTEvent("action:settabtheme");
+            })
+        );
+    }
+
+    return commands;
+}
+
+function getAppCommands(): CommandPaletteCommand[] {
+    return [
+        makePaletteCommand("config:edit-settings", "Config: Edit settings.json", () => openConfigFile("settings.json")),
+        makePaletteCommand("config:edit-widgets", "Config: Edit widgets.json", () => openConfigFile("widgets.json")),
+        makePaletteCommand("config:edit-connections", "Config: Edit connections.json", () =>
+            openConfigFile("connections.json")
+        ),
+        makePaletteCommand("view:toggle-widgets-bar", "View: Toggle Widgets Bar", () => {
+            const workspaceId = globalStore.get(atoms.workspaceId);
+            if (workspaceId == null) {
+                return;
+            }
+            const oref = WOS.makeORef("workspace", workspaceId);
+            const current = globalStore.get(getOrefMetaKeyAtom(oref, "layout:widgetsvisible")) ?? true;
+            fireAndForget(() =>
+                RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: { "layout:widgetsvisible": !current } })
+            );
+        }),
+    ];
+}
+
 export function getCommandPaletteCommands(): CommandPaletteCommand[] {
     const overrides = (globalStore.get(getSettingsKeyAtom("app:keybindings")) as Record<string, any>) ?? {};
     const cmds: CommandPaletteCommand[] = [];
@@ -517,6 +657,7 @@ export function getCommandPaletteCommands(): CommandPaletteCommand[] {
             run: () => action.handler({} as WaveKeyboardEvent),
         });
     }
+    cmds.push(...getFocusedBlockMenuCommands(), ...getCurrentTabCommands(), ...getAppCommands());
     return cmds;
 }
 
