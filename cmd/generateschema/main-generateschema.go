@@ -10,10 +10,10 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/invopop/jsonschema"
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
+	"github.com/invopop/jsonschema"
 )
 
 const WaveSchemaSettingsFileName = "schema/settings.json"
@@ -92,6 +92,7 @@ type WidgetsMetaSchemaHints struct {
 	TermFontSize            int      `json:"term:fontsize,omitempty"`
 	TermFontFamily          string   `json:"term:fontfamily,omitempty"`
 	TermMode                string   `json:"term:mode,omitempty"`
+	TermPresentation        string   `json:"term:presentation,omitempty"`
 	TermTheme               string   `json:"term:theme,omitempty"`
 	TermLocalShellPath      string   `json:"term:localshellpath,omitempty"`
 	TermLocalShellOpts      []string `json:"term:localshellopts,omitempty"`

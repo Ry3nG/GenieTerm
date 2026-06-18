@@ -102,8 +102,8 @@ type MetaTSType struct {
 	BgActiveBorderColor string  `json:"bg:activebordercolor,omitempty"` // frame:activebordercolor
 
 	// for workspace
-	LayoutVTabBarWidth      int  `json:"layout:vtabbarwidth,omitempty"`
-	LayoutWidgetsVisible    *bool `json:"layout:widgetsvisible,omitempty"`
+	LayoutVTabBarWidth   int   `json:"layout:vtabbarwidth,omitempty"`
+	LayoutWidgetsVisible *bool `json:"layout:widgetsvisible,omitempty"`
 
 	// for tabs+waveai
 	WaveAiPanelOpen     bool   `json:"waveai:panelopen,omitempty"`
@@ -116,6 +116,7 @@ type MetaTSType struct {
 	TermFontSize            int      `json:"term:fontsize,omitempty"`
 	TermFontFamily          string   `json:"term:fontfamily,omitempty"`
 	TermMode                string   `json:"term:mode,omitempty"`
+	TermPresentation        string   `json:"term:presentation,omitempty"`
 	TermTheme               string   `json:"term:theme,omitempty"`
 	TermLocalShellPath      string   `json:"term:localshellpath,omitempty"` // matches settings
 	TermLocalShellOpts      []string `json:"term:localshellopts,omitempty"` // matches settings

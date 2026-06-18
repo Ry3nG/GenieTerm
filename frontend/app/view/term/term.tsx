@@ -23,6 +23,11 @@ import * as jotai from "jotai";
 import * as React from "react";
 import { useDrop } from "react-dnd";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
+import {
+    getTerminalPresentationClassName,
+    normalizeTerminalPresentationMode,
+    type TerminalPresentationMode,
+} from "./terminaldisplay";
 import { TermLinkTooltip } from "./term-tooltip";
 import { TermStickers } from "./termsticker";
 import { TermThemeUpdater } from "./termtheme";
@@ -46,6 +51,21 @@ const TermClaudeIcon = React.memo(() => {
 });
 
 TermClaudeIcon.displayName = "TermClaudeIcon";
+
+const TerminalPresentationShell = React.memo(
+    ({ presentationMode, children }: { presentationMode: TerminalPresentationMode; children: React.ReactNode }) => {
+        return (
+            <div
+                className={clsx("term-presentation-shell", getTerminalPresentationClassName(presentationMode))}
+                data-terminal-presentation={presentationMode}
+            >
+                {children}
+            </div>
+        );
+    }
+);
+
+TerminalPresentationShell.displayName = "TerminalPresentationShell";
 
 const TermResyncHandler = React.memo(({ blockId, model }: TerminalViewProps) => {
     const connStatus = jotai.useAtomValue(model.connStatus);
@@ -190,6 +210,8 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const lastCommand = useAtomValueSafe(termWrapInst?.lastCommandAtom);
     const termSettingsAtom = getSettingsPrefixAtom("term");
     const termSettings = jotai.useAtomValue(termSettingsAtom);
+    const terminalPresentationSetting = jotai.useAtomValue(getOverrideConfigAtom(blockId, "term:presentation"));
+    const terminalPresentationMode = normalizeTerminalPresentationMode(terminalPresentationSetting);
     let termMode = blockData?.meta?.["term:mode"] ?? "term";
     if (termMode != "term" && termMode != "vdom") {
         termMode = "term";
@@ -435,14 +457,24 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     );
 
     return (
-        <div className={clsx("view-term", "term-mode-" + termMode)} ref={viewDropRef} onContextMenu={handleContextMenu}>
+        <div
+            className={clsx(
+                "view-term",
+                "term-mode-" + termMode,
+                getTerminalPresentationClassName(terminalPresentationMode)
+            )}
+            ref={viewDropRef}
+            onContextMenu={handleContextMenu}
+        >
             {termBg && <div key="term-bg" className="absolute inset-0 z-0 pointer-events-none" style={termBg} />}
             <TermResyncHandler blockId={blockId} model={model} />
             <TermThemeUpdater blockId={blockId} model={model} termRef={model.termRef} />
             <TermStickers config={stickerConfig} />
             <TermToolbarVDomNode key="vdom-toolbar" blockId={blockId} model={model} />
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
-            <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
+            <TerminalPresentationShell presentationMode={terminalPresentationMode}>
+                <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
+            </TerminalPresentationShell>
             <NullErrorBoundary debugName="TermLinkTooltip">
                 <TermLinkTooltip termWrap={termWrapInst} />
             </NullErrorBoundary>

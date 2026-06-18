@@ -1182,6 +1182,7 @@ declare global {
         "term:fontsize"?: number;
         "term:fontfamily"?: string;
         "term:mode"?: string;
+        "term:presentation"?: string;
         "term:theme"?: string;
         "term:localshellpath"?: string;
         "term:localshellopts"?: string[];
@@ -1420,6 +1421,7 @@ declare global {
         "term:*"?: boolean;
         "term:fontsize"?: number;
         "term:fontfamily"?: string;
+        "term:presentation"?: string;
         "term:theme"?: string;
         "term:disablewebgl"?: boolean;
         "term:localshellpath"?: string;

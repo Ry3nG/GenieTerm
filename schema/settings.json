@@ -122,6 +122,13 @@
         "term:fontfamily": {
           "type": "string"
         },
+        "term:presentation": {
+          "type": "string",
+          "enum": [
+            "semantic",
+            "classic"
+          ]
+        },
         "term:theme": {
           "type": "string"
         },
