@@ -109,18 +109,14 @@ func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, cli
 	if _, err := os.Stat(wshLocalPath); err != nil {
 		wshLocalPath = genieLocalPath
 	}
-	helpers := []struct {
-		localPath  string
-		remotePath string
-	}{
-		{localPath: genieLocalPath, remotePath: wavebase.RemoteFullGenieBinPath},
-		{localPath: wshLocalPath, remotePath: wavebase.RemoteFullWshBinPath},
+	// genie is the primary helper the shell integration uses — required.
+	if err := cpHelperToRemote(ctx, client, genieLocalPath, wavebase.RemoteFullGenieBinPath); err != nil {
+		return err
 	}
-	for _, helper := range helpers {
-		err = cpHelperToRemote(ctx, client, helper.localPath, helper.remotePath)
-		if err != nil {
-			return err
-		}
+	// wsh is a backward-compat alias — best-effort so a slow/proxied link can't
+	// block the install on the (larger) second copy after genie already landed.
+	if err := cpHelperToRemote(ctx, client, wshLocalPath, wavebase.RemoteFullWshBinPath); err != nil {
+		blocklogger.Infof(ctx, "[conndebug] WARN compat wsh helper copy failed (continuing with genie): %v\n", err)
 	}
 	return nil
 }

@@ -920,7 +920,12 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 	}
 	if needsInstall {
 		conn.Infof(ctx, "connserver needs to be (re)installed\n")
-		err = conn.InstallWsh(ctx, osArchStr)
+		// Copying the helper binary can take minutes on slow/proxied links; don't
+		// bound it by the short interactive-connect deadline (the ssh client
+		// lifecycle still bounds it if the connection drops).
+		installCtx, installCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Minute)
+		err = conn.InstallWsh(installCtx, osArchStr)
+		installCancel()
 		if err != nil {
 			conn.Infof(ctx, "ERROR installing wsh: %v\n", err)
 			err = fmt.Errorf("error installing wsh: %w", err)
@@ -961,6 +966,12 @@ func (conn *SSHConn) persistWshInstalled(ctx context.Context, result WshCheckRes
 	})
 	connConfig, ok := conn.getConnectionConfig()
 	if ok && connConfig.ConnWshEnabled != nil {
+		return
+	}
+	if !result.WshEnabled {
+		// Don't persist a transient install failure (e.g. a slow-link copy timeout)
+		// as a permanent conn:wshenabled=false — that would stop wsh from ever
+		// retrying. Leave it unset so the next connect force-retries the install.
 		return
 	}
 	meta := make(map[string]any)
