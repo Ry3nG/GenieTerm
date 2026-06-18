@@ -70,6 +70,99 @@
         position: relative;
     }
 
+    &.term-presentation-semantic {
+        --term-semantic-gutter-width: 108px;
+
+        .term-connectelem {
+            margin-left: var(--term-semantic-gutter-width);
+        }
+    }
+
+    &.term-presentation-classic {
+        .term-semantic-gutter {
+            display: none;
+        }
+    }
+
+    .term-semantic-gutter {
+        position: absolute;
+        top: 5px;
+        bottom: 5px;
+        left: 4px;
+        width: calc(var(--term-semantic-gutter-width, 0px) - 8px);
+        z-index: calc(var(--zindex-termstickers) + 1);
+        pointer-events: none;
+        overflow: hidden;
+    }
+
+    .term-semantic-block {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        min-height: 22px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        pointer-events: auto;
+        color: var(--secondary-text-color);
+
+        button {
+            height: 22px;
+            border: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent);
+            background: color-mix(in srgb, var(--modal-bg-color) 92%, transparent);
+            color: inherit;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            line-height: 1;
+        }
+
+        button:hover {
+            background: var(--hover-bg-color);
+            color: var(--main-text-color);
+        }
+
+        &.is-running {
+            color: var(--warning-color);
+        }
+
+        &.is-success {
+            color: var(--success-color);
+        }
+
+        &.is-error {
+            color: var(--error-color);
+        }
+    }
+
+    .term-semantic-jump {
+        width: 58px;
+        gap: 4px;
+        font: var(--fixed-font);
+        font-size: 10px;
+
+        i {
+            width: 10px;
+            font-size: 10px;
+        }
+
+        span {
+            min-width: 30px;
+            max-width: 34px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: left;
+        }
+    }
+
+    .term-semantic-action {
+        width: 20px;
+        font-size: 10px;
+    }
+
     .term-htmlelem {
         display: flex;
         flex-direction: column;
