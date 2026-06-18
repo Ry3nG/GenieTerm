@@ -22,7 +22,6 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
     const selectedFile = useAtomValue(model.selectedFileAtom);
     const setIsMenuOpen = useSetAtom(model.isMenuOpenAtom);
     const configFiles = model.getConfigFiles();
-    const deprecatedConfigFiles = model.getDeprecatedConfigFiles();
     const configErrorFiles = useAtomValue(model.configErrorFilesAtom);
 
     const handleFileSelect = (file: ConfigFile) => {
@@ -64,35 +63,6 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
                     )}
                 </div>
             ))}
-            {deprecatedConfigFiles.length > 0 && (
-                <>
-                    {deprecatedConfigFiles.map((file) => (
-                        <div
-                            key={file.path}
-                            onClick={() => handleFileSelect(file)}
-                            className={`px-4 py-2 border-b border-border cursor-pointer transition-colors ${
-                                selectedFile?.path === file.path ? "bg-accentbg text-primary" : "hover:bg-secondary/50"
-                            }`}
-                        >
-                            <div className="flex items-center gap-2 overflow-hidden">
-                                <span className="text-secondary truncate">{file.name}</span>
-                                <span
-                                    className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
-                                        selectedFile?.path === file.path
-                                            ? "text-primary/80 bg-secondary/50"
-                                            : "text-muted-foreground/70 bg-secondary/30"
-                                    }`}
-                                >
-                                    deprecated
-                                </span>
-                                {configErrorFiles.has(file.path) && (
-                                    <i className="fa fa-solid fa-circle-exclamation text-error text-[14px] ml-auto shrink-0" />
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </>
-            )}
         </div>
     );
 });
