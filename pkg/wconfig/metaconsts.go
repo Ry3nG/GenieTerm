@@ -47,6 +47,7 @@ const (
 	ConfigKey_TermFontSize               = "term:fontsize"
 	ConfigKey_TermFontFamily             = "term:fontfamily"
 	ConfigKey_TermPresentation           = "term:presentation"
+	ConfigKey_TermCommandComposer        = "term:commandcomposer"
 	ConfigKey_TermTheme                  = "term:theme"
 	ConfigKey_TermDisableWebGl           = "term:disablewebgl"
 	ConfigKey_TermLocalShellPath         = "term:localshellpath"

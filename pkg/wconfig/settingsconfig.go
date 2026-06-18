@@ -98,6 +98,7 @@ type SettingsType struct {
 	TermFontSize               float64  `json:"term:fontsize,omitempty"`
 	TermFontFamily             string   `json:"term:fontfamily,omitempty"`
 	TermPresentation           string   `json:"term:presentation,omitempty" jsonschema:"enum=semantic,enum=classic"`
+	TermCommandComposer        bool     `json:"term:commandcomposer,omitempty"`
 	TermTheme                  string   `json:"term:theme,omitempty"`
 	TermDisableWebGl           bool     `json:"term:disablewebgl,omitempty"`
 	TermLocalShellPath         string   `json:"term:localshellpath,omitempty"`

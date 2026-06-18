@@ -189,6 +189,164 @@
         font-size: 10px;
     }
 
+    .term-command-composer {
+        position: absolute;
+        left: max(14px, var(--term-semantic-gutter-width, 0px));
+        right: 14px;
+        bottom: 14px;
+        z-index: calc(var(--zindex-termstickers) + 5);
+        max-width: 760px;
+        border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);
+        background: color-mix(in srgb, var(--modal-bg-color) 94%, transparent);
+        box-shadow: 0 14px 42px rgba(0, 0, 0, 0.42);
+        border-radius: 8px;
+        overflow: hidden;
+        color: var(--main-text-color);
+    }
+
+    .term-command-composer-inputrow {
+        display: grid;
+        grid-template-columns: 1fr 34px 34px;
+        gap: 6px;
+        padding: 8px;
+        border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+    }
+
+    .term-command-composer-input {
+        resize: none;
+        min-height: 42px;
+        max-height: 90px;
+        border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+        border-radius: 6px;
+        background: var(--app-bg-color);
+        color: var(--main-text-color);
+        outline: none;
+        padding: 8px 10px;
+        font-size: 13px;
+        line-height: 1.35;
+    }
+
+    .term-command-composer-input:focus {
+        border-color: var(--accent-color);
+    }
+
+    .term-command-composer-iconbtn {
+        width: 34px;
+        height: 34px;
+        border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+        border-radius: 6px;
+        background: var(--app-bg-color);
+        color: var(--secondary-text-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .term-command-composer-iconbtn:hover {
+        color: var(--main-text-color);
+        background: var(--hover-bg-color);
+    }
+
+    .term-command-composer-empty,
+    .term-command-composer-error {
+        padding: 9px 12px;
+        color: var(--secondary-text-color);
+        font-size: 12px;
+    }
+
+    .term-command-composer-error {
+        color: var(--error-color);
+    }
+
+    .term-command-composer-results {
+        max-height: 280px;
+        overflow: auto;
+    }
+
+    .term-command-composer-proposal {
+        padding: 10px 12px;
+        border-top: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    }
+
+    .term-command-composer-proposal:first-child {
+        border-top: 0;
+    }
+
+    .term-command-composer-command {
+        font: var(--fixed-font);
+        font-size: 12px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        color: var(--main-text-color);
+    }
+
+    .term-command-composer-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        color: var(--secondary-text-color);
+        font-size: 11px;
+        min-width: 0;
+
+        span:last-child {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
+    .term-command-composer-risk {
+        flex-shrink: 0;
+        border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+        border-radius: 999px;
+        padding: 1px 7px;
+        color: var(--secondary-text-color);
+    }
+
+    .term-command-composer-risk.risk-write,
+    .term-command-composer-risk.risk-network {
+        color: var(--warning-color);
+    }
+
+    .term-command-composer-risk.risk-destructive {
+        color: var(--error-color);
+    }
+
+    .term-command-composer-explanation {
+        margin-top: 6px;
+        color: var(--secondary-text-color);
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .term-command-composer-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .term-command-composer-confirm {
+        color: var(--warning-color);
+        font-size: 12px;
+    }
+
+    .term-command-composer-apply {
+        border: 0;
+        border-radius: 6px;
+        background: var(--accent-color);
+        color: var(--main-text-color);
+        padding: 5px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .term-command-composer-apply:hover {
+        background: color-mix(in srgb, var(--accent-color) 85%, white);
+    }
+
     .term-htmlelem {
         display: flex;
         flex-direction: column;

@@ -129,6 +129,9 @@
             "classic"
           ]
         },
+        "term:commandcomposer": {
+          "type": "boolean"
+        },
         "term:theme": {
           "type": "string"
         },

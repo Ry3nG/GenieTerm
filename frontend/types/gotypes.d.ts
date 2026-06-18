@@ -1422,6 +1422,7 @@ declare global {
         "term:fontsize"?: number;
         "term:fontfamily"?: string;
         "term:presentation"?: string;
+        "term:commandcomposer"?: boolean;
         "term:theme"?: string;
         "term:disablewebgl"?: boolean;
         "term:localshellpath"?: string;

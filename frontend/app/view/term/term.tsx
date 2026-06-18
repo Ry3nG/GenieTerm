@@ -28,6 +28,7 @@ import {
     getCmdBlockTitle,
 } from "./cmdblockdisplay";
 import { type CmdBlock, blockHasCommand, getBlockOutputText } from "./cmdblocks";
+import { TermCommandComposer } from "./command-composer-ui";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
     getTerminalPresentationClassName,
@@ -622,6 +623,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <NullErrorBoundary debugName="TermLinkTooltip">
                 <TermLinkTooltip termWrap={termWrapInst} />
             </NullErrorBoundary>
+            <TermCommandComposer model={model} blockData={blockData} connStatus={connStatus} termWrap={termWrapInst} />
             <Search {...searchProps} />
         </div>
     );

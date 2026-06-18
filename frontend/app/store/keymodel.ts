@@ -23,6 +23,11 @@ import {
 import { getActiveTabModel } from "@/app/store/tab-model";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import {
+    CommandComposerActionId,
+    CommandComposerDefaultBinding,
+    isCommandComposerEnabled,
+} from "@/app/view/term/command-composer";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
@@ -570,6 +575,7 @@ const PALETTE_LABELS: Record<string, string> = {
     "term:jump-next-block": "Jump to Next Command",
     "term:copy-last-command": "Copy Last Command",
     "term:copy-last-output": "Copy Last Command Output",
+    [CommandComposerActionId]: "Command Composer",
     "view:toggle-sidebar": "Toggle Sidebar",
     "view:toggle-tabbar": "Toggle Tab Bar",
     "app:refocus": "Refocus Terminal",
@@ -667,6 +673,19 @@ function registerGlobalKeys() {
             return true;
         }
         return false;
+    }
+    function openFocusedTermCommandComposer(): boolean {
+        const fullConfig = globalStore.get(atoms.fullConfigAtom);
+        if (!isCommandComposerEnabled(fullConfig?.settings)) {
+            return false;
+        }
+        const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
+        const vm = bcm?.viewModel as any;
+        if (vm?.viewType !== "term" || typeof vm.openCommandComposer !== "function") {
+            return false;
+        }
+        vm.openCommandComposer();
+        return true;
     }
     // Block focus navigation is gated by the app:disablectrlshiftarrows setting; returning
     // false on disable lets the key fall through to the focused block/shell.
@@ -818,6 +837,11 @@ function registerGlobalKeys() {
         { id: "term:jump-next-block", defaultBinding: "Cmd:Shift:ArrowDown", handler: () => jumpFocusedTerm("next") },
         { id: "term:copy-last-command", defaultBinding: [], handler: () => copyFocusedTermBlock("command") },
         { id: "term:copy-last-output", defaultBinding: [], handler: () => copyFocusedTermBlock("output") },
+        {
+            id: CommandComposerActionId,
+            defaultBinding: CommandComposerDefaultBinding,
+            handler: openFocusedTermCommandComposer,
+        },
     ];
 
     for (let idx = 1; idx <= 9; idx++) {

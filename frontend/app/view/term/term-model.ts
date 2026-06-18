@@ -40,6 +40,15 @@ import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { type CmdBlock, blockHasCommand, getBlockOutputText } from "./cmdblocks";
+import {
+    buildCommandComposerContext,
+    getCommandProposalApplyMode,
+    LocalCommandComposerBackend,
+    type CommandComposerBackend,
+    type CommandComposerContextInput,
+    type CommandProposal,
+    type CommandProposalApplyMode,
+} from "./command-composer";
 import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, DefaultTermTheme, isLikelyOnSameHost, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
@@ -85,6 +94,13 @@ export class TermViewModel implements ViewModel {
     termDurableStatus: jotai.Atom<BlockJobStatusData | null>;
     termConfigedDurable: jotai.Atom<null | boolean>;
     searchAtoms?: SearchAtoms;
+    commandComposerOpenAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
+    commandComposerInputAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
+    commandComposerProposalsAtom = jotai.atom<CommandProposal[]>([]) as jotai.PrimitiveAtom<CommandProposal[]>;
+    commandComposerStatusAtom = jotai.atom("idle") as jotai.PrimitiveAtom<string>;
+    commandComposerErrorAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
+    commandComposerConfirmProposalIdAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
+    commandComposerBackend: CommandComposerBackend = new LocalCommandComposerBackend();
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.viewType = "term";
@@ -602,6 +618,59 @@ export class TermViewModel implements ViewModel {
             return;
         }
         navigator.clipboard.writeText(text);
+    }
+
+    openCommandComposer() {
+        globalStore.set(this.commandComposerOpenAtom, true);
+        globalStore.set(this.commandComposerStatusAtom, "idle");
+        globalStore.set(this.commandComposerErrorAtom, "");
+        globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
+    }
+
+    closeCommandComposer() {
+        globalStore.set(this.commandComposerOpenAtom, false);
+        globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
+        this.giveFocus();
+    }
+
+    async generateCommandProposals(prompt: string, contextInput: CommandComposerContextInput) {
+        const trimmedPrompt = prompt.trim();
+        if (!trimmedPrompt) {
+            globalStore.set(this.commandComposerProposalsAtom, []);
+            globalStore.set(this.commandComposerStatusAtom, "idle");
+            return;
+        }
+        const context = buildCommandComposerContext(contextInput);
+        globalStore.set(this.commandComposerStatusAtom, "loading");
+        globalStore.set(this.commandComposerErrorAtom, "");
+        globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
+        try {
+            const proposals = await this.commandComposerBackend.compose(trimmedPrompt, context);
+            globalStore.set(this.commandComposerProposalsAtom, proposals);
+            globalStore.set(this.commandComposerStatusAtom, "ready");
+        } catch (e) {
+            console.error("command composer failed", e);
+            globalStore.set(this.commandComposerProposalsAtom, []);
+            globalStore.set(this.commandComposerStatusAtom, "error");
+            globalStore.set(this.commandComposerErrorAtom, e instanceof Error ? e.message : String(e));
+        }
+    }
+
+    async applyCommandProposal(proposal: CommandProposal, confirmed: boolean): Promise<CommandProposalApplyMode> {
+        const shellIntegrationStatus = readAtom(this.termRef?.current?.shellIntegrationStatusAtom);
+        const mode = getCommandProposalApplyMode(proposal, { confirmed, shellIntegrationStatus });
+        if (mode === "confirm") {
+            globalStore.set(this.commandComposerConfirmProposalIdAtom, proposal.id);
+            return mode;
+        }
+        if (mode === "copy") {
+            await navigator.clipboard?.writeText(proposal.command);
+            this.closeCommandComposer();
+            return mode;
+        }
+        this.termRef.current?.terminal?.paste(proposal.command);
+        this.closeCommandComposer();
+        return mode;
     }
 
     triggerRestartAtom() {
