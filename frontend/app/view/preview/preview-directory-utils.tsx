@@ -15,6 +15,10 @@ export const mergeError = "set overwrite flag to delete the existing contents or
 export type FileCopyResult = { ok: true } | { ok: false; errorText: string; retryable: boolean; canceled?: boolean };
 export type FileCopyFailureResult = Extract<FileCopyResult, { ok: false }>;
 
+export function isFileCopyFailure(result: FileCopyResult): result is FileCopyFailureResult {
+    return result.ok === false;
+}
+
 type CopyWithOverwriteConfirmationDeps = {
     copyFile: (data: CommandFileCopyData) => Promise<void>;
     refresh?: () => void;
@@ -99,6 +103,9 @@ export async function copyWithOverwriteConfirmation(
     if (initialResult.ok) {
         return initialResult;
     }
+    if (!isFileCopyFailure(initialResult)) {
+        return initialResult;
+    }
     if (!initialResult.retryable) {
         deps.setErrorMsg({
             status: "Copy Failed",
@@ -128,7 +135,7 @@ export async function copyWithOverwriteConfirmation(
                 },
                 deps
             );
-            if (!result.ok) {
+            if (isFileCopyFailure(result)) {
                 deps.setErrorMsg({
                     status: "Copy Failed",
                     text: result.errorText,

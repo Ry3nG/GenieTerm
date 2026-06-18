@@ -2,9 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from "vitest";
-import { copyWithOverwriteConfirmation, overwriteError } from "./preview-directory-utils";
+import { copyWithOverwriteConfirmation, isFileCopyFailure, overwriteError } from "./preview-directory-utils";
 
 describe("copyWithOverwriteConfirmation", () => {
+    it("narrows file copy failures with a type guard", () => {
+        const result = {
+            ok: false,
+            errorText: "copy failed",
+            retryable: true,
+        } as const;
+
+        expect(isFileCopyFailure(result)).toBe(true);
+        if (isFileCopyFailure(result)) {
+            expect(result.errorText).toBe("copy failed");
+            expect(result.retryable).toBe(true);
+        }
+    });
+
     it("waits for file overwrite confirmation before resolving the copy result", async () => {
         vi.spyOn(console, "warn").mockImplementation(() => {});
         const copyCalls: CommandFileCopyData[] = [];
