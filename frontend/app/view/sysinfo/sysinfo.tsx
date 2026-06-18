@@ -114,6 +114,7 @@ class SysinfoViewModel implements ViewModel {
     viewText: jotai.Atom<string>;
     viewName: jotai.Atom<string>;
     dataAtom: jotai.PrimitiveAtom<Array<DataItem>>;
+    latestDisksAtom: jotai.PrimitiveAtom<DiskUsageData[]>;
     addInitialDataAtom: jotai.WritableAtom<unknown, [DataItem[]], void>;
     addContinuousDataAtom: jotai.WritableAtom<unknown, [DataItem], void>;
     incrementCount: jotai.WritableAtom<unknown, [], Promise<void>>;
@@ -240,6 +241,7 @@ class SysinfoViewModel implements ViewModel {
             return connValue;
         });
         this.dataAtom = jotai.atom([]);
+        this.latestDisksAtom = jotai.atom([]) as jotai.PrimitiveAtom<DiskUsageData[]>;
         this.loadInitialData();
         this.connStatus = jotai.atom((get) => {
             const connName = get(this.env.getBlockMetaKeyAtom(blockId, "connection"));
@@ -270,6 +272,10 @@ class SysinfoViewModel implements ViewModel {
             // splice the initial data into the default data (replacing the newest points)
             //newData.splice(newData.length - initialDataItems.length, initialDataItems.length, ...initialDataItems);
             globalStore.set(this.addInitialDataAtom, initialDataItems);
+            const lastDisks = (initialData[initialData.length - 1]?.data as TimeSeriesData)?.disks;
+            if (lastDisks != null) {
+                globalStore.set(this.latestDisksAtom, lastDisks);
+            }
         } catch (e) {
             console.log("Error loading initial data for sysinfo", e);
         } finally {
@@ -374,6 +380,9 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
                 const dataItem = convertWaveEventToDataItem(event);
                 if (dataItem == null) {
                     return;
+                }
+                if (event.data?.disks != null) {
+                    globalStore.set(model.latestDisksAtom, event.data.disks);
                 }
                 const prevData = globalStore.get(model.dataAtom);
                 const prevLastTs = prevData[prevData.length - 1]?.ts ?? 0;
@@ -571,6 +580,17 @@ function fmtGB(v: number): string {
     return isNaN(v) ? "—" : v.toFixed(1);
 }
 
+// Disk sizes (input is GB) switch to TB above 1024G so multi-TB drives read cleanly.
+function fmtDiskSize(gb: number): string {
+    if (gb == null || isNaN(gb)) {
+        return "—";
+    }
+    if (gb >= 1024) {
+        return `${(gb / 1024).toFixed(1)}T`;
+    }
+    return `${Math.round(gb)}G`;
+}
+
 function fmtRate(bps: number): string {
     if (bps == null || isNaN(bps)) {
         return "—";
@@ -598,6 +618,33 @@ const CoreMeter = React.memo(({ label, pct }: { label: string; pct: number }) =>
 });
 CoreMeter.displayName = "CoreMeter";
 
+const DiskMeter = React.memo(({ disk }: { disk: DiskUsageData }) => {
+    const pct = disk.percent;
+    const width = isNaN(pct) ? 0 : Math.max(0, Math.min(100, pct));
+    return (
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] text-secondary truncate" title={disk.mount}>
+                    {disk.mount}
+                </span>
+                <span className="ml-auto font-mono text-[11px] text-muted shrink-0">
+                    {fmtDiskSize(disk.used)} / {fmtDiskSize(disk.total)}
+                </span>
+                <span
+                    className="font-mono text-[11px] w-[34px] text-right shrink-0"
+                    style={{ color: usageColor(pct) }}
+                >
+                    {fmtPct(pct)}
+                </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-hoverbg overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: usageColor(pct) }} />
+            </div>
+        </div>
+    );
+});
+DiskMeter.displayName = "DiskMeter";
+
 type SysinfoDashboardProps = {
     model: SysinfoViewModel;
     plotData: Array<DataItem>;
@@ -617,9 +664,9 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
     const netUp = latestValidValue(plotData, "net:up");
     const netDown = latestValidValue(plotData, "net:down");
     const diskUsed = latestValidValue(plotData, "disk:used");
-    const diskTotal = latestValidValue(plotData, "disk:total");
     const diskFree = latestValidValue(plotData, "disk:free");
     const diskPct = latestValidValue(plotData, "disk:percent");
+    const disks = jotai.useAtomValue(model.latestDisksAtom);
     const [coresExpanded, setCoresExpanded] = React.useState(true);
 
     return (
@@ -722,32 +769,39 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
                 <div className="flex items-center gap-2.5 mb-2">
                     <i className="fa-sharp fa-solid fa-hard-drive text-[16px]" style={{ color: "var(--accent-color)" }} />
                     <span className="text-foreground text-[13px]">Disk</span>
-                    {!isNaN(diskTotal) && (
+                    {disks.length > 0 && (
                         <span className="text-muted font-mono text-[12px]">
-                            {fmtGB(diskUsed)} / {fmtGB(diskTotal)} GB
+                            {disks.length} {disks.length === 1 ? "volume" : "volumes"}
                         </span>
                     )}
-                    <span
-                        className="ml-auto font-mono text-[20px] font-medium leading-none"
-                        style={{ color: usageColor(diskPct) }}
-                    >
-                        {fmtPct(diskPct)}
-                    </span>
                 </div>
-                <div className="h-2.5 rounded-full bg-hoverbg overflow-hidden">
-                    <div
-                        className="h-full rounded-full"
-                        style={{ width: `${isNaN(diskPct) ? 0 : diskPct}%`, backgroundColor: usageColor(diskPct) }}
-                    />
-                </div>
-                <div className="flex gap-4 mt-1.5">
-                    <span className="text-muted text-[11px]">
-                        used <span className="text-secondary font-mono">{fmtGB(diskUsed)}G</span>
-                    </span>
-                    <span className="text-muted text-[11px]">
-                        free <span className="text-secondary font-mono">{fmtGB(diskFree)}G</span>
-                    </span>
-                </div>
+                {disks.length > 0 ? (
+                    <div className="flex flex-col gap-2.5">
+                        {disks.map((d) => (
+                            <DiskMeter key={d.mount} disk={d} />
+                        ))}
+                    </div>
+                ) : (
+                    <>
+                        <div className="h-2.5 rounded-full bg-hoverbg overflow-hidden">
+                            <div
+                                className="h-full rounded-full"
+                                style={{
+                                    width: `${isNaN(diskPct) ? 0 : diskPct}%`,
+                                    backgroundColor: usageColor(diskPct),
+                                }}
+                            />
+                        </div>
+                        <div className="flex gap-4 mt-1.5">
+                            <span className="text-muted text-[11px]">
+                                used <span className="text-secondary font-mono">{fmtGB(diskUsed)}G</span>
+                            </span>
+                            <span className="text-muted text-[11px]">
+                                free <span className="text-secondary font-mono">{fmtGB(diskFree)}G</span>
+                            </span>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

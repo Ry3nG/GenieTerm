@@ -897,6 +897,15 @@ declare global {
         modifiedtime: string;
     };
 
+    // wshrpc.DiskUsageData
+    type DiskUsageData = {
+        mount: string;
+        total: number;
+        used: number;
+        free: number;
+        percent: number;
+    };
+
     // vdom.DomRect
     type DomRect = {
         top: number;
@@ -1726,6 +1735,7 @@ declare global {
     type TimeSeriesData = {
         ts: number;
         values: {[key: string]: number};
+        disks?: DiskUsageData[];
     };
 
     // uctypes.UIChat

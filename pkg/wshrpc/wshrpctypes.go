@@ -384,9 +384,18 @@ const (
 	TimeSeries_Cpu = "cpu"
 )
 
+type DiskUsageData struct {
+	Mount   string  `json:"mount"`
+	Total   float64 `json:"total"`
+	Used    float64 `json:"used"`
+	Free    float64 `json:"free"`
+	Percent float64 `json:"percent"`
+}
+
 type TimeSeriesData struct {
 	Ts     int64              `json:"ts"`
 	Values map[string]float64 `json:"values"`
+	Disks  []DiskUsageData    `json:"disks,omitempty"`
 }
 
 type MetaSettingsType struct {

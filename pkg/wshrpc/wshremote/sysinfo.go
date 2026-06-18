@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
@@ -62,15 +64,71 @@ func diskRoot() string {
 	return "/"
 }
 
-func getDiskData(values map[string]float64) {
-	usage, err := disk.Usage(diskRoot())
-	if err != nil {
-		return
+// pseudoFsTypes are virtual/in-memory filesystems we never want to list as a
+// physical disk (tmpfs, snap squashfs mounts, kernel pseudo-fs, etc.).
+var pseudoFsTypes = map[string]bool{
+	"tmpfs": true, "devtmpfs": true, "devfs": true, "overlay": true,
+	"squashfs": true, "efivarfs": true, "autofs": true, "proc": true,
+	"sysfs": true, "cgroup": true, "cgroup2": true, "ramfs": true,
+	"mqueue": true, "debugfs": true, "tracefs": true, "securityfs": true,
+	"pstore": true, "bpf": true, "configfs": true, "hugetlbfs": true,
+	"binfmt_misc": true, "nsfs": true, "fusectl": true, "fuse.snapfuse": true,
+	"fuse.gvfsd-fuse": true, "fuse.portal": true,
+}
+
+// isRealDiskPartition keeps only physical-backed filesystems worth showing:
+// drops pseudo filesystems, loop/snap mounts, boot partitions, and macOS
+// synthetic system volumes.
+func isRealDiskPartition(p disk.PartitionStat) bool {
+	if pseudoFsTypes[strings.ToLower(p.Fstype)] {
+		return false
 	}
-	values["disk:total"] = float64(usage.Total) / BYTES_PER_GB
-	values["disk:used"] = float64(usage.Used) / BYTES_PER_GB
-	values["disk:free"] = float64(usage.Free) / BYTES_PER_GB
-	values["disk:percent"] = usage.UsedPercent
+	if strings.HasPrefix(p.Device, "/dev/loop") {
+		return false
+	}
+	if p.Mountpoint == "/boot" || strings.HasPrefix(p.Mountpoint, "/boot/") {
+		return false
+	}
+	if strings.HasPrefix(p.Mountpoint, "/System/Volumes/") {
+		return false
+	}
+	return true
+}
+
+// getDiskData reports usage for every real physical disk. It also keeps the root
+// mount under the disk:* keys for back-compat with clients that read a single disk.
+func getDiskData(values map[string]float64) []wshrpc.DiskUsageData {
+	if usage, err := disk.Usage(diskRoot()); err == nil {
+		values["disk:total"] = float64(usage.Total) / BYTES_PER_GB
+		values["disk:used"] = float64(usage.Used) / BYTES_PER_GB
+		values["disk:free"] = float64(usage.Free) / BYTES_PER_GB
+		values["disk:percent"] = usage.UsedPercent
+	}
+	parts, err := disk.Partitions(false)
+	if err != nil {
+		return nil
+	}
+	var disks []wshrpc.DiskUsageData
+	seen := make(map[string]bool)
+	for _, p := range parts {
+		if !isRealDiskPartition(p) || seen[p.Mountpoint] {
+			continue
+		}
+		usage, err := disk.Usage(p.Mountpoint)
+		if err != nil || usage.Total == 0 {
+			continue
+		}
+		seen[p.Mountpoint] = true
+		disks = append(disks, wshrpc.DiskUsageData{
+			Mount:   p.Mountpoint,
+			Total:   float64(usage.Total) / BYTES_PER_GB,
+			Used:    float64(usage.Used) / BYTES_PER_GB,
+			Free:    float64(usage.Free) / BYTES_PER_GB,
+			Percent: usage.UsedPercent,
+		})
+	}
+	sort.Slice(disks, func(i, j int) bool { return disks[i].Mount < disks[j].Mount })
+	return disks
 }
 
 // netSampler tracks the previous cumulative network counters so per-second
@@ -112,9 +170,9 @@ func generateSingleServerData(client *wshutil.WshRpc, connName string, netState 
 	values := make(map[string]float64)
 	getCpuData(values)
 	getMemData(values)
-	getDiskData(values)
+	disks := getDiskData(values)
 	netState.getNetData(values, now)
-	tsData := wshrpc.TimeSeriesData{Ts: now.UnixMilli(), Values: values}
+	tsData := wshrpc.TimeSeriesData{Ts: now.UnixMilli(), Values: values, Disks: disks}
 	event := wps.WaveEvent{
 		Event:   wps.Event_SysInfo,
 		Scopes:  []string{connName},
