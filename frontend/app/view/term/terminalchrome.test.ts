@@ -38,9 +38,25 @@ describe("terminal chrome overlap safety", () => {
         const termScss = readTermFile("term.scss");
         const dockRule = termScss.match(/\.term-inline-ai-dock\s*\{[\s\S]*?\n {4}\}/)?.[0] ?? "";
 
-        expect(termView).toMatch(/<\/TerminalPresentationShell>\s*<TermInlineAIDock/);
+        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*<TermInlineAIDock/);
         expect(dockRule).toContain("flex: 0 0 auto");
         expect(dockRule).not.toContain("position: absolute");
         expect(dockRule).not.toContain("position: fixed");
+    });
+
+    it("keeps command actions available in reserved layout space", () => {
+        const termView = readTermFile("term.tsx");
+        const termScss = readTermFile("term.scss");
+        const actionBarRule = termScss.match(/\.term-command-action-bar\s*\{[\s\S]*?\n {4}\}/)?.[0] ?? "";
+
+        expect(termView).toContain("const TermCommandActionBar");
+        expect(termView).toMatch(/<\/TerminalPresentationShell>\s*<TermCommandActionBar/);
+        expect(termView).toContain("Copy command");
+        expect(termView).toContain("Copy output");
+        expect(termView).toContain("Re-run command");
+        expect(termView).toContain("Fix with AI");
+        expect(actionBarRule).toContain("flex: 0 0 auto");
+        expect(actionBarRule).not.toContain("position: absolute");
+        expect(actionBarRule).not.toContain("position: fixed");
     });
 });

@@ -22,8 +22,9 @@ import debug from "debug";
 import * as jotai from "jotai";
 import * as React from "react";
 import { useDrop } from "react-dnd";
-import type { CmdBlock } from "./cmdblocks";
-import type { CommandInlineAIAction } from "./command-composer";
+import { formatCmdBlockDuration, getCmdBlockStatus } from "./cmdblockdisplay";
+import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
+import { getInlineAICommandPrompt, type CommandInlineAIAction } from "./command-composer";
 import { TermCommandComposer } from "./command-composer-ui";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
@@ -298,6 +299,144 @@ const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel
 });
 
 TermInlineAIDock.displayName = "TermInlineAIDock";
+
+const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewModel; termWrap: TermWrap | null }) => {
+    const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
+    const activeBlock = React.useMemo(() => {
+        for (let i = cmdBlocks.length - 1; i >= 0; i--) {
+            const block = cmdBlocks[i];
+            if (blockHasCommand(block)) {
+                return block;
+            }
+        }
+        return null;
+    }, [cmdBlocks]);
+
+    const [copyFeedback, setCopyFeedback] = React.useState<string | null>(null);
+    const [nowTs, setNowTs] = React.useState(Date.now());
+    const status = activeBlock != null ? getCmdBlockStatus(activeBlock) : null;
+    const duration = activeBlock != null ? formatCmdBlockDuration(activeBlock, nowTs) : "";
+    const inlineAIPrompt = activeBlock != null ? getInlineAICommandPrompt(activeBlock) : "";
+
+    React.useEffect(() => {
+        if (activeBlock?.state !== "running") {
+            return;
+        }
+        setNowTs(Date.now());
+        const intervalId = window.setInterval(() => setNowTs(Date.now()), 1000);
+        return () => window.clearInterval(intervalId);
+    }, [activeBlock?.id, activeBlock?.state]);
+
+    const copyText = React.useCallback((text: string, label: string) => {
+        if (!text) {
+            return;
+        }
+        fireAndForget(async () => {
+            await navigator.clipboard?.writeText(text);
+            setCopyFeedback(label);
+            window.setTimeout(() => setCopyFeedback(null), 1200);
+        });
+    }, []);
+
+    const copyCommand = React.useCallback(() => {
+        copyText(activeBlock?.command ?? "", "Copied command");
+    }, [activeBlock?.command, copyText]);
+
+    const copyOutput = React.useCallback(() => {
+        if (activeBlock == null || termWrap == null) {
+            return;
+        }
+        copyText(getBlockOutputText(activeBlock, termWrap.terminal), "Copied output");
+    }, [activeBlock, copyText, termWrap]);
+
+    const rerunCommand = React.useCallback(() => {
+        if (!activeBlock?.command || termWrap == null) {
+            return;
+        }
+        termWrap.terminal.focus();
+        termWrap.sendDataHandler?.(`${activeBlock.command}\r`);
+    }, [activeBlock?.command, termWrap]);
+
+    const fixWithAI = React.useCallback(() => {
+        if (!inlineAIPrompt || activeBlock == null) {
+            return;
+        }
+        model.openInlineCommandAI(inlineAIPrompt, activeBlock);
+    }, [activeBlock, inlineAIPrompt, model]);
+
+    const preventButtonFocus = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+    }, []);
+
+    if (activeBlock == null || status == null) {
+        return null;
+    }
+
+    const canCopyOutput = activeBlock.state === "done" && termWrap != null;
+
+    return (
+        <div className={`term-command-action-bar is-${status.tone}`} aria-label="Command actions">
+            <div className="term-command-action-status" title={status.label}>
+                <i className={status.iconClass} aria-hidden="true" />
+            </div>
+            <div className="term-command-action-main" title={activeBlock.command ?? ""}>
+                <div className="term-command-action-command">{activeBlock.command}</div>
+                <div className="term-command-action-meta">
+                    <span>{status.label}</span>
+                    <span>{duration}</span>
+                    {copyFeedback && <span>{copyFeedback}</span>}
+                </div>
+            </div>
+            <div className="term-command-action-buttons">
+                <button
+                    type="button"
+                    className="term-command-action-btn cursor-pointer"
+                    title="Copy command"
+                    aria-label="Copy command"
+                    onMouseDown={preventButtonFocus}
+                    onClick={copyCommand}
+                >
+                    <i className="fa-solid fa-terminal" aria-hidden="true" />
+                </button>
+                <button
+                    type="button"
+                    className="term-command-action-btn cursor-pointer"
+                    title="Copy output"
+                    aria-label="Copy output"
+                    onMouseDown={preventButtonFocus}
+                    onClick={copyOutput}
+                    disabled={!canCopyOutput}
+                >
+                    <i className="fa-solid fa-copy" aria-hidden="true" />
+                </button>
+                <button
+                    type="button"
+                    className="term-command-action-btn cursor-pointer"
+                    title="Re-run command"
+                    aria-label="Re-run command"
+                    onMouseDown={preventButtonFocus}
+                    onClick={rerunCommand}
+                >
+                    <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+                </button>
+                {inlineAIPrompt && (
+                    <button
+                        type="button"
+                        className="term-command-action-btn cursor-pointer"
+                        title="Fix with AI"
+                        aria-label="Fix with AI"
+                        onMouseDown={preventButtonFocus}
+                        onClick={fixWithAI}
+                    >
+                        <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+});
+
+TermCommandActionBar.displayName = "TermCommandActionBar";
 
 const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => {
     const viewRef = React.useRef<HTMLDivElement>(null);
@@ -582,6 +721,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
+            <TermCommandActionBar model={model} termWrap={termWrapInst} />
             <TermInlineAIDock model={model} termWrap={termWrapInst} />
             <NullErrorBoundary debugName="TermLinkTooltip">
                 <TermLinkTooltip termWrap={termWrapInst} />

@@ -86,6 +86,112 @@
         }
     }
 
+    .term-command-action-bar {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        min-height: 28px;
+        margin: 0 4px 4px 4px;
+        padding: 4px 5px 4px 8px;
+        border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent);
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--app-bg-color) 91%, var(--main-text-color) 9%);
+        color: var(--main-text-color);
+        min-width: 0;
+
+        &.is-success .term-command-action-status {
+            color: var(--success-color);
+        }
+
+        &.is-error {
+            border-color: color-mix(in srgb, var(--error-color) 28%, transparent);
+            background: color-mix(in srgb, var(--app-bg-color) 90%, var(--error-color) 10%);
+
+            .term-command-action-status {
+                color: var(--error-color);
+            }
+        }
+
+        &.is-running .term-command-action-status {
+            color: var(--accent-color);
+        }
+    }
+
+    .term-command-action-status {
+        font-size: 11px;
+        text-align: center;
+    }
+
+    .term-command-action-main {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .term-command-action-command {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font: var(--fixed-font);
+        font-size: 11px;
+        color: var(--main-text-color);
+    }
+
+    .term-command-action-meta {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        overflow: hidden;
+        color: var(--secondary-text-color);
+        font-size: 10px;
+        line-height: 1;
+        white-space: nowrap;
+
+        span {
+            flex: 0 0 auto;
+        }
+    }
+
+    .term-command-action-buttons {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        flex: 0 0 auto;
+    }
+
+    .term-command-action-btn {
+        width: 22px;
+        height: 20px;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--secondary-text-color);
+        font-size: 11px;
+        line-height: 1;
+        transition:
+            background 0.12s ease,
+            color 0.12s ease,
+            opacity 0.12s ease;
+
+        &:hover,
+        &:focus-visible {
+            background: var(--hover-bg-color);
+            color: var(--main-text-color);
+            outline: none;
+        }
+
+        &:disabled {
+            opacity: 0.38;
+            cursor: default;
+        }
+    }
+
     .term-inline-ai-dock {
         flex: 0 0 auto;
         display: grid;
