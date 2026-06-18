@@ -130,10 +130,34 @@ func makeCancellableCommand(ctx context.Context, client *wsl.Distro, cmdTemplate
 }
 
 func CpWshToRemote(ctx context.Context, client *wsl.Distro, clientOs string, clientArch string) error {
+	genieLocalPath, err := shellutil.GetLocalGenieBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
+	if err != nil {
+		return err
+	}
 	wshLocalPath, err := shellutil.GetLocalWshBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
 	if err != nil {
 		return err
 	}
+	if _, err := os.Stat(wshLocalPath); err != nil {
+		wshLocalPath = genieLocalPath
+	}
+	helpers := []struct {
+		localPath  string
+		remotePath string
+	}{
+		{localPath: genieLocalPath, remotePath: wavebase.RemoteFullGenieBinPath},
+		{localPath: wshLocalPath, remotePath: wavebase.RemoteFullWshBinPath},
+	}
+	for _, helper := range helpers {
+		err = cpHelperToRemote(ctx, client, helper.localPath, helper.remotePath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cpHelperToRemote(ctx context.Context, client *wsl.Distro, localPath string, remotePath string) error {
 	// warning: does not work on windows remote yet
 	bashInstalled, err := hasBashInstalled(ctx, client)
 	if err != nil {
@@ -151,12 +175,12 @@ func CpWshToRemote(ctx context.Context, client *wsl.Distro, clientOs string, cli
 	// I need to use toSlash here to force unix keybindings
 	// this means we can't guarantee it will work on a remote windows machine
 	var installWords = map[string]string{
-		"installDir":  filepath.ToSlash(filepath.Dir(wavebase.RemoteFullWshBinPath)),
-		"tempPath":    wavebase.RemoteFullWshBinPath + ".temp",
-		"installPath": wavebase.RemoteFullWshBinPath,
+		"installDir":  filepath.ToSlash(filepath.Dir(remotePath)),
+		"tempPath":    remotePath + ".temp",
+		"installPath": remotePath,
 	}
 
-	blocklogger.Infof(ctx, "[conndebug] copying %q to remote server %q\n", wshLocalPath, wavebase.RemoteFullWshBinPath)
+	blocklogger.Infof(ctx, "[conndebug] copying %q to remote server %q\n", localPath, remotePath)
 	installStepCmds := make(map[string]*CancellableCmd)
 	for cmdName, selectedTemplateRaw := range selectedTemplatesRaw {
 		cancellableCmd, err := makeCancellableCommand(ctx, client, selectedTemplateRaw, installWords)
@@ -181,9 +205,9 @@ func CpWshToRemote(ctx context.Context, client *wsl.Distro, clientOs string, cli
 	if err != nil {
 		return err
 	}
-	input, err := os.Open(wshLocalPath)
+	input, err := os.Open(localPath)
 	if err != nil {
-		return fmt.Errorf("cannot open local file %s to send to host: %v", wshLocalPath, err)
+		return fmt.Errorf("cannot open local file %s to send to host: %v", localPath, err)
 	}
 	go func() {
 		defer func() {

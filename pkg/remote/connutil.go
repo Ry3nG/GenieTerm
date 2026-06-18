@@ -98,29 +98,53 @@ chmod a+x {{.installPath}} || exit 1;
 var installTemplate = template.Must(template.New("wsh-install-template").Parse(installTemplateRawDefault))
 
 func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, clientArch string) error {
-	deadline, ok := ctx.Deadline()
-	if ok {
-		blocklogger.Debugf(ctx, "[conndebug] CpWshToRemote, timeout: %v\n", time.Until(deadline))
+	genieLocalPath, err := shellutil.GetLocalGenieBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
+	if err != nil {
+		return err
 	}
 	wshLocalPath, err := shellutil.GetLocalWshBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
 	if err != nil {
 		return err
 	}
-	input, err := os.Open(wshLocalPath)
+	if _, err := os.Stat(wshLocalPath); err != nil {
+		wshLocalPath = genieLocalPath
+	}
+	helpers := []struct {
+		localPath  string
+		remotePath string
+	}{
+		{localPath: genieLocalPath, remotePath: wavebase.RemoteFullGenieBinPath},
+		{localPath: wshLocalPath, remotePath: wavebase.RemoteFullWshBinPath},
+	}
+	for _, helper := range helpers {
+		err = cpHelperToRemote(ctx, client, helper.localPath, helper.remotePath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string, remotePath string) error {
+	deadline, ok := ctx.Deadline()
+	if ok {
+		blocklogger.Debugf(ctx, "[conndebug] CpWshToRemote, timeout: %v\n", time.Until(deadline))
+	}
+	input, err := os.Open(localPath)
 	if err != nil {
-		return fmt.Errorf("cannot open local file %s: %w", wshLocalPath, err)
+		return fmt.Errorf("cannot open local file %s: %w", localPath, err)
 	}
 	defer input.Close()
 	installWords := map[string]string{
-		"installDir":  filepath.ToSlash(filepath.Dir(wavebase.RemoteFullWshBinPath)),
-		"tempPath":    wavebase.RemoteFullWshBinPath + ".temp",
-		"installPath": wavebase.RemoteFullWshBinPath,
+		"installDir":  filepath.ToSlash(filepath.Dir(remotePath)),
+		"tempPath":    remotePath + ".temp",
+		"installPath": remotePath,
 	}
 	var installCmd bytes.Buffer
 	if err := installTemplate.Execute(&installCmd, installWords); err != nil {
 		return fmt.Errorf("failed to prepare install command: %w", err)
 	}
-	blocklogger.Infof(ctx, "[conndebug] copying %q to remote server %q\n", wshLocalPath, wavebase.RemoteFullWshBinPath)
+	blocklogger.Infof(ctx, "[conndebug] copying %q to remote server %q\n", localPath, remotePath)
 	genCmd, err := genconn.MakeSSHCmdClient(client, genconn.CommandSpec{
 		Cmd: installCmd.String(),
 	})

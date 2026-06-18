@@ -66,12 +66,6 @@ type WslConn struct {
 	cancelFn           func()
 }
 
-var ConnServerCmdTemplate = strings.TrimSpace(
-	strings.Join([]string{
-		"%s version 2> /dev/null || (echo -n \"not-installed \"; uname -sm);",
-		"exec %s connserver --router --conn %s %s",
-	}, "\n"))
-
 func GetAllConnStatus() []wshrpc.ConnStatus {
 	globalLock.Lock()
 	defer globalLock.Unlock()
@@ -235,6 +229,14 @@ func (conn *WslConn) getWshPath() string {
 	if ok && config.ConnWshPath != "" {
 		return config.ConnWshPath
 	}
+	return wavebase.RemoteFullGenieBinPath
+}
+
+func (conn *WslConn) getFallbackWshPath() string {
+	config, ok := conn.getConnectionConfig()
+	if ok && config.ConnWshPath != "" {
+		return config.ConnWshPath
+	}
 	return wavebase.RemoteFullWshBinPath
 }
 
@@ -259,6 +261,7 @@ func (conn *WslConn) StartConnServer(ctx context.Context, afterUpdate bool) (boo
 	}
 	client := conn.GetClient()
 	wshPath := conn.getWshPath()
+	fallbackWshPath := conn.getFallbackWshPath()
 	conn.Infof(ctx, "WSL-NEWSESSION (StartConnServer)\n")
 	connServerCtx, cancelFn := context.WithCancel(context.Background())
 	conn.WithLock(func() {
@@ -271,7 +274,7 @@ func (conn *WslConn) StartConnServer(ctx context.Context, afterUpdate bool) (boo
 	if wavebase.IsDevMode() {
 		devFlag = "--dev"
 	}
-	cmdStr := fmt.Sprintf(ConnServerCmdTemplate, wshPath, wshPath, shellutil.HardQuote(conn.GetName()), devFlag)
+	cmdStr := conncontroller.MakeConnServerCommand(wshPath, fallbackWshPath, conn.GetName(), "--router", devFlag)
 	shWrappedCmdStr := fmt.Sprintf("sh -c %s", shellutil.HardQuote(cmdStr))
 	cmd := client.WslCommand(connServerCtx, shWrappedCmdStr)
 	pipeRead, pipeWrite := io.Pipe()

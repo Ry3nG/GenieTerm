@@ -6,21 +6,32 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/spf13/cobra"
 )
 
 var versionVerbose bool
 var versionJSON bool
 
+func publicCLINameFromExecutable(executablePath string) string {
+	baseName := strings.ToLower(filepath.Base(executablePath))
+	if baseName == "wsh" || baseName == "wsh.exe" {
+		return "wsh"
+	}
+	return "genie"
+}
+
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version [-v] [--json]",
-	Short: "Print the version number of wsh",
+	Short: "Print the version number of genie",
 	RunE:  runVersionCmd,
 }
 
@@ -32,7 +43,7 @@ func init() {
 
 func runVersionCmd(cmd *cobra.Command, args []string) error {
 	if !versionVerbose && !versionJSON {
-		WriteStdout("wsh v%s\n", wavebase.WaveVersion)
+		WriteStdout("%s v%s\n", publicCLINameFromExecutable(os.Args[0]), wavebase.WaveVersion)
 		return nil
 	}
 

@@ -1,7 +1,7 @@
-# add wsh to path, source dynamic script from wsh token
+# add GenieTerm helper to path, source dynamic script from genie token
 WAVETERM_WSHBINDIR={{.WSHBINDIR}}
 export PATH="$WAVETERM_WSHBINDIR:$PATH"
-source <(wsh token "$WAVETERM_SWAPTOKEN" zsh 2>/dev/null)
+source <({{.HELPERCMD}} token "$WAVETERM_SWAPTOKEN" zsh 2>/dev/null)
 unset WAVETERM_SWAPTOKEN
 
 # Source the original zshrc only if ZDOTDIR has not been changed
@@ -15,7 +15,7 @@ fi
 unset WAVETERM_WSHBINDIR
 
 if [[ -n ${_comps+x} ]]; then
-  source <(wsh completion zsh)
+  source <({{.HELPERCMD}} completion zsh)
 fi
 
 # fix history (macos)

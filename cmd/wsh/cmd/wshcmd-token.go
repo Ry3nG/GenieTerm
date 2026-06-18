@@ -6,8 +6,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/util/shellutil"
+	"github.com/spf13/cobra"
 )
 
 var tokenCmd = &cobra.Command{
@@ -24,12 +24,12 @@ func init() {
 func tokenCmdRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	if len(args) != 2 {
 		OutputHelpMessage(cmd)
-		return fmt.Errorf("wsh token requires exactly 2 arguments, got %d", len(args))
+		return fmt.Errorf("genie token requires exactly 2 arguments, got %d", len(args))
 	}
 	tokenStr, shellType := args[0], args[1]
 	if tokenStr == "" || shellType == "" {
 		OutputHelpMessage(cmd)
-		return fmt.Errorf("wsh token requires non-empty arguments")
+		return fmt.Errorf("genie token requires non-empty arguments")
 	}
 	rtnData, err := setupRpcClientWithToken(tokenStr)
 	if err != nil {

@@ -334,7 +334,7 @@ func IsExtendedZshHistoryFile(fileName string) (bool, error) {
 	return false, nil
 }
 
-func GetLocalWshBinaryPath(version string, goos string, goarch string) (string, error) {
+func getLocalHelperBinaryPath(helperName string, version string, goos string, goarch string) (string, error) {
 	ext := ""
 	if goarch == "amd64" {
 		goarch = "x64"
@@ -348,8 +348,55 @@ func GetLocalWshBinaryPath(version string, goos string, goarch string) (string, 
 	if !wavebase.SupportedWshBinaries[fmt.Sprintf("%s-%s", goos, goarch)] {
 		return "", fmt.Errorf("unsupported wsh platform: %s-%s", goos, goarch)
 	}
-	baseName := fmt.Sprintf("wsh-%s-%s.%s%s", version, goos, goarch, ext)
+	baseName := fmt.Sprintf("%s-%s-%s.%s%s", helperName, version, goos, goarch, ext)
 	return filepath.Join(wavebase.GetWaveAppBinPath(), baseName), nil
+}
+
+func GetLocalGenieBinaryPath(version string, goos string, goarch string) (string, error) {
+	return getLocalHelperBinaryPath("genie", version, goos, goarch)
+}
+
+func GetLocalWshBinaryPath(version string, goos string, goarch string) (string, error) {
+	return getLocalHelperBinaryPath("wsh", version, goos, goarch)
+}
+
+func InstallLocalHelperBinaries(binDir string, version string, goos string, goarch string) error {
+	err := wavebase.CacheEnsureDir(binDir, WaveHomeBinDir, 0755, WaveHomeBinDir)
+	if err != nil {
+		return err
+	}
+	genieFullPath, err := GetLocalGenieBinaryPath(version, goos, goarch)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(genieFullPath); err != nil {
+		return fmt.Errorf("could not resolve genie binary %q: %w", genieFullPath, err)
+	}
+	compatFullPath, err := GetLocalWshBinaryPath(version, goos, goarch)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(compatFullPath); err != nil {
+		compatFullPath = genieFullPath
+	}
+	ext := ""
+	if goos == "windows" {
+		ext = ".exe"
+	}
+	installTargets := []struct {
+		dst string
+		src string
+	}{
+		{dst: filepath.Join(binDir, "genie"+ext), src: genieFullPath},
+		{dst: filepath.Join(binDir, "wsh"+ext), src: compatFullPath},
+	}
+	for _, target := range installTargets {
+		err = utilfn.AtomicRenameCopy(target.dst, target.src, 0755)
+		if err != nil {
+			return fmt.Errorf("error copying helper binary to %q: %v", target.dst, err)
+		}
+	}
+	return nil
 }
 
 // absWshBinDir must be an absolute, expanded path (no ~ or $HOME, etc.)
@@ -386,6 +433,7 @@ func InitRcFiles(waveHome string, absWshBinDir string) error {
 	params := map[string]string{
 		"WSHBINDIR":      HardQuote(absWshBinDir),
 		"WSHBINDIR_PWSH": HardQuotePowerShell(absWshBinDir),
+		"HELPERCMD":      "genie",
 		"PATHSEP":        pathSep,
 	}
 
@@ -427,7 +475,7 @@ func InitRcFiles(waveHome string, absWshBinDir string) error {
 }
 
 func initCustomShellStartupFilesInternal() error {
-	log.Printf("initializing wsh and shell startup files\n")
+	log.Printf("initializing genie/wsh helpers and shell startup files\n")
 	waveDataHome := wavebase.GetWaveDataDir()
 	binDir := filepath.Join(waveDataHome, WaveHomeBinDir)
 	err := InitRcFiles(waveDataHome, binDir)
@@ -435,30 +483,12 @@ func initCustomShellStartupFilesInternal() error {
 		return err
 	}
 
-	err = wavebase.CacheEnsureDir(binDir, WaveHomeBinDir, 0755, WaveHomeBinDir)
+	err = InstallLocalHelperBinaries(binDir, wavebase.WaveVersion, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
-		return err
-	}
-
-	// copy the correct binary to bin
-	wshFullPath, err := GetLocalWshBinaryPath(wavebase.WaveVersion, runtime.GOOS, runtime.GOARCH)
-	if err != nil {
-		log.Printf("error (non-fatal), could not resolve wsh binary path: %v\n", err)
-	}
-	if _, err := os.Stat(wshFullPath); err != nil {
-		log.Printf("error (non-fatal), could not resolve wsh binary %q: %v\n", wshFullPath, err)
+		log.Printf("error (non-fatal), could not install genie/wsh helper binaries: %v\n", err)
 		return nil
 	}
-	wshDstPath := filepath.Join(binDir, "wsh")
-	if runtime.GOOS == "windows" {
-		wshDstPath = wshDstPath + ".exe"
-	}
-	err = utilfn.AtomicRenameCopy(wshDstPath, wshFullPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error copying wsh binary to bin: %v", err)
-	}
-	wshBaseName := filepath.Base(wshFullPath)
-	log.Printf("wsh binary successfully copied from %q to %q\n", wshBaseName, wshDstPath)
+	log.Printf("genie primary and wsh compatibility helpers installed to %q\n", binDir)
 	return nil
 }
 

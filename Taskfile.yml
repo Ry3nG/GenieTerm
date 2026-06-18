@@ -235,13 +235,18 @@ tasks:
                 as: GOARCH
         internal: true
 
-    build:wsh:
-        desc: Build the wsh component for all possible targets.
+    build:genie:
+        desc: Build the genie CLI/helper component for all possible targets, including wsh compatibility aliases.
         cmds:
-            - cmd: rm -f dist/bin/wsh*
+            - task: build:wsh
+
+    build:wsh:
+        desc: Build the genie CLI/helper component for all possible targets, including wsh compatibility aliases.
+        cmds:
+            - cmd: rm -f dist/bin/genie* dist/bin/wsh*
               platforms: [darwin, linux]
               ignore_error: true
-            - cmd: powershell -NoProfile -NonInteractive -Command "Remove-Item -Force -ErrorAction SilentlyContinue -Path dist/bin/wsh*"
+            - cmd: powershell -NoProfile -NonInteractive -Command "Remove-Item -Force -ErrorAction SilentlyContinue -Path dist/bin/genie*, dist/bin/wsh*"
               platforms: [windows]
               ignore_error: true
             - task: build:wsh:parallel
@@ -253,6 +258,7 @@ tasks:
             - "pkg/**/*.go"
             - package.json
         generates:
+            - "dist/bin/genie*"
             - "dist/bin/wsh*"
 
     build:wsh:parallel:
@@ -302,7 +308,9 @@ tasks:
                 - GOOS
                 - GOARCH
                 - VERSION
-        cmd: (CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -ldflags="-s -w -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/wsh-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}}{{.EXT}} cmd/wsh/main-wsh.go)
+        cmds:
+            - CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -ldflags="-s -w -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/genie-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}}{{.EXT}} cmd/wsh/main-wsh.go
+            - CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -ldflags="-s -w -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/wsh-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}}{{.EXT}} cmd/wsh/main-wsh.go
         internal: true
 
     build:tsunamiscaffold:
@@ -341,8 +349,13 @@ tasks:
         desc: Get the current package version, or bump version if args are present. To pass args to `version.cjs`, add them after `--`. See `version.cjs` for usage definitions for the arguments.
         cmd: node version.cjs {{.CLI_ARGS}}
 
+    dev:installgenie:
+        desc: quick shortcut to rebuild genie and install genie/wsh helpers for macos arm64
+        cmds:
+            - task: dev:installwsh
+
     dev:installwsh:
-        desc: quick shortcut to rebuild wsh and install for macos arm64
+        desc: compatibility shortcut to rebuild genie and install genie/wsh helpers for macos arm64
         requires:
             vars:
                 - VERSION
@@ -351,6 +364,8 @@ tasks:
               vars:
                   GOOS: darwin
                   GOARCH: arm64
+            - mkdir -p ~/Library/Application\ Support/genieterm-dev/bin
+            - cp dist/bin/genie-{{.VERSION}}-darwin.arm64 ~/Library/Application\ Support/genieterm-dev/bin/genie
             - cp dist/bin/wsh-{{.VERSION}}-darwin.arm64 ~/Library/Application\ Support/genieterm-dev/bin/wsh
 
     dev:clearconfig:

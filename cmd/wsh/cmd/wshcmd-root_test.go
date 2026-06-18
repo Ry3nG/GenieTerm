@@ -20,3 +20,15 @@ func TestRootCommandPublicIdentity(t *testing.T) {
 		t.Fatalf("root long help should mention wsh compatibility: %q", rootCmd.Long)
 	}
 }
+
+func TestPublicCLINameFromExecutable(t *testing.T) {
+	if publicCLINameFromExecutable("/home/me/.genieterm/bin/genie") != "genie" {
+		t.Fatalf("genie executable should report public CLI name genie")
+	}
+	if publicCLINameFromExecutable("/home/me/.waveterm/bin/wsh") != "wsh" {
+		t.Fatalf("wsh executable should keep compatibility CLI name wsh")
+	}
+	if publicCLINameFromExecutable("") != "genie" {
+		t.Fatalf("empty executable path should default to public CLI name genie")
+	}
+}

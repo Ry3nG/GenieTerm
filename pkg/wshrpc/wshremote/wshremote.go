@@ -129,9 +129,20 @@ func (impl *ServerImpl) ConnServerInitCommand(ctx context.Context, data wshrpc.C
 
 func (impl *ServerImpl) getWshPath() (string, error) {
 	if impl.IsLocal {
+		geniePath := filepath.Join(wavebase.GetWaveDataDir(), "bin", "genie")
+		if _, err := os.Stat(geniePath); err == nil {
+			return geniePath, nil
+		}
 		return filepath.Join(wavebase.GetWaveDataDir(), "bin", "wsh"), nil
 	}
-	wshPath, err := wavebase.ExpandHomeDir("~/.waveterm/bin/wsh")
+	geniePath, err := wavebase.ExpandHomeDir(wavebase.RemoteFullGenieBinPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot expand genie path: %w", err)
+	}
+	if _, err := os.Stat(geniePath); err == nil {
+		return geniePath, nil
+	}
+	wshPath, err := wavebase.ExpandHomeDir(wavebase.RemoteFullWshBinPath)
 	if err != nil {
 		return "", fmt.Errorf("cannot expand wsh path: %w", err)
 	}

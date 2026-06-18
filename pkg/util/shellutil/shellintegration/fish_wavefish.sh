@@ -2,12 +2,12 @@
 # Add Wave binary directory to PATH
 set -x PATH {{.WSHBINDIR}} $PATH
 
-# Source dynamic script from wsh token (the echo is to prevent fish from complaining about empty input)
-wsh token "$WAVETERM_SWAPTOKEN" fish 2>/dev/null | source
+# Source dynamic script from genie token (the echo is to prevent fish from complaining about empty input)
+{{.HELPERCMD}} token "$WAVETERM_SWAPTOKEN" fish 2>/dev/null | source
 set -e WAVETERM_SWAPTOKEN
 
-# Load Wave completions
-wsh completion fish | source
+# Load GenieTerm completions
+{{.HELPERCMD}} completion fish | source
 
 set -g _WAVETERM_SI_FIRSTPROMPT 1
 

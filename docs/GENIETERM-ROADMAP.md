@@ -75,16 +75,17 @@ additive Genie public aliases + normal-UX demotion of Wave app-builder/AI chat.
 
 ## Deferred — with plans (do these, in roughly this order)
 
-### genie-cli (rename the user-facing `wsh` command → `genie`)  — NEEDS A REAL-SHELL TEST
-Risky: `wsh` is load-bearing for shell integration + the token handshake + the remote helper. Do NOT
-rush blind. 0.3.0 only adds safe public aliases where they do not disturb sessions. Plan: typed command
-`genie`, keep a `wsh` alias; **keep internal** `wshrpc`/`wsh://`/`wsh:cmd`
-meta/`WAVETERM_*`/`.waveterm`/remote `~/.waveterm/bin/wsh`/the `wsh vX.Y.Z` version string (parsed over SSH).
-Touch points: the on-PATH binary name (`pkg/util/shellutil/shellutil.go` install/copy) + the shell-integration
-scripts that call `wsh token`/`wsh completion` must change **together**; cobra `Use`→`genie`
-(`cmd/wsh/cmd/wshcmd-root.go`); Taskfile build target output names can stay `wsh-<ver>`. Safest first step:
-install `genie` as an additional symlink/copy alongside `wsh` (additive, non-breaking), then flip cobra Use.
-**Verify in a real shell + a real SSH remote before shipping** (it lands in the user's terminals on reinstall).
+### genie-cli (rename the user-facing `wsh` command → `genie`)
+Risky: `wsh` is load-bearing for shell integration + the token handshake + the remote helper. The 0.4.0 migration model is
+staged compatibility, not a destructive rename: typed command `genie`, keep a `wsh` alias; **keep internal**
+`wshrpc`/`wsh://`/`wsh:cmd` meta/`WAVETERM_*` where they are merge-stability internals. Build/package emits
+`dist/bin/genie-*` as the primary artifact and `dist/bin/wsh-*` as the compatibility artifact.
+
+Remote helper migration: newly provisioned remotes install `~/.genieterm/bin/genie` and keep
+`~/.waveterm/bin/wsh` available. New launch and generated shell-integration paths prefer `genie`; `wsh` remains a
+fallback for existing remotes and old sessions. Version detection treats `genie vX.Y.Z` as current and `wsh vX.Y.Z` as
+fallback that still needs primary-helper migration. **Verify in a real shell + a real SSH remote before shipping**
+(it lands in the user's terminals on reinstall).
 
 ### UX / discoverability (best-practice polish)
 - Keybindings editor UI (the flagship feature is JSON-only today): a settings view listing the action
@@ -134,3 +135,32 @@ running app and any live SSH session. Do release packaging/reinstall only when t
 5. Keybindings editor UI (#19) — settings view over the `keymodel.ts` action table (labels already exported).
 
 Pick the next ⏳ item, implement incrementally, `tsc`/VSCode-errors to verify, commit, push. Keep this doc current.
+
+## 0.4.0 implementation notes: public CLI + command composer
+
+### CLI/helper audit and migration model
+
+- Pre-change audit: Cobra root already presented `Use: "genie"` and kept `Aliases: []string{"wsh"}`, but packaged helper
+  artifacts were `dist/bin/wsh-*` only. `task build` depended on `build:wsh`, and `dev:installwsh` copied only a `wsh`
+  executable into the GenieTerm data bin directory.
+- Local shell startup templates prepend the helper bin dir to `PATH`; newly generated templates call `genie token` /
+  `genie completion`. The installed `wsh` executable remains as the compatibility alias.
+- Remote SSH and WSL launch paths used to assume `~/.waveterm/bin/wsh` for version checks, connserver launch, and helper
+  install. That path is load-bearing for existing remote sessions and older generated rc files, so it must not be removed.
+- Remote install/update is staged compatibility: provision primary `~/.genieterm/bin/genie` and keep
+  `~/.waveterm/bin/wsh` as a fallback. Newly generated remote shell integration and connserver launch prefer `genie`;
+  fallback to `wsh` is kept for remotes that have not completed migration or old sessions already using the old path.
+- Remote version detection should update when the primary helper is missing, mismatched, or the launch path fell back to
+  `wsh`, even if the fallback `wsh` version matches the app version. This avoids leaving a current-version compatibility
+  helper in place without installing the public `genie` helper.
+
+### Command Composer foundation
+
+- The existing Wave AI panel/backend remains available internally but is not the 0.4.0 UX. The composer should live in
+  the terminal surface and command palette, using focused terminal context: shell/OS/cwd/connection, recent command
+  blocks, and selected output when available.
+- MVP output is a structured command proposal list: command, explanation, target context, and risk label. It inserts or
+  copies into terminal input; it never auto-runs. Destructive/sudo/network/write commands are explicitly labelled and
+  require confirmation before insertion.
+- Full provider integration is deferred unless it stays small. The implementation should ship a clean model/backend seam
+  plus deterministic local fallback so tests and UI are coherent before wiring live providers.

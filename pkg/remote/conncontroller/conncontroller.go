@@ -18,8 +18,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/kevinburke/ssh_config"
-	"github.com/skeema/knownhosts"
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
 	"github.com/Ry3nG/GenieTerm/pkg/genconn"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
@@ -38,6 +36,8 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
+	"github.com/kevinburke/ssh_config"
+	"github.com/skeema/knownhosts"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/mod/semver"
 )
@@ -94,14 +94,21 @@ type SSHConn struct {
 	Monitor            *ConnMonitor // will not be nil
 }
 
-var ConnServerCmdTemplate = strings.TrimSpace(
-	strings.Join([]string{
-		"%s version 2> /dev/null || (echo -n \"not-installed \"; uname -sm; exit 0);",
-		"exec %s connserver --conn %s %s %s",
-	}, "\n"))
-
 func IsLocalConnName(connName string) bool {
 	return strings.HasPrefix(connName, "local:") || connName == "local" || connName == ""
+}
+
+func MakeConnServerCommand(primaryPath string, fallbackPath string, connName string, flags ...string) string {
+	flagStr := strings.TrimSpace(strings.Join(flags, " "))
+	if flagStr != "" {
+		flagStr = " " + flagStr
+	}
+	return strings.TrimSpace(strings.Join([]string{
+		fmt.Sprintf("_genieterm_helper=%s;", shellutil.SoftQuote(primaryPath)),
+		fmt.Sprintf("if [ ! -x \"$_genieterm_helper\" ] && [ -x %s ]; then _genieterm_helper=%s; fi;", shellutil.SoftQuote(fallbackPath), shellutil.SoftQuote(fallbackPath)),
+		"\"$_genieterm_helper\" version 2> /dev/null || (echo -n \"not-installed \"; uname -sm; exit 0);",
+		fmt.Sprintf("exec \"$_genieterm_helper\" connserver --conn %s%s", shellutil.HardQuote(connName), flagStr),
+	}, "\n"))
 }
 
 func IsWslConnName(connName string) bool {
@@ -321,8 +328,12 @@ func IsWshVersionUpToDate(logCtx context.Context, wshVersionLine string) (bool, 
 	if len(parts) != 2 {
 		return false, "", "", fmt.Errorf("unexpected version format: %s", wshVersionLine)
 	}
+	helperName := parts[0]
 	clientVersion := parts[1]
 	expectedVersion := fmt.Sprintf("v%s", wavebase.WaveVersion)
+	if helperName != "genie" {
+		return false, clientVersion, "", nil
+	}
 	// Reinstall whenever the remote wsh version differs from ours, not just when it
 	// is older: GenieTerm reset its version (0.x) below upstream Wave's last release
 	// (0.14.x), so a leftover upstream wsh is numerically "newer" and a `< 0` check
@@ -418,6 +429,14 @@ func (conn *SSHConn) getWshPath() string {
 	if ok && config.ConnWshPath != "" {
 		return config.ConnWshPath
 	}
+	return wavebase.RemoteFullGenieBinPath
+}
+
+func (conn *SSHConn) getFallbackWshPath() string {
+	config, ok := conn.getConnectionConfig()
+	if ok && config.ConnWshPath != "" {
+		return config.ConnWshPath
+	}
 	return wavebase.RemoteFullWshBinPath
 }
 
@@ -443,6 +462,7 @@ func (conn *SSHConn) StartConnServer(ctx context.Context, afterUpdate bool, useR
 	}
 	client := conn.GetClient()
 	wshPath := conn.getWshPath()
+	fallbackWshPath := conn.getFallbackWshPath()
 	sockName := conn.GetDomainSocketName()
 	var rpcCtx wshrpc.RpcContext
 	if useRouterMode {
@@ -482,7 +502,7 @@ func (conn *SSHConn) StartConnServer(ctx context.Context, afterUpdate bool, useR
 	if useRouterMode {
 		routerFlag = "--router-domainsocket"
 	}
-	cmdStr := fmt.Sprintf(ConnServerCmdTemplate, wshPath, wshPath, shellutil.HardQuote(conn.GetName()), devFlag, routerFlag)
+	cmdStr := MakeConnServerCommand(wshPath, fallbackWshPath, conn.GetName(), devFlag, routerFlag)
 	log.Printf("starting conn controller: %q\n", cmdStr)
 	shWrappedCmdStr := fmt.Sprintf("sh -c %s", shellutil.HardQuote(cmdStr))
 	blocklogger.Debugf(ctx, "[conndebug] wrapped command:\n%s\n", shWrappedCmdStr)

@@ -17,7 +17,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/util/packetparser"
@@ -26,6 +25,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wavejwt"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // these should both be 5 characters
@@ -410,7 +410,7 @@ func GetInfo() wshrpc.RemoteInfo {
 
 func InstallRcFiles() error {
 	home := wavebase.GetHomeDir()
-	waveDir := filepath.Join(home, wavebase.RemoteWaveHomeDirName)
+	waveDir := filepath.Join(home, wavebase.RemoteGenieHomeDirName)
 	wshBinDir := filepath.Join(waveDir, wavebase.RemoteWshBinDirName)
 	return shellutil.InitRcFiles(waveDir, wshBinDir)
 }
