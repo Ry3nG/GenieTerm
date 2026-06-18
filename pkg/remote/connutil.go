@@ -5,6 +5,7 @@ package remote
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -89,9 +90,12 @@ func GetClientPlatformFromOsArchStr(ctx context.Context, osArchStr string) (stri
 	return os, arch, nil
 }
 
+// The helper binary is gzip-compressed on the wire (Go binaries shrink ~60-70%),
+// which is the difference between landing and timing out on slow/proxied links.
+// gzip/gunzip are effectively universal on the remotes we support.
 var installTemplateRawDefault = strings.TrimSpace(`
 mkdir -p {{.installDir}} || exit 1;
-cat > {{.tempPath}} || exit 1;
+gzip -dc > {{.tempPath}} || exit 1;
 mv {{.tempPath}} {{.installPath}} || exit 1;
 chmod a+x {{.installPath}} || exit 1;
 `)
@@ -151,11 +155,20 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 	go func() {
 		defer close(copyDone)
 		defer stdin.Close()
-		if _, err := io.Copy(stdin, input); err != nil && err != io.EOF {
-			copyDone <- fmt.Errorf("failed to copy data: %w", err)
-		} else {
-			copyDone <- nil
+		gz, gzErr := gzip.NewWriterLevel(stdin, gzip.BestCompression)
+		if gzErr != nil {
+			copyDone <- fmt.Errorf("failed to init gzip: %w", gzErr)
+			return
 		}
+		if _, err := io.Copy(gz, input); err != nil && err != io.EOF {
+			copyDone <- fmt.Errorf("failed to copy data: %w", err)
+			return
+		}
+		if err := gz.Close(); err != nil {
+			copyDone <- fmt.Errorf("failed to finalize gzip: %w", err)
+			return
+		}
+		copyDone <- nil
 	}()
 	procErr := genconn.ProcessContextWait(ctx, genCmd)
 	if procErr != nil {

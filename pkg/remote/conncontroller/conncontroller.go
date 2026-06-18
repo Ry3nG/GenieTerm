@@ -923,7 +923,7 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 		// Copying the helper binary can take minutes on slow/proxied links; don't
 		// bound it by the short interactive-connect deadline (the ssh client
 		// lifecycle still bounds it if the connection drops).
-		installCtx, installCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Minute)
+		installCtx, installCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 		err = conn.InstallWsh(installCtx, osArchStr)
 		installCancel()
 		if err != nil {
