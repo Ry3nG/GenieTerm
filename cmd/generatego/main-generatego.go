@@ -20,6 +20,14 @@ const WshClientFileName = "pkg/wshrpc/wshclient/wshclient.go"
 const WaveObjMetaConstsFileName = "pkg/waveobj/metaconsts.go"
 const SettingsMetaConstsFileName = "pkg/wconfig/metaconsts.go"
 
+func writeGeneratedGoFileIfDifferent(fileName string, contents string) (bool, error) {
+	formatted, err := gogen.FormatGoSource(contents)
+	if err != nil {
+		return false, fmt.Errorf("format generated go file %s: %w", fileName, err)
+	}
+	return utilfn.WriteFileIfDifferent(fileName, []byte(formatted))
+}
+
 func GenerateWshClient() error {
 	fmt.Fprintf(os.Stderr, "generating wshclient file to %s\n", WshClientFileName)
 	var buf strings.Builder
@@ -46,11 +54,14 @@ func GenerateWshClient() error {
 		}
 	}
 	buf.WriteString("\n")
-	written, err := utilfn.WriteFileIfDifferent(WshClientFileName, []byte(buf.String()))
+	written, err := writeGeneratedGoFileIfDifferent(WshClientFileName, buf.String())
+	if err != nil {
+		return err
+	}
 	if !written {
 		fmt.Fprintf(os.Stderr, "no changes to %s\n", WshClientFileName)
 	}
-	return err
+	return nil
 }
 
 func GenerateWaveObjMetaConsts() error {
@@ -59,11 +70,14 @@ func GenerateWaveObjMetaConsts() error {
 	gogen.GenerateBoilerplate(&buf, "waveobj", []string{})
 	gogen.GenerateMetaMapConsts(&buf, "MetaKey_", reflect.TypeOf(waveobj.MetaTSType{}), false)
 	buf.WriteString("\n")
-	written, err := utilfn.WriteFileIfDifferent(WaveObjMetaConstsFileName, []byte(buf.String()))
+	written, err := writeGeneratedGoFileIfDifferent(WaveObjMetaConstsFileName, buf.String())
+	if err != nil {
+		return err
+	}
 	if !written {
 		fmt.Fprintf(os.Stderr, "no changes to %s\n", WaveObjMetaConstsFileName)
 	}
-	return err
+	return nil
 }
 
 func GenerateSettingsMetaConsts() error {
@@ -72,11 +86,14 @@ func GenerateSettingsMetaConsts() error {
 	gogen.GenerateBoilerplate(&buf, "wconfig", []string{})
 	gogen.GenerateMetaMapConsts(&buf, "ConfigKey_", reflect.TypeOf(wconfig.SettingsType{}), false)
 	buf.WriteString("\n")
-	written, err := utilfn.WriteFileIfDifferent(SettingsMetaConstsFileName, []byte(buf.String()))
+	written, err := writeGeneratedGoFileIfDifferent(SettingsMetaConstsFileName, buf.String())
+	if err != nil {
+		return err
+	}
 	if !written {
 		fmt.Fprintf(os.Stderr, "no changes to %s\n", SettingsMetaConstsFileName)
 	}
-	return err
+	return nil
 }
 
 func main() {

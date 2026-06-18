@@ -5,6 +5,7 @@ package gogen
 
 import (
 	"fmt"
+	"go/format"
 	"reflect"
 	"strings"
 
@@ -24,6 +25,14 @@ func GenerateBoilerplate(buf *strings.Builder, pkgName string, imports []string)
 		}
 		buf.WriteString(")\n\n")
 	}
+}
+
+func FormatGoSource(src string) (string, error) {
+	formatted, err := format.Source([]byte(src))
+	if err != nil {
+		return "", err
+	}
+	return string(formatted), nil
 }
 
 func getBeforeColonPart(s string) string {

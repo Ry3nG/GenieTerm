@@ -44,3 +44,24 @@ func TestGenMethodCall_MultiArg(t *testing.T) {
 		t.Fatalf("generated method missing MultiArg payload:\n%s", out)
 	}
 }
+
+func TestFormatGoSourceFormatsGeneratedMetaConsts(t *testing.T) {
+	type sampleMeta struct {
+		Short      string `json:"short"`
+		LongerName string `json:"short:longername"`
+	}
+	var sb strings.Builder
+	GenerateBoilerplate(&sb, "sample", nil)
+	GenerateMetaMapConsts(&sb, "MetaKey_", reflect.TypeOf(sampleMeta{}), false)
+
+	out, err := FormatGoSource(sb.String())
+	if err != nil {
+		t.Fatalf("format source: %v", err)
+	}
+	if strings.Contains(out, "MetaKey_Short                            =") {
+		t.Fatalf("formatted source kept fixed-width generator spacing:\n%s", out)
+	}
+	if !strings.Contains(out, "MetaKey_Short      = \"short\"\n\tMetaKey_LongerName = \"short:longername\"") {
+		t.Fatalf("formatted source missing gofmt-aligned consts:\n%s", out)
+	}
+}
