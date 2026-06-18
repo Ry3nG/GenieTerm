@@ -7,13 +7,16 @@ precise plans for what's deferred — so work continues step by step without re-
 
 ## Product identity (decided with the owner)
 
-- **Terminal-first.** GenieTerm is the open, modern, best-remote, most-pleasant-to-live-in terminal.
-  It competes with Ghostty/Warp/iTerm2/Wave on the *terminal* axis, not on AI.
+- **Semantic terminal-first.** GenieTerm is the open, modern, best-remote, most-pleasant-to-live-in terminal.
+  It competes with Ghostty/Warp/iTerm2/Wave on the *terminal* axis, not on AI, and treats command
+  boundaries/status/output as first-class terminal presentation data.
 - **No me-too AI.** A built-in AI chat (competes with Claude Code/Codex) and a bare agent-launcher
   (no value over typing `claude`) were both tried and **removed**. Agents "just work" in any terminal
   (the login-shell PATH fix). Real AI differentiation, if ever, = multi-agent orchestration, not chat.
 - **Warp-like UX is the bet.** Warp's real innovation = command **blocks** + IDE input editor +
-  command palette — done **local-first, no login, no telemetry** (the wedge against Warp).
+  command palette — done **local-first, no login, no telemetry** (the wedge against Warp). GenieTerm
+  must keep one terminal runtime/session/controller: semantic mode is a presentation layer over
+  `TerminalView` / `TermWrap`; classic xterm is a compatibility presentation mode, not a second terminal.
 - **Soft fork.** Rebrand the product + own the module path (`github.com/Ry3nG/GenieTerm`); keep internal
   `Wave*`/`wshrpc`/`WAVETERM_*`/`.waveterm` so upstream Wave fixes stay cheap to merge. Preserve Wave
   Apache-2.0 attribution (About "Built on Wave" + onboarding line).
@@ -47,16 +50,19 @@ precise plans for what's deferred — so work continues step by step without re-
   so remote sysinfo ran on old wsh and never emitted this fork's disk/net metrics. Changed to reinstall on version
   *inequality*. Any remote first connected on old Wave auto-updates its `~/.waveterm/bin/wsh` on next connect.
 
-## In flight: Command Blocks (Warp flagship)
+## In flight: GenieTerm 0.3.0 Semantic Terminal Foundation
 
-The signature Warp feature. Feasible because shell integration (OSC 16162 A/C/D) already registers
-xterm markers (`termWrap.promptMarkers`) at every command boundary.
+The signature Warp feature becomes the default terminal presentation. Feasible because shell integration
+(OSC 16162 A/C/D) already registers xterm markers (`termWrap.promptMarkers`) at every command boundary.
 
 - ✅ `frontend/app/view/term/cmdblocks.ts` — data model + buffer-range/output helpers.
 - ✅ `termwrap.ts` — block index (`cmdBlocks` + `cmdBlocksAtom` + debounced publish + marker-disposal cleanup; reset on truncate/dispose).
 - ✅ `osc-handlers.ts` — build/finalize blocks on A/C/D (`onPromptStart`/`onCommandStart`/`onCommandDone`); empty Enters (A with no C) are dropped via `blockHasCommand`.
 - ✅ `keymodel.ts` + `term-model.ts` — jump prev/next (`Cmd:Shift:Up/Down`, `term:jump-prev/next-block`) scrolls to the prev/next command's prompt line; `term:copy-last-command` / `term:copy-last-output` (palette-first, no default key). All gated on a focused term + normal buffer.
-- ⏳ `term.tsx` — `<TermBlockDecorations>` → one xterm decoration per block (gutter accent + exit-code badge). **Deferred to a runtime-verified session** — decoration positioning/layering (avoid covering text, gutter vs inline, z-index) needs visual iteration against the live app; shipping it blind risks looking broken. xterm v6 `registerDecoration` is stable (no `allowProposedApi` needed for it).
+- ⏳ `term.tsx` — semantic/classic terminal mode wrapper around existing `TerminalView` / `TermWrap`; no duplicate session/controller.
+- ⏳ `term.tsx` — visible command-block affordances: gutter marker, status, duration, copy command/output, jump to command.
+- ⏳ `transferutil.ts` and public copy/display helpers — accept and present `genie://` while keeping `wsh://` compatibility.
+- ⏳ normal UX — Wave app-builder and built-in AI-chat surfaces hidden or demoted unless explicitly enabled.
 - Later: sticky header, hover toolbar, re-run, "jump past output" (have `blockEndLine` helper ready).
 
 **Hard constraint (do not forget):** xterm cannot fold/hide buffer lines (fixed char-grid; Warp built a
@@ -64,14 +70,15 @@ custom renderer for this). **True collapse is deferred / out of scope.** Ship "j
 (scroll the long output away) as the ~80% substitute. Everything else (gutter/badge/jump/copy/sticky/re-run)
 is feasible via xterm's decoration API + a thin React overlay.
 
-Full design lives in the Plan-agent output of session wf-… ; phased plan: index+badge+jump+copy (MVP),
-then gutter-bar+sticky+jump-past-output, then hover-toolbar+re-run.
+0.3.0 scope: default semantic presentation + classic compatibility mode + safe visible block affordances +
+additive Genie public aliases + normal-UX demotion of Wave app-builder/AI chat.
 
 ## Deferred — with plans (do these, in roughly this order)
 
 ### genie-cli (rename the user-facing `wsh` command → `genie`)  — NEEDS A REAL-SHELL TEST
 Risky: `wsh` is load-bearing for shell integration + the token handshake + the remote helper. Do NOT
-rush blind. Plan: typed command `genie`, keep a `wsh` alias; **keep internal** `wshrpc`/`wsh://`/`wsh:cmd`
+rush blind. 0.3.0 only adds safe public aliases where they do not disturb sessions. Plan: typed command
+`genie`, keep a `wsh` alias; **keep internal** `wshrpc`/`wsh://`/`wsh:cmd`
 meta/`WAVETERM_*`/`.waveterm`/remote `~/.waveterm/bin/wsh`/the `wsh vX.Y.Z` version string (parsed over SSH).
 Touch points: the on-PATH binary name (`pkg/util/shellutil/shellutil.go` install/copy) + the shell-integration
 scripts that call `wsh token`/`wsh completion` must change **together**; cobra `Use`→`genie`
@@ -111,18 +118,19 @@ install `genie` as an additional symlink/copy alongside `wsh` (additive, non-bre
 
 ## How to continue
 
-**State as of v0.2.0 (pushed to `origin/main`):** Command Blocks foundation + jump + copy shipped; sysinfo memoized;
-Occam polish done. `npx tsc --noEmit` is clean except the 3 documented upstream `preview-directory-utils.tsx` errors.
+**State as of v0.3.0 planning:** Command Blocks foundation + jump + copy shipped; sysinfo memoized;
+Occam polish done. The next release makes semantic terminal presentation the default while preserving
+classic xterm compatibility over the same runtime.
 
 **Reinstall is intentionally NOT done** — `task package` + replacing `/Applications/GenieTerm.app` quits the user's
-running app and any live SSH session. The owner asked to reinstall but is AFK; do it when they're present (release
-checklist step 4). The version bump + push are done, so the next `task package` will build 0.2.0 cleanly.
+running app and any live SSH session. Do release packaging/reinstall only when the owner is present
+(release checklist step 4).
 
 **Next ⏳ items, in order of safety×value:**
-1. Command Blocks decoration UI (`term.tsx` `<TermBlockDecorations>`) — the flagship's visible layer. Needs the live app
-   to tune positioning; do it in a verified session, not blind.
-2. Keybindings editor UI (#19) — settings view over the `keymodel.ts` action table (labels already exported).
-3. "View" menu toggles for hide-tabbar/hide-sidebar (discoverability).
-4. genie-cli rename (#21) — still gated on a real-shell + real-SSH test.
+1. Semantic/classic presentation setting and wrapper over the existing terminal runtime.
+2. Visible command-block gutter/status/duration/copy/jump affordances.
+3. Safe `genie` / `genie://` public aliases that keep `wsh` / `wsh://` compatibility.
+4. Hide/demote app-builder and AI-chat surfaces from the normal terminal UX.
+5. Keybindings editor UI (#19) — settings view over the `keymodel.ts` action table (labels already exported).
 
 Pick the next ⏳ item, implement incrementally, `tsc`/VSCode-errors to verify, commit, push. Keep this doc current.

@@ -1,16 +1,18 @@
 # GenieTerm Roadmap
 
-GenieTerm is a workspace-native terminal designed to make commands, files, sessions, and AI work together more naturally. The roadmap starts with the parts that usually feel clumsy: finding files, moving data, previewing results, and recovering from interrupted sessions.
+GenieTerm is a semantic, remote-native terminal designed to make commands, remote sessions, and file movement feel like one terminal workflow. The roadmap now starts with the terminal presentation itself: command blocks become the default view, while the classic xterm grid remains available as a compatibility mode over the same runtime.
 
 ## Current Slice
 
-- Reliable remote folder download from the Files widget.
-- Side-by-side installation with a separate app identity and data directory.
-- Minimal CI that protects the first transfer workflow.
+- GenieTerm 0.3.0 Semantic Terminal Foundation.
+- Semantic terminal mode is the default presentation for `TerminalView` / `TermWrap`.
+- Classic xterm mode stays available for compatibility without a duplicate session, controller, or runtime.
+- Existing command-block data becomes visible through safe gutter, status, duration, copy, and jump affordances.
+- Public `genie` / `genie://` aliases are additive; `wsh` / `wsh://` remain supported.
 
 ## Next Product Bets
 
-- Drag-and-drop upload to remote folders.
+- Command re-run and jump-past-output affordances.
 - Transfer queue with progress, cancel, retry, and history.
 - Multi-select transfers across files and folders.
 - SFTP fallback for hosts where WSH is unavailable.

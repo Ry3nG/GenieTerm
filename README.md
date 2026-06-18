@@ -4,25 +4,26 @@
 
 # GenieTerm
 
-GenieTerm is a workspace-native terminal designed to make commands, files, sessions, and AI work together more naturally.
+GenieTerm is a semantic, remote-native terminal for command blocks, durable sessions, and file workflows.
 
-It is built on top of the Wave Terminal codebase and keeps Wave's strong foundation: block-based workspaces, durable remote sessions, inline previews, built-in editing, `wsh`, and cross-platform Electron/Go packaging. GenieTerm's product direction is narrower and more opinionated: make the development workspace feel coherent across commands, remote files, long-running sessions, and AI-assisted context.
+It is built on top of the Wave Terminal codebase and keeps Wave's strong foundation: durable remote sessions, inline previews, built-in editing, `wsh`, and cross-platform Electron/Go packaging. GenieTerm's product direction is narrower and more opinionated: make the terminal itself understand command boundaries, status, output, duration, and remote file identity while reusing the same runtime, session, and controller path.
 
 ## Current Focus
 
-- Reliable remote file and folder download from the Files widget.
-- Side-by-side installation with Wave using a separate app identity and data directory.
-- Local-first development flow for a private product fork.
+- GenieTerm 0.3.0 Semantic Terminal Foundation.
+- Warp-style semantic command presentation as the default terminal mode.
+- Classic xterm presentation as a compatibility mode over the same `TerminalView` / `TermWrap` runtime.
+- Remote file and transfer flows that present `genie://` identity while preserving `wsh://` compatibility.
 
 ## Product Direction
 
-GenieTerm will continue to develop remote workflow features around:
+GenieTerm will continue to develop terminal-first remote workflow features around:
 
-- Drag-and-drop upload to remote folders.
-- Transfer queue with progress, cancel, and retry.
-- Multi-select transfers across files and folders.
-- SFTP fallback for hosts where WSH is unavailable.
-- Better remote file inspection, previewing, and recovery flows.
+- Semantic command blocks with safe gutter, status, duration, copy, and jump affordances.
+- Durable local and remote sessions that remain ordinary xterm sessions underneath.
+- Remote file inspection, previewing, upload, download, and recovery flows.
+- Additive public `genie` / `genie://` aliases that do not break existing `wsh` / `wsh://` scripts.
+- Optional app-builder and AI surfaces kept out of the normal terminal workflow.
 
 ## Relationship To Wave
 
