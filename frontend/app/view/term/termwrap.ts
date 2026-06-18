@@ -34,7 +34,9 @@ import { blockHasCommand, makeCmdBlockDecorationSpecs, type CmdBlock } from "./c
 import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
+    shouldInterceptNaturalLanguagePrompt,
     type CommandInlineAIRequestHandler,
+    updateNaturalLanguagePromptInput,
 } from "./command-composer";
 import {
     handleOsc16162Command,
@@ -113,6 +115,7 @@ export class TermWrap {
     cmdBlocks: CmdBlock[] = [];
     cmdBlocksAtom: jotai.PrimitiveAtom<CmdBlock[]>;
     altScreenActiveAtom: jotai.PrimitiveAtom<boolean>;
+    currentPromptInput = "";
     pendingCmdBlock: CmdBlock | null = null;
     cmdBlockIdCounter = 0;
     publishCmdBlocks: () => void;
@@ -519,11 +522,41 @@ export class TermWrap {
             return;
         }
 
+        if (this.tryInterceptNaturalLanguagePrompt(data)) {
+            return;
+        }
         if (data) {
             this.onInlineAIDismiss?.();
         }
+        this.currentPromptInput = updateNaturalLanguagePromptInput(this.currentPromptInput, data);
         this.sendDataHandler?.(data);
         this.multiInputCallback?.(data);
+    }
+
+    tryInterceptNaturalLanguagePrompt(data: string): boolean {
+        if (data !== "\r" && data !== "\n") {
+            return false;
+        }
+        const prompt = this.currentPromptInput.trim();
+        if (!prompt || this.pendingCmdBlock == null) {
+            return false;
+        }
+        const shellIntegrationStatus = globalStore.get(this.shellIntegrationStatusAtom);
+        const altScreenActive = globalStore.get(this.altScreenActiveAtom);
+        const commandComposerEnabled = globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
+        if (
+            !shouldInterceptNaturalLanguagePrompt(prompt, {
+                shellIntegrationStatus,
+                altScreenActive,
+                commandComposerEnabled,
+            })
+        ) {
+            return false;
+        }
+        this.currentPromptInput = "";
+        this.sendDataHandler?.("\x15");
+        this.onInlineAIRequest?.(prompt, this.pendingCmdBlock, { auto: true });
+        return true;
     }
 
     addFocusListener(focusFn: () => void) {
@@ -708,6 +741,7 @@ export class TermWrap {
     // Command-block index lifecycle, driven by shell-integration OSC 16162 (A/C/D).
     // A new command block spans from one prompt-start (A) marker to the next.
     onPromptStart(marker: TermTypes.IMarker) {
+        this.currentPromptInput = "";
         const prev = this.pendingCmdBlock;
         if (prev != null) {
             prev.endMarker = marker;
@@ -738,6 +772,7 @@ export class TermWrap {
         if (this.pendingCmdBlock == null) {
             return;
         }
+        this.currentPromptInput = "";
         this.pendingCmdBlock.command = command;
         this.pendingCmdBlock.startTs = Date.now();
         this.publishCmdBlocks();
@@ -820,6 +855,7 @@ export class TermWrap {
     resetCmdBlocks() {
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
+        this.currentPromptInput = "";
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
     }
