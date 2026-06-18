@@ -40,6 +40,12 @@ precise plans for what's deferred — so work continues step by step without re-
 - Preview mocks realigned to current types (`numthreads`, config `version`/`buildtime`). Remaining tsc noise = 3 errors in
   `preview-directory-utils.tsx` only — a discriminated-union narrowing quirk under `strictNullChecks: false` in upstream Wave code.
 - Version bumped 0.1.0 → **0.2.0**; pushed to `origin/main`.
+- Logo assets: all `genieterm-logo*.png` + `build/icon.icns` were RGB with **no alpha** → white squircle corners
+  (About modal + dock). Regenerated with a corner-flood-fill alpha mask. `build/icon.ico` (Windows-only) still stale — fix on a Windows build.
+- **Fork version-reset landmine (fixed):** resetting the version (0.14.5 → 0.2.0) made `IsWshVersionUpToDate`'s
+  `semver.Compare(...) < 0` treat a leftover upstream `wsh v0.14.5` on remotes as "newer" → it was never replaced,
+  so remote sysinfo ran on old wsh and never emitted this fork's disk/net metrics. Changed to reinstall on version
+  *inequality*. Any remote first connected on old Wave auto-updates its `~/.waveterm/bin/wsh` on next connect.
 
 ## In flight: Command Blocks (Warp flagship)
 
