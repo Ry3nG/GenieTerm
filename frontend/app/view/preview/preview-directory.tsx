@@ -22,6 +22,7 @@ import {
     Header,
     Row,
     RowData,
+    SortingState,
     Table,
     createColumnHelper,
     flexRender,
@@ -244,7 +245,15 @@ function DirectoryTable({
         [model, setErrorMsg]
     );
 
-    const initialSorting = defaultSort === "modtime" ? [{ id: "modtime", desc: true }] : [{ id: "name", desc: false }];
+    const defaultSorting = useMemo<SortingState>(
+        () => (defaultSort === "modtime" ? [{ id: "modtime", desc: true }] : [{ id: "name", desc: false }]),
+        [defaultSort]
+    );
+    const [sorting, setSorting] = useState<SortingState>(defaultSorting);
+
+    useEffect(() => {
+        setSorting(defaultSorting);
+    }, [defaultSorting]);
 
     const table = useReactTable({
         data,
@@ -253,8 +262,11 @@ function DirectoryTable({
         getSortedRowModel: getSortedRowModel(),
         getCoreRowModel: getCoreRowModel(),
 
+        state: {
+            sorting,
+        },
+        onSortingChange: setSorting,
         initialState: {
-            sorting: initialSorting,
             columnVisibility: {
                 path: false,
             },
@@ -603,6 +615,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const [unfilteredData, setUnfilteredData] = useState<FileInfo[]>([]);
     const showHiddenFiles = useAtomValue(model.showHiddenFiles);
     const treeViewMode = useAtomValue(model.treeViewMode);
+    const fileView = useAtomValue(env.getSettingsKeyAtom("preview:fileview")) ?? "list";
     const [selectedPath, setSelectedPath] = useState("");
     const [refreshVersion, setRefreshVersion] = useAtom(model.refreshVersion);
     const [isLocalDragOver, setIsLocalDragOver] = useState(false);
@@ -620,6 +633,10 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             model.refreshCallback = null;
         };
     }, [setRefreshVersion]);
+
+    useEffect(() => {
+        globalStore.set(model.treeViewMode, fileView == "tree");
+    }, [fileView, model.treeViewMode]);
 
     useEffect(
         () =>

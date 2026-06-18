@@ -254,6 +254,13 @@
             "modtime"
           ]
         },
+        "preview:fileview": {
+          "type": "string",
+          "enum": [
+            "list",
+            "tree"
+          ]
+        },
         "tab:preset": {
           "type": "string"
         },

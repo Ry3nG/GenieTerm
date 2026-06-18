@@ -178,9 +178,10 @@ export class PreviewModel implements ViewModel {
         this.nodeModel = nodeModel;
         this.tabModel = tabModel;
         this.env = waveEnv;
-        let showHiddenFiles = globalStore.get(this.env.getSettingsKeyAtom("preview:showhiddenfiles")) ?? true;
+        const showHiddenFiles = globalStore.get(this.env.getSettingsKeyAtom("preview:showhiddenfiles")) ?? true;
+        const fileView = globalStore.get(this.env.getSettingsKeyAtom("preview:fileview")) ?? "list";
         this.showHiddenFiles = atom<boolean>(showHiddenFiles);
-        this.treeViewMode = atom<boolean>(false);
+        this.treeViewMode = atom<boolean>(fileView == "tree");
         this.treeExpanded = atom<string[]>([]);
         this.refreshVersion = atom(0);
         this.directorySearchActive = atom(false);

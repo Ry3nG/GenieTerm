@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from "vitest";
-import { copyWithOverwriteConfirmation, isFileCopyFailure, overwriteError } from "./preview-directory-utils";
+import { atom } from "jotai";
+import { globalStore } from "@/app/store/jotaiStore";
+import {
+    copyWithOverwriteConfirmation,
+    isFileCopyFailure,
+    makeDirectoryDefaultMenuItems,
+    overwriteError,
+} from "./preview-directory-utils";
 
 describe("copyWithOverwriteConfirmation", () => {
     it("narrows file copy failures with a type guard", () => {
@@ -59,5 +66,38 @@ describe("copyWithOverwriteConfirmation", () => {
         expect(refresh).toHaveBeenCalledTimes(2);
         expect(copyCalls[1].opts).toMatchObject({ timeout: 42, overwrite: true });
         expect(data.opts.overwrite).toBeUndefined();
+    });
+});
+
+describe("makeDirectoryDefaultMenuItems", () => {
+    it("persists the selected file view mode", async () => {
+        const treeViewMode = atom(false);
+        const showHiddenFiles = atom(true);
+        const defaultSortAtom = atom("name");
+        const setConfig = vi.fn(async () => {});
+        const model = {
+            treeViewMode,
+            showHiddenFiles,
+            env: {
+                getSettingsKeyAtom: vi.fn((key: string) => {
+                    if (key === "preview:defaultsort") {
+                        return defaultSortAtom;
+                    }
+                    return atom(null);
+                }),
+                rpc: {
+                    SetConfigCommand: setConfig,
+                },
+            },
+        } as any;
+
+        const fileViewMenu = makeDirectoryDefaultMenuItems(model).find((item) => item.label === "File View");
+        const treeItem = fileViewMenu?.submenu?.find((item) => item.label === "Tree");
+        treeItem?.click?.();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(globalStore.get(treeViewMode)).toBe(true);
+        expect(setConfig).toHaveBeenCalledWith(undefined, { "preview:fileview": "tree" });
     });
 });

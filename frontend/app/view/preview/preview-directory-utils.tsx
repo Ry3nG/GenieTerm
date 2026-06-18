@@ -280,13 +280,23 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
                     label: "List",
                     type: "checkbox",
                     checked: !treeView,
-                    click: () => globalStore.set(model.treeViewMode, false),
+                    click: () => {
+                        globalStore.set(model.treeViewMode, false);
+                        fireAndForget(() =>
+                            model.env.rpc.SetConfigCommand(TabRpcClient, { "preview:fileview": "list" })
+                        );
+                    },
                 },
                 {
                     label: "Tree",
                     type: "checkbox",
                     checked: treeView,
-                    click: () => globalStore.set(model.treeViewMode, true),
+                    click: () => {
+                        globalStore.set(model.treeViewMode, true);
+                        fireAndForget(() =>
+                            model.env.rpc.SetConfigCommand(TabRpcClient, { "preview:fileview": "tree" })
+                        );
+                    },
                 },
             ],
         },
