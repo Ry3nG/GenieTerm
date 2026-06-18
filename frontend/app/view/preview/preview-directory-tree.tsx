@@ -164,10 +164,12 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
 export function DirectoryTreeView({
     model,
     data,
+    rootDir,
     onUploadFiles,
 }: {
     model: PreviewModel;
     data: FileInfo[];
+    rootDir: string;
     onUploadFiles: (dataTransfer: DataTransfer, targetDir: string) => void;
 }) {
     const env = useWaveEnv<PreviewEnv>();
@@ -199,8 +201,29 @@ export function DirectoryTreeView({
     const ctx: TreeCtx = { model, rpc: env.rpc, connName, showHidden, expanded, iconClass, iconColor, onUploadFiles };
     const rootEntries = React.useMemo(() => sortEntries((data ?? []).filter((f) => f.name !== "..")), [data]);
 
+    // Root drop zone: folder nodes stopPropagation so they win; anything dropped
+    // on empty/file rows falls through here and uploads to the current directory.
+    const onRootDragOver = (e: React.DragEvent) => {
+        if (!hasNativeFiles(e.dataTransfer)) {
+            return;
+        }
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+    };
+    const onRootDrop = (e: React.DragEvent) => {
+        if (!hasNativeFiles(e.dataTransfer) || e.dataTransfer.files.length === 0) {
+            return;
+        }
+        e.preventDefault();
+        onUploadFiles(e.dataTransfer, rootDir);
+    };
+
     return (
-        <div className="flex h-full flex-col overflow-y-auto py-1 text-[13px]">
+        <div
+            className="flex h-full flex-col overflow-y-auto py-1 text-[13px]"
+            onDragOver={onRootDragOver}
+            onDrop={onRootDrop}
+        >
             {rootEntries.map((fi) => (
                 <FileTreeNode key={fi.path} ctx={ctx} fileInfo={fi} depth={0} />
             ))}

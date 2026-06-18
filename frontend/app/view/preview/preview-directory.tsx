@@ -1002,15 +1002,20 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 {...getReferenceProps()}
                 onContextMenu={(e) => handleFileContextMenu(e)}
                 onClick={() => setEntryManagerProps(undefined)}
-                onDragEnter={handleLocalDragEnter}
-                onDragOver={handleLocalDragOver}
-                onDragLeave={handleLocalDragLeave}
-                onDrop={handleLocalDrop}
+                onDragEnter={treeViewMode ? undefined : handleLocalDragEnter}
+                onDragOver={treeViewMode ? undefined : handleLocalDragOver}
+                onDragLeave={treeViewMode ? undefined : handleLocalDragLeave}
+                onDrop={treeViewMode ? undefined : handleLocalDrop}
             >
-                {isLocalDragOver && <DirectoryUploadDropOverlay />}
+                {!treeViewMode && isLocalDragOver && <DirectoryUploadDropOverlay />}
                 <DirectoryTransferQueueStatus />
                 {treeViewMode ? (
-                    <DirectoryTreeView model={model} data={filteredData} onUploadFiles={handleLocalUploadDrop} />
+                    <DirectoryTreeView
+                        model={model}
+                        data={filteredData}
+                        rootDir={dirPath}
+                        onUploadFiles={handleLocalUploadDrop}
+                    />
                 ) : (
                     <DirectoryTable
                         model={model}
