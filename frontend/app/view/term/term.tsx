@@ -352,10 +352,14 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const connStatus = jotai.useAtomValue(model.connStatus);
     const shellIntegrationStatus = useAtomValueSafe(termWrapInst?.shellIntegrationStatusAtom);
     const lastCommand = useAtomValueSafe(termWrapInst?.lastCommandAtom);
+    const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrapInst?.cmdBlocksAtom);
     const termSettingsAtom = getSettingsPrefixAtom("term");
     const termSettings = jotai.useAtomValue(termSettingsAtom);
     const terminalPresentationSetting = jotai.useAtomValue(getOverrideConfigAtom(blockId, "term:presentation"));
     const terminalPresentationMode = normalizeTerminalPresentationMode(terminalPresentationSetting);
+    // Only reserve the left gutter column once a command block actually exists, so
+    // terminals with no shell integration (no-wsh) or no commands yet use full width.
+    const hasCmdBlocks = terminalPresentationMode === "semantic" && (cmdBlocks?.some(blockHasCommand) ?? false);
     let termMode = blockData?.meta?.["term:mode"] ?? "term";
     if (termMode != "term" && termMode != "vdom") {
         termMode = "term";
@@ -605,7 +609,8 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             className={clsx(
                 "view-term",
                 "term-mode-" + termMode,
-                getTerminalPresentationClassName(terminalPresentationMode)
+                getTerminalPresentationClassName(terminalPresentationMode),
+                hasCmdBlocks && "term-has-cmdblocks"
             )}
             ref={viewDropRef}
             onContextMenu={handleContextMenu}

@@ -60,6 +60,7 @@
         overflow: hidden;
         line-height: 1;
         margin: 5px 1px 5px 4px;
+        transition: margin-left 0.15s ease;
     }
 
     .term-presentation-shell {
@@ -72,7 +73,11 @@
 
     &.term-presentation-semantic {
         --term-semantic-gutter-width: 100px;
+    }
 
+    // Reserve the gutter column only once a command block exists (term-has-cmdblocks).
+    // Empty / no-wsh / pre-first-command terminals use the full width.
+    &.term-presentation-semantic.term-has-cmdblocks {
         .term-connectelem {
             margin-left: var(--term-semantic-gutter-width);
         }
