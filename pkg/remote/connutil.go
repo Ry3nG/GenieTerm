@@ -102,23 +102,11 @@ func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, cli
 	if err != nil {
 		return err
 	}
-	wshLocalPath, err := shellutil.GetLocalWshBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(wshLocalPath); err != nil {
-		wshLocalPath = genieLocalPath
-	}
-	// genie is the primary helper the shell integration uses — required.
-	if err := cpHelperToRemote(ctx, client, genieLocalPath, wavebase.RemoteFullGenieBinPath); err != nil {
-		return err
-	}
-	// wsh is a backward-compat alias — best-effort so a slow/proxied link can't
-	// block the install on the (larger) second copy after genie already landed.
-	if err := cpHelperToRemote(ctx, client, wshLocalPath, wavebase.RemoteFullWshBinPath); err != nil {
-		blocklogger.Infof(ctx, "[conndebug] WARN compat wsh helper copy failed (continuing with genie): %v\n", err)
-	}
-	return nil
+	// Deploy only the genie helper — it's what the shell integration and connserver
+	// use. We no longer push a second (redundant) wsh binary on every install; the
+	// connserver still falls back to a legacy remote's ~/.waveterm/bin/wsh if one is
+	// already present. This halves the bytes copied (matters on slow/proxied links).
+	return cpHelperToRemote(ctx, client, genieLocalPath, wavebase.RemoteFullGenieBinPath)
 }
 
 func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string, remotePath string) error {
