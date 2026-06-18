@@ -59,4 +59,13 @@ describe("terminal chrome overlap safety", () => {
         expect(actionBarRule).not.toContain("position: absolute");
         expect(actionBarRule).not.toContain("position: fixed");
     });
+
+    it("wires natural language prompt interception before shell execution", () => {
+        const termWrap = readTermFile("termwrap.ts");
+
+        expect(termWrap).toContain("shouldInterceptNaturalLanguagePrompt");
+        expect(termWrap).toContain("updateNaturalLanguagePromptInput");
+        expect(termWrap).toContain('this.sendDataHandler?.("\\x15")');
+        expect(termWrap).toContain("this.onInlineAIRequest?.(prompt");
+    });
 });

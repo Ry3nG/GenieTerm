@@ -16,6 +16,8 @@ import {
     makeLocalCommandProposals,
     parseCommandProposalResponse,
     shouldAutoComposeInlineAI,
+    shouldInterceptNaturalLanguagePrompt,
+    updateNaturalLanguagePromptInput,
 } from "./command-composer";
 
 function makeBlock(command: string, cwd = "/repo"): CmdBlock {
@@ -165,6 +167,31 @@ describe("command-composer", () => {
         ).toMatchObject({ command: "df -h" });
     });
 
+    it("finds project directories for Chinese project-location requests", () => {
+        const chineseProjectFailure = {
+            ...makeBlock("看下我的little wam项目的目录在哪里"),
+            exitCode: 127,
+        };
+        const prompt = getInlineAICommandPrompt(chineseProjectFailure);
+        const proposal = makeLocalCommandProposals(prompt, {
+            connection: "local",
+            cwd: "~",
+            shell: "zsh",
+            os: "Darwin",
+            recentCommands: [],
+        })[0];
+
+        expect(prompt).toBe("看下我的little wam项目的目录在哪里");
+        expect(shouldAutoComposeInlineAI(chineseProjectFailure)).toBe(true);
+        expect(proposal.command).toContain("find ~/projects");
+        expect(proposal.command).toContain("-type d");
+        expect(proposal.command).toContain("-iname '*little*'");
+        expect(proposal.command).toContain("-iname '*wam*'");
+        expect(proposal.command).not.toContain(" -o ");
+        expect(proposal.command).not.toContain("echo");
+        expect(proposal.risk).toMatchObject({ label: "low", requiresConfirmation: false });
+    });
+
     it("provides deterministic local fallback proposals", () => {
         const proposals = makeLocalCommandProposals("show git status", {
             connection: "local",
@@ -202,6 +229,61 @@ describe("command-composer", () => {
         expect(CommandComposerDefaultBinding).toBe("Cmd:Shift:Space");
         expect(isCommandComposerEnabled({})).toBe(true);
         expect(isCommandComposerEnabled({ "term:commandcomposer": false })).toBe(false);
+    });
+
+    it("intercepts natural language prompt input only when the terminal is ready for AI composition", () => {
+        expect(
+            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
+                shellIntegrationStatus: "ready",
+                altScreenActive: false,
+                commandComposerEnabled: true,
+            })
+        ).toBe(true);
+        expect(
+            shouldInterceptNaturalLanguagePrompt("help me check disk usage", {
+                shellIntegrationStatus: "ready",
+                altScreenActive: false,
+                commandComposerEnabled: true,
+            })
+        ).toBe(true);
+        expect(
+            shouldInterceptNaturalLanguagePrompt("git status --short", {
+                shellIntegrationStatus: "ready",
+                altScreenActive: false,
+                commandComposerEnabled: true,
+            })
+        ).toBe(false);
+        expect(
+            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
+                shellIntegrationStatus: "running-command",
+                altScreenActive: false,
+                commandComposerEnabled: true,
+            })
+        ).toBe(false);
+        expect(
+            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
+                shellIntegrationStatus: "ready",
+                altScreenActive: true,
+                commandComposerEnabled: true,
+            })
+        ).toBe(false);
+        expect(
+            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
+                shellIntegrationStatus: "ready",
+                altScreenActive: false,
+                commandComposerEnabled: false,
+            })
+        ).toBe(false);
+    });
+
+    it("tracks prompt input conservatively before Enter interception", () => {
+        let input = updateNaturalLanguagePromptInput("", "help me");
+        input = updateNaturalLanguagePromptInput(input, "\x7f");
+        input = updateNaturalLanguagePromptInput(input, "y");
+        expect(input).toBe("help my");
+        expect(updateNaturalLanguagePromptInput(input, "\x15")).toBe("");
+        expect(updateNaturalLanguagePromptInput(input, "\r")).toBe("");
+        expect(updateNaturalLanguagePromptInput(input, "\x1b[D")).toBe("");
     });
 
     it("requires confirmation before inserting risky proposals and copies while shell is busy", () => {

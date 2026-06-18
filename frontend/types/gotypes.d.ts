@@ -1481,7 +1481,6 @@ declare global {
         "tab:confirmclose"?: boolean;
         "tab:background"?: string;
         "widget:*"?: boolean;
-        "widget:showhelp"?: boolean;
         "window:*"?: boolean;
         "window:fullscreenonlaunch"?: boolean;
         "window:transparent"?: boolean;

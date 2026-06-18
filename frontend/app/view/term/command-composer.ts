@@ -303,11 +303,66 @@ function extractQuotedSearch(prompt: string): string {
         .join(" ");
 }
 
+const ProjectDirectoryStopWords = new Set([
+    "a",
+    "an",
+    "check",
+    "directory",
+    "dir",
+    "find",
+    "folder",
+    "for",
+    "locate",
+    "location",
+    "look",
+    "me",
+    "my",
+    "path",
+    "please",
+    "project",
+    "repo",
+    "repository",
+    "show",
+    "the",
+    "where",
+]);
+
+function isProjectDirectoryLookup(prompt: string): boolean {
+    return (
+        /\b(project|repo|repository)\b.*\b(directory|dir|folder|path|where|locat)/i.test(prompt) ||
+        /\b(directory|dir|folder|path|where|locat).*\b(project|repo|repository)\b/i.test(prompt) ||
+        /项目.*(目录|文件夹|路径|在哪|哪里|位置)|(?:目录|文件夹|路径|在哪|哪里|位置).*项目/u.test(prompt)
+    );
+}
+
+function extractProjectDirectorySearchTerms(prompt: string): string[] {
+    const terms = (prompt.match(/[A-Za-z0-9][A-Za-z0-9_.-]*/g) ?? [])
+        .map((word) => word.toLowerCase())
+        .filter((word) => !ProjectDirectoryStopWords.has(word));
+    return [...new Set(terms)].slice(0, 4);
+}
+
+function makeFindProjectDirectoryCommand(terms: string[]): string {
+    if (terms.length === 0) {
+        return "find ~/projects -maxdepth 3 -type d";
+    }
+    if (terms.length === 1) {
+        return `find ~/projects -maxdepth 5 -type d -iname ${quoteForShell(`*${terms[0]}*`)}`;
+    }
+    const predicates = terms.map((term) => `-iname ${quoteForShell(`*${term}*`)}`).join(" ");
+    return `find ~/projects -maxdepth 5 -type d ${predicates}`;
+}
+
 export function makeLocalCommandProposals(prompt: string, context: CommandComposerContext): CommandProposal[] {
     const normalized = prompt.trim().toLowerCase();
     const proposals: Array<{ command: string; explanation: string }> = [];
 
-    if (/\bgit\b.*\b(status|changes|changed)\b|\bstatus\b.*\bgit\b/.test(normalized)) {
+    if (isProjectDirectoryLookup(prompt)) {
+        proposals.push({
+            command: makeFindProjectDirectoryCommand(extractProjectDirectorySearchTerms(prompt)),
+            explanation: "Search your projects folder for matching project directories.",
+        });
+    } else if (/\bgit\b.*\b(status|changes|changed)\b|\bstatus\b.*\bgit\b/.test(normalized)) {
         proposals.push({
             command: "git status --short --branch",
             explanation: "Show the current branch and changed files.",
@@ -404,6 +459,45 @@ export function shouldAutoComposeInlineAI(block: CmdBlock): boolean {
         return false;
     }
     return isLikelyNaturalLanguageCommand(prompt);
+}
+
+export function shouldInterceptNaturalLanguagePrompt(
+    prompt: string,
+    opts: {
+        shellIntegrationStatus?: ShellIntegrationStatus | null;
+        altScreenActive?: boolean;
+        commandComposerEnabled?: boolean;
+    }
+): boolean {
+    if (opts.commandComposerEnabled === false || opts.altScreenActive || opts.shellIntegrationStatus !== "ready") {
+        return false;
+    }
+    return isLikelyNaturalLanguageCommand(prompt);
+}
+
+export function updateNaturalLanguagePromptInput(current: string, data: string): string {
+    if (!data) {
+        return current;
+    }
+    if (data.includes("\x1b")) {
+        return "";
+    }
+    let next = current;
+    for (const char of data) {
+        if (char === "\r" || char === "\n" || char === "\x03" || char === "\x15") {
+            next = "";
+            continue;
+        }
+        if (char === "\x7f" || char === "\b") {
+            next = next.slice(0, -1);
+            continue;
+        }
+        if (char < " ") {
+            continue;
+        }
+        next += char;
+    }
+    return next;
 }
 
 export function getCommandProposalApplyMode(
