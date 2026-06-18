@@ -323,7 +323,11 @@ func IsWshVersionUpToDate(logCtx context.Context, wshVersionLine string) (bool, 
 	}
 	clientVersion := parts[1]
 	expectedVersion := fmt.Sprintf("v%s", wavebase.WaveVersion)
-	if semver.Compare(clientVersion, expectedVersion) < 0 {
+	// Reinstall whenever the remote wsh version differs from ours, not just when it
+	// is older: GenieTerm reset its version (0.x) below upstream Wave's last release
+	// (0.14.x), so a leftover upstream wsh is numerically "newer" and a `< 0` check
+	// would treat it as up-to-date and never replace it (losing newer wsh features).
+	if semver.Compare(clientVersion, expectedVersion) != 0 {
 		return false, clientVersion, "", nil
 	}
 	return true, clientVersion, "", nil
