@@ -147,8 +147,7 @@ type SettingsType struct {
 	TabConfirmClose bool   `json:"tab:confirmclose,omitempty"`
 	TabBackground   string `json:"tab:background,omitempty"`
 
-	WidgetClear    bool  `json:"widget:*,omitempty"`
-	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
+	WidgetClear bool `json:"widget:*,omitempty"`
 
 	WindowClear                         bool     `json:"window:*,omitempty"`
 	WindowFullscreenOnLaunch            bool     `json:"window:fullscreenonlaunch,omitempty"`
