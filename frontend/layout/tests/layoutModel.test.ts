@@ -2,11 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { globalStore } from "@/app/store/jotaiStore";
+import * as WOS from "@/app/store/wos";
+import { setWaveWindowType } from "@/app/store/windowtype";
 import { atom } from "jotai";
-import { assert, test } from "vitest";
+import { afterEach, assert, beforeEach, test } from "vitest";
 import { LayoutModel } from "../lib/layoutModel";
 import { newLayoutNode } from "../lib/layoutNode";
 import { FlexDirection } from "../lib/types";
+
+const TestLayoutStateId = "layout-model-test-state";
+
+beforeEach(() => {
+    setWaveWindowType("preview");
+    WOS.mockObjectForPreview(`layout:${TestLayoutStateId}`, {
+        otype: "layout",
+        oid: TestLayoutStateId,
+        version: 1,
+    } as LayoutState);
+});
+
+afterEach(() => {
+    setWaveWindowType("tab");
+});
 
 function makeLayoutModel(): LayoutModel {
     const tabAtom = atom({
@@ -14,7 +31,7 @@ function makeLayoutModel(): LayoutModel {
         oid: "layout-model-test-tab",
         version: 1,
         name: "Test",
-        layoutstate: "layout-model-test-state",
+        layoutstate: TestLayoutStateId,
         blockids: [],
     } as Tab);
 
