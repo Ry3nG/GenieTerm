@@ -73,25 +73,16 @@
     // Warp-style command blocks: each finished command is an xterm decoration drawn
     // BEHIND the live text (registerDecoration layer "bottom"), spanning the command's
     // buffer range full-width. The real terminal text renders on top - one render, no
-    // double-render. Status is conveyed by a faint fill + a status-colored left edge.
+    // double-render. Keep the left edge flat: decorations start at column 0, so a rail
+    // or rounded corner competes with prompt glyphs.
     .term-cmdblock-deco {
         box-sizing: border-box;
-        border-radius: 7px;
+        border-radius: 0;
         pointer-events: none;
         background: color-mix(in srgb, var(--main-text-color) 4%, transparent);
-        box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--main-text-color) 22%, transparent);
-
-        &.is-success {
-            box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--success-color) 70%, transparent);
-        }
 
         &.is-error {
             background: color-mix(in srgb, var(--error-color) 9%, transparent);
-            box-shadow: inset 2px 0 0 0 var(--error-color);
-        }
-
-        &.is-running {
-            box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--accent-color) 70%, transparent);
         }
     }
 
