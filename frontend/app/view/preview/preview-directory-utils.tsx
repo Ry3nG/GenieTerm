@@ -271,7 +271,25 @@ export function handleFileDelete(
 export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuItem[] {
     const defaultSort = globalStore.get(model.env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
     const showHiddenFiles = globalStore.get(model.showHiddenFiles) ?? true;
+    const treeView = globalStore.get(model.treeViewMode) ?? false;
     return [
+        {
+            label: "File View",
+            submenu: [
+                {
+                    label: "List",
+                    type: "checkbox",
+                    checked: !treeView,
+                    click: () => globalStore.set(model.treeViewMode, false),
+                },
+                {
+                    label: "Tree",
+                    type: "checkbox",
+                    checked: treeView,
+                    click: () => globalStore.set(model.treeViewMode, true),
+                },
+            ],
+        },
         {
             label: "Directory Sort Order",
             submenu: [

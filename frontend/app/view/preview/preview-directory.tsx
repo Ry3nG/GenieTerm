@@ -37,6 +37,7 @@ import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
 import "./directorypreview.scss";
+import { DirectoryTreeView } from "./preview-directory-tree";
 import { DirectoryUploadDropOverlay } from "./directory-upload-drop-overlay";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
 import {
@@ -601,6 +602,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const [focusIndex, setFocusIndex] = useState(0);
     const [unfilteredData, setUnfilteredData] = useState<FileInfo[]>([]);
     const showHiddenFiles = useAtomValue(model.showHiddenFiles);
+    const treeViewMode = useAtomValue(model.treeViewMode);
     const [selectedPath, setSelectedPath] = useState("");
     const [refreshVersion, setRefreshVersion] = useAtom(model.refreshVersion);
     const [isLocalDragOver, setIsLocalDragOver] = useState(false);
@@ -1007,19 +1009,23 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             >
                 {isLocalDragOver && <DirectoryUploadDropOverlay />}
                 <DirectoryTransferQueueStatus />
-                <DirectoryTable
-                    model={model}
-                    data={filteredData}
-                    search={searchText}
-                    focusIndex={focusIndex}
-                    setFocusIndex={setFocusIndex}
-                    setSearch={setSearchText}
-                    setSelectedPath={setSelectedPath}
-                    setRefreshVersion={setRefreshVersion}
-                    entryManagerOverlayPropsAtom={entryManagerPropsAtom}
-                    newFile={newFile}
-                    newDirectory={newDirectory}
-                />
+                {treeViewMode ? (
+                    <DirectoryTreeView model={model} data={filteredData} />
+                ) : (
+                    <DirectoryTable
+                        model={model}
+                        data={filteredData}
+                        search={searchText}
+                        focusIndex={focusIndex}
+                        setFocusIndex={setFocusIndex}
+                        setSearch={setSearchText}
+                        setSelectedPath={setSelectedPath}
+                        setRefreshVersion={setRefreshVersion}
+                        entryManagerOverlayPropsAtom={entryManagerPropsAtom}
+                        newFile={newFile}
+                        newDirectory={newDirectory}
+                    />
+                )}
             </div>
             {entryManagerProps && (
                 <EntryManagerOverlay

@@ -163,6 +163,8 @@ export class PreviewModel implements ViewModel {
     monacoRef: React.RefObject<MonacoTypes.editor.IStandaloneCodeEditor>;
 
     showHiddenFiles: PrimitiveAtom<boolean>;
+    treeViewMode: PrimitiveAtom<boolean>;
+    treeExpanded: PrimitiveAtom<string[]>;
     refreshVersion: PrimitiveAtom<number>;
     directorySearchActive: PrimitiveAtom<boolean>;
     refreshCallback: () => void;
@@ -178,6 +180,8 @@ export class PreviewModel implements ViewModel {
         this.env = waveEnv;
         let showHiddenFiles = globalStore.get(this.env.getSettingsKeyAtom("preview:showhiddenfiles")) ?? true;
         this.showHiddenFiles = atom<boolean>(showHiddenFiles);
+        this.treeViewMode = atom<boolean>(false);
+        this.treeExpanded = atom<string[]>([]);
         this.refreshVersion = atom(0);
         this.directorySearchActive = atom(false);
         this.previewTextRef = createRef();
@@ -593,6 +597,20 @@ export class PreviewModel implements ViewModel {
         // Clear the saved file buffers
         globalStore.set(this.fileContentSaved, null);
         globalStore.set(this.newFileContent, null);
+        // tree expansion is relative to the previous root; reset it on navigation
+        globalStore.set(this.treeExpanded, []);
+    }
+
+    toggleTreeExpanded(path: string) {
+        const cur = globalStore.get(this.treeExpanded);
+        if (cur.includes(path)) {
+            globalStore.set(
+                this.treeExpanded,
+                cur.filter((p) => p !== path)
+            );
+        } else {
+            globalStore.set(this.treeExpanded, [...cur, path]);
+        }
     }
 
     async goParentDirectory({ fileInfo = null }: { fileInfo?: FileInfo | null }) {
