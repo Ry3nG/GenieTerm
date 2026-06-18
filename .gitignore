@@ -43,3 +43,4 @@ docsite/
 .kilo-format-temp-*
 .superpowers
 .claude
+.worktrees/
