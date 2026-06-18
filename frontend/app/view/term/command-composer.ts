@@ -276,7 +276,7 @@ export function makeLocalCommandProposals(prompt: string, context: CommandCompos
         });
     } else if (/\b(list|show)\b.*\b(files|directory)\b|\bls\b/.test(normalized)) {
         proposals.push({ command: "ls -la", explanation: "List files with hidden entries and details." });
-    } else if (/\b(disk|space|filesystem)\b/.test(normalized)) {
+    } else if (/\b(disk|space|filesystem)\b|磁盘|空间|容量|文件系统/.test(normalized)) {
         proposals.push({ command: "df -h", explanation: "Show filesystem space in human-readable units." });
     } else if (/\b(port)\b/.test(normalized)) {
         const port = prompt.match(/\b\d{2,5}\b/)?.[0] ?? "3000";
@@ -331,10 +331,19 @@ function startsLikeShellCommand(command: string): boolean {
     );
 }
 
+function containsCJKText(command: string): boolean {
+    return /[\u3400-\u9fff]/u.test(command);
+}
+
 export function isLikelyNaturalLanguageCommand(command: string): boolean {
     const trimmed = command.trim();
     if (!trimmed || hasShellOperators(trimmed) || startsLikeShellCommand(trimmed)) {
         return false;
+    }
+    if (containsCJKText(trimmed)) {
+        return /帮|请|看|查|找|列|显示|告诉|解释|怎么|为什么|一下|磁盘|空间|文件|目录|端口|进程|状态|使用|容量/u.test(
+            trimmed
+        );
     }
     const words = trimmed.match(/[A-Za-z][A-Za-z'-]*/g) ?? [];
     if (words.length < 3 && !/[?.!]$/.test(trimmed)) {

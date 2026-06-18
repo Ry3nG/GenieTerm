@@ -130,6 +130,40 @@ describe("command-composer", () => {
         ).toMatchObject({ command: "df -h" });
     });
 
+    it("auto-composes inline AI for Chinese natural language failures", () => {
+        const chineseFailure = {
+            ...makeBlock("帮我看一下disk usage"),
+            exitCode: 127,
+        };
+        const chineseDiskFailure = {
+            ...makeBlock("帮我看一下磁盘空间"),
+            exitCode: 127,
+        };
+        const prompt = getInlineAICommandPrompt(chineseFailure);
+
+        expect(prompt).toBe("帮我看一下disk usage");
+        expect(shouldAutoComposeInlineAI(chineseFailure)).toBe(true);
+        expect(shouldAutoComposeInlineAI(chineseDiskFailure)).toBe(true);
+        expect(
+            makeLocalCommandProposals(prompt, {
+                connection: "local",
+                cwd: "/repo",
+                shell: "zsh",
+                os: "Darwin",
+                recentCommands: [],
+            })[0]
+        ).toMatchObject({ command: "df -h" });
+        expect(
+            makeLocalCommandProposals(chineseDiskFailure.command, {
+                connection: "local",
+                cwd: "/repo",
+                shell: "zsh",
+                os: "Darwin",
+                recentCommands: [],
+            })[0]
+        ).toMatchObject({ command: "df -h" });
+    });
+
     it("provides deterministic local fallback proposals", () => {
         const proposals = makeLocalCommandProposals("show git status", {
             connection: "local",

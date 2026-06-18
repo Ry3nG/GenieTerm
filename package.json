@@ -7,7 +7,7 @@
     "productName": "GenieTerm",
     "description": "Workspace-native terminal for commands, files, sessions, and AI",
     "license": "Apache-2.0",
-    "version": "0.4.7",
+    "version": "0.4.8",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"
