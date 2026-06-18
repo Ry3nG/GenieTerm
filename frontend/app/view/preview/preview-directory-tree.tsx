@@ -8,9 +8,9 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { addOpenMenuItems } from "@/util/previewutil";
 import { cn, fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import * as React from "react";
-import { isIconValid } from "./preview-directory-utils";
+import { handleFileDelete, isIconValid } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
 
@@ -20,12 +20,24 @@ export function makeTreeNodeKey(connName: string, path: string): string {
     return `${connName ?? "local"}:${path}`;
 }
 
+export function makeTreeNodeRenderKey(connName: string, path: string, refreshVersion: number): string {
+    return `${makeTreeNodeKey(connName, path)}:${refreshVersion}`;
+}
+
+export type FileTreeNodeMenuCtx = {
+    model: PreviewModel;
+    connName: string;
+    setErrorMsg: (msg: ErrorMsg) => void;
+};
+
 type TreeCtx = {
     model: PreviewModel;
     rpc: PreviewEnv["rpc"];
     connName: string;
     showHidden: boolean;
     expanded: Set<string>;
+    refreshVersion: number;
+    setErrorMsg: (msg: ErrorMsg) => void;
     iconClass: (mimeType: string) => string;
     iconColor: (mimeType: string) => string;
     onUploadFiles: (dataTransfer: DataTransfer, targetDir: string) => void;
@@ -45,6 +57,31 @@ function sortEntries(entries: FileInfo[]): FileInfo[] {
         }
         return (a.name ?? "").localeCompare(b.name ?? "");
     });
+}
+
+export function makeFileTreeNodeContextMenu(ctx: FileTreeNodeMenuCtx, fileInfo: FileInfo): ContextMenuItem[] {
+    const fileName = fileInfo.name ?? fileInfo.path.split("/").pop() ?? fileInfo.path;
+    const menu: ContextMenuItem[] = [
+        {
+            label: "Copy File Name",
+            click: () => fireAndForget(() => navigator.clipboard.writeText(fileName)),
+        },
+        {
+            label: "Copy Full File Name",
+            click: () => fireAndForget(() => navigator.clipboard.writeText(fileInfo.path)),
+        },
+    ];
+    addOpenMenuItems(menu, ctx.connName, fileInfo);
+    menu.push(
+        {
+            type: "separator",
+        },
+        {
+            label: "Delete",
+            click: () => handleFileDelete(ctx.model, fileInfo.path, false, ctx.setErrorMsg),
+        }
+    );
+    return menu;
 }
 
 function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileInfo; depth: number }) {
@@ -108,18 +145,7 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        const fileName = fileInfo.name ?? fileInfo.path.split("/").pop() ?? fileInfo.path;
-        const menu: ContextMenuItem[] = [
-            {
-                label: "Copy File Name",
-                click: () => fireAndForget(() => navigator.clipboard.writeText(fileName)),
-            },
-            {
-                label: "Copy Full File Name",
-                click: () => fireAndForget(() => navigator.clipboard.writeText(fileInfo.path)),
-            },
-        ];
-        addOpenMenuItems(menu, ctx.connName, fileInfo);
+        const menu = makeFileTreeNodeContextMenu(ctx, fileInfo);
         ContextMenuModel.getInstance().showContextMenu(menu, e);
     };
 
@@ -195,11 +221,13 @@ export function DirectoryTreeView({
     model,
     data,
     rootDir,
+    refreshVersion,
     onUploadFiles,
 }: {
     model: PreviewModel;
     data: FileInfo[];
     rootDir: string;
+    refreshVersion: number;
     onUploadFiles: (dataTransfer: DataTransfer, targetDir: string) => void;
 }) {
     const env = useWaveEnv<PreviewEnv>();
@@ -207,6 +235,7 @@ export function DirectoryTreeView({
     const connName = useAtomValue(model.connectionImmediate);
     const showHidden = useAtomValue(model.showHiddenFiles);
     const expandedArr = useAtomValue(model.treeExpanded);
+    const setErrorMsg = useSetAtom(model.errorMsgAtom);
     const expanded = React.useMemo(() => new Set(expandedArr), [expandedArr]);
 
     const iconClass = React.useCallback(
@@ -228,7 +257,18 @@ export function DirectoryTreeView({
         [fullConfig.mimetypes]
     );
 
-    const ctx: TreeCtx = { model, rpc: env.rpc, connName, showHidden, expanded, iconClass, iconColor, onUploadFiles };
+    const ctx: TreeCtx = {
+        model,
+        rpc: env.rpc,
+        connName,
+        showHidden,
+        expanded,
+        refreshVersion,
+        setErrorMsg,
+        iconClass,
+        iconColor,
+        onUploadFiles,
+    };
     const rootEntries = React.useMemo(() => sortEntries((data ?? []).filter((f) => f.name !== "..")), [data]);
 
     // Root drop zone: folder nodes stopPropagation so they win; anything dropped
@@ -255,7 +295,12 @@ export function DirectoryTreeView({
             onDrop={onRootDrop}
         >
             {rootEntries.map((fi) => (
-                <FileTreeNode key={makeTreeNodeKey(connName, fi.path)} ctx={ctx} fileInfo={fi} depth={0} />
+                <FileTreeNode
+                    key={makeTreeNodeRenderKey(connName, fi.path, refreshVersion)}
+                    ctx={ctx}
+                    fileInfo={fi}
+                    depth={0}
+                />
             ))}
         </div>
     );

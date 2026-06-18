@@ -1031,6 +1031,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                         model={model}
                         data={filteredData}
                         rootDir={dirPath}
+                        refreshVersion={refreshVersion}
                         onUploadFiles={handleLocalUploadDrop}
                     />
                 ) : (
