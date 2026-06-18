@@ -28,6 +28,7 @@ import {
     getCmdBlockTitle,
 } from "./cmdblockdisplay";
 import { type CmdBlock, blockHasCommand, getBlockOutputText } from "./cmdblocks";
+import { TermCommandBlockStack } from "./term-cmdblock-stack";
 import { TermCommandComposer } from "./command-composer-ui";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
@@ -353,13 +354,15 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const shellIntegrationStatus = useAtomValueSafe(termWrapInst?.shellIntegrationStatusAtom);
     const lastCommand = useAtomValueSafe(termWrapInst?.lastCommandAtom);
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrapInst?.cmdBlocksAtom);
+    const altScreenActive = useAtomValueSafe<boolean>(termWrapInst?.altScreenActiveAtom) ?? false;
     const termSettingsAtom = getSettingsPrefixAtom("term");
     const termSettings = jotai.useAtomValue(termSettingsAtom);
     const terminalPresentationSetting = jotai.useAtomValue(getOverrideConfigAtom(blockId, "term:presentation"));
     const terminalPresentationMode = normalizeTerminalPresentationMode(terminalPresentationSetting);
-    // Only reserve the left gutter column once a command block actually exists, so
-    // terminals with no shell integration (no-wsh) or no commands yet use full width.
-    const hasCmdBlocks = terminalPresentationMode === "semantic" && (cmdBlocks?.some(blockHasCommand) ?? false);
+    // Show the command-block stack only in semantic mode, when real command blocks
+    // exist, and not while a full-screen TUI (alt-screen) is active.
+    const showCmdBlocks =
+        terminalPresentationMode === "semantic" && !altScreenActive && (cmdBlocks?.some(blockHasCommand) ?? false);
     let termMode = blockData?.meta?.["term:mode"] ?? "term";
     if (termMode != "term" && termMode != "vdom") {
         termMode = "term";
@@ -610,7 +613,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
                 "view-term",
                 "term-mode-" + termMode,
                 getTerminalPresentationClassName(terminalPresentationMode),
-                hasCmdBlocks && "term-has-cmdblocks"
+                showCmdBlocks && "term-has-cmdblocks"
             )}
             ref={viewDropRef}
             onContextMenu={handleContextMenu}
@@ -622,7 +625,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TermToolbarVDomNode key="vdom-toolbar" blockId={blockId} model={model} />
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
-                <TermSemanticGutter termWrap={termWrapInst} presentationMode={terminalPresentationMode} />
+                {showCmdBlocks && <TermCommandBlockStack blocks={cmdBlocks} />}
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
             <NullErrorBoundary debugName="TermLinkTooltip">

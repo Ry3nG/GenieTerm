@@ -44,7 +44,7 @@ import {
     quoteForPosixShell,
     trimTerminalSelection,
 } from "./termutil";
-import { type CmdBlock, blockHasCommand } from "./cmdblocks";
+import { type CmdBlock, blockBufferRange, blockHasCommand } from "./cmdblocks";
 
 const dlog = debug("wave:termwrap");
 
@@ -102,6 +102,7 @@ export class TermWrap {
     promptMarkers: TermTypes.IMarker[] = [];
     cmdBlocks: CmdBlock[] = [];
     cmdBlocksAtom: jotai.PrimitiveAtom<CmdBlock[]>;
+    altScreenActiveAtom: jotai.PrimitiveAtom<boolean>;
     pendingCmdBlock: CmdBlock | null = null;
     cmdBlockIdCounter = 0;
     publishCmdBlocks: () => void;
@@ -146,6 +147,7 @@ export class TermWrap {
         this.lastUpdated = Date.now();
         this.promptMarkers = [];
         this.cmdBlocksAtom = jotai.atom([]) as jotai.PrimitiveAtom<CmdBlock[]>;
+        this.altScreenActiveAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
@@ -292,6 +294,11 @@ export class TermWrap {
             globalStore.set(this.cmdBlocksAtom, [...this.cmdBlocks]);
         });
         this.terminal.open(this.connectElem);
+        // Track alt-screen (TUIs like vim/htop) so the block view can pass through to a
+        // full terminal instead of trying to blockify a full-screen app.
+        this.terminal.buffer.onBufferChange(() => {
+            globalStore.set(this.altScreenActiveAtom, this.terminal.buffer.active.type === "alternate");
+        });
 
         const dragoverHandler = (e: DragEvent) => {
             e.preventDefault();
@@ -704,7 +711,35 @@ export class TermWrap {
         this.pendingCmdBlock.exitCode = exitCode;
         this.pendingCmdBlock.state = "done";
         this.pendingCmdBlock.doneTs = Date.now();
+        this.captureBlockHtml(this.pendingCmdBlock);
         this.publishCmdBlocks();
+    }
+
+    // Snapshot a finished command's output to ANSI-styled HTML so it can render as a
+    // real DOM block. Reads the normal buffer (never the alt-screen), best-effort.
+    captureBlockHtml(block: CmdBlock) {
+        if (block == null) {
+            return;
+        }
+        try {
+            const buffer = this.terminal.buffer.active;
+            if (buffer.type === "alternate") {
+                return;
+            }
+            const [start, end] = blockBufferRange(block, buffer);
+            const outStart = start + 1; // skip the prompt/command line itself
+            const outEnd = end - 1; // blockBufferRange end is exclusive; serialize endLine is inclusive
+            block.capturedCols = this.terminal.cols;
+            if (outEnd < outStart) {
+                block.htmlOutput = "";
+                return;
+            }
+            block.htmlOutput = this.serializeAddon.serializeAsHTML({
+                range: { startLine: outStart, endLine: outEnd, startCol: 0 },
+            });
+        } catch (e) {
+            // best-effort: the block still renders its header without captured output
+        }
     }
 
     handleCmdBlockMarkerDisposed(marker: TermTypes.IMarker) {

@@ -71,16 +71,111 @@
         position: relative;
     }
 
-    &.term-presentation-semantic {
-        --term-semantic-gutter-width: 100px;
+    // Real command blocks: completed commands render as a vertical DOM stack above
+    // the live terminal (no left gutter). Only active once there are command blocks.
+    &.term-presentation-semantic.term-has-cmdblocks {
+        .term-presentation-shell {
+            flex-direction: column;
+        }
+
+        .term-cmdblock-stack {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        .term-connectelem {
+            flex: 0 0 auto;
+            max-height: 45%;
+        }
     }
 
-    // Reserve the gutter column only once a command block exists (term-has-cmdblocks).
-    // Empty / no-wsh / pre-first-command terminals use the full width.
-    &.term-presentation-semantic.term-has-cmdblocks {
-        .term-connectelem {
-            margin-left: var(--term-semantic-gutter-width);
+    .term-cmdblock-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 6px 8px;
+        font: var(--fixed-font);
+        font-size: 12px;
+    }
+
+    .term-cmdblock {
+        border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+        border-radius: 8px;
+        overflow: hidden;
+
+        &.is-error {
+            border-color: color-mix(in srgb, var(--error-color) 45%, transparent);
         }
+    }
+
+    .term-cmdblock-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 10px;
+        cursor: pointer;
+        background: color-mix(in srgb, var(--main-text-color) 5%, transparent);
+
+        &:hover {
+            background: var(--hover-bg-color);
+        }
+    }
+
+    .term-cmdblock-status {
+        font-size: 11px;
+        width: 12px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .term-cmdblock-cmd {
+        flex: 1 1 auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--main-text-color);
+    }
+
+    .term-cmdblock-dur {
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .term-cmdblock-action {
+        border: 0;
+        background: transparent;
+        color: var(--secondary-text-color);
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 4px;
+        opacity: 0;
+        font-size: 11px;
+
+        &:hover {
+            background: var(--hover-bg-color);
+            color: var(--main-text-color);
+        }
+    }
+
+    .term-cmdblock-header:hover .term-cmdblock-action {
+        opacity: 1;
+    }
+
+    .term-cmdblock-chevron {
+        font-size: 9px;
+        color: var(--secondary-text-color);
+        flex-shrink: 0;
+    }
+
+    .term-cmdblock-output {
+        padding: 4px 10px 8px;
+        white-space: pre;
+        overflow-x: auto;
+        line-height: 1.2;
+        color: var(--main-text-color);
     }
 
     &.term-presentation-classic {

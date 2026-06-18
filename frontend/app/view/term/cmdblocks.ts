@@ -22,6 +22,8 @@ export interface CmdBlock {
     startTs: number; // Date.now() captured at command-start (C)
     doneTs: number | null; // Date.now() captured at command-done (D)
     cwd: string | null; // cmd:cwd snapshot at command-start
+    htmlOutput?: string; // ANSI-styled HTML of the output, captured once at command-done
+    capturedCols?: number; // terminal width at capture time (output wrapped at this width)
 }
 
 // [startLine, endLine) buffer indices for a block's full region (prompt + output).
