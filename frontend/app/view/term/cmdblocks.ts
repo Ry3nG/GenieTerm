@@ -22,7 +22,6 @@ export interface CmdBlock {
     startTs: number; // Date.now() captured at command-start (C)
     doneTs: number | null; // Date.now() captured at command-done (D)
     cwd: string | null; // cmd:cwd snapshot at command-start
-    inlineAIMarker?: TermTypes.IMarker;
 }
 
 // [startLine, endLine) buffer indices for a block's full region (prompt + output).

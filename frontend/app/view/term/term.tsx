@@ -22,6 +22,8 @@ import debug from "debug";
 import * as jotai from "jotai";
 import * as React from "react";
 import { useDrop } from "react-dnd";
+import type { CmdBlock } from "./cmdblocks";
+import type { CommandInlineAIAction } from "./command-composer";
 import { TermCommandComposer } from "./command-composer-ui";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
@@ -201,6 +203,102 @@ const TermToolbarVDomNode = ({ blockId, model }: TerminalViewProps) => {
     );
 };
 
+const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel; termWrap: TermWrap | null }) => {
+    const inlineAIStates = jotai.useAtomValue(model.inlineCommandAIStatesAtom);
+    const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
+    const activeItem = React.useMemo(() => {
+        for (let i = cmdBlocks.length - 1; i >= 0; i--) {
+            const block = cmdBlocks[i];
+            const state = inlineAIStates[block.id];
+            if (state != null) {
+                return { block, state };
+            }
+        }
+        return null;
+    }, [cmdBlocks, inlineAIStates]);
+
+    const runAction = React.useCallback(
+        (action: CommandInlineAIAction) => {
+            if (activeItem == null) {
+                return;
+            }
+            model.handleInlineCommandAIAction(activeItem.block, action);
+        },
+        [activeItem, model]
+    );
+
+    if (activeItem == null) {
+        return null;
+    }
+
+    const { block, state } = activeItem;
+    const proposal = state.proposal;
+    const commandText = block.command || state.prompt;
+
+    return (
+        <div className={`term-inline-ai-dock is-${state.status}`} role="status" aria-live="polite">
+            <i className="fa-solid fa-wand-magic-sparkles term-inline-ai-dock-icon" aria-hidden="true" />
+            <div className="term-inline-ai-dock-main">
+                <div className="term-inline-ai-dock-context">{commandText}</div>
+                {state.status === "loading" && (
+                    <div className="term-inline-ai-dock-summary">Genie is translating this into a command...</div>
+                )}
+                {state.status === "error" && (
+                    <div className="term-inline-ai-dock-summary">
+                        {state.error || "Genie could not suggest a command"}
+                    </div>
+                )}
+                {state.status === "ready" && proposal != null && (
+                    <div className="term-inline-ai-dock-summary">
+                        <span>Try</span>
+                        <code>{proposal.command}</code>
+                    </div>
+                )}
+            </div>
+            <div className="term-inline-ai-dock-actions">
+                {state.status === "ready" && proposal != null && (
+                    <>
+                        <button
+                            type="button"
+                            className="term-inline-ai-dock-btn cursor-pointer"
+                            onClick={() => runAction("insert")}
+                        >
+                            {state.confirmAction === "insert" ? "Confirm" : "Insert"}
+                        </button>
+                        <button
+                            type="button"
+                            className="term-inline-ai-dock-btn cursor-pointer"
+                            onClick={() => runAction("run")}
+                        >
+                            {state.confirmAction === "run" ? "Confirm" : "Run"}
+                        </button>
+                    </>
+                )}
+                {state.status === "error" && (
+                    <button
+                        type="button"
+                        className="term-inline-ai-dock-btn cursor-pointer"
+                        onClick={() => runAction("open")}
+                    >
+                        Open
+                    </button>
+                )}
+                <button
+                    type="button"
+                    className="term-inline-ai-dock-close cursor-pointer"
+                    title="Dismiss AI suggestion"
+                    aria-label="Dismiss AI suggestion"
+                    onClick={() => runAction("dismiss")}
+                >
+                    <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
+            </div>
+        </div>
+    );
+});
+
+TermInlineAIDock.displayName = "TermInlineAIDock";
+
 const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => {
     const viewRef = React.useRef<HTMLDivElement>(null);
     const connectElemRef = React.useRef<HTMLDivElement>(null);
@@ -352,8 +450,6 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
                 useWebGl: !termSettings?.["term:disablewebgl"],
                 sendDataHandler: model.sendDataToController.bind(model),
                 onInlineAIRequest: model.openInlineCommandAI.bind(model),
-                getInlineAIState: model.getInlineCommandAIState.bind(model),
-                onInlineAIAction: model.handleInlineCommandAIAction.bind(model),
                 onInlineAIDismiss: model.dismissInlineCommandAI.bind(model),
                 nodeModel: model.nodeModel,
             }
@@ -486,6 +582,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
+            <TermInlineAIDock model={model} termWrap={termWrapInst} />
             <NullErrorBoundary debugName="TermLinkTooltip">
                 <TermLinkTooltip termWrap={termWrapInst} />
             </NullErrorBoundary>
