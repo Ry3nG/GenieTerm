@@ -22,7 +22,12 @@ type TreeCtx = {
     expanded: Set<string>;
     iconClass: (mimeType: string) => string;
     iconColor: (mimeType: string) => string;
+    onUploadFiles: (dataTransfer: DataTransfer, targetDir: string) => void;
 };
+
+function hasNativeFiles(dataTransfer: DataTransfer): boolean {
+    return dataTransfer.types.includes("Files");
+}
 
 // Directories first, then alphabetical — the conventional file-tree ordering.
 function sortEntries(entries: FileInfo[]): FileInfo[] {
@@ -84,6 +89,8 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
         );
     }, [children, ctx.showHidden]);
 
+    const [dropOver, setDropOver] = React.useState(false);
+
     const onClick = () => {
         if (isDir) {
             ctx.model.toggleTreeExpanded(fileInfo.path);
@@ -94,12 +101,46 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
         );
     };
 
+    // Folders are upload drop targets: stop the drop from bubbling to the root
+    // container so files land in THIS folder, not the tree root.
+    const onDragOver = (e: React.DragEvent) => {
+        if (!isDir || !hasNativeFiles(e.dataTransfer)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+        setDropOver(true);
+    };
+    const onDragLeave = (e: React.DragEvent) => {
+        if (!isDir) {
+            return;
+        }
+        e.stopPropagation();
+        setDropOver(false);
+    };
+    const onDrop = (e: React.DragEvent) => {
+        if (!isDir || !hasNativeFiles(e.dataTransfer) || e.dataTransfer.files.length === 0) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        setDropOver(false);
+        ctx.onUploadFiles(e.dataTransfer, fileInfo.path);
+    };
+
     return (
         <>
             <div
-                className="flex items-center gap-1.5 h-[22px] pr-2 rounded hover:bg-hoverbg cursor-pointer"
+                className={cn(
+                    "flex items-center gap-1.5 h-[22px] pr-2 rounded hover:bg-hoverbg cursor-pointer",
+                    dropOver && "bg-accent/20 ring-1 ring-inset ring-accent/50"
+                )}
                 style={{ paddingLeft: depth * IndentPx + 6 }}
                 onClick={onClick}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
                 title={fileInfo.path}
             >
                 <span className="w-3 shrink-0 text-center text-muted text-[10px]">
@@ -120,7 +161,15 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
     );
 }
 
-export function DirectoryTreeView({ model, data }: { model: PreviewModel; data: FileInfo[] }) {
+export function DirectoryTreeView({
+    model,
+    data,
+    onUploadFiles,
+}: {
+    model: PreviewModel;
+    data: FileInfo[];
+    onUploadFiles: (dataTransfer: DataTransfer, targetDir: string) => void;
+}) {
     const env = useWaveEnv<PreviewEnv>();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const connName = useAtomValue(model.connectionImmediate);
@@ -147,7 +196,7 @@ export function DirectoryTreeView({ model, data }: { model: PreviewModel; data: 
         [fullConfig.mimetypes]
     );
 
-    const ctx: TreeCtx = { model, rpc: env.rpc, connName, showHidden, expanded, iconClass, iconColor };
+    const ctx: TreeCtx = { model, rpc: env.rpc, connName, showHidden, expanded, iconClass, iconColor, onUploadFiles };
     const rootEntries = React.useMemo(() => sortEntries((data ?? []).filter((f) => f.name !== "..")), [data]);
 
     return (

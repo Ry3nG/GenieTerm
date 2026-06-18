@@ -780,7 +780,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     );
 
     const handleLocalUploadDrop = useCallback(
-        async (dataTransfer: DataTransfer) => {
+        async (dataTransfer: DataTransfer, targetDir: string = dirPath) => {
             const uploadItems = buildLocalUploadItems(dataTransfer);
             if (uploadItems.length === 0) {
                 setErrorMsg({
@@ -792,7 +792,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             }
 
             try {
-                const desturi = await model.formatRemoteUri(dirPath, globalStore.get);
+                const desturi = await model.formatRemoteUri(targetDir, globalStore.get);
                 const groupId = uploadItems.length > 1 ? createUploadTransferGroupId("upload") : undefined;
                 const plans = buildLocalUploadTransferPlans(uploadItems, desturi, {
                     groupId,
@@ -1010,7 +1010,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 {isLocalDragOver && <DirectoryUploadDropOverlay />}
                 <DirectoryTransferQueueStatus />
                 {treeViewMode ? (
-                    <DirectoryTreeView model={model} data={filteredData} />
+                    <DirectoryTreeView model={model} data={filteredData} onUploadFiles={handleLocalUploadDrop} />
                 ) : (
                     <DirectoryTable
                         model={model}
