@@ -71,7 +71,7 @@
     }
 
     &.term-presentation-semantic {
-        --term-semantic-gutter-width: 108px;
+        --term-semantic-gutter-width: 100px;
 
         .term-connectelem {
             margin-left: var(--term-semantic-gutter-width);
@@ -88,78 +88,104 @@
         position: absolute;
         top: 5px;
         bottom: 5px;
-        left: 4px;
-        width: calc(var(--term-semantic-gutter-width, 0px) - 8px);
+        left: 6px;
+        width: calc(var(--term-semantic-gutter-width, 0px) - 10px);
         z-index: calc(var(--zindex-termstickers) + 1);
         pointer-events: none;
         overflow: hidden;
     }
 
+    // A quiet per-command rail: just a soft status pill by default; the copy
+    // actions fade in on hover (Warp-style — no boxes, no always-on clutter).
     .term-semantic-block {
         position: absolute;
         left: 0;
         width: 100%;
-        min-height: 22px;
+        height: 20px;
         display: flex;
         align-items: center;
-        gap: 2px;
+        gap: 1px;
         pointer-events: auto;
-        color: var(--secondary-text-color);
 
         button {
-            height: 22px;
-            border: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent);
-            background: color-mix(in srgb, var(--modal-bg-color) 92%, transparent);
-            color: inherit;
-            border-radius: 4px;
-            display: flex;
+            height: 18px;
+            border: 0;
+            background: transparent;
+            color: var(--secondary-text-color);
+            border-radius: 6px;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             padding: 0;
             line-height: 1;
+            transition:
+                background 0.12s ease,
+                color 0.12s ease,
+                opacity 0.12s ease;
         }
 
-        button:hover {
-            background: var(--hover-bg-color);
-            color: var(--main-text-color);
-        }
-
-        &.is-running {
-            color: var(--warning-color);
-        }
-
-        &.is-success {
+        // status communicated by the icon (and a faint wash for failures only)
+        &.is-success .term-semantic-jump i {
             color: var(--success-color);
         }
 
-        &.is-error {
+        &.is-running .term-semantic-jump i {
+            color: var(--accent-color);
+        }
+
+        &.is-error .term-semantic-jump {
+            background: color-mix(in srgb, var(--error-color) 14%, transparent);
+        }
+
+        &.is-error .term-semantic-jump i {
             color: var(--error-color);
+        }
+
+        .term-semantic-action {
+            opacity: 0;
+        }
+
+        &:hover {
+            .term-semantic-jump {
+                background: var(--hover-bg-color);
+                color: var(--main-text-color);
+            }
+
+            .term-semantic-action {
+                opacity: 1;
+            }
+
+            button:hover {
+                background: var(--hover-bg-color);
+                color: var(--main-text-color);
+            }
         }
     }
 
     .term-semantic-jump {
-        width: 58px;
-        gap: 4px;
+        gap: 5px;
+        padding: 0 6px;
         font: var(--fixed-font);
         font-size: 10px;
 
         i {
-            width: 10px;
-            font-size: 10px;
+            width: 9px;
+            font-size: 9px;
         }
 
         span {
-            min-width: 30px;
-            max-width: 34px;
+            min-width: 26px;
+            max-width: 32px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             text-align: left;
+            font-variant-numeric: tabular-nums;
         }
     }
 
     .term-semantic-action {
-        width: 20px;
+        width: 18px;
         font-size: 10px;
     }
 
