@@ -6,8 +6,9 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
 import { fireAndForget } from "../frontend/util/util";
 import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
+import { shouldShowAppBuilderSurface } from "../frontend/util/featureflags";
 import { openBuilderWindow } from "./emain-ipc";
-import { isDev, unamePlatform } from "./emain-platform";
+import { unamePlatform } from "./emain-platform";
 import { clearTabCache } from "./emain-tabview";
 import { decreaseZoomLevel, increaseZoomLevel, resetZoomLevel } from "./emain-util";
 import {
@@ -144,8 +145,7 @@ function makeFileMenu(
             },
         },
     ];
-    const featureWaveAppBuilder = fullConfig?.settings?.["feature:waveappbuilder"];
-    if (isDev || featureWaveAppBuilder) {
+    if (shouldShowAppBuilderSurface(fullConfig?.settings?.["feature:waveappbuilder"])) {
         fileMenu.splice(1, 0, {
             label: "New Widget Builder Window",
             accelerator: unamePlatform === "darwin" ? "Command+Shift+B" : "Alt+Shift+B",

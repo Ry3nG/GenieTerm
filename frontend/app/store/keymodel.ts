@@ -26,7 +26,6 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
-import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
@@ -782,7 +781,7 @@ function registerGlobalKeys() {
         },
         {
             id: "ai:toggle-panel",
-            defaultBinding: "Cmd:Shift:a",
+            defaultBinding: [],
             handler: () => {
                 const currentVisible = WorkspaceLayoutModel.getInstance().getAIPanelVisible();
                 WorkspaceLayoutModel.getInstance().setAIPanelVisible(!currentVisible);
@@ -831,9 +830,7 @@ function registerGlobalKeys() {
     }
     actions.push({
         id: "ai:focus",
-        defaultBinding: isWindows()
-            ? ["Alt:c{Digit0}", "Alt:c{Numpad0}"]
-            : ["Ctrl:Shift:c{Digit0}", "Ctrl:Shift:c{Numpad0}"],
+        defaultBinding: [],
         handler: () => { WaveAIModel.getInstance().focusInput(); return true; },
     });
     lastBuiltActions = actions;

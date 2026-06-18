@@ -6,6 +6,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
 import { modalsModel } from "@/store/modalmodel";
+import { shouldShowAppBuilderSurface } from "@/util/featureflags";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
 import {
     autoUpdate,
@@ -377,7 +378,7 @@ const Widgets = memo(() => {
     const containerRef = useRef<HTMLDivElement>(null);
     const measurementRef = useRef<HTMLDivElement>(null);
 
-    const featureWaveAppBuilder = fullConfig?.settings?.["feature:waveappbuilder"] ?? false;
+    const showAppBuilderSurface = shouldShowAppBuilderSurface(fullConfig?.settings?.["feature:waveappbuilder"]);
     const widgetsMap = fullConfig?.widgets ?? {};
     const filteredWidgets = Object.fromEntries(
         Object.entries(widgetsMap).filter(([_key, widget]) => shouldIncludeWidgetForWorkspace(widget, workspaceId))
@@ -471,7 +472,7 @@ const Widgets = memo(() => {
                         </div>
                         <div className="flex-grow" />
                         <div className="grid grid-cols-2 gap-0 w-full">
-                            {env.isDev() || featureWaveAppBuilder ? (
+                            {showAppBuilderSurface ? (
                                 <div
                                     ref={appsButtonRef}
                                     className="flex flex-col justify-center items-center w-full py-1.5 pr-0.5 text-secondary text-sm overflow-hidden rounded-sm hover:bg-hoverbg hover:text-white cursor-pointer"
@@ -510,7 +511,7 @@ const Widgets = memo(() => {
                             <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
                         ))}
                         <div className="flex-grow" />
-                        {env.isDev() || featureWaveAppBuilder ? (
+                        {showAppBuilderSurface ? (
                             <div
                                 ref={appsButtonRef}
                                 className="flex flex-col justify-center items-center w-full py-1.5 pr-0.5 text-secondary text-lg overflow-hidden rounded-sm hover:bg-hoverbg hover:text-white cursor-pointer"
@@ -568,7 +569,7 @@ const Widgets = memo(() => {
                     </div>
                 ) : null}
             </div>
-            {(env.isDev() || featureWaveAppBuilder) && appsButtonRef.current && (
+            {showAppBuilderSurface && appsButtonRef.current && (
                 <AppsFloatingWindow
                     isOpen={isAppsOpen}
                     onClose={() => setIsAppsOpen(false)}
