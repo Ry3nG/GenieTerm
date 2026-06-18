@@ -23,6 +23,7 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/Ry3nG/GenieTerm/pkg/aiusechat"
 	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/chatstore"
+	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/codexcompose"
 	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/blockcontroller"
@@ -578,6 +579,46 @@ func (ws *WshServer) GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AI
 	fullConfig := wconfig.GetWatcher().GetFullConfig()
 	resolvedConfigs := aiusechat.ComputeResolvedAIModeConfigs(fullConfig)
 	return wconfig.AIModeConfigUpdate{Configs: resolvedConfigs}, nil
+}
+
+func buildComposeSystemPrompt(data wshrpc.AiCommandComposeData) string {
+	var sb strings.Builder
+	sb.WriteString("You generate shell commands for a terminal. Given a natural-language task, propose 1-3 concrete commands that accomplish it.\n")
+	sb.WriteString(`Respond with ONLY a JSON array (no prose, no markdown fences). Each element: {"command":"<exact shell command>","explanation":"<one short sentence>"}.` + "\n")
+	if data.Shell != "" {
+		sb.WriteString("Shell: " + data.Shell + "\n")
+	}
+	if data.Os != "" {
+		sb.WriteString("OS: " + data.Os + "\n")
+	}
+	if data.Cwd != "" {
+		sb.WriteString("Current directory: " + data.Cwd + "\n")
+	}
+	if data.Connection != "" && data.Connection != "local" {
+		sb.WriteString("Remote connection: " + data.Connection + "\n")
+	}
+	if len(data.RecentCommands) > 0 {
+		sb.WriteString("Recent commands: " + strings.Join(data.RecentCommands, "; ") + "\n")
+	}
+	sb.WriteString("Prefer safe, idiomatic commands. Do not include destructive commands unless explicitly requested.")
+	return sb.String()
+}
+
+// AiCommandComposeCommand generates shell-command proposals for the composer using
+// the user's Codex/ChatGPT login (keyless). Returns Available=false when no Codex
+// login is present so the frontend can fall back to the local generator.
+func (ws *WshServer) AiCommandComposeCommand(ctx context.Context, data wshrpc.AiCommandComposeData) (wshrpc.AiCommandComposeRtn, error) {
+	if strings.TrimSpace(data.Prompt) == "" {
+		return wshrpc.AiCommandComposeRtn{Available: codexcompose.IsAvailable()}, nil
+	}
+	if !codexcompose.IsAvailable() {
+		return wshrpc.AiCommandComposeRtn{Available: false}, nil
+	}
+	text, err := codexcompose.ComposeText(ctx, buildComposeSystemPrompt(data), data.Prompt)
+	if err != nil {
+		return wshrpc.AiCommandComposeRtn{Available: true}, err
+	}
+	return wshrpc.AiCommandComposeRtn{Available: true, Text: text}, nil
 }
 
 func (ws *WshServer) ConnStatusCommand(ctx context.Context) ([]wshrpc.ConnStatus, error) {

@@ -78,6 +78,7 @@ type WshRpcInterface interface {
 	SetConnectionsConfigCommand(ctx context.Context, data ConnConfigRequest) error
 	GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error)
 	GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AIModeConfigUpdate, error)
+	AiCommandComposeCommand(ctx context.Context, data AiCommandComposeData) (AiCommandComposeRtn, error)
 	BlockInfoCommand(ctx context.Context, blockId string) (*BlockInfoData, error)
 	DebugTermCommand(ctx context.Context, data CommandDebugTermData) (*CommandDebugTermRtnData, error)
 	BlocksListCommand(ctx context.Context, data BlocksListRequest) ([]BlocksListEntry, error)
@@ -383,6 +384,20 @@ type RemoteInfo struct {
 const (
 	TimeSeries_Cpu = "cpu"
 )
+
+type AiCommandComposeData struct {
+	Prompt         string   `json:"prompt"`
+	Cwd            string   `json:"cwd,omitempty"`
+	Shell          string   `json:"shell,omitempty"`
+	Os             string   `json:"os,omitempty"`
+	Connection     string   `json:"connection,omitempty"`
+	RecentCommands []string `json:"recentcommands,omitempty"`
+}
+
+type AiCommandComposeRtn struct {
+	Text      string `json:"text"`
+	Available bool   `json:"available"`
+}
 
 type DiskUsageData struct {
 	Mount   string  `json:"mount"`

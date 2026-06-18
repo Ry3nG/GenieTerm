@@ -80,6 +80,22 @@ declare global {
         conn?: {[key: string]: number};
     };
 
+    // wshrpc.AiCommandComposeData
+    type AiCommandComposeData = {
+        prompt: string;
+        cwd?: string;
+        shell?: string;
+        os?: string;
+        connection?: string;
+        recentcommands?: string[];
+    };
+
+    // wshrpc.AiCommandComposeRtn
+    type AiCommandComposeRtn = {
+        text: string;
+        available: boolean;
+    };
+
     // wshrpc.AiMessageData
     type AiMessageData = {
         message?: string;

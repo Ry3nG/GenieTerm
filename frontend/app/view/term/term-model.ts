@@ -43,12 +43,12 @@ import { type CmdBlock, blockHasCommand, getBlockOutputText } from "./cmdblocks"
 import {
     buildCommandComposerContext,
     getCommandProposalApplyMode,
-    LocalCommandComposerBackend,
     type CommandComposerBackend,
     type CommandComposerContextInput,
     type CommandProposal,
     type CommandProposalApplyMode,
 } from "./command-composer";
+import { LLMCommandComposerBackend } from "./command-composer-llm";
 import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, DefaultTermTheme, isLikelyOnSameHost, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
@@ -100,7 +100,7 @@ export class TermViewModel implements ViewModel {
     commandComposerStatusAtom = jotai.atom("idle") as jotai.PrimitiveAtom<string>;
     commandComposerErrorAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
     commandComposerConfirmProposalIdAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
-    commandComposerBackend: CommandComposerBackend = new LocalCommandComposerBackend();
+    commandComposerBackend: CommandComposerBackend = new LLMCommandComposerBackend();
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.viewType = "term";

@@ -23,6 +23,12 @@ func ActivityCommand(w *wshutil.WshRpc, data wshrpc.ActivityUpdate, opts *wshrpc
 	return err
 }
 
+// command "aicommandcompose", wshserver.AiCommandComposeCommand
+func AiCommandComposeCommand(w *wshutil.WshRpc, data wshrpc.AiCommandComposeData, opts *wshrpc.RpcOpts) (wshrpc.AiCommandComposeRtn, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.AiCommandComposeRtn](w, "aicommandcompose", data, opts)
+	return resp, err
+}
+
 // command "aisendmessage", wshserver.AiSendMessageCommand
 func AiSendMessageCommand(w *wshutil.WshRpc, data wshrpc.AiMessageData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "aisendmessage", data, opts)
