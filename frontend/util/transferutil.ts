@@ -1,4 +1,7 @@
+export type RemoteUriScheme = "genie" | "wsh";
+
 export type ParsedWshRemoteUri = {
+    scheme: RemoteUriScheme;
     connection: string;
     remotePath: string;
 };
@@ -30,11 +33,33 @@ export function ensureTrailingSlash(value: string): string {
     return value.endsWith("/") ? value : `${value}/`;
 }
 
-export function parseWshRemoteUri(filePath: string): ParsedWshRemoteUri {
-    if (typeof filePath !== "string" || !filePath.startsWith("wsh://")) {
-        throw new Error("Folder download only supports remote wsh:// paths");
+function getRemoteUriScheme(filePath: string): RemoteUriScheme | null {
+    if (typeof filePath !== "string") {
+        return null;
     }
-    const uriBody = filePath.slice("wsh://".length);
+    if (filePath.startsWith("genie://")) {
+        return "genie";
+    }
+    if (filePath.startsWith("wsh://")) {
+        return "wsh";
+    }
+    return null;
+}
+
+function getRemoteUriPrefix(scheme: RemoteUriScheme): string {
+    return `${scheme}://`;
+}
+
+export function buildRemoteUri(scheme: RemoteUriScheme, connection: string, remotePath: string): string {
+    return `${scheme}://${connection}/${remotePath}`;
+}
+
+export function parseWshRemoteUri(filePath: string): ParsedWshRemoteUri {
+    const scheme = getRemoteUriScheme(filePath);
+    if (!scheme) {
+        throw new Error("Folder download only supports remote genie:// or wsh:// paths");
+    }
+    const uriBody = filePath.slice(getRemoteUriPrefix(scheme).length);
     const slashIdx = uriBody.indexOf("/");
     if (slashIdx < 1 || slashIdx === uriBody.length - 1) {
         throw new Error(`Invalid remote path: ${filePath}`);
@@ -47,7 +72,7 @@ export function parseWshRemoteUri(filePath: string): ParsedWshRemoteUri {
     if (connection === "local") {
         throw new Error("Folder download requires a remote connection");
     }
-    return { connection, remotePath };
+    return { scheme, connection, remotePath };
 }
 
 export function getRemotePathBaseName(remotePath: string): string {
@@ -69,6 +94,11 @@ export function buildRsyncFolderArgs(remoteUri: string, destinationPath: string)
     ];
 }
 
+export function toPublicRemoteUri(remoteUri: string): string {
+    const parsed = parseWshRemoteUri(remoteUri);
+    return buildRemoteUri("genie", parsed.connection, parsed.remotePath);
+}
+
 function localPathToFileUri(localPath: string): string {
     return encodeURI(`file://${localPath}`);
 }
@@ -77,7 +107,7 @@ export function parseTransferPath(value: string): ParsedTransferPath {
     if (typeof value !== "string" || value.length === 0) {
         throw new Error("Transfer path must be a non-empty string");
     }
-    if (value.startsWith("wsh://")) {
+    if (getRemoteUriScheme(value)) {
         const parsed = parseWshRemoteUri(value);
         return {
             kind: "remote",

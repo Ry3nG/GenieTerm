@@ -18,6 +18,15 @@ describe("download-transfer helpers", () => {
             destination: NativeDownloadDestination,
             label: "out.txt",
         });
+        expect(buildFileDownloadTransferJobInput("genie://paw-5090-ws/~/projects/out.txt", "file-job-2")).toEqual({
+            id: "file-job-2",
+            operation: "download",
+            itemType: "file",
+            transport: "wsh",
+            source: "genie://paw-5090-ws/~/projects/out.txt",
+            destination: NativeDownloadDestination,
+            label: "out.txt",
+        });
     });
 
     it("tracks download queue lifecycle for Electron transfer handlers", () => {

@@ -52,12 +52,22 @@ describe("transferupload", () => {
         expect(plans.map((plan) => plan.jobInput.itemType)).toEqual(["folder", "file"]);
     });
 
+    it("preserves genie upload destination aliases in queued job destinations", () => {
+        const plans = buildLocalUploadTransferPlans(
+            [{ path: "/home/me/report.txt", itemType: "file" }],
+            "genie://devbox/~/workspace/uploads",
+            { createId: () => "upload-job-1" }
+        );
+
+        expect(plans[0].jobInput.destination).toBe("genie://devbox/~/workspace/uploads/report.txt");
+    });
+
     it("rejects non-remote upload destinations", () => {
         expect(() =>
             buildLocalUploadTransferPlans([{ path: "/home/me/report.txt" }], "file:///tmp/uploads", {
                 createId: () => "upload-job-1",
             })
-        ).toThrow("Upload destination must be a remote wsh:// directory");
+        ).toThrow("Upload destination must be a remote genie:// or wsh:// directory");
     });
 
     it("rejects root paths from drops instead of building file root upload sources", () => {

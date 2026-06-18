@@ -9,19 +9,20 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/util/shellutil"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/spf13/cobra"
 )
 
 var (
 	rootCmd = &cobra.Command{
-		Use:          "wsh",
+		Use:          "genie",
+		Aliases:      []string{"wsh"},
 		Short:        "CLI tool to control GenieTerm",
-		Long:         `wsh is a small utility that lets you do cool things with GenieTerm, right from the command line`,
+		Long:         `genie is a small utility that lets you do useful things with GenieTerm, right from the command line. Existing wsh invocations remain supported for compatibility.`,
 		SilenceUsage: true,
 	}
 )
@@ -85,7 +86,7 @@ func OutputHelpMessage(cmd *cobra.Command) {
 func preRunSetupRpcClient(cmd *cobra.Command, args []string) error {
 	jwtToken := os.Getenv(wshutil.WaveJwtTokenVarName)
 	if jwtToken == "" {
-		return fmt.Errorf("wsh must be run inside a Wave-managed SSH session (WAVETERM_JWT not found)")
+		return fmt.Errorf("genie/wsh must be run inside a GenieTerm-managed SSH session (WAVETERM_JWT not found)")
 	}
 	err := setupRpcClient(nil, jwtToken)
 	if err != nil {

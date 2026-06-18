@@ -1,5 +1,5 @@
 import type { TransferItemType, TransferJobInput } from "./transferqueue";
-import { getRemotePathBaseName, parseWshRemoteUri } from "./transferutil";
+import { buildRemoteUri, getRemotePathBaseName, parseWshRemoteUri, type RemoteUriScheme } from "./transferutil";
 
 export type LocalUploadItem = {
     path: string;
@@ -42,7 +42,7 @@ export function buildLocalUploadTransferPlans(
         const localPath = normalizeLocalPath(item.path);
         const label = getUploadItemBasename(item);
         const srcuri = buildLocalUploadFileUri(localPath);
-        const destination = appendRemotePathSegment(destDir.connection, destDir.remotePath, label);
+        const destination = appendRemotePathSegment(destDir.scheme, destDir.connection, destDir.remotePath, label);
         return {
             srcuri,
             desturi: remoteDestDirUri,
@@ -64,11 +64,15 @@ export function buildLocalUploadFileUri(localPath: string): string {
     return encodeURI(`file://${normalizeLocalPath(localPath)}`);
 }
 
-function parseRemoteUploadDestination(remoteDestDirUri: string): { connection: string; remotePath: string } {
+function parseRemoteUploadDestination(remoteDestDirUri: string): {
+    scheme: RemoteUriScheme;
+    connection: string;
+    remotePath: string;
+} {
     try {
         return parseWshRemoteUri(remoteDestDirUri);
     } catch (err) {
-        throw new Error(`Upload destination must be a remote wsh:// directory: ${err}`);
+        throw new Error(`Upload destination must be a remote genie:// or wsh:// directory: ${err}`);
     }
 }
 
@@ -85,16 +89,26 @@ function normalizeLocalPath(localPath: string): string {
     if (typeof localPath !== "string" || localPath.length === 0) {
         throw new Error("Upload item path must be a non-empty string");
     }
-    if (localPath === "/" || localPath.startsWith("file://") || localPath.startsWith("wsh://")) {
+    if (
+        localPath === "/" ||
+        localPath.startsWith("file://") ||
+        localPath.startsWith("genie://") ||
+        localPath.startsWith("wsh://")
+    ) {
         throw new Error("Upload item path must be an absolute local file path");
     }
     return localPath;
 }
 
-function appendRemotePathSegment(connection: string, remoteDirPath: string, segment: string): string {
+function appendRemotePathSegment(
+    scheme: RemoteUriScheme,
+    connection: string,
+    remoteDirPath: string,
+    segment: string
+): string {
     const trimmedDir = trimRemoteDirectory(remoteDirPath);
     const remotePath = trimmedDir === "/" ? `/${segment}` : `${trimmedDir}/${segment}`;
-    return `wsh://${connection}/${remotePath}`;
+    return buildRemoteUri(scheme, connection, remotePath);
 }
 
 function trimRemoteDirectory(remoteDirPath: string): string {

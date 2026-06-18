@@ -13,6 +13,10 @@ describe("download-folder helpers", () => {
             folderName: "out",
             rsyncArgs: ["-az", "paw-5090-ws:~/projects/out/", "/Users/me/Desktop/out/"],
         });
+        expect(buildFolderDownloadPlan("genie://paw-5090-ws/~/projects/out", "/Users/me/Desktop/out")).toEqual({
+            folderName: "out",
+            rsyncArgs: ["-az", "paw-5090-ws:~/projects/out/", "/Users/me/Desktop/out/"],
+        });
     });
 
     it("selects the first existing rsync candidate", () => {
