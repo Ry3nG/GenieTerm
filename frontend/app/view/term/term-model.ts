@@ -39,7 +39,7 @@ import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
-import { type CmdBlock, blockHasCommand, getBlockOutputText } from "./cmdblocks";
+import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
 import {
     buildCommandComposerContext,
     getCommandProposalApplyMode,
@@ -620,8 +620,12 @@ export class TermViewModel implements ViewModel {
         navigator.clipboard.writeText(text);
     }
 
-    openCommandComposer() {
+    openCommandComposer(initialInput?: string) {
+        if (initialInput != null) {
+            globalStore.set(this.commandComposerInputAtom, initialInput);
+        }
         globalStore.set(this.commandComposerOpenAtom, true);
+        globalStore.set(this.commandComposerProposalsAtom, []);
         globalStore.set(this.commandComposerStatusAtom, "idle");
         globalStore.set(this.commandComposerErrorAtom, "");
         globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
@@ -671,6 +675,23 @@ export class TermViewModel implements ViewModel {
         this.termRef.current?.terminal?.paste(proposal.command);
         this.closeCommandComposer();
         return mode;
+    }
+
+    openInlineCommandAI(prompt: string, block: CmdBlock) {
+        const trimmedPrompt = prompt.trim();
+        if (!trimmedPrompt) {
+            return;
+        }
+        this.openCommandComposer(trimmedPrompt);
+        const termWrap = this.termRef.current;
+        fireAndForget(() =>
+            this.generateCommandProposals(trimmedPrompt, {
+                blockMeta: globalStore.get(this.blockAtom)?.meta,
+                connStatus: globalStore.get(this.connStatus),
+                selectedOutput: termWrap?.terminal != null ? getBlockOutputText(block, termWrap.terminal) : "",
+                recentBlocks: termWrap?.cmdBlocks ?? [],
+            })
+        );
     }
 
     triggerRestartAtom() {

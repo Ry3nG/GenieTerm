@@ -31,6 +31,7 @@ import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { formatCmdBlockDuration, getCmdBlockStatus, type CmdBlockStatusDisplay } from "./cmdblockdisplay";
 import { blockHasCommand, getBlockOutputText, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
+import { getInlineAICommandPrompt, type CommandInlineAIRequestHandler } from "./command-composer";
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -74,6 +75,7 @@ type TermWrapOptions = {
     keydownHandler?: (e: KeyboardEvent) => boolean;
     useWebGl?: boolean;
     sendDataHandler?: (data: string) => void;
+    onInlineAIRequest?: CommandInlineAIRequestHandler;
     nodeModel?: BlockNodeModel;
 };
 
@@ -94,6 +96,7 @@ export class TermWrap {
     hasResized: boolean;
     multiInputCallback: (data: string) => void;
     sendDataHandler: (data: string) => void;
+    onInlineAIRequest?: CommandInlineAIRequestHandler;
     onSearchResultsDidChange?: (result: { resultIndex: number; resultCount: number }) => void;
     toDispose: TermTypes.IDisposable[] = [];
     webglAddon: WebglAddon | null = null;
@@ -147,6 +150,7 @@ export class TermWrap {
         this.tabId = tabId;
         this.blockId = blockId;
         this.sendDataHandler = waveOptions.sendDataHandler;
+        this.onInlineAIRequest = waveOptions.onInlineAIRequest;
         this.nodeModel = waveOptions.nodeModel;
         this.ptyOffset = 0;
         this.dataBytesProcessed = 0;
@@ -477,6 +481,7 @@ export class TermWrap {
             }
         });
         this.promptMarkers = [];
+        this.disposeCmdBlockInlineAIMarkers();
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
         this.disposeCmdDecorations();
@@ -502,6 +507,17 @@ export class TermWrap {
             }
         }
         this.cmdDecorations = [];
+    }
+
+    disposeCmdBlockInlineAIMarkers() {
+        for (const block of this.cmdBlocks) {
+            try {
+                block.inlineAIMarker?.dispose();
+            } catch (_) {
+                /* nothing */
+            }
+            block.inlineAIMarker = null;
+        }
     }
 
     handleTermData(data: string) {
@@ -738,6 +754,10 @@ export class TermWrap {
         block.exitCode = exitCode;
         block.state = "done";
         block.doneTs = Date.now();
+        if (getInlineAICommandPrompt(block)) {
+            block.inlineAIMarker?.dispose();
+            block.inlineAIMarker = this.terminal.registerMarker(0);
+        }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
     }
@@ -798,6 +818,20 @@ export class TermWrap {
             }
             toolbar.onRender((el) => this.renderCmdDecorationToolbar(el, block, status));
             this.cmdDecorations.push(toolbar);
+
+            const inlineAIPrompt = getInlineAICommandPrompt(block);
+            if (inlineAIPrompt && block.inlineAIMarker != null) {
+                const inlineAI = this.terminal.registerDecoration({
+                    marker: block.inlineAIMarker,
+                    width: 3,
+                    height: 1,
+                    layer: "top",
+                });
+                if (inlineAI != null) {
+                    inlineAI.onRender((el) => this.renderInlineAIButton(el, block, inlineAIPrompt));
+                    this.cmdDecorations.push(inlineAI);
+                }
+            }
         }
     }
 
@@ -845,17 +879,39 @@ export class TermWrap {
                 this.sendDataHandler?.(`${block.command}\r`);
             })
         );
-        pill.append(
-            this.makeCmdDecorationButton("Jump to command", "fa-solid fa-location-dot", () => {
-                const line = block.startMarker?.line;
-                if (line == null || line < 0) {
-                    return;
-                }
-                this.terminal.scrollToLine(line);
-            })
-        );
 
         el.append(pill);
+    }
+
+    renderInlineAIButton(el: HTMLElement, block: CmdBlock, prompt: string) {
+        el.classList.add("term-cmdblock-inline-ai");
+        const renderKey = `${block.id}:${block.inlineAIMarker?.line ?? ""}:${prompt}`;
+        if (el.dataset.renderKey === renderKey) {
+            return;
+        }
+        el.dataset.renderKey = renderKey;
+        el.replaceChildren();
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "term-cmdblock-inline-ai-btn cursor-pointer";
+        button.title = "Ask AI about this command";
+        button.ariaLabel = "Ask AI about this command";
+        const icon = document.createElement("i");
+        icon.className = "fa-solid fa-wand-magic-sparkles";
+        icon.setAttribute("aria-hidden", "true");
+        button.append(icon);
+        button.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        button.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.onInlineAIRequest?.(prompt, block);
+        });
+
+        el.append(button);
     }
 
     makeCmdDecorationButton(title: string, iconClass: string, onClick: () => void): HTMLButtonElement {
@@ -902,6 +958,7 @@ export class TermWrap {
     }
 
     resetCmdBlocks() {
+        this.disposeCmdBlockInlineAIMarkers();
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
         this.publishCmdBlocks();

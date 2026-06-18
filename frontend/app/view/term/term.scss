@@ -97,11 +97,6 @@
         &:hover,
         &:focus-within {
             opacity: 1;
-
-            .term-cmdblock-toolbar-btn {
-                max-width: 22px;
-                opacity: 1;
-            }
         }
 
         &.is-success .term-cmdblock-toolbar-status {
@@ -156,19 +151,18 @@
     .term-cmdblock-toolbar-btn {
         flex: 0 0 auto;
         width: 20px;
-        max-width: 0;
+        max-width: 20px;
         height: 18px;
         padding: 0;
         border: 0;
         border-radius: 4px;
         background: transparent;
         color: var(--secondary-text-color);
-        opacity: 0;
+        opacity: 1;
         overflow: hidden;
         transition:
             background 0.12s ease,
             color 0.12s ease,
-            max-width 0.12s ease,
             opacity 0.12s ease;
         cursor: pointer;
 
@@ -177,6 +171,36 @@
             background: var(--hover-bg-color);
             color: var(--main-text-color);
             outline: none;
+        }
+    }
+
+    .term-cmdblock-inline-ai {
+        display: flex;
+        align-items: center;
+        pointer-events: none;
+    }
+
+    .term-cmdblock-inline-ai-btn {
+        pointer-events: auto;
+        width: 22px;
+        height: 20px;
+        margin-left: 3px;
+        border: 1px solid color-mix(in srgb, var(--accent-color) 55%, transparent);
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent-color) 86%, #0b1220);
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+        font-size: 10px;
+        line-height: 1;
+        transition:
+            background 0.12s ease,
+            transform 0.12s ease;
+
+        &:hover,
+        &:focus-visible {
+            background: var(--accent-color);
+            outline: none;
+            transform: translateY(-1px);
         }
     }
 

@@ -10,6 +10,7 @@ import {
     buildCommandComposerContext,
     classifyCommandRisk,
     getCommandProposalApplyMode,
+    getInlineAICommandPrompt,
     isCommandComposerEnabled,
     makeLocalCommandProposals,
     parseCommandProposalResponse,
@@ -94,6 +95,28 @@ describe("command-composer", () => {
             target: "local:/repo",
             risk: { label: "low", requiresConfirmation: false },
         });
+    });
+
+    it("offers inline AI for failed commands and turns natural language into shell proposals", () => {
+        const prompt = getInlineAICommandPrompt({
+            ...makeBlock("help me check disk usage."),
+            exitCode: 127,
+        });
+
+        expect(prompt).toBe("help me check disk usage.");
+        expect(getInlineAICommandPrompt({ ...makeBlock("grep TODO missing-file"), exitCode: 2 })).toBe(
+            "grep TODO missing-file"
+        );
+        expect(getInlineAICommandPrompt(makeBlock("ls -la"))).toBe("");
+        expect(
+            makeLocalCommandProposals(prompt, {
+                connection: "local",
+                cwd: "/repo",
+                shell: "zsh",
+                os: "Darwin",
+                recentCommands: [],
+            })[0]
+        ).toMatchObject({ command: "df -h" });
     });
 
     it("provides deterministic local fallback proposals", () => {

@@ -1,8 +1,8 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ShellIntegrationStatus } from "./osc-handlers";
 import { type CmdBlock, blockHasCommand } from "./cmdblocks";
+import type { ShellIntegrationStatus } from "./osc-handlers";
 
 export const CommandComposerActionId = "term:command-composer";
 export const CommandComposerDefaultBinding = "Cmd:Shift:Space";
@@ -34,6 +34,8 @@ export type CommandProposal = {
     risk: CommandRisk;
     source: CommandProposalSource;
 };
+
+export type CommandInlineAIRequestHandler = (prompt: string, block: CmdBlock) => void;
 
 export type CommandComposerContextInput = {
     blockMeta?: MetaType;
@@ -247,7 +249,10 @@ export function makeLocalCommandProposals(prompt: string, context: CommandCompos
     const proposals: Array<{ command: string; explanation: string }> = [];
 
     if (/\bgit\b.*\b(status|changes|changed)\b|\bstatus\b.*\bgit\b/.test(normalized)) {
-        proposals.push({ command: "git status --short --branch", explanation: "Show the current branch and changed files." });
+        proposals.push({
+            command: "git status --short --branch",
+            explanation: "Show the current branch and changed files.",
+        });
     } else if (/\b(list|show)\b.*\b(files|directory)\b|\bls\b/.test(normalized)) {
         proposals.push({ command: "ls -la", explanation: "List files with hidden entries and details." });
     } else if (/\b(disk|space|filesystem)\b/.test(normalized)) {
@@ -256,15 +261,26 @@ export function makeLocalCommandProposals(prompt: string, context: CommandCompos
         const port = prompt.match(/\b\d{2,5}\b/)?.[0] ?? "3000";
         proposals.push({ command: `lsof -i :${port}`, explanation: `Show processes listening on port ${port}.` });
     } else if (/\b(make|create)\b.*\b(dir|directory|folder)\b/.test(normalized)) {
-        proposals.push({ command: "mkdir -p new-directory", explanation: "Create a directory without error if it already exists." });
+        proposals.push({
+            command: "mkdir -p new-directory",
+            explanation: "Create a directory without error if it already exists.",
+        });
     } else if (/\b(search|grep|find|look for)\b/.test(normalized)) {
         const searchText = extractQuotedSearch(prompt);
-        proposals.push({ command: `rg -n ${quoteForShell(searchText || "pattern")}`, explanation: "Search files recursively with ripgrep." });
+        proposals.push({
+            command: `rg -n ${quoteForShell(searchText || "pattern")}`,
+            explanation: "Search files recursively with ripgrep.",
+        });
     } else {
-        proposals.push({ command: `echo ${quoteForShell(prompt.trim() || "Describe the command you want")}`, explanation: "Local fallback echoes the request; configure a model provider for richer proposals." });
+        proposals.push({
+            command: `echo ${quoteForShell(prompt.trim() || "Describe the command you want")}`,
+            explanation: "Local fallback echoes the request; configure a model provider for richer proposals.",
+        });
     }
 
-    return proposals.map((proposal, index) => makeProposal(proposal.command, proposal.explanation, context, index, "local"));
+    return proposals.map((proposal, index) =>
+        makeProposal(proposal.command, proposal.explanation, context, index, "local")
+    );
 }
 
 export class LocalCommandComposerBackend implements CommandComposerBackend {
@@ -275,6 +291,13 @@ export class LocalCommandComposerBackend implements CommandComposerBackend {
 
 export function isCommandComposerEnabled(settings: Record<string, any>): boolean {
     return settings?.["term:commandcomposer"] !== false;
+}
+
+export function getInlineAICommandPrompt(block: CmdBlock): string {
+    if (block?.state !== "done" || !blockHasCommand(block) || block.exitCode === 0) {
+        return "";
+    }
+    return block.command.trim();
 }
 
 export function getCommandProposalApplyMode(
