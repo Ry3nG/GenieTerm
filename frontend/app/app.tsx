@@ -8,7 +8,6 @@ import {
     getBlockBadgeAtom,
 } from "@/app/store/badge";
 import { ClientModel } from "@/app/store/client-model";
-import { FocusManager } from "@/app/store/focusManager";
 import { GlobalModel } from "@/app/store/global-model";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getTabModelByTabId, TabModelContext } from "@/app/store/tab-model";
@@ -225,16 +224,6 @@ const MacOSFirstClickHandler = () => {
             }
             return null;
         };
-        const isAIPanelTarget = (target: EventTarget): boolean => {
-            let elem = target as HTMLElement;
-            while (elem != null) {
-                if (elem.dataset?.aipanel) {
-                    return true;
-                }
-                elem = elem.parentElement;
-            }
-            return false;
-        };
         const handleMouseDown = (e: MouseEvent) => {
             const timeDiff = Date.now() - windowFocusTime;
             if (windowFocusTime != null && timeDiff < 50) {
@@ -247,11 +236,6 @@ const MacOSFirstClickHandler = () => {
                     setTimeout(() => {
                         console.log("macos first-click, focusing block", blockId);
                         refocusNode(blockId);
-                    }, 10);
-                } else if (isAIPanelTarget(e.target)) {
-                    setTimeout(() => {
-                        console.log("macos first-click, focusing AI panel");
-                        FocusManager.getInstance().setWaveAIFocused(true);
                     }, 10);
                 }
                 console.log("macos first-click detected, canceled", timeDiff + "ms");

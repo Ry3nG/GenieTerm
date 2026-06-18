@@ -1,7 +1,6 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { WaveAIModel } from "@/app/aipanel/waveai-model";
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import { appHandleKeyDown } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
@@ -13,7 +12,6 @@ import { DefaultRouter, TabRpcClient } from "@/app/store/wshrpcutil";
 import { TermClaudeIcon, TerminalView } from "@/app/view/term/term";
 import { TermWshClient } from "@/app/view/term/term-wsh";
 import { VDomModel } from "@/app/view/vdom/vdom-model";
-import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import {
     atoms,
     createBlock,
@@ -43,8 +41,10 @@ import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks"
 import {
     buildCommandComposerContext,
     getCommandProposalApplyMode,
+    UnknownCommandAIProviderStatus,
     type CommandComposerBackend,
     type CommandComposerContextInput,
+    type CommandComposerProviderStatus,
     type CommandInlineAIAction,
     type CommandInlineAIRequestOptions,
     type CommandInlineAIState,
@@ -103,6 +103,9 @@ export class TermViewModel implements ViewModel {
     commandComposerStatusAtom = jotai.atom("idle") as jotai.PrimitiveAtom<string>;
     commandComposerErrorAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
     commandComposerConfirmProposalIdAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
+    commandComposerProviderStatusAtom = jotai.atom<CommandComposerProviderStatus>(
+        UnknownCommandAIProviderStatus
+    ) as jotai.PrimitiveAtom<CommandComposerProviderStatus>;
     inlineCommandAIStatesAtom = jotai.atom<Record<number, CommandInlineAIState>>({}) as jotai.PrimitiveAtom<
         Record<number, CommandInlineAIState>
     >;
@@ -307,14 +310,6 @@ export class TermViewModel implements ViewModel {
             const connStatus = get(this.connStatus);
             const isCmd = get(this.isCmdController);
             const rtn: IconButtonDecl[] = [];
-
-            const isAIPanelOpen = get(WorkspaceLayoutModel.getInstance().panelVisibleAtom);
-            if (isAIPanelOpen) {
-                const shellIntegrationButton = this.getShellIntegrationIconButton(get);
-                if (shellIntegrationButton) {
-                    rtn.push(shellIntegrationButton);
-                }
-            }
 
             if (get(getSettingsKeyAtom("debug:webglstatus"))) {
                 const webglButton = this.getWebGlIconButton(get);
@@ -635,6 +630,7 @@ export class TermViewModel implements ViewModel {
         globalStore.set(this.commandComposerStatusAtom, "idle");
         globalStore.set(this.commandComposerErrorAtom, "");
         globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
+        globalStore.set(this.commandComposerProviderStatusAtom, UnknownCommandAIProviderStatus);
     }
 
     closeCommandComposer() {
@@ -655,8 +651,9 @@ export class TermViewModel implements ViewModel {
         globalStore.set(this.commandComposerErrorAtom, "");
         globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
         try {
-            const proposals = await this.commandComposerBackend.compose(trimmedPrompt, context);
-            globalStore.set(this.commandComposerProposalsAtom, proposals);
+            const result = await this.commandComposerBackend.compose(trimmedPrompt, context);
+            globalStore.set(this.commandComposerProviderStatusAtom, result.providerStatus);
+            globalStore.set(this.commandComposerProposalsAtom, result.proposals);
             globalStore.set(this.commandComposerStatusAtom, "ready");
         } catch (e) {
             console.error("command composer failed", e);
@@ -715,17 +712,23 @@ export class TermViewModel implements ViewModel {
         this.setInlineCommandAIState(block, { prompt: trimmedPrompt, status: "loading" });
         try {
             const context = buildCommandComposerContext(this.getCommandComposerContextInputForBlock(block));
-            const proposals = await this.commandComposerBackend.compose(trimmedPrompt, context);
-            const proposal = proposals[0];
+            const result = await this.commandComposerBackend.compose(trimmedPrompt, context);
+            const proposal = result.proposals[0];
             if (proposal == null) {
                 this.setInlineCommandAIState(block, {
                     prompt: trimmedPrompt,
                     status: "error",
+                    providerStatus: result.providerStatus,
                     error: "No command suggestion",
                 });
                 return;
             }
-            this.setInlineCommandAIState(block, { prompt: trimmedPrompt, status: "ready", proposal });
+            this.setInlineCommandAIState(block, {
+                prompt: trimmedPrompt,
+                status: "ready",
+                proposal,
+                providerStatus: result.providerStatus,
+            });
         } catch (e) {
             console.error("inline command AI failed", e);
             this.setInlineCommandAIState(block, {
@@ -1119,22 +1122,6 @@ export class TermViewModel implements ViewModel {
                     }
                 },
             });
-            menu.push({ type: "separator" });
-            menu.push({
-                label: "Send to GenieTerm AI",
-                click: () => {
-                    if (selection) {
-                        const aiModel = WaveAIModel.getInstance();
-                        aiModel.appendText(selection, true, { scrollToBottom: true });
-                        const layoutModel = WorkspaceLayoutModel.getInstance();
-                        if (!layoutModel.getAIPanelVisible()) {
-                            layoutModel.setAIPanelVisible(true);
-                        }
-                        aiModel.focusInput();
-                    }
-                },
-            });
-
             menu.push({ type: "separator" });
         }
 

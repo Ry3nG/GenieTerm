@@ -1,12 +1,9 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { WaveAIModel } from "@/app/aipanel/waveai-model";
 import { getApi, getBlockComponentModel, getConnStatusAtom, globalStore, WOS } from "@/app/store/global";
 import type { TermViewModel } from "@/app/view/term/term-model";
-import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { base64ToArrayBuffer } from "@/util/util";
 import { RpcResponseHelper, WshClient } from "./wshclient";
 import { RpcApi } from "./wshclientapi";
 
@@ -63,33 +60,12 @@ export class TabClient extends WshClient {
     }
 
     async handle_waveaiaddcontext(rh: RpcResponseHelper, data: CommandWaveAIAddContextData): Promise<void> {
-        const workspaceLayoutModel = WorkspaceLayoutModel.getInstance();
-        if (!workspaceLayoutModel.getAIPanelVisible()) {
-            workspaceLayoutModel.setAIPanelVisible(true, { nofocus: true });
-        }
-
-        const model = WaveAIModel.getInstance();
-
-        if (data.newchat) {
-            model.clearChat();
-        }
-
-        if (data.files && data.files.length > 0) {
-            for (const fileData of data.files) {
-                const decodedData = base64ToArrayBuffer(fileData.data64);
-                const blob = new Blob([decodedData], { type: fileData.type });
-                const file = new File([blob], fileData.name, { type: fileData.type });
-                await model.addFile(file);
-            }
-        }
-
-        if (data.text) {
-            model.appendText(data.text);
-        }
-
-        if (data.submit) {
-            await model.handleSubmit();
-        }
+        console.info("Ignoring retired waveaiaddcontext request", {
+            hasText: Boolean(data.text),
+            fileCount: data.files?.length ?? 0,
+            submit: data.submit,
+            newchat: data.newchat,
+        });
     }
 
     async handle_setblockfocus(rh: RpcResponseHelper, blockId: string): Promise<void> {
@@ -159,7 +135,9 @@ export class TabClient extends WshClient {
                 if (bcm?.viewModel) {
                     const termViewModel = bcm.viewModel as TermViewModel;
                     if (termViewModel.termRef?.current?.shellIntegrationStatusAtom) {
-                        const shellIntegrationStatus = globalStore.get(termViewModel.termRef.current.shellIntegrationStatusAtom);
+                        const shellIntegrationStatus = globalStore.get(
+                            termViewModel.termRef.current.shellIntegrationStatusAtom
+                        );
                         result.termshellintegrationstatus = shellIntegrationStatus || "";
                     }
                     if (termViewModel.termRef?.current?.lastCommandAtom) {

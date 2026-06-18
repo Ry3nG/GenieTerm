@@ -228,13 +228,52 @@
     }
 
     .term-inline-ai-dock-context {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         min-width: 0;
         overflow: hidden;
-        text-overflow: ellipsis;
         white-space: nowrap;
         color: var(--secondary-text-color);
         font: var(--fixed-font);
         font-size: 10px;
+
+        > span:first-child {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
+    .term-inline-ai-provider,
+    .term-command-composer-provider {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        flex: 0 0 auto;
+        border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+        border-radius: 999px;
+        padding: 1px 7px;
+        color: var(--secondary-text-color);
+        font: var(--fixed-font);
+        font-size: 10px;
+        line-height: 1.45;
+
+        i {
+            font-size: 6px;
+        }
+
+        &.is-codex {
+            color: var(--accent-color);
+        }
+
+        &.is-fallback {
+            color: var(--warning-color);
+        }
+
+        &.is-error {
+            color: var(--error-color);
+        }
     }
 
     .term-inline-ai-dock-summary {
@@ -307,6 +346,17 @@
         border-radius: 8px;
         overflow: hidden;
         color: var(--main-text-color);
+    }
+
+    .term-command-composer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px 0 10px;
+        color: var(--secondary-text-color);
+        font-size: 11px;
+        font-weight: 600;
     }
 
     .term-command-composer-inputrow {

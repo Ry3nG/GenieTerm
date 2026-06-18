@@ -5,13 +5,14 @@ import { describe, expect, it } from "vitest";
 
 import type { CmdBlock } from "./cmdblocks";
 import {
-    CommandComposerActionId,
-    CommandComposerDefaultBinding,
     buildCommandComposerContext,
     classifyCommandRisk,
+    CommandComposerActionId,
+    CommandComposerDefaultBinding,
     getCommandProposalApplyMode,
     getInlineAICommandPrompt,
     isCommandComposerEnabled,
+    LocalCommandComposerBackend,
     makeLocalCommandProposals,
     parseCommandProposalResponse,
     shouldAutoComposeInlineAI,
@@ -178,6 +179,22 @@ describe("command-composer", () => {
             target: "local:/repo",
             source: "local",
         });
+    });
+
+    it("local backend reports local fallback provider status", async () => {
+        const result = await new LocalCommandComposerBackend().compose("show disk usage", {
+            connection: "local",
+            cwd: "/repo",
+            shell: "bash",
+            os: "Linux",
+            recentCommands: [],
+        });
+
+        expect(result.providerStatus).toMatchObject({
+            state: "fallback",
+            label: "Local fallback",
+        });
+        expect(result.proposals[0]).toMatchObject({ command: "df -h", source: "local" });
     });
 
     it("defines feature flag and default binding behavior", () => {

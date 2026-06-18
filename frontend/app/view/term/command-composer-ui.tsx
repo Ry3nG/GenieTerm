@@ -20,7 +20,9 @@ function riskLabel(proposal: CommandProposal): string {
     if (proposal.risk.label === "low") {
         return "low";
     }
-    return proposal.risk.reasons.length > 0 ? `${proposal.risk.label}: ${proposal.risk.reasons.join(", ")}` : proposal.risk.label;
+    return proposal.risk.reasons.length > 0
+        ? `${proposal.risk.label}: ${proposal.risk.reasons.join(", ")}`
+        : proposal.risk.label;
 }
 
 const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap }: TermCommandComposerProps) => {
@@ -30,6 +32,7 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
     const status = jotai.useAtomValue(model.commandComposerStatusAtom);
     const error = jotai.useAtomValue(model.commandComposerErrorAtom);
     const confirmProposalId = jotai.useAtomValue(model.commandComposerConfirmProposalIdAtom);
+    const providerStatus = jotai.useAtomValue(model.commandComposerProviderStatusAtom);
     const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
     React.useEffect(() => {
@@ -87,6 +90,16 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
 
     return (
         <div className="term-command-composer" role="dialog" aria-label="Command Composer">
+            <div className="term-command-composer-header">
+                <span>Command AI</span>
+                <span
+                    className={clsx("term-command-composer-provider", `is-${providerStatus.state}`)}
+                    title={providerStatus.detail}
+                >
+                    <i className="fa-solid fa-circle" aria-hidden="true" />
+                    {providerStatus.label}
+                </span>
+            </div>
             <form className="term-command-composer-inputrow" onSubmit={submit}>
                 <textarea
                     ref={inputRef}
@@ -110,7 +123,9 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
                 </button>
             </form>
             {status === "loading" && <div className="term-command-composer-empty">Composing...</div>}
-            {status === "error" && <div className="term-command-composer-error">{error || "Command composer failed"}</div>}
+            {status === "error" && (
+                <div className="term-command-composer-error">{error || "Command composer failed"}</div>
+            )}
             {status !== "loading" && proposals.length === 0 && status !== "error" && (
                 <div className="term-command-composer-empty">No proposals</div>
             )}
@@ -122,12 +137,7 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
                             <div key={proposal.id} className="term-command-composer-proposal">
                                 <div className="term-command-composer-command">{proposal.command}</div>
                                 <div className="term-command-composer-meta">
-                                    <span
-                                        className={clsx(
-                                            "term-command-composer-risk",
-                                            `risk-${proposal.risk.label}`
-                                        )}
-                                    >
+                                    <span className={clsx("term-command-composer-risk", `risk-${proposal.risk.label}`)}>
                                         {riskLabel(proposal)}
                                     </span>
                                     <span>{proposal.target}</span>

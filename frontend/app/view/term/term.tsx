@@ -24,7 +24,11 @@ import * as React from "react";
 import { useDrop } from "react-dnd";
 import { formatCmdBlockDuration, getCmdBlockStatus } from "./cmdblockdisplay";
 import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
-import { getInlineAICommandPrompt, type CommandInlineAIAction } from "./command-composer";
+import {
+    getInlineAICommandPrompt,
+    UnknownCommandAIProviderStatus,
+    type CommandInlineAIAction,
+} from "./command-composer";
 import { TermCommandComposer } from "./command-composer-ui";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
@@ -235,12 +239,22 @@ const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel
     const { block, state } = activeItem;
     const proposal = state.proposal;
     const commandText = block.command || state.prompt;
+    const providerStatus = state.providerStatus ?? UnknownCommandAIProviderStatus;
 
     return (
         <div className={`term-inline-ai-dock is-${state.status}`} role="status" aria-live="polite">
             <i className="fa-solid fa-wand-magic-sparkles term-inline-ai-dock-icon" aria-hidden="true" />
             <div className="term-inline-ai-dock-main">
-                <div className="term-inline-ai-dock-context">{commandText}</div>
+                <div className="term-inline-ai-dock-context">
+                    <span>{commandText}</span>
+                    <span
+                        className={`term-inline-ai-provider is-${providerStatus.state}`}
+                        title={providerStatus.detail}
+                    >
+                        <i className="fa-solid fa-circle" aria-hidden="true" />
+                        {providerStatus.label}
+                    </span>
+                </div>
                 {state.status === "loading" && (
                     <div className="term-inline-ai-dock-summary">Genie is translating this into a command...</div>
                 )}

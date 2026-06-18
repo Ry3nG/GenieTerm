@@ -35,6 +35,19 @@ export type CommandProposal = {
     source: CommandProposalSource;
 };
 
+export type CommandComposerProviderState = "unknown" | "codex" | "fallback" | "error";
+
+export type CommandComposerProviderStatus = {
+    state: CommandComposerProviderState;
+    label: string;
+    detail: string;
+};
+
+export type CommandComposerResult = {
+    proposals: CommandProposal[];
+    providerStatus: CommandComposerProviderStatus;
+};
+
 export type CommandInlineAIStatus = "loading" | "ready" | "error";
 export type CommandInlineAIAction = "insert" | "run" | "open" | "dismiss";
 
@@ -42,6 +55,7 @@ export type CommandInlineAIState = {
     prompt: string;
     status: CommandInlineAIStatus;
     proposal?: CommandProposal;
+    providerStatus?: CommandComposerProviderStatus;
     error?: string;
     confirmAction?: CommandInlineAIAction;
 };
@@ -68,8 +82,32 @@ export type CommandComposerContextInput = {
 };
 
 export interface CommandComposerBackend {
-    compose(prompt: string, context: CommandComposerContext): Promise<CommandProposal[]>;
+    compose(prompt: string, context: CommandComposerContext): Promise<CommandComposerResult>;
 }
+
+export const UnknownCommandAIProviderStatus: CommandComposerProviderStatus = {
+    state: "unknown",
+    label: "Checking AI",
+    detail: "Checking Codex login status",
+};
+
+export const CodexCommandAIProviderStatus: CommandComposerProviderStatus = {
+    state: "codex",
+    label: "Codex",
+    detail: "Using your local Codex login",
+};
+
+export const LocalFallbackCommandAIProviderStatus: CommandComposerProviderStatus = {
+    state: "fallback",
+    label: "Local fallback",
+    detail: "Codex is not signed in",
+};
+
+export const ErrorFallbackCommandAIProviderStatus: CommandComposerProviderStatus = {
+    state: "error",
+    label: "Local fallback",
+    detail: "Codex request failed",
+};
 
 const MaxSelectedOutputChars = 4000;
 const MaxRecentCommands = 6;
@@ -305,8 +343,11 @@ export function makeLocalCommandProposals(prompt: string, context: CommandCompos
 }
 
 export class LocalCommandComposerBackend implements CommandComposerBackend {
-    async compose(prompt: string, context: CommandComposerContext): Promise<CommandProposal[]> {
-        return makeLocalCommandProposals(prompt, context);
+    async compose(prompt: string, context: CommandComposerContext): Promise<CommandComposerResult> {
+        return {
+            proposals: makeLocalCommandProposals(prompt, context),
+            providerStatus: LocalFallbackCommandAIProviderStatus,
+        };
     }
 }
 

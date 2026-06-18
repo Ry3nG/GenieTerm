@@ -1,10 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button } from "@/app/element/button";
-import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { atom } from "jotai";
-import { useCallback } from "react";
 
 export class WaveAiModel implements ViewModel {
     viewType = "waveai";
@@ -17,22 +14,17 @@ export class WaveAiModel implements ViewModel {
 }
 
 function WaveAiDeprecatedView() {
-    const handleOpenAIPanel = useCallback(() => {
-        WorkspaceLayoutModel.getInstance().setAIPanelVisible(true);
-    }, []);
-
     return (
         <div className="flex h-full w-full flex-col px-6 text-center">
             <div className="flex-[4]" />
             <div className="mx-auto flex w-full max-w-[760px] flex-col items-center">
-                <h2 className="text-xl font-semibold text-primary">This legacy GenieTerm AI block is no longer supported</h2>
+                <h2 className="text-xl font-semibold text-primary">
+                    This legacy GenieTerm AI block is no longer supported
+                </h2>
                 <p className="mt-3 text-sm leading-6 text-secondary">
-                    This older AI widget has been retired. Please use the modern GenieTerm AI panel for AI chats, terminal
-                    context, tools, and uploads going forward.
+                    This older chat widget has been retired. Use the inline command AI from a terminal prompt to turn
+                    natural language into shell commands.
                 </p>
-                <Button className="mt-6 cursor-pointer" onClick={handleOpenAIPanel}>
-                    Open GenieTerm AI panel
-                </Button>
             </div>
             <div className="flex-[6]" />
         </div>
