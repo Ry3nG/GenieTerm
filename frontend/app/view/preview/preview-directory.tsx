@@ -37,12 +37,13 @@ import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
-import "./directorypreview.scss";
-import { DirectoryTreeView } from "./preview-directory-tree";
 import { DirectoryUploadDropOverlay } from "./directory-upload-drop-overlay";
+import "./directorypreview.scss";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
+import { DirectoryTreeView } from "./preview-directory-tree";
 import {
     cleanMimetype,
+    copyWithOverwriteConfirmation,
     getBestUnit,
     getLastModifiedTime,
     getSortIcon,
@@ -50,7 +51,6 @@ import {
     handleRename,
     isIconValid,
     makeDirectoryDefaultMenuItems,
-    copyWithOverwriteConfirmation,
     type FileCopyFailureResult,
     type FileCopyResult,
 } from "./preview-directory-utils";
@@ -998,7 +998,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     type: "separator",
                 },
             ];
-            addOpenMenuItems(menu, conn, finfo);
+            addOpenMenuItems(menu, conn, finfo, { terminalCwd: dirPath });
 
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },

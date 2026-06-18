@@ -1,10 +1,12 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { ContextMenuModel } from "@/app/store/contextmenu";
 import { createBlock } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
+import { addOpenMenuItems } from "@/util/previewutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import * as React from "react";
@@ -100,9 +102,25 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
             ctx.model.toggleTreeExpanded(fileInfo.path);
             return;
         }
-        fireAndForget(() =>
-            createBlock({ meta: { view: "preview", file: fileInfo.path, connection: ctx.connName } })
-        );
+        fireAndForget(() => createBlock({ meta: { view: "preview", file: fileInfo.path, connection: ctx.connName } }));
+    };
+
+    const onContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const fileName = fileInfo.name ?? fileInfo.path.split("/").pop() ?? fileInfo.path;
+        const menu: ContextMenuItem[] = [
+            {
+                label: "Copy File Name",
+                click: () => fireAndForget(() => navigator.clipboard.writeText(fileName)),
+            },
+            {
+                label: "Copy Full File Name",
+                click: () => fireAndForget(() => navigator.clipboard.writeText(fileInfo.path)),
+            },
+        ];
+        addOpenMenuItems(menu, ctx.connName, fileInfo);
+        ContextMenuModel.getInstance().showContextMenu(menu, e);
     };
 
     // Folders are upload drop targets: stop the drop from bubbling to the root
@@ -145,6 +163,7 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
                 onDrop={onDrop}
+                onContextMenu={onContextMenu}
                 title={fileInfo.path}
             >
                 <span className="w-3 shrink-0 text-center text-muted text-[10px]">

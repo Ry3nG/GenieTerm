@@ -3,10 +3,20 @@ import { makeNativeLabel } from "./platformutil";
 import { fireAndForget } from "./util";
 import { formatRemoteUri } from "./waveutil";
 
-export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: FileInfo): ContextMenuItem[] {
+type OpenMenuItemsOptions = {
+    terminalCwd?: string;
+};
+
+export function addOpenMenuItems(
+    menu: ContextMenuItem[],
+    conn: string,
+    finfo: FileInfo,
+    opts: OpenMenuItemsOptions = {}
+): ContextMenuItem[] {
     if (!finfo) {
         return menu;
     }
+    const terminalCwd = opts.terminalCwd || (finfo.isdir ? finfo.path : finfo.dir);
     menu.push({
         type: "separator",
     });
@@ -67,7 +77,7 @@ export function addOpenMenuItems(menu: ContextMenuItem[], conn: string, finfo: F
                 meta: {
                     controller: "shell",
                     view: "term",
-                    "cmd:cwd": finfo.isdir ? finfo.path : finfo.dir,
+                    "cmd:cwd": terminalCwd,
                     connection: conn,
                 },
             };
