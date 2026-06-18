@@ -124,8 +124,10 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 	}
 	defer input.Close()
 	installWords := map[string]string{
-		"installDir":  filepath.ToSlash(filepath.Dir(remotePath)),
-		"tempPath":    remotePath + ".temp",
+		"installDir": filepath.ToSlash(filepath.Dir(remotePath)),
+		// Unique temp path per copy so a retry/background install can't collide with
+		// a lingering earlier attempt's write and leave a corrupt binary.
+		"tempPath":    fmt.Sprintf("%s.temp.%d", remotePath, time.Now().UnixNano()),
 		"installPath": remotePath,
 	}
 	var installCmd bytes.Buffer

@@ -59,6 +59,7 @@ const (
 	NoWshCode_InstallError          = "install-error"
 	NoWshCode_PostInstallStartError = "postinstall-start-error"
 	NoWshCode_InstallVerifyError    = "install-verify-error"
+	NoWshCode_InstallingBackground  = "installing-background"
 )
 
 const (
@@ -92,6 +93,8 @@ type SSHConn struct {
 	LastConnectTime    int64
 	ActiveConnNum      int
 	Monitor            *ConnMonitor // will not be nil
+	wshInstalling      atomic.Bool  // guards a single background wsh install at a time
+	installCancel      context.CancelFunc
 }
 
 func IsLocalConnName(connName string) bool {
@@ -206,6 +209,14 @@ func (conn *SSHConn) Close() error {
 func (conn *SSHConn) closeInternal_withlifecyclelock() {
 	// does not set status (that should happen at another level)
 	conn.WithLock(func() {
+		if conn.installCancel != nil {
+			conn.installCancel()
+			conn.installCancel = nil
+		}
+		// Clear the dedup flag so a reconnect can re-arm a background install; the
+		// old goroutine bails via its cancelled context, and its deferred reset is
+		// then a harmless no-op.
+		conn.wshInstalling.Store(false)
 		if conn.Monitor != nil {
 			conn.Monitor.Close()
 			conn.Monitor = nil
@@ -454,8 +465,10 @@ func (conn *SSHConn) GetConfigShellPath() string {
 // if useRouterMode is true, will start connserver with --router-domainsocket flag
 func (conn *SSHConn) StartConnServer(ctx context.Context, afterUpdate bool, useRouterMode bool) (bool, string, string, error) {
 	conn.Infof(ctx, "running StartConnServer (routerMode=%v)...\n", useRouterMode)
+	// Status_Connected is allowed so a background wsh install can upgrade an
+	// already-connected (no-wsh) connection in place once the slow copy finishes.
 	allowed := WithLockRtn(conn, func() bool {
-		return conn.Status == Status_Connecting
+		return conn.Status == Status_Connecting || conn.Status == Status_Connected
 	})
 	if !allowed {
 		return false, "", "", fmt.Errorf("cannot start conn server for %q when status is %q", conn.GetName(), conn.GetStatus())
@@ -920,16 +933,18 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 	}
 	if needsInstall {
 		conn.Infof(ctx, "connserver needs to be (re)installed\n")
-		// Copying the helper binary can take minutes on slow/proxied links; don't
-		// bound it by the short interactive-connect deadline (the ssh client
-		// lifecycle still bounds it if the connection drops).
-		installCtx, installCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
+		// Try inline first so fast/moderate links get wsh (and the command-block
+		// gutter) immediately. Bound it so a slow link can't block the terminal; on
+		// failure fall back to a background install and connect in no-wsh mode now —
+		// the connection upgrades in place once the slow copy finishes, and new
+		// shells started after that pick up shell integration.
+		installCtx, installCancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
 		err = conn.InstallWsh(installCtx, osArchStr)
 		installCancel()
 		if err != nil {
-			conn.Infof(ctx, "ERROR installing wsh: %v\n", err)
-			err = fmt.Errorf("error installing wsh: %w", err)
-			return WshCheckResult{NoWshReason: "error installing wsh/connserver", NoWshCode: NoWshCode_InstallError, WshError: err}
+			conn.Infof(ctx, "inline wsh install did not finish (%v); continuing without wsh, installing in background\n", err)
+			conn.startBackgroundWshInstall(osArchStr)
+			return WshCheckResult{NoWshReason: "installing wsh in background", NoWshCode: NoWshCode_InstallingBackground}
 		}
 		needsInstall, clientVersion, _, err = conn.StartConnServer(ctx, true, true)
 		if err != nil {
@@ -946,6 +961,51 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 	} else {
 		return WshCheckResult{WshEnabled: true, ClientVersion: clientVersion}
 	}
+}
+
+// startBackgroundWshInstall copies the helper binary and upgrades an
+// already-connected (no-wsh) connection to wsh in place once the (potentially
+// very slow) copy finishes. The terminal is usable in no-wsh mode meanwhile;
+// shells started after the upgrade pick up shell integration. Safe on a slow
+// link: cancelled on disconnect, deduped, and a no-op on failure.
+func (conn *SSHConn) startBackgroundWshInstall(osArchStr string) {
+	if !conn.wshInstalling.CompareAndSwap(false, true) {
+		return
+	}
+	// Detached from the connect RPC context; bounded generously for slow links and
+	// cancelled by closeInternal on disconnect.
+	bgCtx, bgCancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	conn.WithLock(func() { conn.installCancel = bgCancel })
+	go func() {
+		defer panichandler.PanicHandler("startBackgroundWshInstall", recover())
+		defer conn.wshInstalling.Store(false)
+		// Self-cancel this attempt's context on return. We intentionally do NOT clear
+		// conn.installCancel here — a later reconnect may have overwritten it with its
+		// own handle, and calling an already-finished attempt's cancel is a harmless
+		// no-op. closeInternal cancels whatever the latest handle is.
+		defer bgCancel()
+		conn.Infof(bgCtx, "background wsh install starting (terminal stays usable in no-wsh mode)...\n")
+		if err := conn.InstallWsh(bgCtx, osArchStr); err != nil {
+			conn.Infof(bgCtx, "background wsh install failed: %v\n", err)
+			return
+		}
+		// Bail if the connection was torn down (or replaced) while we were copying.
+		live := WithLockRtn(conn, func() bool {
+			return conn.Status == Status_Connected && conn.Client != nil
+		})
+		if !live || bgCtx.Err() != nil {
+			conn.Infof(bgCtx, "background wsh install: connection no longer live, skipping upgrade\n")
+			return
+		}
+		needsInstall, clientVersion, _, err := conn.StartConnServer(bgCtx, true, true)
+		if err != nil || needsInstall {
+			conn.Infof(bgCtx, "background wsh upgrade failed (err=%v needsInstall=%v)\n", err, needsInstall)
+			return
+		}
+		conn.persistWshInstalled(bgCtx, WshCheckResult{WshEnabled: true, ClientVersion: clientVersion})
+		conn.FireConnChangeEvent()
+		conn.Infof(bgCtx, "background wsh install complete — new shells on this connection get command blocks\n")
+	}()
 }
 
 func (conn *SSHConn) getConnectionConfig() (wconfig.ConnKeywords, bool) {
