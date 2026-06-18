@@ -29,6 +29,8 @@ import { Terminal } from "@xterm/xterm";
 import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
+import { formatCmdBlockDuration, getCmdBlockStatus, type CmdBlockStatusDisplay } from "./cmdblockdisplay";
+import { blockHasCommand, getBlockOutputText, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -44,7 +46,6 @@ import {
     quoteForPosixShell,
     trimTerminalSelection,
 } from "./termutil";
-import { type CmdBlock, blockBufferRange, blockHasCommand } from "./cmdblocks";
 
 const dlog = debug("wave:termwrap");
 
@@ -53,6 +54,7 @@ const TermCacheFileName = "cache:term:full";
 const MinDataProcessedForCache = 100 * 1024;
 export const SupportsImageInput = true;
 const MaxRepaintTransactionMs = 2000;
+const CmdBlockToolbarCells = 28;
 
 // detect webgl support
 function detectWebGLSupport(): boolean {
@@ -106,6 +108,11 @@ export class TermWrap {
     pendingCmdBlock: CmdBlock | null = null;
     cmdBlockIdCounter = 0;
     publishCmdBlocks: () => void;
+    // Warp-style command-block chrome: one xterm decoration per finished command,
+    // drawn behind the live text (no extraction, no double-render).
+    cmdDecorations: TermTypes.IDecoration[] = [];
+    syncCmdDecorations_debounced: () => void;
+    semanticBlocksEnabled = false;
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
     claudeCodeActiveAtom: jotai.PrimitiveAtom<boolean>;
@@ -293,11 +300,13 @@ export class TermWrap {
         this.publishCmdBlocks = debounce(16, () => {
             globalStore.set(this.cmdBlocksAtom, [...this.cmdBlocks]);
         });
+        this.syncCmdDecorations_debounced = debounce(50, this.syncCmdDecorations.bind(this));
         this.terminal.open(this.connectElem);
         // Track alt-screen (TUIs like vim/htop) so the block view can pass through to a
         // full terminal instead of trying to blockify a full-screen app.
         this.terminal.buffer.onBufferChange(() => {
             globalStore.set(this.altScreenActiveAtom, this.terminal.buffer.active.type === "alternate");
+            this.scheduleCmdDecorationSync();
         });
 
         const dragoverHandler = (e: DragEvent) => {
@@ -406,7 +415,7 @@ export class TermWrap {
                     if (!globalStore.get(copyOnSelectAtom)) {
                         return;
                     }
-                    // Don't copy-on-select when the search bar has focus — navigating
+                    // Don't copy-on-select when the search bar has focus - navigating
                     // search results changes the terminal selection programmatically.
                     const active = document.activeElement;
                     if (active != null && active.closest(".search-container") != null) {
@@ -459,6 +468,7 @@ export class TermWrap {
     }
 
     dispose() {
+        this.loaded = false;
         this.promptMarkers.forEach((marker) => {
             try {
                 marker.dispose();
@@ -469,6 +479,7 @@ export class TermWrap {
         this.promptMarkers = [];
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
+        this.disposeCmdDecorations();
         this.webglContextLossDisposable?.dispose();
         this.webglContextLossDisposable = null;
         this.terminal.dispose();
@@ -480,6 +491,17 @@ export class TermWrap {
             }
         });
         this.mainFileSubject.release();
+    }
+
+    disposeCmdDecorations() {
+        for (const deco of this.cmdDecorations) {
+            try {
+                deco.dispose();
+            } catch (_) {
+                /* nothing */
+            }
+        }
+        this.cmdDecorations = [];
     }
 
     handleTermData(data: string) {
@@ -605,6 +627,8 @@ export class TermWrap {
             this.hasResized = true;
             this.resyncController("initial resize");
         }
+        // reflow changed the cols/row geometry the cards are sized to - re-anchor them.
+        this.scheduleCmdDecorationSync();
     }
 
     processAndCacheData() {
@@ -693,6 +717,8 @@ export class TermWrap {
         this.pendingCmdBlock = block;
         this.cmdBlocks.push(block);
         this.publishCmdBlocks();
+        // prev's endMarker just got set - its card region is now bounded, so re-sync.
+        this.scheduleCmdDecorationSync();
     }
 
     onCommandStart(command: string | null) {
@@ -708,38 +734,159 @@ export class TermWrap {
         if (this.pendingCmdBlock == null) {
             return;
         }
-        this.pendingCmdBlock.exitCode = exitCode;
-        this.pendingCmdBlock.state = "done";
-        this.pendingCmdBlock.doneTs = Date.now();
-        this.captureBlockHtml(this.pendingCmdBlock);
+        const block = this.pendingCmdBlock;
+        block.exitCode = exitCode;
+        block.state = "done";
+        block.doneTs = Date.now();
         this.publishCmdBlocks();
+        this.scheduleCmdDecorationSync();
     }
 
-    // Snapshot a finished command's output to ANSI-styled HTML so it can render as a
-    // real DOM block. Reads the normal buffer (never the alt-screen), best-effort.
-    captureBlockHtml(block: CmdBlock) {
-        if (block == null) {
+    setSemanticBlocksEnabled(enabled: boolean) {
+        if (this.semanticBlocksEnabled === enabled) {
             return;
         }
-        try {
-            const buffer = this.terminal.buffer.active;
-            if (buffer.type === "alternate") {
-                return;
-            }
-            const [start, end] = blockBufferRange(block, buffer);
-            const outStart = start + 1; // skip the prompt/command line itself
-            const outEnd = end - 1; // blockBufferRange end is exclusive; serialize endLine is inclusive
-            block.capturedCols = this.terminal.cols;
-            if (outEnd < outStart) {
-                block.htmlOutput = "";
-                return;
-            }
-            block.htmlOutput = this.serializeAddon.serializeAsHTML({
-                range: { startLine: outStart, endLine: outEnd, startCol: 0 },
-            });
-        } catch (e) {
-            // best-effort: the block still renders its header without captured output
+        this.semanticBlocksEnabled = enabled;
+        this.scheduleCmdDecorationSync();
+    }
+
+    scheduleCmdDecorationSync() {
+        this.syncCmdDecorations_debounced();
+    }
+
+    // Warp-style command blocks via xterm decorations: each finished command gets a
+    // full-width card drawn BEHIND the live text (layer "bottom"), anchored to its
+    // prompt-start marker. xterm auto-positions/clips it to the viewport and on scroll,
+    // and returns undefined in the alt buffer - so full-screen TUIs are handled for free.
+    // Output is never copied or removed from the buffer: it renders exactly once, so
+    // there is no double-render and no capture to go stale.
+    syncCmdDecorations() {
+        this.disposeCmdDecorations();
+        if (!this.loaded || !this.semanticBlocksEnabled) {
+            return;
         }
+        const buffer = this.terminal.buffer.active;
+        if (buffer.type === "alternate") {
+            return;
+        }
+        for (const spec of makeCmdBlockDecorationSpecs(this.cmdBlocks, buffer, this.terminal.cols)) {
+            const { block, cols, rows } = spec;
+            const status = getCmdBlockStatus(block);
+            const decoration = this.terminal.registerDecoration({
+                marker: block.startMarker,
+                width: cols,
+                height: rows,
+                layer: "bottom",
+            });
+            if (decoration == null) {
+                continue;
+            }
+            decoration.onRender((el) => {
+                el.classList.add("term-cmdblock-deco", `is-${status.tone}`);
+            });
+            this.cmdDecorations.push(decoration);
+
+            const toolbar = this.terminal.registerDecoration({
+                marker: block.startMarker,
+                anchor: "right",
+                width: Math.min(CmdBlockToolbarCells, cols),
+                height: 1,
+                layer: "top",
+            });
+            if (toolbar == null) {
+                continue;
+            }
+            toolbar.onRender((el) => this.renderCmdDecorationToolbar(el, block, status));
+            this.cmdDecorations.push(toolbar);
+        }
+    }
+
+    renderCmdDecorationToolbar(el: HTMLElement, block: CmdBlock, status: CmdBlockStatusDisplay) {
+        el.classList.add("term-cmdblock-toolbar", `is-${status.tone}`);
+        const renderKey = `${block.id}:${block.doneTs ?? ""}:${block.exitCode ?? ""}:${block.command ?? ""}`;
+        if (el.dataset.renderKey === renderKey) {
+            return;
+        }
+        el.dataset.renderKey = renderKey;
+        el.replaceChildren();
+
+        const pill = document.createElement("div");
+        pill.className = "term-cmdblock-toolbar-pill";
+        pill.title = [block.command, status.label, formatCmdBlockDuration(block), block.cwd]
+            .filter(Boolean)
+            .join(" - ");
+
+        const icon = document.createElement("i");
+        icon.className = `term-cmdblock-toolbar-status ${status.iconClass}`;
+        icon.setAttribute("aria-hidden", "true");
+        pill.append(icon);
+
+        const duration = document.createElement("span");
+        duration.className = "term-cmdblock-toolbar-duration";
+        duration.textContent = formatCmdBlockDuration(block);
+        pill.append(duration);
+
+        pill.append(
+            this.makeCmdDecorationButton("Copy command", "fa-solid fa-terminal", () => {
+                this.copyText(block.command ?? "");
+            })
+        );
+        pill.append(
+            this.makeCmdDecorationButton("Copy output", "fa-solid fa-copy", () => {
+                this.copyText(getBlockOutputText(block, this.terminal));
+            })
+        );
+        pill.append(
+            this.makeCmdDecorationButton("Re-run command", "fa-solid fa-rotate-right", () => {
+                if (!block.command) {
+                    return;
+                }
+                this.terminal.focus();
+                this.sendDataHandler?.(`${block.command}\r`);
+            })
+        );
+        pill.append(
+            this.makeCmdDecorationButton("Jump to command", "fa-solid fa-location-dot", () => {
+                const line = block.startMarker?.line;
+                if (line == null || line < 0) {
+                    return;
+                }
+                this.terminal.scrollToLine(line);
+            })
+        );
+
+        el.append(pill);
+    }
+
+    makeCmdDecorationButton(title: string, iconClass: string, onClick: () => void): HTMLButtonElement {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "term-cmdblock-toolbar-btn";
+        button.title = title;
+        button.ariaLabel = title;
+        const icon = document.createElement("i");
+        icon.className = iconClass;
+        icon.setAttribute("aria-hidden", "true");
+        button.append(icon);
+        button.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        button.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onClick();
+        });
+        return button;
+    }
+
+    copyText(text: string) {
+        if (!text) {
+            return;
+        }
+        fireAndForget(async () => {
+            await navigator.clipboard?.writeText(text);
+        });
     }
 
     handleCmdBlockMarkerDisposed(marker: TermTypes.IMarker) {
@@ -750,6 +897,7 @@ export class TermWrap {
         }
         if (this.cmdBlocks.length !== before) {
             this.publishCmdBlocks();
+            this.scheduleCmdDecorationSync();
         }
     }
 
@@ -757,5 +905,6 @@ export class TermWrap {
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
         this.publishCmdBlocks();
+        this.scheduleCmdDecorationSync();
     }
 }

@@ -22,12 +22,10 @@ export interface CmdBlock {
     startTs: number; // Date.now() captured at command-start (C)
     doneTs: number | null; // Date.now() captured at command-done (D)
     cwd: string | null; // cmd:cwd snapshot at command-start
-    htmlOutput?: string; // ANSI-styled HTML of the output, captured once at command-done
-    capturedCols?: number; // terminal width at capture time (output wrapped at this width)
 }
 
 // [startLine, endLine) buffer indices for a block's full region (prompt + output).
-// The end is the next command's prompt line, or — for the last/running block — the
+// The end is the next command's prompt line, or - for the last/running block - the
 // current bottom of content.
 export function blockBufferRange(block: CmdBlock, buffer: TermTypes.IBuffer): [number, number] {
     const start = block.startMarker?.line ?? -1;
@@ -56,7 +54,33 @@ export function getBlockOutputText(block: CmdBlock, terminal: TermTypes.Terminal
     return lines.join("\n").replace(/\s+$/, "");
 }
 
-// True once a real command (OSC C) has run in this block — empty Enter presses
+export type CmdBlockDecorationSpec = {
+    block: CmdBlock;
+    cols: number;
+    rows: number;
+};
+
+export function makeCmdBlockDecorationSpecs(
+    blocks: CmdBlock[],
+    buffer: TermTypes.IBuffer,
+    cols: number
+): CmdBlockDecorationSpec[] {
+    const specs: CmdBlockDecorationSpec[] = [];
+    for (const block of blocks ?? []) {
+        if (block.state !== "done" || !blockHasCommand(block)) {
+            continue;
+        }
+        const [start, end] = blockBufferRange(block, buffer);
+        const rows = end - start;
+        if (start < 0 || rows < 1) {
+            continue;
+        }
+        specs.push({ block, cols, rows });
+    }
+    return specs;
+}
+
+// True once a real command (OSC C) has run in this block - empty Enter presses
 // (an A with no following C) are not rendered as blocks.
 export function blockHasCommand(block: CmdBlock): boolean {
     return block.command != null && block.command.trim() !== "";

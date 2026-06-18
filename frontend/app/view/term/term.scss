@@ -60,7 +60,6 @@
         overflow: hidden;
         line-height: 1;
         margin: 5px 1px 5px 4px;
-        transition: margin-left 0.15s ease;
     }
 
     .term-presentation-shell {
@@ -71,227 +70,128 @@
         position: relative;
     }
 
-    // Real command blocks: completed commands render as a vertical DOM stack above
-    // the live terminal (no left gutter). Only active once there are command blocks.
-    &.term-presentation-semantic.term-has-cmdblocks {
-        .term-presentation-shell {
-            flex-direction: column;
+    // Warp-style command blocks: each finished command is an xterm decoration drawn
+    // BEHIND the live text (registerDecoration layer "bottom"), spanning the command's
+    // buffer range full-width. The real terminal text renders on top - one render, no
+    // double-render. Status is conveyed by a faint fill + a status-colored left edge.
+    .term-cmdblock-deco {
+        box-sizing: border-box;
+        border-radius: 7px;
+        pointer-events: none;
+        background: color-mix(in srgb, var(--main-text-color) 4%, transparent);
+        box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--main-text-color) 22%, transparent);
+
+        &.is-success {
+            box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--success-color) 70%, transparent);
         }
-
-        .term-cmdblock-stack {
-            flex: 1 1 auto;
-            min-height: 0;
-            overflow-y: auto;
-        }
-
-        .term-connectelem {
-            flex: 0 0 auto;
-            max-height: 45%;
-        }
-    }
-
-    .term-cmdblock-stack {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 6px 8px;
-        font: var(--fixed-font);
-        font-size: 12px;
-    }
-
-    .term-cmdblock {
-        border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
-        border-radius: 8px;
-        overflow: hidden;
 
         &.is-error {
-            border-color: color-mix(in srgb, var(--error-color) 45%, transparent);
+            background: color-mix(in srgb, var(--error-color) 9%, transparent);
+            box-shadow: inset 2px 0 0 0 var(--error-color);
+        }
+
+        &.is-running {
+            box-shadow: inset 2px 0 0 0 color-mix(in srgb, var(--accent-color) 70%, transparent);
         }
     }
 
-    .term-cmdblock-header {
+    .term-cmdblock-toolbar {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 5px 10px;
-        cursor: pointer;
-        background: color-mix(in srgb, var(--main-text-color) 5%, transparent);
-
-        &:hover {
-            background: var(--hover-bg-color);
-        }
-    }
-
-    .term-cmdblock-status {
-        font-size: 11px;
-        width: 12px;
-        text-align: center;
-        flex-shrink: 0;
-    }
-
-    .term-cmdblock-cmd {
-        flex: 1 1 auto;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        color: var(--main-text-color);
-    }
-
-    .term-cmdblock-dur {
-        font-size: 11px;
-        color: var(--secondary-text-color);
-        flex-shrink: 0;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .term-cmdblock-action {
-        border: 0;
-        background: transparent;
-        color: var(--secondary-text-color);
-        cursor: pointer;
-        padding: 2px 4px;
-        border-radius: 4px;
-        opacity: 0;
-        font-size: 11px;
-
-        &:hover {
-            background: var(--hover-bg-color);
-            color: var(--main-text-color);
-        }
-    }
-
-    .term-cmdblock-header:hover .term-cmdblock-action {
-        opacity: 1;
-    }
-
-    .term-cmdblock-chevron {
-        font-size: 9px;
-        color: var(--secondary-text-color);
-        flex-shrink: 0;
-    }
-
-    .term-cmdblock-output {
-        padding: 4px 10px 8px;
-        white-space: pre;
-        overflow-x: auto;
-        line-height: 1.2;
-        color: var(--main-text-color);
-    }
-
-    &.term-presentation-classic {
-        .term-semantic-gutter {
-            display: none;
-        }
-    }
-
-    .term-semantic-gutter {
-        position: absolute;
-        top: 5px;
-        bottom: 5px;
-        left: 6px;
-        width: calc(var(--term-semantic-gutter-width, 0px) - 10px);
-        z-index: calc(var(--zindex-termstickers) + 1);
+        justify-content: flex-end;
         pointer-events: none;
-        overflow: hidden;
-    }
+        opacity: 0.58;
+        transition: opacity 0.12s ease;
 
-    // A quiet per-command rail: just a soft status pill by default; the copy
-    // actions fade in on hover (Warp-style — no boxes, no always-on clutter).
-    .term-semantic-block {
-        position: absolute;
-        left: 0;
-        width: 100%;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        gap: 1px;
-        pointer-events: auto;
+        &:hover,
+        &:focus-within {
+            opacity: 1;
 
-        button {
-            height: 18px;
-            border: 0;
-            background: transparent;
-            color: var(--secondary-text-color);
-            border-radius: 6px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            line-height: 1;
-            transition:
-                background 0.12s ease,
-                color 0.12s ease,
-                opacity 0.12s ease;
+            .term-cmdblock-toolbar-btn {
+                max-width: 22px;
+                opacity: 1;
+            }
         }
 
-        // status communicated by the icon (and a faint wash for failures only)
-        &.is-success .term-semantic-jump i {
+        &.is-success .term-cmdblock-toolbar-status {
             color: var(--success-color);
         }
 
-        &.is-running .term-semantic-jump i {
-            color: var(--accent-color);
-        }
-
-        &.is-error .term-semantic-jump {
-            background: color-mix(in srgb, var(--error-color) 14%, transparent);
-        }
-
-        &.is-error .term-semantic-jump i {
+        &.is-error .term-cmdblock-toolbar-status {
             color: var(--error-color);
         }
 
-        .term-semantic-action {
-            opacity: 0;
-        }
-
-        &:hover {
-            .term-semantic-jump {
-                background: var(--hover-bg-color);
-                color: var(--main-text-color);
-            }
-
-            .term-semantic-action {
-                opacity: 1;
-            }
-
-            button:hover {
-                background: var(--hover-bg-color);
-                color: var(--main-text-color);
-            }
+        &.is-running .term-cmdblock-toolbar-status {
+            color: var(--accent-color);
         }
     }
 
-    .term-semantic-jump {
+    .term-cmdblock-toolbar-pill {
+        pointer-events: auto;
+        display: inline-flex;
+        align-items: center;
         gap: 5px;
-        padding: 0 6px;
+        max-width: 100%;
+        height: calc(100% - 2px);
+        margin: 1px 4px 0 0;
+        padding: 0 5px;
+        border-radius: 5px;
+        border: 1px solid color-mix(in srgb, var(--border-color) 64%, transparent);
+        background: color-mix(in srgb, var(--modal-bg-color) 88%, transparent);
+        color: var(--secondary-text-color);
         font: var(--fixed-font);
         font-size: 10px;
-
-        i {
-            width: 9px;
-            font-size: 9px;
-        }
-
-        span {
-            min-width: 26px;
-            max-width: 32px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            text-align: left;
-            font-variant-numeric: tabular-nums;
-        }
+        line-height: 1;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
     }
 
-    .term-semantic-action {
-        width: 18px;
-        font-size: 10px;
+    .term-cmdblock-toolbar-status {
+        width: 10px;
+        flex: 0 0 10px;
+        font-size: 9px;
+        text-align: center;
+    }
+
+    .term-cmdblock-toolbar-duration {
+        flex: 0 0 auto;
+        max-width: 44px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .term-cmdblock-toolbar-btn {
+        flex: 0 0 auto;
+        width: 20px;
+        max-width: 0;
+        height: 18px;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--secondary-text-color);
+        opacity: 0;
+        overflow: hidden;
+        transition:
+            background 0.12s ease,
+            color 0.12s ease,
+            max-width 0.12s ease,
+            opacity 0.12s ease;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+            background: var(--hover-bg-color);
+            color: var(--main-text-color);
+            outline: none;
+        }
     }
 
     .term-command-composer {
         position: absolute;
-        left: max(14px, var(--term-semantic-gutter-width, 0px));
+        left: 14px;
         right: 14px;
         bottom: 14px;
         z-index: calc(var(--zindex-termstickers) + 5);

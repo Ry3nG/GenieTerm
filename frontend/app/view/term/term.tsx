@@ -22,21 +22,14 @@ import debug from "debug";
 import * as jotai from "jotai";
 import * as React from "react";
 import { useDrop } from "react-dnd";
-import {
-    formatCmdBlockDuration,
-    getCmdBlockStatus,
-    getCmdBlockTitle,
-} from "./cmdblockdisplay";
-import { type CmdBlock, blockHasCommand, getBlockOutputText } from "./cmdblocks";
-import { TermCommandBlockStack } from "./term-cmdblock-stack";
 import { TermCommandComposer } from "./command-composer-ui";
+import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
     getTerminalPresentationClassName,
     normalizeTerminalPresentationMode,
     type TerminalPresentationMode,
 } from "./terminaldisplay";
-import { TermLinkTooltip } from "./term-tooltip";
 import { TermStickers } from "./termsticker";
 import { TermThemeUpdater } from "./termtheme";
 import { computeTheme, normalizeCursorStyle } from "./termutil";
@@ -75,144 +68,7 @@ const TerminalPresentationShell = React.memo(
 
 TerminalPresentationShell.displayName = "TerminalPresentationShell";
 
-function measureTerminalLineHeight(termWrap: TermWrap): number {
-    const rowElem = termWrap.terminal.element?.querySelector(".xterm-rows > div") as HTMLElement;
-    const rowHeight = rowElem?.getBoundingClientRect().height;
-    if (rowHeight > 0) {
-        return rowHeight;
-    }
-    const fontSize = termWrap.terminal.options.fontSize;
-    if (typeof fontSize === "number") {
-        return Math.max(14, Math.round(fontSize * 1.35));
-    }
-    return 16;
-}
-
-const TermSemanticGutter = React.memo(
-    ({ termWrap, presentationMode }: { termWrap: TermWrap | null; presentationMode: TerminalPresentationMode }) => {
-        const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
-        const [viewportY, setViewportY] = React.useState(0);
-        const [lineHeight, setLineHeight] = React.useState(16);
-        const [nowTs, setNowTs] = React.useState(Date.now());
-
-        React.useEffect(() => {
-            if (presentationMode !== "semantic" || termWrap?.terminal == null) {
-                return;
-            }
-            const terminal = termWrap.terminal;
-            const syncViewport = () => {
-                setViewportY(terminal.buffer.active.viewportY);
-                setLineHeight(measureTerminalLineHeight(termWrap));
-            };
-            syncViewport();
-            const measureTimer = window.setTimeout(syncViewport, 0);
-            const scrollDisposable = terminal.onScroll(syncViewport);
-            const resizeDisposable = terminal.onResize(syncViewport);
-            return () => {
-                window.clearTimeout(measureTimer);
-                scrollDisposable.dispose();
-                resizeDisposable.dispose();
-            };
-        }, [presentationMode, termWrap]);
-
-        React.useEffect(() => {
-            if (presentationMode !== "semantic" || !cmdBlocks.some((block) => block.state !== "done")) {
-                return;
-            }
-            const intervalId = window.setInterval(() => setNowTs(Date.now()), 1000);
-            return () => window.clearInterval(intervalId);
-        }, [cmdBlocks, presentationMode]);
-
-        if (presentationMode !== "semantic" || termWrap?.terminal == null) {
-            return null;
-        }
-        const terminal = termWrap.terminal;
-        const buffer = terminal.buffer.active;
-        if (buffer.type === "alternate") {
-            return null;
-        }
-        const visibleBlocks = cmdBlocks.filter((block) => {
-            const line = block.startMarker?.line ?? -1;
-            return blockHasCommand(block) && line >= viewportY && line < viewportY + terminal.rows;
-        });
-        if (visibleBlocks.length === 0) {
-            return <div className="term-semantic-gutter" aria-hidden="true" />;
-        }
-
-        const jumpToBlock = (block: CmdBlock) => {
-            const line = block.startMarker?.line;
-            if (line == null || line < 0) {
-                return;
-            }
-            terminal.scrollToLine(line);
-        };
-        const copyCommand = (block: CmdBlock) => {
-            if (!block.command) {
-                return;
-            }
-            navigator.clipboard.writeText(block.command);
-        };
-        const copyOutput = (block: CmdBlock) => {
-            const text = getBlockOutputText(block, terminal);
-            if (!text) {
-                return;
-            }
-            navigator.clipboard.writeText(text);
-        };
-
-        return (
-            <div className="term-semantic-gutter" aria-label="Command blocks">
-                {visibleBlocks.map((block) => {
-                    const status = getCmdBlockStatus(block);
-                    const duration = formatCmdBlockDuration(block, nowTs);
-                    const title = getCmdBlockTitle(block, nowTs);
-                    const top = (block.startMarker.line - viewportY) * lineHeight;
-                    return (
-                        <div
-                            key={block.id}
-                            className={clsx("term-semantic-block", `is-${status.tone}`)}
-                            style={{ top }}
-                            data-cmdblock-id={block.id}
-                        >
-                            <button
-                                type="button"
-                                className="term-semantic-jump cursor-pointer"
-                                title={title}
-                                aria-label={`Jump to command: ${block.command}`}
-                                onClick={() => jumpToBlock(block)}
-                            >
-                                <i className={status.iconClass} aria-hidden="true" />
-                                <span>{duration}</span>
-                            </button>
-                            <button
-                                type="button"
-                                className="term-semantic-action cursor-pointer"
-                                title="Copy command"
-                                aria-label={`Copy command: ${block.command}`}
-                                onClick={() => copyCommand(block)}
-                            >
-                                <i className="fa-solid fa-terminal" aria-hidden="true" />
-                            </button>
-                            <button
-                                type="button"
-                                className="term-semantic-action cursor-pointer"
-                                title="Copy output"
-                                aria-label={`Copy output for command: ${block.command}`}
-                                onClick={() => copyOutput(block)}
-                            >
-                                <i className="fa-solid fa-copy" aria-hidden="true" />
-                            </button>
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    }
-);
-
-TermSemanticGutter.displayName = "TermSemanticGutter";
-
-const TermResyncHandler = React.memo(({ blockId, model }: TerminalViewProps) => {
+const TermResyncHandler = React.memo(({ model }: TerminalViewProps) => {
     const connStatus = jotai.useAtomValue(model.connStatus);
     const [lastConnStatus, setLastConnStatus] = React.useState<ConnStatus>(connStatus);
 
@@ -353,16 +209,16 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const connStatus = jotai.useAtomValue(model.connStatus);
     const shellIntegrationStatus = useAtomValueSafe(termWrapInst?.shellIntegrationStatusAtom);
     const lastCommand = useAtomValueSafe(termWrapInst?.lastCommandAtom);
-    const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrapInst?.cmdBlocksAtom);
-    const altScreenActive = useAtomValueSafe<boolean>(termWrapInst?.altScreenActiveAtom) ?? false;
     const termSettingsAtom = getSettingsPrefixAtom("term");
     const termSettings = jotai.useAtomValue(termSettingsAtom);
     const terminalPresentationSetting = jotai.useAtomValue(getOverrideConfigAtom(blockId, "term:presentation"));
     const terminalPresentationMode = normalizeTerminalPresentationMode(terminalPresentationSetting);
-    // Show the command-block stack only in semantic mode, when real command blocks
-    // exist, and not while a full-screen TUI (alt-screen) is active.
-    const showCmdBlocks =
-        terminalPresentationMode === "semantic" && !altScreenActive && (cmdBlocks?.some(blockHasCommand) ?? false);
+    // Command blocks (Warp-style) are drawn as xterm decorations over the live terminal,
+    // managed in TermWrap; in semantic mode each finished command gets a card behind its
+    // text. Enable/disable the decorations when the presentation mode changes.
+    React.useEffect(() => {
+        termWrapInst?.setSemanticBlocksEnabled(terminalPresentationMode === "semantic");
+    }, [termWrapInst, terminalPresentationMode]);
     let termMode = blockData?.meta?.["term:mode"] ?? "term";
     if (termMode != "term" && termMode != "vdom") {
         termMode = "term";
@@ -612,8 +468,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             className={clsx(
                 "view-term",
                 "term-mode-" + termMode,
-                getTerminalPresentationClassName(terminalPresentationMode),
-                showCmdBlocks && "term-has-cmdblocks"
+                getTerminalPresentationClassName(terminalPresentationMode)
             )}
             ref={viewDropRef}
             onContextMenu={handleContextMenu}
@@ -625,7 +480,6 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TermToolbarVDomNode key="vdom-toolbar" blockId={blockId} model={model} />
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
-                {showCmdBlocks && <TermCommandBlockStack blocks={cmdBlocks} />}
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
             <NullErrorBoundary debugName="TermLinkTooltip">
