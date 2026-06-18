@@ -35,7 +35,28 @@ export type CommandProposal = {
     source: CommandProposalSource;
 };
 
-export type CommandInlineAIRequestHandler = (prompt: string, block: CmdBlock) => void;
+export type CommandInlineAIStatus = "loading" | "ready" | "error";
+export type CommandInlineAIAction = "insert" | "run" | "open" | "dismiss";
+
+export type CommandInlineAIState = {
+    prompt: string;
+    status: CommandInlineAIStatus;
+    proposal?: CommandProposal;
+    error?: string;
+    confirmAction?: CommandInlineAIAction;
+};
+
+export type CommandInlineAIRequestOptions = {
+    auto?: boolean;
+};
+
+export type CommandInlineAIRequestHandler = (
+    prompt: string,
+    block: CmdBlock,
+    options?: CommandInlineAIRequestOptions
+) => void;
+export type CommandInlineAIStateProvider = (block: CmdBlock) => CommandInlineAIState;
+export type CommandInlineAIActionHandler = (block: CmdBlock, action: CommandInlineAIAction) => void;
 
 export type CommandComposerContextInput = {
     blockMeta?: MetaType;
@@ -294,10 +315,45 @@ export function isCommandComposerEnabled(settings: Record<string, any>): boolean
 }
 
 export function getInlineAICommandPrompt(block: CmdBlock): string {
-    if (block?.state !== "done" || !blockHasCommand(block) || block.exitCode === 0) {
+    if (block?.state !== "done" || !blockHasCommand(block) || block.exitCode == null || block.exitCode === 0) {
         return "";
     }
     return block.command.trim();
+}
+
+function hasShellOperators(command: string): boolean {
+    return /[;&|<>`\\]|\$\(|\${/.test(command);
+}
+
+function startsLikeShellCommand(command: string): boolean {
+    return /^(?:\.\/|\/|~\/|\w+=|sudo\b|cd\b|ls\b|git\b|grep\b|rg\b|find\b|cat\b|echo\b|npm\b|pnpm\b|yarn\b|python(?:3)?\b|node\b|go\b|make\b|docker\b|kubectl\b|ssh\b|curl\b|wget\b|df\b|du\b|lsof\b|ps\b|kill\b|chmod\b|chown\b|mkdir\b|touch\b|cp\b|mv\b|rm\b|brew\b|apt(?:-get)?\b|pip(?:3)?\b|sed\b|awk\b|tail\b|head\b|less\b|more\b|vim\b|nvim\b|code\b|open\b)/i.test(
+        command
+    );
+}
+
+export function isLikelyNaturalLanguageCommand(command: string): boolean {
+    const trimmed = command.trim();
+    if (!trimmed || hasShellOperators(trimmed) || startsLikeShellCommand(trimmed)) {
+        return false;
+    }
+    const words = trimmed.match(/[A-Za-z][A-Za-z'-]*/g) ?? [];
+    if (words.length < 3 && !/[?.!]$/.test(trimmed)) {
+        return false;
+    }
+    return (
+        /[?.!]$/.test(trimmed) ||
+        /\b(help|please|show|check|tell|what|why|how|can|could|need|want|me|my|usage|disk|file|files|folder|directory|port)\b/i.test(
+            trimmed
+        )
+    );
+}
+
+export function shouldAutoComposeInlineAI(block: CmdBlock): boolean {
+    const prompt = getInlineAICommandPrompt(block);
+    if (!prompt || block.exitCode !== 127) {
+        return false;
+    }
+    return isLikelyNaturalLanguageCommand(prompt);
 }
 
 export function getCommandProposalApplyMode(

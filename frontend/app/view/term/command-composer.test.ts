@@ -14,6 +14,7 @@ import {
     isCommandComposerEnabled,
     makeLocalCommandProposals,
     parseCommandProposalResponse,
+    shouldAutoComposeInlineAI,
 } from "./command-composer";
 
 function makeBlock(command: string, cwd = "/repo"): CmdBlock {
@@ -97,16 +98,26 @@ describe("command-composer", () => {
         });
     });
 
-    it("offers inline AI for failed commands and turns natural language into shell proposals", () => {
-        const prompt = getInlineAICommandPrompt({
+    it("offers inline AI for failed commands and auto-composes only natural language failures", () => {
+        const naturalLanguageFailure = {
             ...makeBlock("help me check disk usage."),
             exitCode: 127,
-        });
+        };
+        const ordinaryFailure = {
+            ...makeBlock("grep TODO missing-file"),
+            exitCode: 2,
+        };
+        const shellCommandTypo = {
+            ...makeBlock("git stauts"),
+            exitCode: 1,
+        };
+        const prompt = getInlineAICommandPrompt(naturalLanguageFailure);
 
         expect(prompt).toBe("help me check disk usage.");
-        expect(getInlineAICommandPrompt({ ...makeBlock("grep TODO missing-file"), exitCode: 2 })).toBe(
-            "grep TODO missing-file"
-        );
+        expect(shouldAutoComposeInlineAI(naturalLanguageFailure)).toBe(true);
+        expect(getInlineAICommandPrompt(ordinaryFailure)).toBe("grep TODO missing-file");
+        expect(shouldAutoComposeInlineAI(ordinaryFailure)).toBe(false);
+        expect(shouldAutoComposeInlineAI(shellCommandTypo)).toBe(false);
         expect(getInlineAICommandPrompt(makeBlock("ls -la"))).toBe("");
         expect(
             makeLocalCommandProposals(prompt, {

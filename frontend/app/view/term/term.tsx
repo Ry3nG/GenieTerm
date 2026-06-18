@@ -352,6 +352,9 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
                 useWebGl: !termSettings?.["term:disablewebgl"],
                 sendDataHandler: model.sendDataToController.bind(model),
                 onInlineAIRequest: model.openInlineCommandAI.bind(model),
+                getInlineAIState: model.getInlineCommandAIState.bind(model),
+                onInlineAIAction: model.handleInlineCommandAIAction.bind(model),
+                onInlineAIDismiss: model.dismissInlineCommandAI.bind(model),
                 nodeModel: model.nodeModel,
             }
         );

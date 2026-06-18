@@ -31,7 +31,15 @@ import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { formatCmdBlockDuration, getCmdBlockStatus, type CmdBlockStatusDisplay } from "./cmdblockdisplay";
 import { blockHasCommand, getBlockOutputText, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
-import { getInlineAICommandPrompt, type CommandInlineAIRequestHandler } from "./command-composer";
+import {
+    getInlineAICommandPrompt,
+    shouldAutoComposeInlineAI,
+    type CommandInlineAIAction,
+    type CommandInlineAIActionHandler,
+    type CommandInlineAIRequestHandler,
+    type CommandInlineAIState,
+    type CommandInlineAIStateProvider,
+} from "./command-composer";
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -56,6 +64,7 @@ const MinDataProcessedForCache = 100 * 1024;
 export const SupportsImageInput = true;
 const MaxRepaintTransactionMs = 2000;
 const CmdBlockToolbarCells = 28;
+const CmdBlockInlineAICells = 72;
 
 // detect webgl support
 function detectWebGLSupport(): boolean {
@@ -76,6 +85,9 @@ type TermWrapOptions = {
     useWebGl?: boolean;
     sendDataHandler?: (data: string) => void;
     onInlineAIRequest?: CommandInlineAIRequestHandler;
+    getInlineAIState?: CommandInlineAIStateProvider;
+    onInlineAIAction?: CommandInlineAIActionHandler;
+    onInlineAIDismiss?: () => void;
     nodeModel?: BlockNodeModel;
 };
 
@@ -97,6 +109,9 @@ export class TermWrap {
     multiInputCallback: (data: string) => void;
     sendDataHandler: (data: string) => void;
     onInlineAIRequest?: CommandInlineAIRequestHandler;
+    getInlineAIState?: CommandInlineAIStateProvider;
+    onInlineAIAction?: CommandInlineAIActionHandler;
+    onInlineAIDismiss?: () => void;
     onSearchResultsDidChange?: (result: { resultIndex: number; resultCount: number }) => void;
     toDispose: TermTypes.IDisposable[] = [];
     webglAddon: WebglAddon | null = null;
@@ -151,6 +166,9 @@ export class TermWrap {
         this.blockId = blockId;
         this.sendDataHandler = waveOptions.sendDataHandler;
         this.onInlineAIRequest = waveOptions.onInlineAIRequest;
+        this.getInlineAIState = waveOptions.getInlineAIState;
+        this.onInlineAIAction = waveOptions.onInlineAIAction;
+        this.onInlineAIDismiss = waveOptions.onInlineAIDismiss;
         this.nodeModel = waveOptions.nodeModel;
         this.ptyOffset = 0;
         this.dataBytesProcessed = 0;
@@ -525,6 +543,9 @@ export class TermWrap {
             return;
         }
 
+        if (data) {
+            this.onInlineAIDismiss?.();
+        }
         this.sendDataHandler?.(data);
         this.multiInputCallback?.(data);
     }
@@ -754,9 +775,11 @@ export class TermWrap {
         block.exitCode = exitCode;
         block.state = "done";
         block.doneTs = Date.now();
-        if (getInlineAICommandPrompt(block)) {
+        const inlineAIPrompt = getInlineAICommandPrompt(block);
+        if (inlineAIPrompt && shouldAutoComposeInlineAI(block)) {
             block.inlineAIMarker?.dispose();
             block.inlineAIMarker = this.terminal.registerMarker(0);
+            this.onInlineAIRequest?.(inlineAIPrompt, block, { auto: true });
         }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
@@ -819,16 +842,16 @@ export class TermWrap {
             toolbar.onRender((el) => this.renderCmdDecorationToolbar(el, block, status));
             this.cmdDecorations.push(toolbar);
 
-            const inlineAIPrompt = getInlineAICommandPrompt(block);
-            if (inlineAIPrompt && block.inlineAIMarker != null) {
+            const inlineAIState = this.getInlineAIState?.(block);
+            if (inlineAIState != null && block.inlineAIMarker != null) {
                 const inlineAI = this.terminal.registerDecoration({
                     marker: block.inlineAIMarker,
-                    width: 3,
+                    width: Math.min(CmdBlockInlineAICells, Math.max(cols - 2, 1)),
                     height: 1,
                     layer: "top",
                 });
                 if (inlineAI != null) {
-                    inlineAI.onRender((el) => this.renderInlineAIButton(el, block, inlineAIPrompt));
+                    inlineAI.onRender((el) => this.renderInlineAISuggestion(el, block, inlineAIState));
                     this.cmdDecorations.push(inlineAI);
                 }
             }
@@ -879,28 +902,98 @@ export class TermWrap {
                 this.sendDataHandler?.(`${block.command}\r`);
             })
         );
+        const inlineAIPrompt = getInlineAICommandPrompt(block);
+        if (inlineAIPrompt) {
+            pill.append(
+                this.makeCmdDecorationButton("Fix with AI", "fa-solid fa-wand-magic-sparkles", () => {
+                    this.onInlineAIRequest?.(inlineAIPrompt, block);
+                })
+            );
+        }
 
         el.append(pill);
     }
 
-    renderInlineAIButton(el: HTMLElement, block: CmdBlock, prompt: string) {
+    renderInlineAISuggestion(el: HTMLElement, block: CmdBlock, state: CommandInlineAIState) {
         el.classList.add("term-cmdblock-inline-ai");
-        const renderKey = `${block.id}:${block.inlineAIMarker?.line ?? ""}:${prompt}`;
+        const renderKey = [
+            block.id,
+            block.inlineAIMarker?.line ?? "",
+            state.status,
+            state.prompt,
+            state.proposal?.id ?? "",
+            state.proposal?.command ?? "",
+            state.confirmAction ?? "",
+            state.error ?? "",
+        ].join(":");
         if (el.dataset.renderKey === renderKey) {
             return;
         }
         el.dataset.renderKey = renderKey;
         el.replaceChildren();
 
+        const row = document.createElement("div");
+        row.className = `term-cmdblock-inline-ai-row is-${state.status}`;
+
+        const icon = document.createElement("i");
+        icon.className =
+            state.status === "error" ? "fa-solid fa-triangle-exclamation" : "fa-solid fa-wand-magic-sparkles";
+        icon.setAttribute("aria-hidden", "true");
+        row.append(icon);
+
+        const content = document.createElement("div");
+        content.className = "term-cmdblock-inline-ai-content";
+        if (state.status === "loading") {
+            content.textContent = "Genie is translating this into a command...";
+        } else if (state.status === "error") {
+            content.textContent = state.error || "Genie could not suggest a command";
+        } else {
+            const label = document.createElement("span");
+            label.className = "term-cmdblock-inline-ai-label";
+            label.textContent = "Try";
+            const command = document.createElement("code");
+            command.textContent = state.proposal?.command ?? "";
+            content.append(label, command);
+        }
+        row.append(content);
+
+        const actions = document.createElement("div");
+        actions.className = "term-cmdblock-inline-ai-actions";
+        if (state.status === "ready" && state.proposal != null) {
+            actions.append(
+                this.makeInlineAIActionButton(block, "insert", state.confirmAction === "insert" ? "Confirm" : "Insert")
+            );
+            actions.append(
+                this.makeInlineAIActionButton(block, "run", state.confirmAction === "run" ? "Confirm" : "Run")
+            );
+        } else if (state.status === "error") {
+            actions.append(this.makeInlineAIActionButton(block, "open", "Open"));
+        }
+        actions.append(this.makeInlineAIActionButton(block, "dismiss", "", "fa-solid fa-xmark"));
+        row.append(actions);
+
+        el.append(row);
+    }
+
+    makeInlineAIActionButton(
+        block: CmdBlock,
+        action: CommandInlineAIAction,
+        label: string,
+        iconClass?: string
+    ): HTMLButtonElement {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "term-cmdblock-inline-ai-btn cursor-pointer";
-        button.title = "Ask AI about this command";
-        button.ariaLabel = "Ask AI about this command";
-        const icon = document.createElement("i");
-        icon.className = "fa-solid fa-wand-magic-sparkles";
-        icon.setAttribute("aria-hidden", "true");
-        button.append(icon);
+        button.className = "term-cmdblock-inline-ai-action cursor-pointer";
+        button.ariaLabel = label || action;
+        button.title = label || action;
+        if (iconClass) {
+            const icon = document.createElement("i");
+            icon.className = iconClass;
+            icon.setAttribute("aria-hidden", "true");
+            button.append(icon);
+        } else {
+            button.textContent = label;
+        }
         button.addEventListener("mousedown", (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -908,10 +1001,9 @@ export class TermWrap {
         button.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            this.onInlineAIRequest?.(prompt, block);
+            this.onInlineAIAction?.(block, action);
         });
-
-        el.append(button);
+        return button;
     }
 
     makeCmdDecorationButton(title: string, iconClass: string, onClick: () => void): HTMLButtonElement {

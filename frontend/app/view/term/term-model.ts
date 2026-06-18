@@ -45,6 +45,9 @@ import {
     getCommandProposalApplyMode,
     type CommandComposerBackend,
     type CommandComposerContextInput,
+    type CommandInlineAIAction,
+    type CommandInlineAIRequestOptions,
+    type CommandInlineAIState,
     type CommandProposal,
     type CommandProposalApplyMode,
 } from "./command-composer";
@@ -100,6 +103,9 @@ export class TermViewModel implements ViewModel {
     commandComposerStatusAtom = jotai.atom("idle") as jotai.PrimitiveAtom<string>;
     commandComposerErrorAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
     commandComposerConfirmProposalIdAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
+    inlineCommandAIStatesAtom = jotai.atom<Record<number, CommandInlineAIState>>({}) as jotai.PrimitiveAtom<
+        Record<number, CommandInlineAIState>
+    >;
     commandComposerBackend: CommandComposerBackend = new LLMCommandComposerBackend();
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
@@ -660,6 +666,76 @@ export class TermViewModel implements ViewModel {
         }
     }
 
+    getCommandComposerContextInputForBlock(block: CmdBlock): CommandComposerContextInput {
+        const termWrap = this.termRef.current;
+        return {
+            blockMeta: globalStore.get(this.blockAtom)?.meta,
+            connStatus: globalStore.get(this.connStatus),
+            selectedOutput: termWrap?.terminal != null ? getBlockOutputText(block, termWrap.terminal) : "",
+            recentBlocks: termWrap?.cmdBlocks ?? [],
+        };
+    }
+
+    getInlineCommandAIState(block: CmdBlock): CommandInlineAIState {
+        return globalStore.get(this.inlineCommandAIStatesAtom)[block.id];
+    }
+
+    setInlineCommandAIState(block: CmdBlock, state: CommandInlineAIState) {
+        const states = globalStore.get(this.inlineCommandAIStatesAtom);
+        globalStore.set(this.inlineCommandAIStatesAtom, { ...states, [block.id]: state });
+        this.termRef.current?.scheduleCmdDecorationSync();
+    }
+
+    clearInlineCommandAIState(block: CmdBlock) {
+        const states = globalStore.get(this.inlineCommandAIStatesAtom);
+        if (states[block.id] == null) {
+            return;
+        }
+        const nextStates = { ...states };
+        delete nextStates[block.id];
+        globalStore.set(this.inlineCommandAIStatesAtom, nextStates);
+        this.termRef.current?.scheduleCmdDecorationSync();
+    }
+
+    dismissInlineCommandAI() {
+        const states = globalStore.get(this.inlineCommandAIStatesAtom);
+        if (Object.keys(states).length === 0) {
+            return;
+        }
+        globalStore.set(this.inlineCommandAIStatesAtom, {});
+        this.termRef.current?.scheduleCmdDecorationSync();
+    }
+
+    async generateInlineCommandAI(prompt: string, block: CmdBlock) {
+        const trimmedPrompt = prompt.trim();
+        if (!trimmedPrompt) {
+            this.clearInlineCommandAIState(block);
+            return;
+        }
+        this.setInlineCommandAIState(block, { prompt: trimmedPrompt, status: "loading" });
+        try {
+            const context = buildCommandComposerContext(this.getCommandComposerContextInputForBlock(block));
+            const proposals = await this.commandComposerBackend.compose(trimmedPrompt, context);
+            const proposal = proposals[0];
+            if (proposal == null) {
+                this.setInlineCommandAIState(block, {
+                    prompt: trimmedPrompt,
+                    status: "error",
+                    error: "No command suggestion",
+                });
+                return;
+            }
+            this.setInlineCommandAIState(block, { prompt: trimmedPrompt, status: "ready", proposal });
+        } catch (e) {
+            console.error("inline command AI failed", e);
+            this.setInlineCommandAIState(block, {
+                prompt: trimmedPrompt,
+                status: "error",
+                error: e instanceof Error ? e.message : String(e),
+            });
+        }
+    }
+
     async applyCommandProposal(proposal: CommandProposal, confirmed: boolean): Promise<CommandProposalApplyMode> {
         const shellIntegrationStatus = readAtom(this.termRef?.current?.shellIntegrationStatusAtom);
         const mode = getCommandProposalApplyMode(proposal, { confirmed, shellIntegrationStatus });
@@ -677,20 +753,66 @@ export class TermViewModel implements ViewModel {
         return mode;
     }
 
-    openInlineCommandAI(prompt: string, block: CmdBlock) {
+    async applyInlineCommandAI(
+        block: CmdBlock,
+        action: CommandInlineAIAction
+    ): Promise<CommandProposalApplyMode | null> {
+        const state = this.getInlineCommandAIState(block);
+        const proposal = state?.proposal;
+        if (proposal == null) {
+            return null;
+        }
+        const shellIntegrationStatus = readAtom(this.termRef?.current?.shellIntegrationStatusAtom);
+        const mode = getCommandProposalApplyMode(proposal, {
+            confirmed: state?.confirmAction === action,
+            shellIntegrationStatus,
+        });
+        if (mode === "confirm") {
+            this.setInlineCommandAIState(block, { ...state, confirmAction: action });
+            return mode;
+        }
+        if (mode === "copy") {
+            await navigator.clipboard?.writeText(proposal.command);
+            this.clearInlineCommandAIState(block);
+            return mode;
+        }
+        if (action === "run") {
+            this.termRef.current?.terminal?.focus();
+            this.termRef.current?.sendDataHandler?.(`${proposal.command}\r`);
+        } else {
+            this.termRef.current?.terminal?.paste(proposal.command);
+        }
+        this.clearInlineCommandAIState(block);
+        this.giveFocus();
+        return mode;
+    }
+
+    handleInlineCommandAIAction(block: CmdBlock, action: CommandInlineAIAction) {
+        if (action === "dismiss") {
+            this.clearInlineCommandAIState(block);
+            return;
+        }
+        if (action === "open") {
+            const prompt = this.getInlineCommandAIState(block)?.prompt || block.command || "";
+            this.clearInlineCommandAIState(block);
+            this.openInlineCommandAI(prompt, block);
+            return;
+        }
+        fireAndForget(() => this.applyInlineCommandAI(block, action));
+    }
+
+    openInlineCommandAI(prompt: string, block: CmdBlock, options?: CommandInlineAIRequestOptions) {
         const trimmedPrompt = prompt.trim();
         if (!trimmedPrompt) {
             return;
         }
+        if (options?.auto) {
+            fireAndForget(() => this.generateInlineCommandAI(trimmedPrompt, block));
+            return;
+        }
         this.openCommandComposer(trimmedPrompt);
-        const termWrap = this.termRef.current;
         fireAndForget(() =>
-            this.generateCommandProposals(trimmedPrompt, {
-                blockMeta: globalStore.get(this.blockAtom)?.meta,
-                connStatus: globalStore.get(this.connStatus),
-                selectedOutput: termWrap?.terminal != null ? getBlockOutputText(block, termWrap.terminal) : "",
-                recentBlocks: termWrap?.cmdBlocks ?? [],
-            })
+            this.generateCommandProposals(trimmedPrompt, this.getCommandComposerContextInputForBlock(block))
         );
     }
 
