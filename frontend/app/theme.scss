@@ -210,9 +210,35 @@
     --conn-status-overlay-bg-color: rgba(255, 204, 0, 0.22);
     --sysinfo-cpu-color: #0071e3;
     --sysinfo-mem-color: #af52de;
+    --term-black: #24292f;
+    --term-red: #cf222e;
+    --term-green: #116329;
+    --term-yellow: #4d2d00;
+    --term-blue: #0969da;
+    --term-magenta: #8250df;
+    --term-cyan: #1b7c83;
+    --term-white: #6e7781;
+    --term-bright-black: #57606a;
+    --term-bright-red: #a40e26;
+    --term-bright-green: #1a7f37;
+    --term-bright-yellow: #9a6700;
+    --term-bright-blue: #0550ae;
+    --term-bright-magenta: #6639ba;
+    --term-bright-cyan: #1b7c83;
+    --term-bright-white: #24292f;
+    --term-gray: #6e7781;
+    --term-cmdtext: #24292f;
+    --term-foreground: #24292f;
+    --term-background: #ffffff;
+    --term-selection-background: #0969da33;
+    --term-cursor-accent: #ffffff;
     --button-text-color: #ffffff;
     --button-grey-bg: rgba(0, 0, 0, 0.04);
     --button-grey-hover-bg: rgba(0, 0, 0, 0.08);
     --button-grey-border-color: rgba(0, 0, 0, 0.12);
     --button-grey-outlined-color: rgba(0, 0, 0, 0.62);
+}
+
+:root[data-app-theme="light"] .xterm .xterm-viewport {
+    background-color: transparent;
 }

@@ -1,12 +1,15 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-export const DefaultTermTheme = "default-dark";
+import { normalizeAppTheme } from "@/app/app-theme";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import * as TermTypes from "@xterm/xterm";
 import base64 from "base64-js";
 import { colord } from "colord";
+
+export const DefaultTermTheme = "default-dark";
+export const DefaultLightTermTheme = "default-light";
 
 export type GenClipboardItem = { text?: string; image?: Blob };
 
@@ -22,6 +25,13 @@ export function normalizeCursorStyle(cursorStyle: string): TermTypes.Terminal["o
         return cursorStyle;
     }
     return "block";
+}
+
+export function resolveTermThemeName(themeName: string, appTheme: unknown): string {
+    if (themeName) {
+        return themeName;
+    }
+    return normalizeAppTheme(appTheme) === "light" ? DefaultLightTermTheme : DefaultTermTheme;
 }
 
 function applyTransparencyToColor(hexColor: string, transparency: number): string {

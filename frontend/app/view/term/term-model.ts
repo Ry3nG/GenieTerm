@@ -53,7 +53,7 @@ import {
 } from "./command-composer";
 import { LLMCommandComposerBackend } from "./command-composer-llm";
 import { getBlockingCommand } from "./shellblocking";
-import { computeTheme, DefaultTermTheme, isLikelyOnSameHost, trimTerminalSelection } from "./termutil";
+import { computeTheme, isLikelyOnSameHost, resolveTermThemeName, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
 
 export class TermViewModel implements ViewModel {
@@ -263,7 +263,10 @@ export class TermViewModel implements ViewModel {
         this.termBPMAtom = getOverrideConfigAtom(blockId, "term:allowbracketedpaste");
         this.termThemeNameAtom = useBlockAtom(blockId, "termthemeatom", () => {
             return jotai.atom<string>((get) => {
-                return get(getOverrideConfigAtom(this.blockId, "term:theme")) ?? DefaultTermTheme;
+                return resolveTermThemeName(
+                    get(getOverrideConfigAtom(this.blockId, "term:theme")),
+                    get(getSettingsKeyAtom("app:theme"))
+                );
             });
         });
         this.termTransparencyAtom = useBlockAtom(blockId, "termtransparencyatom", () => {
