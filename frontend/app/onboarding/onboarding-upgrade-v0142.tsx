@@ -1,10 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useWaveEnv } from "@/app/waveenv/waveenv";
-
 const UpgradeOnboardingModal_v0_14_2_Content = () => {
-    const waveEnv = useWaveEnv();
     return (
         <div className="flex flex-col items-start w-full mb-2 unselectable">
             <div className="text-secondary leading-relaxed mb-4">
@@ -40,15 +37,7 @@ const UpgradeOnboardingModal_v0_14_2_Content = () => {
                             </li>
                             <li>
                                 <strong>Claude Code Integration</strong> - Use <code>wsh badge</code> with Claude Code
-                                hooks to surface AI task status as tab bar notifications{" "}
-                                <button
-                                    onClick={() =>
-                                        waveEnv.electron.openExternal("https://github.com/Ry3nG/GenieTerm")
-                                    }
-                                    className="text-accent text-sm font-normal cursor-pointer hover:underline"
-                                >
-                                    [see docs]
-                                </button>
+                                hooks to surface AI task status as tab bar notifications
                             </li>
                         </ul>
                     </div>
