@@ -6,6 +6,7 @@ import { adaptFromElectronKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { Rectangle, shell, WebContentsView } from "electron";
 import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
+import os from "os";
 import path from "path";
 import { configureAuthKeyRequestInjection } from "./authkey";
 import { setWasActive } from "./emain-activity";
@@ -237,9 +238,29 @@ export class WaveTabView extends WebContentsView {
 let MaxCacheSize = 10;
 const wcvCache = new Map<string, WaveTabView>();
 
+// Each retained tab keeps a full Chromium WebContentsView alive (xterm.js + WebGL),
+// so retention is the dominant renderer-memory lever. Cap it by available RAM so
+// low-memory machines don't hold a fleet of heavy renderers — this only ever lowers
+// the configured value, never raises it.
+function maxTabCacheCeiling(): number {
+    const ramGB = os.totalmem() / 1024 ** 3;
+    if (ramGB <= 8) {
+        return 4;
+    }
+    if (ramGB <= 16) {
+        return 8;
+    }
+    return 16;
+}
+
 export function setMaxTabCacheSize(size: number) {
-    console.log("setMaxTabCacheSize", size);
-    MaxCacheSize = size;
+    const clamped = Math.min(size, maxTabCacheCeiling());
+    if (clamped !== size) {
+        console.log(`setMaxTabCacheSize ${size} clamped to ${clamped} (system RAM ceiling)`);
+    } else {
+        console.log("setMaxTabCacheSize", size);
+    }
+    MaxCacheSize = clamped;
 }
 
 export function getWaveTabView(waveTabId: string): WaveTabView | undefined {

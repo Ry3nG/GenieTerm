@@ -60,11 +60,12 @@ func resolveAIMode(requestedMode string, premium bool) (string, *wconfig.AIModeC
 func applyProviderDefaults(config *wconfig.AIModeConfigType) {
 	if config.Provider == uctypes.AIProvider_Wave {
 		config.WaveAICloud = true
-		if config.Endpoint == "" {
-			config.Endpoint = uctypes.DefaultAIEndpoint
-			if os.Getenv(uctypes.WaveAIEndpointEnvName) != "" {
-				config.Endpoint = os.Getenv(uctypes.WaveAIEndpointEnvName)
-			}
+		// GenieTerm does not proxy AI through Wave's cloud. The wave provider is
+		// fail-closed: it only resolves to an endpoint when one is supplied explicitly
+		// (env or config). Otherwise the endpoint stays empty so no prompt can ever
+		// reach cfapi.waveterm.dev. The active inline AI uses keyless Codex instead.
+		if config.Endpoint == "" && os.Getenv(uctypes.WaveAIEndpointEnvName) != "" {
+			config.Endpoint = os.Getenv(uctypes.WaveAIEndpointEnvName)
 		}
 	}
 	if config.Provider == uctypes.AIProvider_OpenAI {
