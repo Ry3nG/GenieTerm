@@ -44,10 +44,13 @@ class WorkspaceLayoutModel {
         this.vtabWidth = VTabBar_DefaultWidth;
         this.vtabVisible = false;
         this.panelVisibleAtom = jotai.atom(false);
+        // Terminal-first: the widget rail is opt-in, not the default surface. Every
+        // view it offered is reachable from the command palette (New Terminal/Files/
+        // Web/System Info/Processes), and "View: Toggle Widgets Bar" brings the rail back.
         this.widgetsSidebarVisibleAtom = jotai.atom(
             (get) =>
                 get(getOrefMetaKeyAtom(WOS.makeORef("workspace", this.getWorkspaceId()), "layout:widgetsvisible")) ??
-                true
+                false
         );
         this.initializeFromMeta();
 
