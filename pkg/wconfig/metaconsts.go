@@ -19,6 +19,7 @@ const (
 	ConfigKey_AppFocusFollowsCursor         = "app:focusfollowscursor"
 	ConfigKey_AppTabBar                     = "app:tabbar"
 	ConfigKey_AppTheme                      = "app:theme"
+	ConfigKey_AppIcon                       = "app:icon"
 	ConfigKey_AppKeybindings                = "app:keybindings"
 	ConfigKey_AppHideTabBar                 = "app:hidetabbar"
 	ConfigKey_AppHideSidebar                = "app:hidesidebar"

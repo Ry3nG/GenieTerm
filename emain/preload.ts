@@ -90,6 +90,7 @@ contextBridge.exposeInMainWorld("api", {
     clearTabCache: () => ipcRenderer.send("app-clear-tab-cache"),
     relaunchAllWindows: () => ipcRenderer.send("app-relaunch-all-windows"),
     checkForUpdates: () => ipcRenderer.send("app-check-for-updates"),
+    setAppIconVariant: (variant) => ipcRenderer.send("set-app-icon-variant", variant),
     getPathForFile: (file: File): string => webUtils.getPathForFile(file),
     saveTextFile: (fileName: string, content: string) => ipcRenderer.invoke("save-text-file", fileName, content),
     setIsActive: () => ipcRenderer.invoke("set-is-active"),

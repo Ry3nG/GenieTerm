@@ -57,6 +57,14 @@
             "light"
           ]
         },
+        "app:icon": {
+          "type": "string",
+          "enum": [
+            "default",
+            "black",
+            "white"
+          ]
+        },
         "app:keybindings": {
           "type": "object"
         },

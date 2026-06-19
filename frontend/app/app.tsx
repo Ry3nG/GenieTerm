@@ -16,7 +16,7 @@ import { makeWaveEnvImpl } from "@/app/waveenv/waveenvimpl";
 import { Workspace } from "@/app/workspace/workspace";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { ContextMenuModel } from "@/store/contextmenu";
-import { atoms, createBlock, getSettingsKeyAtom, getSettingsPrefixAtom, refocusNode } from "@/store/global";
+import { atoms, createBlock, getApi, getSettingsKeyAtom, getSettingsPrefixAtom, refocusNode } from "@/store/global";
 import { appHandleKeyDown, keyboardMouseDownHandler } from "@/store/keymodel";
 import { getElemAsStr } from "@/util/focusutil";
 import * as keyutil from "@/util/keyutil";
@@ -30,6 +30,7 @@ import { useEffect, useRef } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { AppBackground } from "./app-bg";
+import { normalizeAppIconVariant } from "./app-icon";
 import { applyAppTheme } from "./app-theme";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -141,9 +142,13 @@ function AppSettingsUpdater() {
     const windowSettingsAtom = getSettingsPrefixAtom("window");
     const windowSettings = useAtomValue(windowSettingsAtom);
     const appTheme = useAtomValue(getSettingsKeyAtom("app:theme"));
+    const appIcon = useAtomValue(getSettingsKeyAtom("app:icon"));
     useEffect(() => {
         applyAppTheme(appTheme);
     }, [appTheme]);
+    useEffect(() => {
+        getApi().setAppIconVariant(normalizeAppIconVariant(appIcon));
+    }, [appIcon]);
     useEffect(() => {
         const isTransparentOrBlur =
             (windowSettings?.["window:transparent"] || windowSettings?.["window:blur"]) ?? false;

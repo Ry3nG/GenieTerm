@@ -20,12 +20,13 @@ import {
     incrementTermCommandsWsl,
     setWasActive,
 } from "./emain-activity";
+import { applyDockIconVariant, getAppIconPath, normalizeAppIconVariant, type AppIconVariant } from "./app-icon";
 import { createBuilderWindow, getAllBuilderWindows, getBuilderWindowByWebContentsId } from "./emain-builder";
 import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-platform";
 import { clearTabCache, getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { decreaseZoomLevel, handleCtrlShiftState, increaseZoomLevel, resetZoomLevel } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
-import { createNewWaveWindow, getWaveWindowByWebContentsId, relaunchBrowserWindows } from "./emain-window";
+import { createNewWaveWindow, getAllWaveWindows, getWaveWindowByWebContentsId, relaunchBrowserWindows } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { registerDownloadFolderHandler } from "./transfer/download-folder";
 import {
@@ -651,6 +652,22 @@ export function initIpcHandlers() {
 
     electron.ipcMain.on("app-check-for-updates", () => {
         fireAndForget(() => updater?.checkForUpdates(true));
+    });
+
+    electron.ipcMain.on("set-app-icon-variant", (_event, variant: AppIconVariant) => {
+        const normalized = normalizeAppIconVariant(variant);
+        const iconPath = getAppIconPath(normalized);
+        applyDockIconVariant(normalized);
+        for (const win of getAllWaveWindows()) {
+            if (!win.isDestroyed()) {
+                win.setIcon(iconPath);
+            }
+        }
+        for (const win of getAllBuilderWindows()) {
+            if (!win.isDestroyed()) {
+                win.setIcon(iconPath);
+            }
+        }
     });
 
     electron.ipcMain.handle("save-text-file", async (event, fileName: string, content: string) => {

@@ -74,6 +74,7 @@ const previewElectronApi: ElectronApi = {
     clearTabCache: () => {},
     relaunchAllWindows: () => {},
     checkForUpdates: () => {},
+    setAppIconVariant: (_variant: AppIconVariant) => {},
     getPathForFile: (_file: File) => "",
     saveTextFile: (_fileName: string, _content: string) => Promise.resolve(false),
     setIsActive: async () => {},

@@ -10,6 +10,7 @@ import * as services from "../frontend/app/store/services";
 import { initElectronWshrpc, shutdownWshrpc } from "../frontend/app/store/wshrpcutil-base";
 import { fireAndForget, sleep } from "../frontend/util/util";
 import { AuthKey, configureAuthKeyRequestInjection } from "./authkey";
+import { applyDockIconVariant } from "./app-icon";
 import {
     getActivityState,
     getAndClearTermCommandsDurable,
@@ -410,6 +411,7 @@ async function appMain() {
         console.log("error initializing wshrpc", e);
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+    applyDockIconVariant(fullConfig?.settings?.["app:icon"]);
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];

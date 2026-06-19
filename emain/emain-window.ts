@@ -18,6 +18,7 @@ import {
 } from "./emain-activity";
 import { log } from "./emain-log";
 import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
+import { getAppIconPath } from "./app-icon";
 import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
@@ -189,7 +190,7 @@ export class WaveBrowserWindow extends BaseWindow {
                 symbolColor: "white",
                 color: "#00000000",
             };
-            winOpts.icon = path.join(getElectronAppBasePath(), "public/logos/genieterm-logo.png");
+            winOpts.icon = getAppIconPath(settings?.["app:icon"]);
             winOpts.autoHideMenuBar = !settings?.["window:showmenubar"];
             if (isTransparent) {
                 winOpts.transparent = true;
@@ -198,6 +199,7 @@ export class WaveBrowserWindow extends BaseWindow {
             }
         } else if (opts.unamePlatform === "win32") {
             winOpts.titleBarStyle = "hidden";
+            winOpts.icon = getAppIconPath(settings?.["app:icon"]);
             winOpts.titleBarOverlay = {
                 color: "#222222",
                 symbolColor: "#c3c8c2",

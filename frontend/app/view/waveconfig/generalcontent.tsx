@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AppTheme, normalizeAppTheme } from "@/app/app-theme";
+import { normalizeAppIconVariant, type AppIconVariant } from "@/app/app-icon";
+import iconBlackUrl from "@/app/asset/genieterm-logo-black.png";
+import iconDefaultUrl from "@/app/asset/genieterm-logo.png";
+import iconWhiteUrl from "@/app/asset/genieterm-logo-white.png";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
@@ -16,9 +20,22 @@ type AppThemeOption = {
     theme: AppTheme;
 };
 
+type AppIconOption = {
+    icon: AppIconVariant;
+    label: string;
+    preview: string;
+    selected: boolean;
+};
+
 const AppThemeOptions: Array<Omit<AppThemeOption, "selected">> = [
     { theme: "dark", label: "Dark", icon: "moon" },
     { theme: "light", label: "Light", icon: "sun" },
+];
+
+const AppIconOptions: Array<Omit<AppIconOption, "selected">> = [
+    { icon: "default", label: "Default", preview: iconDefaultUrl },
+    { icon: "black", label: "Black", preview: iconBlackUrl },
+    { icon: "white", label: "White", preview: iconWhiteUrl },
 ];
 
 export function makeAppThemeOptions(currentTheme: unknown): AppThemeOption[] {
@@ -29,23 +46,42 @@ export function makeAppThemeOptions(currentTheme: unknown): AppThemeOption[] {
     }));
 }
 
-export function updateSettingsJsonTheme(content: string, theme: AppTheme): string {
+export function makeAppIconOptions(currentIcon: unknown): AppIconOption[] {
+    const normalizedIcon = normalizeAppIconVariant(currentIcon);
+    return AppIconOptions.map((option) => ({
+        ...option,
+        selected: option.icon === normalizedIcon,
+    }));
+}
+
+function updateSettingsJsonValue(content: string, key: string, value: string): string {
     try {
         const parsed = content.trim() === "" ? {} : JSON.parse(content);
         if (typeof parsed !== "object" || parsed == null || Array.isArray(parsed)) {
             return content;
         }
-        parsed["app:theme"] = theme;
+        parsed[key] = value;
         return JSON.stringify(parsed, null, 2);
     } catch {
         return content;
     }
 }
 
+export function updateSettingsJsonTheme(content: string, theme: AppTheme): string {
+    return updateSettingsJsonValue(content, "app:theme", theme);
+}
+
+export function updateSettingsJsonAppIcon(content: string, icon: AppIconVariant): string {
+    return updateSettingsJsonValue(content, "app:icon", icon);
+}
+
 const GeneralSettingsContent = memo(({ model }: { model: WaveConfigViewModel }) => {
     const currentAppTheme = useAtomValue(model.env.getSettingsKeyAtom("app:theme"));
+    const currentAppIcon = useAtomValue(model.env.getSettingsKeyAtom("app:icon"));
     const selectedTheme = normalizeAppTheme(currentAppTheme);
+    const selectedIcon = normalizeAppIconVariant(currentAppIcon);
     const themeOptions = makeAppThemeOptions(currentAppTheme);
+    const iconOptions = makeAppIconOptions(currentAppIcon);
 
     const handleThemeChange = (theme: AppTheme) => {
         if (theme === selectedTheme) {
@@ -61,6 +97,25 @@ const GeneralSettingsContent = memo(({ model }: { model: WaveConfigViewModel }) 
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 globalStore.set(model.errorMessageAtom, `Failed to save theme: ${message}`);
+            }
+        });
+    };
+
+    const handleIconChange = (icon: AppIconVariant) => {
+        if (icon === selectedIcon) {
+            return;
+        }
+        fireAndForget(async () => {
+            try {
+                await model.env.rpc.SetConfigCommand(TabRpcClient, { "app:icon": icon });
+                model.env.electron.setAppIconVariant(icon);
+                const nextContent = updateSettingsJsonAppIcon(globalStore.get(model.fileContentAtom), icon);
+                globalStore.set(model.fileContentAtom, nextContent);
+                globalStore.set(model.originalContentAtom, nextContent);
+                globalStore.set(model.hasEditedAtom, false);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                globalStore.set(model.errorMessageAtom, `Failed to save app icon: ${message}`);
             }
         });
     };
@@ -92,6 +147,38 @@ const GeneralSettingsContent = memo(({ model }: { model: WaveConfigViewModel }) 
                                     onClick={() => handleThemeChange(option.theme)}
                                 >
                                     <i className={`fa fa-solid fa-${option.icon}`} />
+                                    <span>{option.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border px-4 py-4">
+                        <div className="text-sm font-semibold">App Icon</div>
+                        <div
+                            role="radiogroup"
+                            aria-label="App Icon"
+                            className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-hover p-1"
+                        >
+                            {iconOptions.map((option) => (
+                                <button
+                                    key={option.icon}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={option.selected}
+                                    className={cn(
+                                        "min-w-24 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer flex items-center justify-center gap-2",
+                                        option.selected
+                                            ? "bg-accent text-[#fff]"
+                                            : "text-secondary hover:bg-hoverbg hover:text-primary"
+                                    )}
+                                    onClick={() => handleIconChange(option.icon)}
+                                >
+                                    <img
+                                        src={option.preview}
+                                        alt=""
+                                        className="h-7 w-7 shrink-0 rounded-md border border-border object-cover"
+                                        draggable={false}
+                                    />
                                     <span>{option.label}</span>
                                 </button>
                             ))}

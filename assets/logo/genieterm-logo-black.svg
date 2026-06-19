@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="180" y1="92" x2="850" y2="948" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#050506"/>
+      <stop offset="0.55" stop-color="#030303"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="196" y1="96" x2="850" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#25272c" stop-opacity="0.72"/>
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="smoke" x1="414" y1="306" x2="594" y2="766" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f4f4f2"/>
+      <stop offset="0.46" stop-color="#8b8d91"/>
+      <stop offset="1" stop-color="#17181b"/>
+    </linearGradient>
+    <linearGradient id="smokeEdge" x1="398" y1="340" x2="640" y2="744" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.68"/>
+      <stop offset="0.42" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.42"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+    <filter id="innerGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#cfd4da" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="202" fill="url(#bg)"/>
+  <rect x="66" y="66" width="892" height="892" rx="200" fill="none" stroke="url(#rim)" stroke-width="4"/>
+  <ellipse cx="512" cy="846" rx="220" ry="34" fill="#000000" opacity="0.16"/>
+  <g filter="url(#softShadow)">
+    <path d="M528 768 C477 773 423 751 393 710 C360 665 358 604 391 558 C417 523 459 504 498 483 C548 456 566 418 546 377 C534 352 511 331 482 314 C548 317 605 349 629 397 C655 449 636 509 588 546 C560 568 524 585 497 611 C468 638 462 675 485 704 C508 733 550 740 596 724 C582 750 559 765 528 768Z" fill="#000000" opacity="0.32" transform="translate(0 10)"/>
+    <path d="M528 768 C477 773 423 751 393 710 C360 665 358 604 391 558 C417 523 459 504 498 483 C548 456 566 418 546 377 C534 352 511 331 482 314 C548 317 605 349 629 397 C655 449 636 509 588 546 C560 568 524 585 497 611 C468 638 462 675 485 704 C508 733 550 740 596 724 C582 750 559 765 528 768Z" fill="url(#smoke)"/>
+    <path d="M528 768 C477 773 423 751 393 710 C360 665 358 604 391 558 C417 523 459 504 498 483 C548 456 566 418 546 377 C534 352 511 331 482 314 C548 317 605 349 629 397 C655 449 636 509 588 546 C560 568 524 585 497 611 C468 638 462 675 485 704 C508 733 550 740 596 724 C582 750 559 765 528 768Z" fill="none" stroke="url(#smokeEdge)" stroke-width="9" stroke-linejoin="round" opacity="0.72"/>
+    <path d="M518 730 C478 708 458 669 474 634 C489 601 524 583 558 560 C604 529 621 487 608 445 C596 407 569 378 531 357" fill="none" stroke="#62666d" stroke-width="25" stroke-linecap="round" opacity="0.18"/>
+    <path d="M518 730 C478 708 458 669 474 634 C489 601 524 583 558 560 C604 529 621 487 608 445 C596 407 569 378 531 357" fill="none" stroke="#cfd4da" stroke-width="10" stroke-linecap="round" opacity="0.42" filter="url(#innerGlow)"/>
+    <path d="M433 679 C414 637 425 592 459 562 C484 540 520 526 548 500" fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round" opacity="0.34"/>
+  </g>
+</svg>

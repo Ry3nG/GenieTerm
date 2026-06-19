@@ -70,6 +70,7 @@ type SettingsType struct {
 	AppFocusFollowsCursor         string         `json:"app:focusfollowscursor,omitempty" jsonschema:"enum=off,enum=on,enum=term"`
 	AppTabBar                     string         `json:"app:tabbar,omitempty" jsonschema:"enum=top,enum=left"`
 	AppTheme                      string         `json:"app:theme,omitempty" jsonschema:"enum=dark,enum=light"`
+	AppIcon                       string         `json:"app:icon,omitempty" jsonschema:"enum=default,enum=black,enum=white"`
 	AppKeybindings                map[string]any `json:"app:keybindings,omitempty"`
 	AppHideTabBar                 bool           `json:"app:hidetabbar,omitempty"`
 	AppHideSidebar                bool           `json:"app:hidesidebar,omitempty"`

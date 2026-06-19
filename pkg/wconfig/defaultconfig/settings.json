@@ -6,6 +6,7 @@
     "app:defaultnewblock": "term",
     "app:tabbar": "top",
     "app:theme": "dark",
+    "app:icon": "default",
     "app:confirmquit": true,
     "app:hideaibutton": true,
     "app:hidetabbar": false,

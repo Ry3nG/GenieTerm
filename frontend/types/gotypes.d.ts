@@ -1414,6 +1414,7 @@ declare global {
         "app:focusfollowscursor"?: string;
         "app:tabbar"?: string;
         "app:theme"?: string;
+        "app:icon"?: string;
         "app:keybindings"?: {[key: string]: any};
         "app:hidetabbar"?: boolean;
         "app:hidesidebar"?: boolean;

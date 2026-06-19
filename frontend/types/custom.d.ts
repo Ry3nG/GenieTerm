@@ -78,6 +78,8 @@ declare global {
         windowId: string;
     };
 
+    type AppIconVariant = "default" | "black" | "white";
+
     type ElectronApi = {
         getAuthKey(): string; // get-auth-key
         getIsDev(): boolean; // get-is-dev
@@ -149,6 +151,7 @@ declare global {
         clearTabCache: () => void; // app-clear-tab-cache
         relaunchAllWindows: () => void; // app-relaunch-all-windows
         checkForUpdates: () => void; // app-check-for-updates
+        setAppIconVariant: (variant: AppIconVariant) => void; // set-app-icon-variant
         getPathForFile: (file: File) => string; // webUtils.getPathForFile
         saveTextFile: (fileName: string, content: string) => Promise<boolean>; // save-text-file
         setIsActive: () => Promise<void>; // set-is-active
