@@ -30,7 +30,7 @@ function LearnMoreButton() {
     return (
         <button
             className="text-muted text-xs hover:underline cursor-pointer text-left"
-            onClick={() => waveEnv.electron.openExternal("https://docs.waveterm.dev/durable-sessions")}
+            onClick={() => waveEnv.electron.openExternal("https://github.com/Ry3nG/GenieTerm")}
         >
             Learn More
         </button>
