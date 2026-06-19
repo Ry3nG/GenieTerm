@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { computeTheme, DefaultLightTermTheme, DefaultTermTheme, resolveTermThemeName } from "@/app/view/term/termutil";
+import {
+    computeTheme,
+    DefaultLightTermTheme,
+    DefaultTermTheme,
+    resolveTermThemeName,
+    resolveTermTransparency,
+} from "@/app/view/term/termutil";
 
 const FullConfig = {
     termthemes: {
@@ -28,6 +34,12 @@ describe("term theme defaults", () => {
         expect(resolveTermThemeName(null, "dark")).toBe(DefaultTermTheme);
         expect(resolveTermThemeName(null, "light")).toBe(DefaultLightTermTheme);
         expect(resolveTermThemeName("dracula", "light")).toBe("dracula");
+    });
+
+    it("uses an opaque default background for the light terminal theme", () => {
+        expect(resolveTermTransparency(null, DefaultLightTermTheme)).toBe(0);
+        expect(resolveTermTransparency(null, DefaultTermTheme)).toBe(0.5);
+        expect(resolveTermTransparency(0.5, DefaultLightTermTheme)).toBe(0.5);
     });
 
     it("keeps the light background in the xterm theme so reverse-video text stays legible", () => {

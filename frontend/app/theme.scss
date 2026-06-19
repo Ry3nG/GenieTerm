@@ -240,5 +240,5 @@
 }
 
 :root[data-app-theme="light"] .xterm .xterm-viewport {
-    background-color: transparent;
+    background-color: var(--term-background);
 }

@@ -1,9 +1,13 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { applyAppTheme, getNextAppTheme, normalizeAppTheme } from "./app-theme";
+
+const AppDir = resolve(__dirname);
 
 describe("app theme helpers", () => {
     it("defaults unknown values to dark mode", () => {
@@ -24,5 +28,13 @@ describe("app theme helpers", () => {
 
         expect(root.dataset.appTheme).toBe("light");
         expect(root.style.colorScheme).toBe("light");
+    });
+
+    it("keeps the light terminal viewport opaque for crisp text rendering", () => {
+        const themeScss = readFileSync(resolve(AppDir, "theme.scss"), "utf8");
+
+        expect(themeScss).toContain(`:root[data-app-theme="light"] .xterm .xterm-viewport {
+    background-color: var(--term-background);
+}`);
     });
 });
