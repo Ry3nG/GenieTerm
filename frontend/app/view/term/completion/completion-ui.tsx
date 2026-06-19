@@ -209,7 +209,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
                 ref={refs.setFloating}
                 style={{
                     ...floatingStyles,
-                    background: "color-mix(in srgb, var(--app-bg-color) 92%, var(--main-text-color) 8%)",
+                    background: "var(--modal-bg-color)",
                 }}
                 className="z-50 w-[min(480px,calc(100vw-24px))] overflow-hidden rounded-lg border border-border text-primary shadow-2xl"
                 onMouseDown={(e) => e.preventDefault()}
