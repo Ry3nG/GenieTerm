@@ -5,9 +5,9 @@
         "email": "gongzerui@team6907.org"
     },
     "productName": "GenieTerm",
-    "description": "Workspace-native terminal for commands, files, sessions, and AI",
+    "description": "Workspace-native terminal for commands, files, and durable sessions",
     "license": "Apache-2.0",
-    "version": "0.4.18",
+    "version": "0.4.19",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"

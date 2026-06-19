@@ -6,28 +6,24 @@ const UpgradeOnboardingModal_v0_12_3_Content = () => {
         <div className="flex flex-col items-start gap-6 w-full mb-4 unselectable">
             <div className="text-secondary leading-relaxed">
                 <p className="mb-0">
-                    GenieTerm AI model upgrade to GPT-5.1, new secret management features, and improved terminal input
-                    handling for interactive CLI tools.
+                    New secret management features and improved terminal input handling for interactive CLI tools.
                 </p>
             </div>
 
             <div className="flex w-full items-start gap-4">
                 <div className="flex-shrink-0">
-                    <i className="text-[24px] text-accent fa-solid fa-sparkles"></i>
+                    <i className="text-[24px] text-accent fa-solid fa-keyboard"></i>
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
-                    <div className="text-foreground text-base font-semibold leading-[18px]">GenieTerm AI Updates</div>
+                    <div className="text-foreground text-base font-semibold leading-[18px]">Input Reliability</div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
-                                <strong>GPT-5.1 Model</strong> - Upgraded to OpenAI's GPT-5.1 model for improved
-                                responses
+                                <strong>Interactive CLI Support</strong> - Better input behavior for tools that manage
+                                their own prompts
                             </li>
-                            <li>
-                                <strong>Thinking Mode Toggle</strong> - New dropdown to select between Quick, Balanced,
-                                and Deep thinking modes
-                            </li>
-                            <li>Fixed path mismatch issue when restoring AI write file backups</li>
+                            <li>Fixed path mismatch issues when restoring file backups</li>
+                            <li>Improved multi-line command entry behavior</li>
                         </ul>
                     </div>
                 </div>

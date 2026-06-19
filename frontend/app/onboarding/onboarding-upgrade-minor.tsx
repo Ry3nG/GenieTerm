@@ -39,28 +39,27 @@ const UpgradeMinorWelcomePage = ({ onStarClick, onAlreadyStarred, onMaybeLater }
                 <div className="flex flex-col items-center gap-3 w-full mb-2 unselectable">
                     <div className="flex flex-col items-center gap-4">
                         <div className="flex flex-row gap-4 items-center">
-                            <div className="flex h-[52px] px-3 items-center rounded-lg bg-hover text-accent text-[24px]">
-                                <i className="fa fa-sparkles" />
-                                <span className="font-bold ml-2 font-mono">GenieTerm AI</span>
-                            </div>
                             <div className="flex h-[52px] px-3 items-center rounded-lg bg-hover text-[18px]">
                                 <i className="fa-sharp fa-solid fa-shield text-sky-500" />
                                 <span className="font-bold ml-2 text-accent">Durable SSH Sessions</span>
                             </div>
+                            <div className="flex h-[52px] px-3 items-center rounded-lg bg-hover text-[18px]">
+                                <i className="fa-solid fa-folder-open text-accent" />
+                                <span className="font-bold ml-2 text-accent">Files & Config</span>
+                            </div>
                         </div>
                         <div className="text-secondary leading-relaxed max-w-[600px] text-left">
                             <p className="mb-4">
-                                GenieTerm AI is your terminal assistant with full context. It can read your terminal output,
-                                analyze widgets, read and write files, and help you solve problems&nbsp;faster.
+                                Durable SSH sessions keep your remote work alive through network drops, laptop sleep,
+                                and app restarts.
                             </p>
                             <p className="mb-4">
-                                <span className="font-semibold text-foreground">New in v0.13:</span> GenieTerm AI now
-                                supports local models and bring-your-own-key! Use Ollama, LM Studio, vLLM, OpenRouter,
-                                or any OpenAI-compatible provider.
+                                GenieTerm can preview, edit, and manage local or remote files directly from the terminal
+                                workflow.
                             </p>
                             <p className="mb-4">
-                                <span className="font-semibold text-foreground">New in v0.14:</span> Durable SSH
-                                sessions survive network drops, laptop sleep, and restarts — all without tmux or screen.
+                                The configuration widget keeps app settings, SSH connections, tab backgrounds, sidebar
+                                widgets, and secrets in one place.
                             </p>
                         </div>
                     </div>

@@ -6,8 +6,8 @@ const UpgradeOnboardingModal_v0_12_1_Content = () => {
         <div className="flex flex-col items-start gap-6 w-full mb-4 unselectable">
             <div className="text-secondary leading-relaxed">
                 <p className="mb-0">
-                    Patch release focused on shell integration improvements, GenieTerm AI enhancements, and restoring syntax
-                    highlighting in code editor blocks.
+                    Patch release focused on shell integration improvements, terminal context tracking, and restoring
+                    syntax highlighting in code editor blocks.
                 </p>
             </div>
 
@@ -22,8 +22,8 @@ const UpgradeOnboardingModal_v0_12_1_Content = () => {
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
-                                <strong>OSC 7 Support</strong> - GenieTerm now automatically tracks and restores your current
-                                directory across restarts for bash, zsh, fish, and pwsh shells
+                                <strong>OSC 7 Support</strong> - GenieTerm now automatically tracks and restores your
+                                current directory across restarts for bash, zsh, fish, and pwsh shells
                             </li>
                             <li>
                                 <strong>Shell Context Tracking</strong> - Tracks when your shell is ready, last command
@@ -36,21 +36,17 @@ const UpgradeOnboardingModal_v0_12_1_Content = () => {
 
             <div className="flex w-full items-start gap-4">
                 <div className="flex-shrink-0">
-                    <i className="text-[24px] text-accent fa-solid fa-sparkles"></i>
+                    <i className="text-[24px] text-accent fa-solid fa-code"></i>
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
-                    <div className="text-foreground text-base font-semibold leading-[18px]">
-                        GenieTerm AI Improvements
-                    </div>
+                    <div className="text-foreground text-base font-semibold leading-[18px]">Editor Improvements</div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
-                            <li>Display reasoning summaries while waiting for AI responses</li>
+                            <li>Restored syntax highlighting in code editor preview blocks</li>
+                            <li>Improved editor header button spacing</li>
                             <li>
-                                Enhanced terminal context - AI now has access to shell state, current directory, command
-                                history, and exit codes
+                                Terminal state metadata now tracks current directory, command history, and exit codes
                             </li>
-                            <li>Added feedback buttons (thumbs up/down) for AI responses</li>
-                            <li>Added copy button to easily copy AI responses to clipboard</li>
                         </ul>
                     </div>
                 </div>
@@ -65,8 +61,8 @@ const UpgradeOnboardingModal_v0_12_1_Content = () => {
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>Mobile user agent emulation support for web widgets</li>
-                            <li>Fixed padding for header buttons in code editor</li>
-                            <li>Restored syntax highlighting in code editor preview blocks</li>
+                            <li>Improved terminal restart behavior</li>
+                            <li>General stability fixes</li>
                         </ul>
                     </div>
                 </div>

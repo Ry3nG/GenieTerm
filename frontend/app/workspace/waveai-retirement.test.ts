@@ -61,4 +61,48 @@ describe("Wave AI chat retirement", () => {
         expect(builderPreviewTab).not.toContain("Add Error to AI Context");
         expect(termModel).not.toContain("Send to GenieTerm AI");
     });
+
+    it("removes the retired AI modes editor from the user-facing config navigation", () => {
+        const waveConfigModel = readAppFile("view/waveconfig/waveconfig-model.ts");
+
+        expect(waveConfigModel).not.toContain('name: "AI Modes"');
+        expect(waveConfigModel).not.toContain("Local models and BYOK");
+        expect(waveConfigModel).not.toContain('path: "waveai.json"');
+    });
+
+    it("does not promote retired AI or local model setup in current onboarding", () => {
+        const onboardingFiles = [
+            "onboarding/onboarding-features.tsx",
+            "onboarding/onboarding-upgrade-minor.tsx",
+            "onboarding/onboarding-upgrade-v0121.tsx",
+            "onboarding/onboarding-upgrade-v0122.tsx",
+            "onboarding/onboarding-upgrade-v0123.tsx",
+            "onboarding/onboarding-upgrade-v0130.tsx",
+            "onboarding/onboarding-upgrade-v0131.tsx",
+            "onboarding/onboarding-upgrade-v0140.tsx",
+        ];
+        const retiredTerms = [
+            "WaveAIPage",
+            "FakeChat",
+            "GenieTerm AI",
+            "Wave AI",
+            "BYOK",
+            "bring-your-own-key",
+            "local models",
+            "OpenAI-compatible",
+            "Ollama",
+            "Gemini",
+            "AI Modes",
+            "Configure AI Modes",
+            "Ask AI",
+            "wsh ai",
+        ];
+
+        for (const file of onboardingFiles) {
+            const content = readAppFile(file);
+            for (const term of retiredTerms) {
+                expect(content, `${file} should not contain ${term}`).not.toContain(term);
+            }
+        }
+    });
 });

@@ -69,21 +69,17 @@ const UpgradeOnboardingModal_v0_14_0_Content = () => {
 
             <div className="flex w-full items-start gap-4 mb-4">
                 <div className="flex-shrink-0">
-                    <i className="text-[24px] text-accent fa-solid fa-sparkles"></i>
+                    <i className="text-[24px] text-accent fa-solid fa-window-maximize"></i>
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
-                    <div className="text-foreground text-base font-semibold leading-[18px]">GenieTerm AI Updates</div>
+                    <div className="text-foreground text-base font-semibold leading-[18px]">
+                        Workspace Interaction Updates
+                    </div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
-                            <li>
-                                <strong>Image Support</strong> - Vision capabilities for BYOK providers
-                            </li>
-                            <li>
-                                <strong>Stop Generation</strong> - Ability to stop AI responses mid-generation
-                            </li>
-                            <li>
-                                <strong>Improved Auto-scrolling</strong>
-                            </li>
+                            <li>Improved auto-scrolling behavior in active panes</li>
+                            <li>More consistent panel controls during long-running operations</li>
+                            <li>Better image-heavy workflow handling</li>
                         </ul>
                     </div>
                 </div>

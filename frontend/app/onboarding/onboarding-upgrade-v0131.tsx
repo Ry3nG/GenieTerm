@@ -6,8 +6,8 @@ const UpgradeOnboardingModal_v0_13_1_Content = () => {
         <div className="flex flex-col items-start gap-6 w-full mb-4 unselectable">
             <div className="text-secondary leading-relaxed">
                 <p className="mb-0">
-                    GenieTerm v0.13.1 focuses on Windows platform improvements, GenieTerm AI visual updates, and enhanced
-                    terminal navigation.
+                    GenieTerm v0.13.1 focuses on Windows platform improvements, interface polish, and enhanced terminal
+                    navigation.
                 </p>
             </div>
 
@@ -32,8 +32,8 @@ const UpgradeOnboardingModal_v0_13_1_Content = () => {
                                 <strong>SSH Agent Fallback</strong> - Improved SSH agent support on Windows
                             </li>
                             <li>
-                                <strong>Updated Focus Keybinding</strong> - GenieTerm AI focus key changed to Alt:0 on
-                                Windows
+                                <strong>Updated Focus Behavior</strong> - Better focus handling for Windows terminal
+                                workflows
                             </li>
                         </ul>
                     </div>
@@ -42,20 +42,17 @@ const UpgradeOnboardingModal_v0_13_1_Content = () => {
 
             <div className="flex w-full items-start gap-4">
                 <div className="flex-shrink-0">
-                    <i className="text-[24px] text-accent fa-solid fa-sparkles"></i>
+                    <i className="text-[24px] text-accent fa-solid fa-palette"></i>
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
-                    <div className="text-foreground text-base font-semibold leading-[18px]">GenieTerm AI Updates</div>
+                    <div className="text-foreground text-base font-semibold leading-[18px]">Interface Updates</div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
-                                <strong>Refreshed Visual Design</strong> - Complete UI refresh with transparency
-                                support for custom backgrounds
+                                <strong>Refreshed Visual Design</strong> - Complete UI refresh with transparency support
+                                for custom backgrounds
                             </li>
-                            <li>
-                                <strong>BYOK Without Telemetry</strong> - GenieTerm AI now works with bring-your-own-key and
-                                local models without requiring telemetry
-                            </li>
+                            <li>Improved panel contrast and spacing with custom backgrounds</li>
                         </ul>
                     </div>
                 </div>
@@ -70,8 +67,8 @@ const UpgradeOnboardingModal_v0_13_1_Content = () => {
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
-                                <strong>New Scrolling Keybindings</strong> - Added Shift+Home, Shift+End,
-                                Shift+PageUp, and Shift+PageDown for better navigation
+                                <strong>New Scrolling Keybindings</strong> - Added Shift+Home, Shift+End, Shift+PageUp,
+                                and Shift+PageDown for better navigation
                             </li>
                         </ul>
                     </div>

@@ -5,7 +5,7 @@ import Logo from "@/app/asset/logo";
 import { InitPage, NoTelemetryStarPage } from "@/app/onboarding/onboarding";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { DurableSessionPage } from "@/app/onboarding/onboarding-durable";
-import { FilesPage, MagnifyBlocksPage, WaveAIPage } from "@/app/onboarding/onboarding-features";
+import { FilesPage, MagnifyBlocksPage } from "@/app/onboarding/onboarding-features";
 import { StarAskPage } from "@/app/onboarding/onboarding-starask";
 import { UpgradeMinorWelcomePage } from "@/app/onboarding/onboarding-upgrade-minor";
 import { UpgradeOnboardingFooter, UpgradeOnboardingVersions } from "@/app/onboarding/onboarding-upgrade-patch";
@@ -28,9 +28,6 @@ function OnboardingFeaturesV() {
             </OnboardingModalWrapper>
             <OnboardingModalWrapper width="w-[560px]">
                 <NoTelemetryStarPage isCompact={false} />
-            </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[800px]">
-                <WaveAIPage onNext={noop} onSkip={noop} />
             </OnboardingModalWrapper>
             <OnboardingModalWrapper width="w-[800px]">
                 <DurableSessionPage onNext={noop} onSkip={noop} onPrev={noop} />
