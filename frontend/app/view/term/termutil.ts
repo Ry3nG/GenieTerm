@@ -1,7 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { normalizeAppTheme } from "@/app/app-theme";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import * as TermTypes from "@xterm/xterm";
@@ -9,11 +8,8 @@ import base64 from "base64-js";
 import { colord } from "colord";
 
 export const DefaultTermTheme = "default-dark";
-export const DefaultLightTermTheme = "default-light";
 export const DefaultTermTransparency = 0.5;
-export const DefaultLightTermTransparency = 0;
 export const DefaultTermMinimumContrastRatio = 1;
-export const LightTermMinimumContrastRatio = 4.5;
 
 export type GenClipboardItem = { text?: string; image?: Blob };
 
@@ -31,21 +27,13 @@ export function normalizeCursorStyle(cursorStyle: string): TermTypes.Terminal["o
     return "block";
 }
 
-export function resolveTermThemeName(themeName: string, appTheme: unknown): string {
-    if (themeName) {
-        return themeName;
-    }
-    return normalizeAppTheme(appTheme) === "light" ? DefaultLightTermTheme : DefaultTermTheme;
+export function resolveTermThemeName(themeName: string, _appTheme?: unknown): string {
+    return themeName || DefaultTermTheme;
 }
 
-export function resolveTermTransparency(value: unknown, themeName: string): number {
-    const defaultTransparency =
-        themeName == DefaultLightTermTheme ? DefaultLightTermTransparency : DefaultTermTransparency;
-    if (value == null) {
-        return defaultTransparency;
-    }
-    if (typeof value != "number" || isNaN(value)) {
-        return defaultTransparency;
+export function resolveTermTransparency(value: unknown, _themeName?: string): number {
+    if (value == null || typeof value != "number" || isNaN(value)) {
+        return DefaultTermTransparency;
     }
     return Math.min(Math.max(value, 0), 1);
 }
@@ -55,26 +43,12 @@ function applyTransparencyToColor(hexColor: string, transparency: number): strin
     return colord(hexColor).alpha(alpha).toHex();
 }
 
-function shouldPreserveXtermBackground(theme: TermThemeType): boolean {
-    if (!theme.background || !theme.foreground) {
-        return false;
-    }
-    // xterm uses theme.background as the foreground color for SGR reverse video.
-    return colord(theme.background).isLight() && colord(theme.foreground).isDark();
+export function shouldUseWebGlRenderer(disableWebGl: unknown, _theme?: TermThemeType): boolean {
+    return !disableWebGl;
 }
 
-export function shouldUseWebGlRenderer(disableWebGl: unknown, theme: TermThemeType): boolean {
-    if (disableWebGl) {
-        return false;
-    }
-    if (shouldPreserveXtermBackground(theme)) {
-        return false;
-    }
-    return true;
-}
-
-export function resolveTermMinimumContrastRatio(theme: TermThemeType): number {
-    return shouldPreserveXtermBackground(theme) ? LightTermMinimumContrastRatio : DefaultTermMinimumContrastRatio;
+export function resolveTermMinimumContrastRatio(_theme?: TermThemeType): number {
+    return DefaultTermMinimumContrastRatio;
 }
 
 // returns (theme, bgcolor, transparency (0 - 1.0))
@@ -94,9 +68,9 @@ export function computeTheme(
         }
     }
     const bgcolor = themeCopy.background;
-    if (!shouldPreserveXtermBackground(themeCopy)) {
-        themeCopy.background = "#00000000";
-    }
+    // dark-only: the xterm background is always the transparent overlay; the real bg color
+    // is returned separately as bgcolor.
+    themeCopy.background = "#00000000";
     return [themeCopy, bgcolor];
 }
 

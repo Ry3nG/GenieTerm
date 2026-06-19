@@ -53,8 +53,7 @@
         "app:theme": {
           "type": "string",
           "enum": [
-            "dark",
-            "light"
+            "dark"
           ]
         },
         "app:icon": {

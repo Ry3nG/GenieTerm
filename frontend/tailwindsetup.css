@@ -88,54 +88,6 @@
     --zoomfactor-inv: 1;
 }
 
-:root[data-app-theme="light"] {
-    --color-background: #f5f5f7;
-    --color-foreground: #1d1d1f;
-    --color-white: #1d1d1f;
-    --color-primary: #1d1d1f;
-    --color-muted-foreground: #6e6e73;
-    --color-secondary: #6e6e73;
-    --color-muted: #86868b;
-    --color-accent-50: #eaf4ff;
-    --color-accent-100: #d0e7ff;
-    --color-accent-200: #a6d2ff;
-    --color-accent-300: #6fb6ff;
-    --color-accent-400: #0071e3;
-    --color-accent-500: #0071e3;
-    --color-accent-600: #0066cc;
-    --color-accent-700: #0055aa;
-    --color-accent-800: #004488;
-    --color-accent-900: #003366;
-    --color-error: rgb(210, 55, 45);
-    --color-warning: rgb(177, 125, 0);
-    --color-success: rgb(36, 138, 61);
-    --color-panel: rgba(255, 255, 255, 0.72);
-    --color-hover: rgba(0, 0, 0, 0.04);
-    --color-border: rgba(0, 0, 0, 0.12);
-    --color-modalbg: #ffffff;
-    --color-accentbg: rgba(0, 113, 227, 0.16);
-    --color-hoverbg: rgba(0, 0, 0, 0.06);
-    --color-highlightbg: rgba(0, 0, 0, 0.08);
-    --color-accent: #0071e3;
-    --color-accenthover: #2997ff;
-    --ansi-black: #24292f;
-    --ansi-red: #cf222e;
-    --ansi-green: #116329;
-    --ansi-yellow: #4d2d00;
-    --ansi-blue: #0969da;
-    --ansi-magenta: #8250df;
-    --ansi-cyan: #1b7c83;
-    --ansi-white: #6e7781;
-    --ansi-brightblack: #57606a;
-    --ansi-brightred: #a40e26;
-    --ansi-brightgreen: #1a7f37;
-    --ansi-brightyellow: #9a6700;
-    --ansi-brightblue: #0550ae;
-    --ansi-brightmagenta: #6639ba;
-    --ansi-brightcyan: #1b7c83;
-    --ansi-brightwhite: #24292f;
-}
-
 /* Chart tooltip styling for sysinfo plots */
 svg [aria-label="tip"] g path {
     color: var(--border-color);
@@ -154,14 +106,6 @@ svg [aria-label="tip"] g path {
 
 .monaco-editor .slider:hover {
     background: rgba(255, 255, 255, 0.6);
-}
-
-:root[data-app-theme="light"] .monaco-editor .slider {
-    background: rgba(0, 0, 0, 0.24);
-}
-
-:root[data-app-theme="light"] .monaco-editor .slider:hover {
-    background: rgba(0, 0, 0, 0.36);
 }
 
 .ellipsis {

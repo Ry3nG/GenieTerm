@@ -17,18 +17,19 @@ describe("general settings content", () => {
         expect(options.find((option) => option.selected)?.theme).toBe("dark");
     });
 
-    it("marks the light option selected when configured", () => {
+    it("always resolves to the dark option (light removed)", () => {
         const options = makeAppThemeOptions("light");
 
-        expect(options.find((option) => option.selected)?.theme).toBe("light");
+        expect(options.find((option) => option.selected)?.theme).toBe("dark");
+        expect(options.some((option) => option.theme === "light")).toBe(false);
     });
 
     it("keeps the raw settings JSON in sync after changing theme visually", () => {
-        const nextContent = updateSettingsJsonTheme('{"app:tabbar":"top"}', "light");
+        const nextContent = updateSettingsJsonTheme('{"app:tabbar":"top"}', "dark");
 
         expect(JSON.parse(nextContent)).toEqual({
             "app:tabbar": "top",
-            "app:theme": "light",
+            "app:theme": "dark",
         });
     });
 

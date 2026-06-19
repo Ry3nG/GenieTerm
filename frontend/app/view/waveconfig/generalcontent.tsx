@@ -27,10 +27,7 @@ type AppIconOption = {
     selected: boolean;
 };
 
-const AppThemeOptions: Array<Omit<AppThemeOption, "selected">> = [
-    { theme: "dark", label: "Dark", icon: "moon" },
-    { theme: "light", label: "Light", icon: "sun" },
-];
+const AppThemeOptions: Array<Omit<AppThemeOption, "selected">> = [{ theme: "dark", label: "Dark", icon: "moon" }];
 
 const AppIconOptions: Array<Omit<AppIconOption, "selected">> = [
     { icon: "default", label: "Default", preview: iconDefaultUrl },
