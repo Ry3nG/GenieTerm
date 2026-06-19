@@ -21,9 +21,9 @@ contextBridge.exposeInMainWorld("api", {
     openNewWindow: () => ipcRenderer.send("open-new-window"),
     showWorkspaceAppMenu: (workspaceId) => ipcRenderer.send("workspace-appmenu-show", workspaceId),
     showBuilderAppMenu: (builderId) => ipcRenderer.send("builder-appmenu-show", builderId),
-    showContextMenu: (workspaceId, menu) => ipcRenderer.send("contextmenu-show", workspaceId, menu),
-    onContextMenuClick: (callback: (id: string | null) => void) =>
-        ipcRenderer.on("contextmenu-click", (_event, id: string | null) => callback(id)),
+    showContextMenu: (workspaceId, menuId, menu) => ipcRenderer.send("contextmenu-show", workspaceId, menuId, menu),
+    onContextMenuClick: (callback: (menuId: string, id: string | null) => void) =>
+        ipcRenderer.on("contextmenu-click", (_event, menuId: string, id: string | null) => callback(menuId, id)),
     downloadFile: (filePath) => ipcRenderer.send("download", { filePath }),
     downloadFolder: (filePath) => ipcRenderer.send("download-folder", { filePath }),
     getTransferQueue: () => ipcRenderer.invoke("transfer-queue:get"),

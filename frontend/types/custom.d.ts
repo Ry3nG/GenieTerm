@@ -95,8 +95,8 @@ declare global {
         openNewWindow: () => void; // open-new-window
         showWorkspaceAppMenu: (workspaceId: string) => void; // workspace-appmenu-show
         showBuilderAppMenu: (builderId: string) => void; // builder-appmenu-show
-        showContextMenu: (workspaceId: string, menu: ElectronContextMenuItem[]) => void; // contextmenu-show
-        onContextMenuClick: (callback: (id: string | null) => void) => void; // contextmenu-click
+        showContextMenu: (workspaceId: string, menuid: string, menu: ElectronContextMenuItem[]) => void; // contextmenu-show
+        onContextMenuClick: (callback: (menuid: string, id: string | null) => void) => void; // contextmenu-click
         onNavigate: (callback: (url: string) => void) => void;
         onIframeNavigate: (callback: (url: string) => void) => void;
         downloadFile: (path: string) => void; // download

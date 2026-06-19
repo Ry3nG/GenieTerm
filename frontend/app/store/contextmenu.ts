@@ -13,6 +13,7 @@ class ContextMenuModel {
     private static instance: ContextMenuModel;
     handlers: Map<string, ContextMenuItem> = new Map(); // id -> item
     activeOpts: ShowContextMenuOpts | null = null;
+    activeMenuId: string | null = null;
 
     private constructor() {
         getApi().onContextMenuClick(this.handleContextMenuClick.bind(this));
@@ -25,9 +26,13 @@ class ContextMenuModel {
         return ContextMenuModel.instance;
     }
 
-    handleContextMenuClick(id: string | null): void {
+    handleContextMenuClick(menuId: string, id: string | null): void {
+        if (menuId !== this.activeMenuId) {
+            return;
+        }
         const opts = this.activeOpts;
         this.activeOpts = null;
+        this.activeMenuId = null;
         const item = id != null ? this.handlers.get(id) : null;
         this.handlers.clear();
         if (item == null) {
@@ -72,6 +77,7 @@ class ContextMenuModel {
         ev.stopPropagation();
         this.handlers.clear();
         this.activeOpts = opts;
+        this.activeMenuId = crypto.randomUUID();
         const electronMenuItems = this._convertAndRegisterMenu(menu);
         
         const workspaceId = globalStore.get(atoms.workspaceId);
@@ -83,7 +89,7 @@ class ContextMenuModel {
             oid = globalStore.get(atoms.builderId);
         }
         
-        getApi().showContextMenu(oid, electronMenuItems);
+        getApi().showContextMenu(oid, this.activeMenuId, electronMenuItems);
     }
 }
 

@@ -422,6 +422,7 @@ function getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId: string): ele
 function convertMenuDefArrToMenu(
     webContents: electron.WebContents,
     menuDefArr: ElectronContextMenuItem[],
+    menuId: string,
     menuState: { hasClick: boolean }
 ): electron.Menu {
     const menuItems: electron.MenuItem[] = [];
@@ -432,13 +433,13 @@ function convertMenuDefArrToMenu(
             type: menuDef.type,
             click: () => {
                 menuState.hasClick = true;
-                webContents.send("contextmenu-click", menuDef.id);
+                webContents.send("contextmenu-click", menuId, menuDef.id);
             },
             checked: menuDef.checked,
             enabled: menuDef.enabled,
         };
         if (menuDef.submenu != null) {
-            menuItemTemplate.submenu = convertMenuDefArrToMenu(webContents, menuDef.submenu, menuState);
+            menuItemTemplate.submenu = convertMenuDefArrToMenu(webContents, menuDef.submenu, menuId, menuState);
         }
         const menuItem = new electron.MenuItem(menuItemTemplate);
         menuItems.push(menuItem);
@@ -448,7 +449,7 @@ function convertMenuDefArrToMenu(
 
 electron.ipcMain.on(
     "contextmenu-show",
-    (event, workspaceOrBuilderId: string, menuDefArr: ElectronContextMenuItem[]) => {
+    (event, workspaceOrBuilderId: string, menuId: string, menuDefArr: ElectronContextMenuItem[]) => {
         const webContents = getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId);
         if (!webContents) {
             console.error("invalid window for context menu:", workspaceOrBuilderId);
@@ -456,18 +457,20 @@ electron.ipcMain.on(
             return;
         }
         if (menuDefArr.length === 0) {
-            webContents.send("contextmenu-click", null);
+            webContents.send("contextmenu-click", menuId, null);
             event.returnValue = true;
             return;
         }
         fireAndForget(async () => {
             const menuState = { hasClick: false };
-            const menu = convertMenuDefArrToMenu(webContents, menuDefArr, menuState);
+            const menu = convertMenuDefArrToMenu(webContents, menuDefArr, menuId, menuState);
             menu.popup({
                 callback: () => {
-                    if (!menuState.hasClick) {
-                        webContents.send("contextmenu-click", null);
-                    }
+                    setTimeout(() => {
+                        if (!menuState.hasClick) {
+                            webContents.send("contextmenu-click", menuId, null);
+                        }
+                    }, 0);
                 },
             });
         });
