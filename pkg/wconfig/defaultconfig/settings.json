@@ -1,8 +1,4 @@
 {
-    "ai:preset": "ai@global",
-    "ai:model": "gpt-5-mini",
-    "ai:maxtokens": 4000,
-    "ai:timeoutms": 60000,
     "app:defaultnewblock": "term",
     "app:tabbar": "top",
     "app:theme": "dark",
@@ -34,7 +30,7 @@
     "window:magnifiedblockblursecondarypx": 2,
     "window:confirmclose": true,
     "window:savelastwindow": true,
-    "telemetry:enabled": true,
+    "telemetry:enabled": false,
     "term:bellsound": false,
     "term:bellindicator": true,
     "term:osc52": "always",
@@ -45,8 +41,6 @@
     "term:copyonselect": true,
     "term:trimtrailingwhitespace": true,
     "term:durable": false,
-    "waveai:showcloudmodes": true,
-    "waveai:defaultmode": "waveai@balanced",
     "preview:defaultsort": "name",
     "preview:fileview": "list"
 }

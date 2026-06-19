@@ -10,6 +10,10 @@ import { colord } from "colord";
 
 export const DefaultTermTheme = "default-dark";
 export const DefaultLightTermTheme = "default-light";
+export const DefaultTermTransparency = 0.5;
+export const DefaultLightTermTransparency = 0;
+export const DefaultTermMinimumContrastRatio = 1;
+export const LightTermMinimumContrastRatio = 4.5;
 
 export type GenClipboardItem = { text?: string; image?: Blob };
 
@@ -34,6 +38,18 @@ export function resolveTermThemeName(themeName: string, appTheme: unknown): stri
     return normalizeAppTheme(appTheme) === "light" ? DefaultLightTermTheme : DefaultTermTheme;
 }
 
+export function resolveTermTransparency(value: unknown, themeName: string): number {
+    const defaultTransparency =
+        themeName == DefaultLightTermTheme ? DefaultLightTermTransparency : DefaultTermTransparency;
+    if (value == null) {
+        return defaultTransparency;
+    }
+    if (typeof value != "number" || isNaN(value)) {
+        return defaultTransparency;
+    }
+    return Math.min(Math.max(value, 0), 1);
+}
+
 function applyTransparencyToColor(hexColor: string, transparency: number): string {
     const alpha = 1 - transparency; // transparency is already 0-1
     return colord(hexColor).alpha(alpha).toHex();
@@ -45,6 +61,20 @@ function shouldPreserveXtermBackground(theme: TermThemeType): boolean {
     }
     // xterm uses theme.background as the foreground color for SGR reverse video.
     return colord(theme.background).isLight() && colord(theme.foreground).isDark();
+}
+
+export function shouldUseWebGlRenderer(disableWebGl: unknown, theme: TermThemeType): boolean {
+    if (disableWebGl) {
+        return false;
+    }
+    if (shouldPreserveXtermBackground(theme)) {
+        return false;
+    }
+    return true;
+}
+
+export function resolveTermMinimumContrastRatio(theme: TermThemeType): number {
+    return shouldPreserveXtermBackground(theme) ? LightTermMinimumContrastRatio : DefaultTermMinimumContrastRatio;
 }
 
 // returns (theme, bgcolor, transparency (0 - 1.0))
@@ -61,9 +91,6 @@ export function computeTheme(
     if (termTransparency != null && termTransparency > 0) {
         if (themeCopy.background) {
             themeCopy.background = applyTransparencyToColor(themeCopy.background, termTransparency);
-        }
-        if (themeCopy.selectionBackground) {
-            themeCopy.selectionBackground = applyTransparencyToColor(themeCopy.selectionBackground, termTransparency);
         }
     }
     const bgcolor = themeCopy.background;

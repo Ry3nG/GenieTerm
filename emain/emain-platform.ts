@@ -1,8 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { fireAndForget } from "@/util/util";
-import { app, dialog, ipcMain, shell } from "electron";
+import { app, dialog, ipcMain } from "electron";
 import envPaths from "env-paths";
 import { existsSync, mkdirSync } from "fs";
 import os from "os";
@@ -47,24 +46,12 @@ export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) 
         console.log("Running under ARM64 translation, alerting user");
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "warning",
-            buttons: ["Dismiss", "Learn More"],
+            buttons: ["Dismiss"],
             title: "GenieTerm has detected a performance issue",
             message: `GenieTerm is running in ARM64 translation mode which may impact performance.\n\nRecommendation: use a native ARM64 build for optimal performance.`,
         };
 
-        const choice = dialog.showMessageBoxSync(null, dialogOpts);
-        if (choice === 1) {
-            // Open the documentation URL
-            console.log("User chose to learn more");
-            fireAndForget(() =>
-                shell.openExternal(
-                    "https://docs.waveterm.dev/faq#why-does-wave-warn-me-about-arm64-translation-when-it-launches"
-                )
-            );
-            throw new Error("User redirected to docsite to learn more about ARM64 translation, exiting");
-        } else {
-            console.log("User dismissed the dialog");
-        }
+        dialog.showMessageBoxSync(null, dialogOpts);
     }
 }
 

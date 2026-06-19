@@ -34,7 +34,7 @@ import {
 import * as services from "@/store/services";
 import * as keyutil from "@/util/keyutil";
 import { isMacOS, isWindows } from "@/util/platformutil";
-import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
+import { fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
@@ -54,7 +54,13 @@ import {
 import { LLMCommandComposerBackend } from "./command-composer-llm";
 import { TermCompletionModel } from "./completion/completion-model";
 import { getBlockingCommand } from "./shellblocking";
-import { computeTheme, isLikelyOnSameHost, resolveTermThemeName, trimTerminalSelection } from "./termutil";
+import {
+    computeTheme,
+    isLikelyOnSameHost,
+    resolveTermThemeName,
+    resolveTermTransparency,
+    trimTerminalSelection,
+} from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
 
 export class TermViewModel implements ViewModel {
@@ -273,8 +279,9 @@ export class TermViewModel implements ViewModel {
         });
         this.termTransparencyAtom = useBlockAtom(blockId, "termtransparencyatom", () => {
             return jotai.atom<number>((get) => {
-                const value = get(getOverrideConfigAtom(this.blockId, "term:transparency")) ?? 0.5;
-                return boundNumber(value, 0, 1);
+                const themeName = get(this.termThemeNameAtom);
+                const value = get(getOverrideConfigAtom(this.blockId, "term:transparency"));
+                return resolveTermTransparency(value, themeName);
             });
         });
         this.blockBg = jotai.atom((get) => {

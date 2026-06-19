@@ -621,6 +621,16 @@ function getCurrentTabCommands(): CommandPaletteCommand[] {
     return commands;
 }
 
+function toggleWidgetsBar() {
+    const workspaceId = globalStore.get(atoms.workspaceId);
+    if (workspaceId == null) {
+        return;
+    }
+    const oref = WOS.makeORef("workspace", workspaceId);
+    const current = globalStore.get(getOrefMetaKeyAtom(oref, "layout:widgetsvisible")) ?? false;
+    fireAndForget(() => RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: { "layout:widgetsvisible": !current } }));
+}
+
 function getAppCommands(): CommandPaletteCommand[] {
     return [
         makePaletteCommand("app:new-window", "New Window", () => getApi().openNewWindow(), "Shift:Cmd:n"),
@@ -649,17 +659,26 @@ function getAppCommands(): CommandPaletteCommand[] {
         makePaletteCommand("config:edit-connections", "Config: Edit connections.json", () =>
             openConfigFile("connections.json")
         ),
-        makePaletteCommand("view:toggle-widgets-bar", "View: Toggle Widgets Bar", () => {
-            const workspaceId = globalStore.get(atoms.workspaceId);
-            if (workspaceId == null) {
-                return;
-            }
-            const oref = WOS.makeORef("workspace", workspaceId);
-            const current = globalStore.get(getOrefMetaKeyAtom(oref, "layout:widgetsvisible")) ?? true;
-            fireAndForget(() =>
-                RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: { "layout:widgetsvisible": !current } })
-            );
-        }),
+    ];
+}
+
+function getNewBlockCommands(): CommandPaletteCommand[] {
+    return [
+        makePaletteCommand("block:new-terminal", "New Terminal", () =>
+            fireAndForget(() => createBlock({ meta: { view: "term", controller: "shell" } }))
+        ),
+        makePaletteCommand("block:new-files", "New Files", () =>
+            fireAndForget(() => createBlock({ meta: { view: "preview", file: "~" } }))
+        ),
+        makePaletteCommand("block:new-web", "New Web", () =>
+            fireAndForget(() => createBlock({ meta: { view: "web" } }))
+        ),
+        makePaletteCommand("block:new-sysinfo", "New System Info", () =>
+            fireAndForget(() => createBlock({ meta: { view: "sysinfo" } }))
+        ),
+        makePaletteCommand("block:new-processes", "New Processes", () =>
+            fireAndForget(() => createBlock({ meta: { view: "processviewer" } }))
+        ),
     ];
 }
 
@@ -679,7 +698,12 @@ export function getCommandPaletteCommands(): CommandPaletteCommand[] {
             run: () => action.handler({} as WaveKeyboardEvent),
         });
     }
-    cmds.push(...getFocusedBlockMenuCommands(), ...getCurrentTabCommands(), ...getAppCommands());
+    cmds.push(
+        ...getNewBlockCommands(),
+        ...getFocusedBlockMenuCommands(),
+        ...getCurrentTabCommands(),
+        ...getAppCommands()
+    );
     return cmds;
 }
 
@@ -972,7 +996,7 @@ function registerGlobalKeys() {
             id: "view:toggle-sidebar",
             defaultBinding: "Cmd:b",
             handler: () => {
-                toggleBoolSetting("app:hidesidebar");
+                toggleWidgetsBar();
                 return true;
             },
         },

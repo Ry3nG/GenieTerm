@@ -1,10 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useWaveEnv } from "@/app/waveenv/waveenv";
-
 const UpgradeOnboardingModal_v0_14_0_Content = () => {
-    const waveEnv = useWaveEnv();
     return (
         <div className="flex flex-col items-start w-full mb-2 unselectable">
             <div className="text-secondary leading-relaxed mb-4">
@@ -21,13 +18,7 @@ const UpgradeOnboardingModal_v0_14_0_Content = () => {
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
                     <div className="text-foreground text-base font-semibold leading-[18px]">
-                        Durable SSH Sessions{" "}
-                        <button
-                            onClick={() => waveEnv.electron.openExternal("https://docs.waveterm.dev/durable-sessions")}
-                            className="text-accent text-sm font-normal cursor-pointer hover:underline"
-                        >
-                            [see docs]
-                        </button>
+                        Durable SSH Sessions
                     </div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
