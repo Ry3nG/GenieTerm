@@ -39,6 +39,8 @@ type FigArg = {
     suggestions?: Array<FigNamedItem | string> | FigNamedItem | string;
     template?: FigName;
     generators?: FigGenerator | FigGenerator[];
+    // command-wrapper arg (sudo/xargs/env/time/watch...): the value is itself a command
+    isCommand?: boolean;
 };
 
 // Runs a generator command (e.g. `git branch`) where the shell lives and returns stdout.
@@ -89,20 +91,60 @@ function findSubcommand(spec: FigNamedItem, tokenText: string): FigNamedItem {
     return spec.subcommands?.find((subcommand) => matchesName(subcommand, tokenText));
 }
 
-function activeFigNode(root: FigSpec, tokens: CompletionItemContextToken[], tokenIndex: number): FigNamedItem {
-    let node: FigNamedItem = root;
-    for (let idx = 1; idx < tokenIndex; idx++) {
-        const tokenText = tokens[idx]?.text;
-        if (!tokenText || tokenText.startsWith("-")) {
-            continue;
-        }
-        const subcommand = findSubcommand(node, tokenText);
-        if (subcommand == null) {
-            continue;
-        }
-        node = subcommand;
+function stripCommandPath(text: string): string {
+    if (!text) {
+        return text;
     }
-    return node;
+    return text.split("/").pop() ?? text;
+}
+
+function usedOptionNames(tokens: CompletionItemContextToken[], tokenIndex: number): Set<string> {
+    const used = new Set<string>();
+    for (let idx = 1; idx < tokenIndex; idx++) {
+        const text = tokens[idx]?.text;
+        if (text && text.startsWith("-")) {
+            used.add(text.split("=")[0]);
+        }
+    }
+    return used;
+}
+
+type ResolvedFigContext = { node: FigNamedItem; spec: FigSpec; isCommandArg: boolean };
+
+// Walk the spec tree to the active node. Follows command-wrapper args (isCommand:
+// sudo/xargs/env/time/watch/...) by re-rooting at the wrapped command's own spec, so
+// `sudo git checkout <branch>` completes against git, not sudo.
+async function resolveActiveContext(
+    rootSpec: FigSpec,
+    tokens: CompletionItemContextToken[],
+    tokenIndex: number,
+    loadSpec: (command: string) => Promise<FigSpec>
+): Promise<ResolvedFigContext> {
+    let spec = rootSpec;
+    let node: FigNamedItem = rootSpec;
+    let idx = 1;
+    while (idx < tokenIndex) {
+        const text = tokens[idx]?.text;
+        if (!text || text.startsWith("-")) {
+            idx++;
+            continue;
+        }
+        if (argsOf(node).some((arg) => arg.isCommand)) {
+            const chained = await loadSpec(stripCommandPath(text));
+            if (chained != null) {
+                spec = chained;
+                node = chained;
+            }
+            idx++;
+            continue;
+        }
+        const sub = findSubcommand(node, text);
+        if (sub != null) {
+            node = sub;
+        }
+        idx++;
+    }
+    return { node, spec, isCommandArg: argsOf(node).some((arg) => arg.isCommand) };
 }
 
 type CompletionItemContextToken = {
@@ -320,15 +362,20 @@ export function makeFigStaticCompletionProvider(options: FigProviderOptions = {}
                         score: FigBaseScore - idx,
                     }));
             }
-            const command = ctx.tokens[0]?.text;
+            const command = stripCommandPath(ctx.tokens[0]?.text);
             if (!command) {
                 return [];
             }
-            const spec = await loadSpec(command);
-            if (spec == null) {
+            const rootSpec = await loadSpec(command);
+            if (rootSpec == null) {
                 return [];
             }
-            const activeNode = activeFigNode(spec, ctx.tokens, ctx.tokenIndex);
+            const { node: activeNode, spec, isCommandArg } = await resolveActiveContext(
+                rootSpec,
+                ctx.tokens,
+                ctx.tokenIndex,
+                loadSpec
+            );
             const prevTokenText = ctx.tokens[ctx.tokenIndex - 1]?.text;
             if (prevTokenText?.startsWith("-")) {
                 const optionArgs = optionArgsForToken(activeNode, prevTokenText);
@@ -341,7 +388,29 @@ export function makeFigStaticCompletionProvider(options: FigProviderOptions = {}
                 }
             }
             if (ctx.tokenType === "option" || ctx.searchTerm.startsWith("-")) {
-                return figItems(activeNode.options, "flag", ctx.searchTerm);
+                // don't re-suggest options already present on the line
+                const used = usedOptionNames(ctx.tokens, ctx.tokenIndex);
+                return figItems(activeNode.options, "flag", ctx.searchTerm).filter((item) => !used.has(item.insertText));
+            }
+            // command-wrapper arg (e.g. `sudo <cmd>`): suggest command names for the value
+            if (isCommandArg) {
+                const term = ctx.searchTerm;
+                const commandItems = commandNames
+                    .filter(
+                        (name) =>
+                            !name.includes("/") &&
+                            startsWithIgnoreCase(name, term) &&
+                            name.toLowerCase() !== term.toLowerCase()
+                    )
+                    .map((name, idx) => ({
+                        label: name,
+                        insertText: name,
+                        kind: "command" as const,
+                        score: FigBaseScore - idx,
+                    }));
+                if (commandItems.length > 0) {
+                    return commandItems;
+                }
             }
             const subcommandItems = figItems(activeNode.subcommands, "subcommand", ctx.searchTerm);
             if (subcommandItems.length > 0) {

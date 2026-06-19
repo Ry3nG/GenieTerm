@@ -315,4 +315,91 @@ describe("makeFigStaticCompletionProvider", () => {
         expect(runGenerator).toHaveBeenCalled();
         expect(items).toEqual([]);
     });
+
+    it("follows isCommand wrapper args (sudo) into the wrapped command's spec", async () => {
+        const sudoSpec = { name: "sudo", args: { name: "command", isCommand: true } };
+        const gitSpec = {
+            name: "git",
+            subcommands: [
+                { name: "checkout", description: "Switch branches" },
+                { name: "cherry-pick", description: "Apply commits" },
+            ],
+        };
+        const provider = makeFigStaticCompletionProvider({
+            commandNames: ["sudo", "git"],
+            loadSpec: async (cmd: string) => (cmd === "sudo" ? sudoSpec : cmd === "git" ? gitSpec : null),
+        });
+
+        const items = await provider.provideCompletions(
+            makeContext({
+                inputText: "sudo git ch",
+                cursorIndex: 11,
+                tokens: [
+                    { text: "sudo", start: 0, end: 4 },
+                    { text: "git", start: 5, end: 8 },
+                    { text: "ch", start: 9, end: 11 },
+                ],
+                searchTerm: "ch",
+                tokenIndex: 2,
+                tokenType: "subcommand",
+            })
+        );
+
+        expect(items.map((item) => item.label)).toEqual(["checkout", "cherry-pick"]);
+    });
+
+    it("suggests command names for a command-wrapper arg position (sudo <cmd>)", async () => {
+        const sudoSpec = { name: "sudo", args: { name: "command", isCommand: true } };
+        const provider = makeFigStaticCompletionProvider({
+            commandNames: ["git", "grep", "npm"],
+            loadSpec: async (cmd: string) => (cmd === "sudo" ? sudoSpec : null),
+        });
+
+        const items = await provider.provideCompletions(
+            makeContext({
+                inputText: "sudo g",
+                cursorIndex: 6,
+                tokens: [
+                    { text: "sudo", start: 0, end: 4 },
+                    { text: "g", start: 5, end: 6 },
+                ],
+                searchTerm: "g",
+                tokenIndex: 1,
+                tokenType: "argument",
+            })
+        );
+
+        expect(items.map((item) => item.label)).toEqual(["git", "grep"]);
+        expect(items[0]).toMatchObject({ kind: "command" });
+    });
+
+    it("does not re-suggest options already present on the line", async () => {
+        const provider = makeFigStaticCompletionProvider({
+            commandNames: ["df"],
+            loadSpec: async () => ({
+                name: "df",
+                options: [
+                    { name: "-a", description: "all" },
+                    { name: "-h", description: "human" },
+                ],
+            }),
+        });
+
+        const items = await provider.provideCompletions(
+            makeContext({
+                inputText: "df -a -",
+                cursorIndex: 7,
+                tokens: [
+                    { text: "df", start: 0, end: 2 },
+                    { text: "-a", start: 3, end: 5 },
+                    { text: "-", start: 6, end: 7 },
+                ],
+                searchTerm: "-",
+                tokenIndex: 2,
+                tokenType: "option",
+            })
+        );
+
+        expect(items.map((item) => item.label)).toEqual(["-h"]);
+    });
 });

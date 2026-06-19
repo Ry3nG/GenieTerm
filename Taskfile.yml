@@ -438,6 +438,12 @@ tasks:
               ignore_error: true
             - cmd: '{{.RMRF}} "dist"'
               ignore_error: true
+            # also clear Task's checksum cache: otherwise tasks with sources/generates
+            # (e.g. build:server -> dist/bin/wavesrv.*) are considered up-to-date and skip
+            # rebuilding even though clean just deleted their outputs, shipping an app with
+            # no backend binary.
+            - cmd: '{{.RMRF}} ".task"'
+              ignore_error: true
 
     tsunami:demo:todo:
         desc: Run the tsunami todo demo application
