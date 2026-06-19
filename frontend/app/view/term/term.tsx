@@ -30,6 +30,7 @@ import {
     type CommandInlineAIAction,
 } from "./command-composer";
 import { TermCommandComposer } from "./command-composer-ui";
+import { TermCompletion } from "./completion/completion-ui";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
@@ -737,6 +738,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             </TerminalPresentationShell>
             <TermCommandActionBar model={model} termWrap={termWrapInst} />
             <TermInlineAIDock model={model} termWrap={termWrapInst} />
+            <TermCompletion model={model} blockData={blockData} termWrap={termWrapInst} />
             <NullErrorBoundary debugName="TermLinkTooltip">
                 <TermLinkTooltip termWrap={termWrapInst} />
             </NullErrorBoundary>

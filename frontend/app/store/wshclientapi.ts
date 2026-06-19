@@ -834,6 +834,12 @@ export class RpcApiType {
         return client.wshRpcCall("routeunannounce", null, opts);
     }
 
+    // command "runcompletiongen" [call]
+    RunCompletionGenCommand(client: WshClient, data: CommandRunCompletionGenData, opts?: RpcOpts): Promise<CommandRunCompletionGenRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "runcompletiongen", data, opts);
+        return client.wshRpcCall("runcompletiongen", data, opts);
+    }
+
     // command "sendtelemetry" [call]
     SendTelemetryCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "sendtelemetry", null, opts);

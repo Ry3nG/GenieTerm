@@ -14,6 +14,7 @@ import {
 } from "@/store/global";
 import { base64ToString, fireAndForget, isSshConnName, isWslConnName } from "@/util/util";
 import debug from "debug";
+import { normalizeShellType } from "./completion/types";
 import type { TermWrap } from "./termwrap";
 
 const dlog = debug("wave:termwrap");
@@ -42,7 +43,7 @@ type Osc16162Command =
           };
       }
     | { command: "D"; data: { exitcode?: number } }
-    | { command: "I"; data: { inputempty?: boolean } }
+    | { command: "I"; data: { inputempty?: boolean; buf64?: string; cur?: number; len?: number; toolarge?: boolean } }
     | { command: "R"; data: Record<string, never> };
 
 function normalizeCmd(decodedCmd: string): string {
@@ -330,6 +331,7 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
         case "M":
             if (cmd.data.shell) {
                 rtInfo["shell:type"] = cmd.data.shell;
+                globalStore.set(termWrap.shellTypeAtom, normalizeShellType(cmd.data.shell));
             }
             if (cmd.data.shellversion) {
                 rtInfo["shell:version"] = cmd.data.shellversion;
@@ -357,8 +359,11 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
             termWrap.onCommandDone(cmd.data.exitcode ?? null);
             break;
         case "I":
+            termWrap.handleInputReport(cmd.data);
             if (cmd.data.inputempty != null) {
                 rtInfo["shell:inputempty"] = cmd.data.inputempty;
+            } else if (cmd.data.len != null) {
+                rtInfo["shell:inputempty"] = cmd.data.len === 0;
             }
             break;
         case "R":

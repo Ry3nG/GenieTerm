@@ -830,6 +830,12 @@ func RouteUnannounceCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	return err
 }
 
+// command "runcompletiongen", wshserver.RunCompletionGenCommand
+func RunCompletionGenCommand(w *wshutil.WshRpc, data wshrpc.CommandRunCompletionGenData, opts *wshrpc.RpcOpts) (wshrpc.CommandRunCompletionGenRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandRunCompletionGenRtnData](w, "runcompletiongen", data, opts)
+	return resp, err
+}
+
 // command "sendtelemetry", wshserver.SendTelemetryCommand
 func SendTelemetryCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "sendtelemetry", nil, opts)

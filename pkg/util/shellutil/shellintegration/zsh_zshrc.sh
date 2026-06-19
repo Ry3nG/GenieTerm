@@ -111,29 +111,52 @@ _waveterm_si_preexec() {
 }
 
 typeset -g WAVETERM_SI_INPUTEMPTY=1
+typeset -g _WAVETERM_SI_LASTINPUT=""
+typeset -g _WAVETERM_SI_LASTCUR=-1
+typeset -g _WAVETERM_SI_ISEARCH=0
 
-_waveterm_si_inputempty() {
+_waveterm_si_input() {
   _waveterm_si_blocked && return
-  
+  (( _WAVETERM_SI_ISEARCH )) && return
+
+  local buf="$BUFFER"
+  local cur=$CURSOR
+  local len=${#buf}
+
+  # zle-line-pre-redraw fires on every autosuggestion/syntax-highlight repaint;
+  # only emit when the buffer or cursor actually changed so we don't flood the
+  # in-band PTY stream. the frontend debounces the actual completion query.
+  if [[ "$buf" == "$_WAVETERM_SI_LASTINPUT" && "$cur" == "$_WAVETERM_SI_LASTCUR" ]]; then
+    return
+  fi
+  _WAVETERM_SI_LASTINPUT="$buf"
+  _WAVETERM_SI_LASTCUR=$cur
+
   local current_empty=1
-  if [[ -n "$BUFFER" ]]; then
-    current_empty=0
+  [[ -n "$buf" ]] && current_empty=0
+  WAVETERM_SI_INPUTEMPTY=$current_empty
+
+  if (( len > 8192 )); then
+    printf '\033]16162;I;{"toolarge":true,"len":%d}\007' "$len"
+    return
   fi
-  
-  if (( current_empty != WAVETERM_SI_INPUTEMPTY )); then
-    WAVETERM_SI_INPUTEMPTY=$current_empty
-    if (( current_empty )); then
-      printf '\033]16162;I;{"inputempty":true}\007'
-    else
-      printf '\033]16162;I;{"inputempty":false}\007'
-    fi
-  fi
+
+  local buf64
+  buf64=$(printf '%s' "$buf" | base64 2>/dev/null | tr -d '\n\r')
+  printf '\033]16162;I;{"buf64":"%s","cur":%d,"len":%d}\007' "$buf64" "$cur" "$len"
 }
+
+# during incremental search (Ctrl-R) $BUFFER is not the visible/intended line;
+# suppress reporting so completion doesn't act on search garbage.
+_waveterm_si_isearch_update() { _WAVETERM_SI_ISEARCH=1 }
+_waveterm_si_isearch_exit() { _WAVETERM_SI_ISEARCH=0 }
 
 autoload -Uz add-zle-hook-widget 2>/dev/null
 if (( $+functions[add-zle-hook-widget] )); then
-  add-zle-hook-widget zle-line-init _waveterm_si_inputempty
-  add-zle-hook-widget zle-line-pre-redraw _waveterm_si_inputempty
+  add-zle-hook-widget zle-line-init _waveterm_si_input
+  add-zle-hook-widget zle-line-pre-redraw _waveterm_si_input
+  add-zle-hook-widget zle-isearch-update _waveterm_si_isearch_update
+  add-zle-hook-widget zle-isearch-exit _waveterm_si_isearch_exit
 fi
 
 autoload -U add-zsh-hook

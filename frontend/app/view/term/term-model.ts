@@ -52,6 +52,7 @@ import {
     type CommandProposalApplyMode,
 } from "./command-composer";
 import { LLMCommandComposerBackend } from "./command-composer-llm";
+import { TermCompletionModel } from "./completion/completion-model";
 import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, isLikelyOnSameHost, resolveTermThemeName, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
@@ -110,6 +111,7 @@ export class TermViewModel implements ViewModel {
         Record<number, CommandInlineAIState>
     >;
     commandComposerBackend: CommandComposerBackend = new LLMCommandComposerBackend();
+    completionModel = new TermCompletionModel();
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.viewType = "term";
@@ -530,6 +532,13 @@ export class TermViewModel implements ViewModel {
     sendDataToController(data: string) {
         const b64data = stringToBase64(data);
         RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data });
+    }
+
+    acceptCompletionSelected() {
+        this.completionModel.acceptSelected((data) => {
+            this.termRef.current?.handleProgrammaticInputData(data);
+            this.sendDataToController(data);
+        });
     }
 
     setTermMode(mode: "term" | "vdom") {
@@ -985,6 +994,40 @@ export class TermViewModel implements ViewModel {
         const waveEvent = keyutil.adaptFromReactOrNativeKeyEvent(event);
         if (waveEvent.type != "keydown") {
             return true;
+        }
+
+        if (globalStore.get(this.completionModel.openAtom)) {
+            if (keyutil.checkKeyPressed(waveEvent, "ArrowDown")) {
+                this.completionModel.moveSelection(1);
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+            if (keyutil.checkKeyPressed(waveEvent, "ArrowUp")) {
+                this.completionModel.moveSelection(-1);
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+            if (keyutil.checkKeyPressed(waveEvent, "Tab") || keyutil.checkKeyPressed(waveEvent, "Enter")) {
+                this.acceptCompletionSelected();
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+            if (keyutil.checkKeyPressed(waveEvent, "Escape")) {
+                this.completionModel.dismiss();
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+        }
+
+        if (keyutil.checkKeyPressed(waveEvent, "Ctrl:Space")) {
+            this.completionModel.triggerManualRequest();
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
         }
 
         if (this.keyDownHandler(waveEvent)) {

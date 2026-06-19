@@ -18,7 +18,7 @@ import {
 } from "@/store/global";
 import * as services from "@/store/services";
 import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
-import { base64ToArray, fireAndForget } from "@/util/util";
+import { base64ToArray, base64ToString, fireAndForget } from "@/util/util";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
@@ -35,9 +35,11 @@ import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
     shouldInterceptNaturalLanguagePrompt,
-    type CommandInlineAIRequestHandler,
     updateNaturalLanguagePromptInput,
+    type CommandInlineAIRequestHandler,
 } from "./command-composer";
+import { applyPromptInputData, emptyPromptInputBuffer } from "./completion/input-mirror";
+import { normalizeShellType, type ShellType, type TermInputBuffer } from "./completion/types";
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -75,6 +77,24 @@ function detectWebGLSupport(): boolean {
 
 export const WebGLSupported = detectWebGLSupport();
 let loggedWebGL = false;
+
+// The shell reports the prompt cursor as a character (code-point) offset; convert
+// it to a JS string index (UTF-16 code units) so multibyte input maps correctly.
+function charOffsetToStringIndex(text: string, charOffset: number): number {
+    if (charOffset <= 0) {
+        return 0;
+    }
+    let cp = 0;
+    let idx = 0;
+    for (const ch of text) {
+        if (cp >= charOffset) {
+            break;
+        }
+        idx += ch.length;
+        cp++;
+    }
+    return idx;
+}
 
 type TermWrapOptions = {
     keydownHandler?: (e: KeyboardEvent) => boolean;
@@ -116,6 +136,10 @@ export class TermWrap {
     cmdBlocksAtom: jotai.PrimitiveAtom<CmdBlock[]>;
     altScreenActiveAtom: jotai.PrimitiveAtom<boolean>;
     currentPromptInput = "";
+    localCompletionInputBuffer: TermInputBuffer;
+    localCompletionInputDisabled = false;
+    shellInputReportSeen = false;
+    currentInputBufferAtom: jotai.PrimitiveAtom<TermInputBuffer | null>;
     pendingCmdBlock: CmdBlock | null = null;
     cmdBlockIdCounter = 0;
     publishCmdBlocks: () => void;
@@ -125,6 +149,7 @@ export class TermWrap {
     syncCmdDecorations_debounced: () => void;
     semanticBlocksEnabled = false;
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
+    shellTypeAtom: jotai.PrimitiveAtom<ShellType>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
     claudeCodeActiveAtom: jotai.PrimitiveAtom<boolean>;
     nodeModel: BlockNodeModel; // this can be null
@@ -169,8 +194,11 @@ export class TermWrap {
         this.cmdBlocksAtom = jotai.atom([]) as jotai.PrimitiveAtom<CmdBlock[]>;
         this.altScreenActiveAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
+        this.shellTypeAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellType>;
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
+        this.localCompletionInputBuffer = emptyPromptInputBuffer();
+        this.currentInputBufferAtom = jotai.atom(null) as jotai.PrimitiveAtom<TermInputBuffer | null>;
         this.webglEnabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.terminal = new Terminal(options);
         this.fitAddon = new FitAddon();
@@ -460,8 +488,10 @@ export class TermWrap {
             if (rtInfo && rtInfo["shell:integration"]) {
                 shellState = rtInfo["shell:state"] as ShellIntegrationStatus;
                 globalStore.set(this.shellIntegrationStatusAtom, shellState || null);
+                globalStore.set(this.shellTypeAtom, normalizeShellType(rtInfo["shell:type"] as string));
             } else {
                 globalStore.set(this.shellIntegrationStatusAtom, null);
+                globalStore.set(this.shellTypeAtom, "unknown");
             }
 
             const lastCmd = rtInfo ? rtInfo["shell:lastcmd"] : null;
@@ -529,8 +559,30 @@ export class TermWrap {
             this.onInlineAIDismiss?.();
         }
         this.currentPromptInput = updateNaturalLanguagePromptInput(this.currentPromptInput, data);
+        this.handleLocalCompletionInputData(data);
         this.sendDataHandler?.(data);
         this.multiInputCallback?.(data);
+    }
+
+    handleProgrammaticInputData(data: string) {
+        this.handleLocalCompletionInputData(data);
+    }
+
+    handleLocalCompletionInputData(data: string) {
+        if (!data || this.shellInputReportSeen || this.localCompletionInputDisabled) {
+            return;
+        }
+        if (globalStore.get(this.shellIntegrationStatusAtom) !== "ready" || globalStore.get(this.altScreenActiveAtom)) {
+            return;
+        }
+        const next = applyPromptInputData(this.localCompletionInputBuffer, data);
+        if (next == null) {
+            this.localCompletionInputDisabled = true;
+            globalStore.set(this.currentInputBufferAtom, null);
+            return;
+        }
+        this.localCompletionInputBuffer = next;
+        globalStore.set(this.currentInputBufferAtom, next);
     }
 
     tryInterceptNaturalLanguagePrompt(data: string): boolean {
@@ -742,6 +794,10 @@ export class TermWrap {
     // A new command block spans from one prompt-start (A) marker to the next.
     onPromptStart(marker: TermTypes.IMarker) {
         this.currentPromptInput = "";
+        this.localCompletionInputBuffer = emptyPromptInputBuffer();
+        this.localCompletionInputDisabled = false;
+        this.shellInputReportSeen = false;
+        globalStore.set(this.currentInputBufferAtom, { text: "", cursorIndex: 0 });
         const prev = this.pendingCmdBlock;
         if (prev != null) {
             prev.endMarker = marker;
@@ -792,6 +848,39 @@ export class TermWrap {
         }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
+    }
+
+    // Shell-integration OSC 16162 "I" report: the live prompt input buffer + cursor.
+    // Drives inline command completion. cur is a character offset from the shell;
+    // charOffsetToStringIndex normalizes it to a JS UTF-16 string index.
+    handleInputReport(data: { buf64?: string; cur?: number; len?: number; toolarge?: boolean; inputempty?: boolean }) {
+        if (data.buf64 != null || data.toolarge === true) {
+            this.shellInputReportSeen = true;
+        }
+        if (data.toolarge) {
+            globalStore.set(this.currentInputBufferAtom, null);
+            return;
+        }
+        if (data.buf64 == null) {
+            // legacy boolean form (older shells): only the empty signal is meaningful
+            if (data.inputempty === true) {
+                const inputBuffer = emptyPromptInputBuffer();
+                this.localCompletionInputBuffer = inputBuffer;
+                globalStore.set(this.currentInputBufferAtom, inputBuffer);
+            }
+            return;
+        }
+        let text = "";
+        try {
+            text = base64ToString(data.buf64);
+        } catch (e) {
+            globalStore.set(this.currentInputBufferAtom, null);
+            return;
+        }
+        const cursorIndex = charOffsetToStringIndex(text, data.cur ?? text.length);
+        const inputBuffer = { text, cursorIndex };
+        this.localCompletionInputBuffer = inputBuffer;
+        globalStore.set(this.currentInputBufferAtom, inputBuffer);
     }
 
     setSemanticBlocksEnabled(enabled: boolean) {

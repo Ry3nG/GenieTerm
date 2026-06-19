@@ -7,7 +7,7 @@
     "productName": "GenieTerm",
     "description": "Workspace-native terminal for commands, files, and durable sessions",
     "license": "Apache-2.0",
-    "version": "0.4.21",
+    "version": "0.4.22",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"
@@ -78,6 +78,7 @@
         "@table-nav/react": "^0.0.7",
         "@tanstack/react-table": "^8.21.3",
         "@tanstack/react-virtual": "^3.13.19",
+        "@withfig/autocomplete": "^2.692.3",
         "@xterm/addon-fit": "^0.11.0",
         "@xterm/addon-search": "^0.16.0",
         "@xterm/addon-serialize": "^0.14.0",

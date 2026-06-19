@@ -651,6 +651,24 @@ declare global {
         builderid: string;
     };
 
+    // wshrpc.CommandRunCompletionGenData
+    type CommandRunCompletionGenData = {
+        connname?: string;
+        cwd?: string;
+        command: string;
+        args?: string[];
+        env?: {[key: string]: string};
+        timeoutms?: number;
+    };
+
+    // wshrpc.CommandRunCompletionGenRtnData
+    type CommandRunCompletionGenRtnData = {
+        stdout: string;
+        stderr: string;
+        exitcode: number;
+        supported: boolean;
+    };
+
     // wshrpc.CommandSetMetaData
     type CommandSetMetaData = {
         oref: ORef;

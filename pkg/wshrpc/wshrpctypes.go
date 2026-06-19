@@ -94,6 +94,7 @@ type WshRpcInterface interface {
 	SendTelemetryCommand(ctx context.Context) error
 	FetchSuggestionsCommand(ctx context.Context, data FetchSuggestionsData) (*FetchSuggestionsResponse, error)
 	DisposeSuggestionsCommand(ctx context.Context, widgetId string) error
+	RunCompletionGenCommand(ctx context.Context, data CommandRunCompletionGenData) (CommandRunCompletionGenRtnData, error)
 	GetTabCommand(ctx context.Context, tabId string) (*waveobj.Tab, error)
 	UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error
 	UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error
@@ -649,6 +650,22 @@ type FetchSuggestionsData struct {
 type FetchSuggestionsResponse struct {
 	ReqNum      int              `json:"reqnum"`
 	Suggestions []SuggestionType `json:"suggestions"`
+}
+
+type CommandRunCompletionGenData struct {
+	ConnName  string            `json:"connname,omitempty"`
+	Cwd       string            `json:"cwd,omitempty"`
+	Command   string            `json:"command"`
+	Args      []string          `json:"args,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+	TimeoutMs int               `json:"timeoutms,omitempty"`
+}
+
+type CommandRunCompletionGenRtnData struct {
+	Stdout    string `json:"stdout"`
+	Stderr    string `json:"stderr"`
+	ExitCode  int    `json:"exitcode"`
+	Supported bool   `json:"supported"`
 }
 
 type SuggestionType struct {

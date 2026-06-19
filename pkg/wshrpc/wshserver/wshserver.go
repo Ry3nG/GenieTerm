@@ -6,6 +6,7 @@ package wshserver
 // this file contains the implementation of the wsh server methods
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -677,6 +679,105 @@ func (ws *WshServer) ConnDisconnectCommand(ctx context.Context, connName string)
 		return fmt.Errorf("connection not found: %s", connName)
 	}
 	return conn.Close()
+}
+
+// RunCompletionGenCommand runs a Fig completion generator (e.g. "git branch" for
+// `git checkout <tab>`) and returns its raw output for the frontend to post-process.
+// Generator commands come from curated, vendored (MIT) Fig specs - not arbitrary user
+// input - and run without a shell, in the prompt's cwd, with a hard timeout.
+func (ws *WshServer) RunCompletionGenCommand(ctx context.Context, data wshrpc.CommandRunCompletionGenData) (wshrpc.CommandRunCompletionGenRtnData, error) {
+	if data.Command == "" {
+		return wshrpc.CommandRunCompletionGenRtnData{}, fmt.Errorf("command is required")
+	}
+	timeoutMs := data.TimeoutMs
+	if timeoutMs <= 0 || timeoutMs > 10000 {
+		timeoutMs = 5000
+	}
+	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	if data.ConnName == "" || conncontroller.IsLocalConnName(data.ConnName) {
+		return runLocalCompletionGen(runCtx, data), nil
+	}
+	return runRemoteCompletionGen(runCtx, data), nil
+}
+
+func runLocalCompletionGen(ctx context.Context, data wshrpc.CommandRunCompletionGenData) wshrpc.CommandRunCompletionGenRtnData {
+	cmd := exec.CommandContext(ctx, data.Command, data.Args...)
+	if data.Cwd != "" {
+		cmd.Dir = data.Cwd
+	}
+	if len(data.Env) > 0 {
+		cmd.Env = os.Environ()
+		for k, v := range data.Env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+	}
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	runErr := cmd.Run()
+	return wshrpc.CommandRunCompletionGenRtnData{
+		Stdout:    stdoutBuf.String(),
+		Stderr:    stderrBuf.String(),
+		ExitCode:  completionGenExitCode(runErr),
+		Supported: true,
+	}
+}
+
+// remote generators run over SSH so `git branch` lists the remote repo's branches.
+// WSL and unresolved/disconnected connections degrade to static specs (Supported=false).
+func runRemoteCompletionGen(ctx context.Context, data wshrpc.CommandRunCompletionGenData) wshrpc.CommandRunCompletionGenRtnData {
+	unsupported := wshrpc.CommandRunCompletionGenRtnData{Supported: false}
+	if strings.HasPrefix(data.ConnName, "wsl://") {
+		return unsupported
+	}
+	connOpts, err := remote.ParseOpts(data.ConnName)
+	if err != nil {
+		return unsupported
+	}
+	conn := conncontroller.MaybeGetConn(connOpts)
+	if conn == nil {
+		return unsupported
+	}
+	client := conn.GetClient()
+	if client == nil {
+		return unsupported
+	}
+	stdout, stderr, runErr := genconn.RunSimpleCommand(ctx, genconn.MakeSSHShellClient(client), genconn.CommandSpec{
+		Cmd: buildCompletionGenCmdStr(data.Command, data.Args),
+		Env: data.Env,
+		Cwd: data.Cwd,
+	})
+	return wshrpc.CommandRunCompletionGenRtnData{
+		Stdout:    stdout,
+		Stderr:    stderr,
+		ExitCode:  completionGenExitCode(runErr),
+		Supported: true,
+	}
+}
+
+func buildCompletionGenCmdStr(command string, args []string) string {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, shellSingleQuote(command))
+	for _, arg := range args {
+		parts = append(parts, shellSingleQuote(arg))
+	}
+	return strings.Join(parts, " ")
+}
+
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func completionGenExitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
 }
 
 func (ws *WshServer) ConnConnectCommand(ctx context.Context, connRequest wshrpc.ConnRequest) error {
