@@ -39,7 +39,12 @@ import {
 } from "./terminaldisplay";
 import { TermStickers } from "./termsticker";
 import { TermThemeUpdater } from "./termtheme";
-import { computeTheme, normalizeCursorStyle, shouldUseWebGlRenderer } from "./termutil";
+import {
+    computeTheme,
+    normalizeCursorStyle,
+    resolveTermMinimumContrastRatio,
+    shouldUseWebGlRenderer,
+} from "./termutil";
 import { TermWrap } from "./termwrap";
 import "./xterm.css";
 
@@ -589,6 +594,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
                 drawBoldTextInBrightColors: false,
                 fontWeight: "normal",
                 fontWeightBold: "bold",
+                minimumContrastRatio: resolveTermMinimumContrastRatio(termTheme),
                 allowTransparency: true,
                 scrollback: termScrollback,
                 allowProposedApi: true, // Required by @xterm/addon-search to enable search functionality and decorations

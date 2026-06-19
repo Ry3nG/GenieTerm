@@ -12,6 +12,8 @@ export const DefaultTermTheme = "default-dark";
 export const DefaultLightTermTheme = "default-light";
 export const DefaultTermTransparency = 0.5;
 export const DefaultLightTermTransparency = 0;
+export const DefaultTermMinimumContrastRatio = 1;
+export const LightTermMinimumContrastRatio = 4.5;
 
 export type GenClipboardItem = { text?: string; image?: Blob };
 
@@ -69,6 +71,10 @@ export function shouldUseWebGlRenderer(disableWebGl: unknown, theme: TermThemeTy
         return false;
     }
     return true;
+}
+
+export function resolveTermMinimumContrastRatio(theme: TermThemeType): number {
+    return shouldPreserveXtermBackground(theme) ? LightTermMinimumContrastRatio : DefaultTermMinimumContrastRatio;
 }
 
 // returns (theme, bgcolor, transparency (0 - 1.0))
