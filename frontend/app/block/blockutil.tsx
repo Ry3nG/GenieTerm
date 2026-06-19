@@ -29,9 +29,6 @@ export function blockViewToIcon(view: string): string {
     if (view == "web") {
         return "globe";
     }
-    if (view == "waveai") {
-        return "sparkles";
-    }
     if (view == "processviewer") {
         return "microchip";
     }
@@ -50,9 +47,6 @@ export function blockViewToName(view: string): string {
     }
     if (view == "web") {
         return "Web";
-    }
-    if (view == "waveai") {
-        return "Retired AI Chat";
     }
     if (view == "processviewer") {
         return "Processes";
