@@ -207,8 +207,11 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
             )}
             <div
                 ref={refs.setFloating}
-                style={floatingStyles}
-                className="z-50 w-[min(520px,calc(100vw-24px))] overflow-hidden rounded-md border border-border bg-panel text-primary shadow-2xl"
+                style={{
+                    ...floatingStyles,
+                    background: "color-mix(in srgb, var(--app-bg-color) 92%, var(--main-text-color) 8%)",
+                }}
+                className="z-50 w-[min(480px,calc(100vw-24px))] overflow-hidden rounded-lg border border-border text-primary shadow-2xl"
                 onMouseDown={(e) => e.preventDefault()}
             >
                 <div className="max-h-72 overflow-y-auto py-1">

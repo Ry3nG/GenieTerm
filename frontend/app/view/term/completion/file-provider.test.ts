@@ -39,8 +39,8 @@ describe("makeFileCompletionProvider", () => {
 
         expect(listDirectory).toHaveBeenCalledWith("/repo", expect.objectContaining({ cwd: "/repo" }));
         expect(items).toEqual([
-            { label: "scripts/", insertText: "scripts/", kind: "folder", detail: "Folder", score: 900 },
-            { label: "src/", insertText: "src/", kind: "folder", detail: "Folder", score: 899 },
+            { label: "scripts/", insertText: "scripts/", kind: "folder", score: 900 },
+            { label: "src/", insertText: "src/", kind: "folder", score: 899 },
         ]);
     });
 
@@ -55,7 +55,7 @@ describe("makeFileCompletionProvider", () => {
 
         expect(listDirectory).toHaveBeenCalledWith("/repo/src", expect.anything());
         expect(items).toEqual([
-            { label: "util/", insertText: "src/util/", kind: "folder", detail: "Folder", score: 900 },
+            { label: "util/", insertText: "src/util/", kind: "folder", score: 900 },
         ]);
     });
 

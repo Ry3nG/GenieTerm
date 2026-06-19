@@ -76,7 +76,6 @@ function makeCompletionItem(fileInfo: FileInfo, parts: SearchPathParts, idx: num
         label: `${name}${suffix}`,
         insertText: `${parts.insertPrefix}${name}${suffix}`,
         kind: fileInfo.isdir ? "folder" : "file",
-        detail: fileInfo.isdir ? "Folder" : "File",
         score: FileBaseScore - idx,
     };
 }
