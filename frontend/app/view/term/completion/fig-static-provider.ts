@@ -87,6 +87,12 @@ function defaultLoadFigSpec(command: string): Promise<FigSpec> {
     return cached;
 }
 
+// True if the bundled Fig corpus has a spec for this command (used by the help-fallback
+// provider to only run `<cmd> --help` for commands Fig doesn't already cover).
+export function figSpecExists(command: string): boolean {
+    return FigSpecModules[`/node_modules/@withfig/autocomplete/build/${command}.js`] != null;
+}
+
 function findSubcommand(spec: FigNamedItem, tokenText: string): FigNamedItem {
     return spec.subcommands?.find((subcommand) => matchesName(subcommand, tokenText));
 }

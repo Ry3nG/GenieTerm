@@ -14,8 +14,10 @@ import type { TermViewModel } from "../term-model";
 import type { TermWrap } from "../termwrap";
 import { makeAICompletionProvider } from "./ai-provider";
 import { TermCompletionService } from "./completion-service";
-import { makeFigStaticCompletionProvider } from "./fig-static-provider";
+import { figSpecExists, makeFigStaticCompletionProvider } from "./fig-static-provider";
 import { makeFileCompletionProvider, type ListDirectoryForCompletion } from "./file-provider";
+import { makeHelpFallbackCompletionProvider } from "./help-provider";
+import { makePathCommandCompletionProvider } from "./path-provider";
 import { makeCompletionGhostText } from "./ghost";
 import { makeHistoryCompletionProvider } from "./history-provider";
 import { buildCompletionContext } from "./tokenizer";
@@ -113,6 +115,8 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         return new TermCompletionService([
             makeHistoryCompletionProvider(),
             makeFigStaticCompletionProvider({ runGenerator: runCompletionGenerator }),
+            makePathCommandCompletionProvider(runCompletionGenerator),
+            makeHelpFallbackCompletionProvider(runCompletionGenerator, figSpecExists),
             makeFileCompletionProvider(listDirectory),
             makeAICompletionProvider(model.commandComposerBackend),
         ]);
