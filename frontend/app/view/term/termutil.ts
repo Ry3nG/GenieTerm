@@ -10,6 +10,8 @@ import { colord } from "colord";
 
 export const DefaultTermTheme = "default-dark";
 export const DefaultLightTermTheme = "default-light";
+export const DefaultTermTransparency = 0.5;
+export const DefaultLightTermTransparency = 0;
 
 export type GenClipboardItem = { text?: string; image?: Blob };
 
@@ -32,6 +34,18 @@ export function resolveTermThemeName(themeName: string, appTheme: unknown): stri
         return themeName;
     }
     return normalizeAppTheme(appTheme) === "light" ? DefaultLightTermTheme : DefaultTermTheme;
+}
+
+export function resolveTermTransparency(value: unknown, themeName: string): number {
+    const defaultTransparency =
+        themeName == DefaultLightTermTheme ? DefaultLightTermTransparency : DefaultTermTransparency;
+    if (value == null) {
+        return defaultTransparency;
+    }
+    if (typeof value != "number" || isNaN(value)) {
+        return defaultTransparency;
+    }
+    return Math.min(Math.max(value, 0), 1);
 }
 
 function applyTransparencyToColor(hexColor: string, transparency: number): string {
