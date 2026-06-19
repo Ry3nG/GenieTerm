@@ -75,4 +75,11 @@ describe("terminal chrome overlap safety", () => {
         expect(termView).toContain("shouldUseWebGlRenderer");
         expect(termView).toContain('useWebGl: shouldUseWebGlRenderer(termSettings?.["term:disablewebgl"], termTheme)');
     });
+
+    it("sets terminal color contrast from the resolved theme palette", () => {
+        const termView = readTermFile("term.tsx");
+
+        expect(termView).toContain("resolveTermMinimumContrastRatio");
+        expect(termView).toContain("minimumContrastRatio: resolveTermMinimumContrastRatio(termTheme)");
+    });
 });

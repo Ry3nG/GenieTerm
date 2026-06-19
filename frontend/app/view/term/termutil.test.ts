@@ -7,6 +7,7 @@ import {
     computeTheme,
     DefaultLightTermTheme,
     DefaultTermTheme,
+    resolveTermMinimumContrastRatio,
     resolveTermThemeName,
     resolveTermTransparency,
     shouldUseWebGlRenderer,
@@ -66,5 +67,13 @@ describe("term theme defaults", () => {
         expect(shouldUseWebGlRenderer(false, lightTheme)).toBe(false);
         expect(shouldUseWebGlRenderer(false, darkTheme)).toBe(true);
         expect(shouldUseWebGlRenderer(true, darkTheme)).toBe(false);
+    });
+
+    it("raises color contrast for bright terminal palettes", () => {
+        const [lightTheme] = computeTheme(FullConfig, DefaultLightTermTheme, 0);
+        const [darkTheme] = computeTheme(FullConfig, DefaultTermTheme, 0.5);
+
+        expect(resolveTermMinimumContrastRatio(lightTheme)).toBe(4.5);
+        expect(resolveTermMinimumContrastRatio(darkTheme)).toBe(1);
     });
 });
