@@ -62,9 +62,6 @@ export function computeTheme(
         if (themeCopy.background) {
             themeCopy.background = applyTransparencyToColor(themeCopy.background, termTransparency);
         }
-        if (themeCopy.selectionBackground) {
-            themeCopy.selectionBackground = applyTransparencyToColor(themeCopy.selectionBackground, termTransparency);
-        }
     }
     const bgcolor = themeCopy.background;
     if (!shouldPreserveXtermBackground(themeCopy)) {

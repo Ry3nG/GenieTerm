@@ -14,6 +14,7 @@ const FullConfig = {
         [DefaultLightTermTheme]: {
             background: "#ffffff",
             foreground: "#1d1d1f",
+            selectionBackground: "#0969da33",
         },
         dracula: {
             background: "#282a36",
@@ -37,5 +38,11 @@ describe("term theme defaults", () => {
             foreground: "#1d1d1f",
         });
         expect(bgColor).toBe("#ffffff");
+    });
+
+    it("does not amplify the light selection color when terminal transparency is enabled", () => {
+        const [theme] = computeTheme(FullConfig, resolveTermThemeName(null, "light"), 0.5);
+
+        expect(theme.selectionBackground).toBe("#0969da33");
     });
 });
