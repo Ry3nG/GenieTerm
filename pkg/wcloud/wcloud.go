@@ -23,9 +23,13 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 )
 
-const WCloudEndpoint = "https://api.waveterm.dev/central"
+// GenieTerm does not operate Wave's telemetry/ping backend, so these default to
+// empty. With no endpoint, all wcloud uploads (telemetry, diagnostic ping, and the
+// opt-out notification) become no-ops and the app never contacts *.waveterm.dev.
+// Dev builds can still point these at a backend via WCLOUD_ENDPOINT / WCLOUD_PING_ENDPOINT.
+const WCloudEndpoint = ""
 const WCloudEndpointVarName = "WCLOUD_ENDPOINT"
-const WCloudPingEndpoint = "https://ping.waveterm.dev/central"
+const WCloudPingEndpoint = ""
 const WCloudPingEndpointVarName = "WCLOUD_PING_ENDPOINT"
 
 var WCloudEndpoint_VarCache string
@@ -211,6 +215,9 @@ func SendAllTelemetry(clientId string) error {
 		log.Printf("telemetry disabled, not sending\n")
 		return nil
 	}
+	if GetEndpoint() == "" {
+		return nil
+	}
 	_, err := sendTEvents(clientId)
 	if err != nil {
 		return err
@@ -255,6 +262,9 @@ func sendTelemetry(clientId string) error {
 }
 
 func SendNoTelemetryUpdate(ctx context.Context, clientId string, noTelemetryVal bool) error {
+	if GetEndpoint() == "" {
+		return nil
+	}
 	req, err := makeAnonPostReq(ctx, NoTelemetryUrl, NoTelemetryInputType{ClientId: clientId, Value: noTelemetryVal})
 	if err != nil {
 		return err
