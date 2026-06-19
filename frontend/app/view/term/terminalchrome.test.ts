@@ -68,4 +68,11 @@ describe("terminal chrome overlap safety", () => {
         expect(termWrap).toContain('this.sendDataHandler?.("\\x15")');
         expect(termWrap).toContain("this.onInlineAIRequest?.(prompt");
     });
+
+    it("selects the terminal renderer from the resolved theme palette", () => {
+        const termView = readTermFile("term.tsx");
+
+        expect(termView).toContain("shouldUseWebGlRenderer");
+        expect(termView).toContain('useWebGl: shouldUseWebGlRenderer(termSettings?.["term:disablewebgl"], termTheme)');
+    });
 });

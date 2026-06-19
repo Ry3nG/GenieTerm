@@ -61,6 +61,16 @@ function shouldPreserveXtermBackground(theme: TermThemeType): boolean {
     return colord(theme.background).isLight() && colord(theme.foreground).isDark();
 }
 
+export function shouldUseWebGlRenderer(disableWebGl: unknown, theme: TermThemeType): boolean {
+    if (disableWebGl) {
+        return false;
+    }
+    if (shouldPreserveXtermBackground(theme)) {
+        return false;
+    }
+    return true;
+}
+
 // returns (theme, bgcolor, transparency (0 - 1.0))
 export function computeTheme(
     fullConfig: FullConfigType,

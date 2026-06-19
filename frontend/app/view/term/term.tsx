@@ -39,7 +39,7 @@ import {
 } from "./terminaldisplay";
 import { TermStickers } from "./termsticker";
 import { TermThemeUpdater } from "./termtheme";
-import { computeTheme, normalizeCursorStyle } from "./termutil";
+import { computeTheme, normalizeCursorStyle, shouldUseWebGlRenderer } from "./termutil";
 import { TermWrap } from "./termwrap";
 import "./xterm.css";
 
@@ -600,7 +600,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             },
             {
                 keydownHandler: model.handleTerminalKeydown.bind(model),
-                useWebGl: !termSettings?.["term:disablewebgl"],
+                useWebGl: shouldUseWebGlRenderer(termSettings?.["term:disablewebgl"], termTheme),
                 sendDataHandler: model.sendDataToController.bind(model),
                 onInlineAIRequest: model.openInlineCommandAI.bind(model),
                 onInlineAIDismiss: model.dismissInlineCommandAI.bind(model),
