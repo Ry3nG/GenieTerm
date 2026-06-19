@@ -623,6 +623,27 @@ function getCurrentTabCommands(): CommandPaletteCommand[] {
 
 function getAppCommands(): CommandPaletteCommand[] {
     return [
+        makePaletteCommand("app:new-window", "New Window", () => getApi().openNewWindow(), "Shift:Cmd:n"),
+        makePaletteCommand("app:toggle-devtools", "Toggle DevTools", () => getApi().toggleDevTools(), "Alt:Cmd:i"),
+        makePaletteCommand("app:reset-zoom", "Reset Zoom", () => getApi().resetZoom(), "Cmd:0"),
+        makePaletteCommand("app:zoom-in", "Zoom In", () => getApi().zoomIn(), "Cmd:="),
+        makePaletteCommand("app:zoom-out", "Zoom Out", () => getApi().zoomOut(), "Cmd:-"),
+        makePaletteCommand(
+            "app:toggle-fullscreen",
+            "Toggle Full Screen",
+            () => getApi().toggleFullScreen(),
+            "Ctrl:Cmd:f"
+        ),
+        makePaletteCommand("app:launch-fullscreen-on", "Launch On Full Screen: On", () =>
+            setConfigValue("window:fullscreenonlaunch", true)
+        ),
+        makePaletteCommand("app:launch-fullscreen-off", "Launch On Full Screen: Off", () =>
+            setConfigValue("window:fullscreenonlaunch", false)
+        ),
+        makePaletteCommand("app:clear-tab-cache", "Clear Tab Cache", () => getApi().clearTabCache()),
+        makePaletteCommand("app:relaunch-all-windows", "Relaunch All Windows", () => getApi().relaunchAllWindows()),
+        makePaletteCommand("app:check-for-updates", "Check for Updates", () => getApi().checkForUpdates()),
+        makePaletteCommand("app:about", "About GenieTerm", () => modalsModel.pushModal("AboutModal")),
         makePaletteCommand("config:edit-settings", "Config: Edit settings.json", () => openConfigFile("settings.json")),
         makePaletteCommand("config:edit-widgets", "Config: Edit widgets.json", () => openConfigFile("widgets.json")),
         makePaletteCommand("config:edit-connections", "Config: Edit connections.json", () =>

@@ -22,10 +22,10 @@ import {
 } from "./emain-activity";
 import { createBuilderWindow, getAllBuilderWindows, getBuilderWindowByWebContentsId } from "./emain-builder";
 import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-platform";
-import { getWaveTabViewByWebContentsId } from "./emain-tabview";
-import { handleCtrlShiftState } from "./emain-util";
+import { clearTabCache, getWaveTabViewByWebContentsId } from "./emain-tabview";
+import { decreaseZoomLevel, handleCtrlShiftState, increaseZoomLevel, resetZoomLevel } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
-import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
+import { createNewWaveWindow, getWaveWindowByWebContentsId, relaunchBrowserWindows } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { registerDownloadFolderHandler } from "./transfer/download-folder";
 import {
@@ -34,6 +34,7 @@ import {
     downloadTransferTracker,
     mapNativeDownloadState,
 } from "./transfer/download-transfer";
+import { updater } from "./updater";
 
 const electronApp = electron.app;
 
@@ -617,6 +618,39 @@ export function initIpcHandlers() {
 
     electron.ipcMain.on("do-refresh", (event) => {
         event.sender.reloadIgnoringCache();
+    });
+
+    electron.ipcMain.on("app-toggle-devtools", (event) => {
+        event.sender.toggleDevTools();
+    });
+
+    electron.ipcMain.on("app-reset-zoom", (event) => {
+        resetZoomLevel(event.sender);
+    });
+
+    electron.ipcMain.on("app-zoom-in", (event) => {
+        increaseZoomLevel(event.sender);
+    });
+
+    electron.ipcMain.on("app-zoom-out", (event) => {
+        decreaseZoomLevel(event.sender);
+    });
+
+    electron.ipcMain.on("app-toggle-fullscreen", (event) => {
+        const ww = getWaveWindowByWebContentsId(event.sender.id);
+        ww?.setFullScreen(!ww.isFullScreen());
+    });
+
+    electron.ipcMain.on("app-clear-tab-cache", () => {
+        clearTabCache();
+    });
+
+    electron.ipcMain.on("app-relaunch-all-windows", () => {
+        fireAndForget(relaunchBrowserWindows);
+    });
+
+    electron.ipcMain.on("app-check-for-updates", () => {
+        fireAndForget(() => updater?.checkForUpdates(true));
     });
 
     electron.ipcMain.handle("save-text-file", async (event, fileName: string, content: string) => {

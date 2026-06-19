@@ -92,6 +92,7 @@ declare global {
         getWebviewPreload: () => string; // get-webview-preload
         getAboutModalDetails: () => AboutModalDetails; // get-about-modal-details
         getZoomFactor: () => number; // get-zoom-factor
+        openNewWindow: () => void; // open-new-window
         showWorkspaceAppMenu: (workspaceId: string) => void; // workspace-appmenu-show
         showBuilderAppMenu: (builderId: string) => void; // builder-appmenu-show
         showContextMenu: (workspaceId: string, menu: ElectronContextMenuItem[]) => void; // contextmenu-show
@@ -140,6 +141,14 @@ declare global {
         openBuilder: (appId?: string) => void; // open-builder
         setBuilderWindowAppId: (appId: string) => void; // set-builder-window-appid
         doRefresh: () => void; // do-refresh
+        toggleDevTools: () => void; // app-toggle-devtools
+        resetZoom: () => void; // app-reset-zoom
+        zoomIn: () => void; // app-zoom-in
+        zoomOut: () => void; // app-zoom-out
+        toggleFullScreen: () => void; // app-toggle-fullscreen
+        clearTabCache: () => void; // app-clear-tab-cache
+        relaunchAllWindows: () => void; // app-relaunch-all-windows
+        checkForUpdates: () => void; // app-check-for-updates
         getPathForFile: (file: File) => string; // webUtils.getPathForFile
         saveTextFile: (fileName: string, content: string) => Promise<boolean>; // save-text-file
         setIsActive: () => Promise<void>; // set-is-active
