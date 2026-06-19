@@ -29,11 +29,11 @@ describe("term theme defaults", () => {
         expect(resolveTermThemeName("dracula", "light")).toBe("dracula");
     });
 
-    it("computes the light default as a transparent xterm theme over a white block background", () => {
+    it("keeps the light background in the xterm theme so reverse-video text stays legible", () => {
         const [theme, bgColor] = computeTheme(FullConfig, resolveTermThemeName(null, "light"), 0);
 
         expect(theme).toMatchObject({
-            background: "#00000000",
+            background: "#ffffff",
             foreground: "#1d1d1f",
         });
         expect(bgColor).toBe("#ffffff");

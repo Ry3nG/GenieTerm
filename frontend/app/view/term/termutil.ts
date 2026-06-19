@@ -39,6 +39,14 @@ function applyTransparencyToColor(hexColor: string, transparency: number): strin
     return colord(hexColor).alpha(alpha).toHex();
 }
 
+function shouldPreserveXtermBackground(theme: TermThemeType): boolean {
+    if (!theme.background || !theme.foreground) {
+        return false;
+    }
+    // xterm uses theme.background as the foreground color for SGR reverse video.
+    return colord(theme.background).isLight() && colord(theme.foreground).isDark();
+}
+
 // returns (theme, bgcolor, transparency (0 - 1.0))
 export function computeTheme(
     fullConfig: FullConfigType,
@@ -59,7 +67,9 @@ export function computeTheme(
         }
     }
     const bgcolor = themeCopy.background;
-    themeCopy.background = "#00000000";
+    if (!shouldPreserveXtermBackground(themeCopy)) {
+        themeCopy.background = "#00000000";
+    }
     return [themeCopy, bgcolor];
 }
 
