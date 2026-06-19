@@ -32,6 +32,9 @@ type PortableLayout []struct {
 	Focused  bool              `json:"focused"`
 }
 
+// First-run layout is a single focused shell — GenieTerm is terminal-first, so
+// the first impression is a terminal, not a tiled widget workspace. Other views
+// (sysinfo/web/preview) remain one keystroke away via the new-block flow.
 func GetStarterLayout() PortableLayout {
 	return PortableLayout{
 		{IndexArr: []int{0}, BlockDef: &waveobj.BlockDef{
@@ -40,23 +43,6 @@ func GetStarterLayout() PortableLayout {
 				waveobj.MetaKey_Controller: "shell",
 			},
 		}, Focused: true},
-		{IndexArr: []int{1}, BlockDef: &waveobj.BlockDef{
-			Meta: waveobj.MetaMapType{
-				waveobj.MetaKey_View: "sysinfo",
-			},
-		}},
-		{IndexArr: []int{1, 1}, BlockDef: &waveobj.BlockDef{
-			Meta: waveobj.MetaMapType{
-				waveobj.MetaKey_View: "web",
-				waveobj.MetaKey_Url:  "https://github.com/Ry3nG/GenieTerm",
-			},
-		}},
-		{IndexArr: []int{1, 2}, BlockDef: &waveobj.BlockDef{
-			Meta: waveobj.MetaMapType{
-				waveobj.MetaKey_View: "preview",
-				waveobj.MetaKey_File: "~",
-			},
-		}},
 	}
 }
 
