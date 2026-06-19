@@ -9,6 +9,7 @@ import {
     DefaultTermTheme,
     resolveTermThemeName,
     resolveTermTransparency,
+    shouldUseWebGlRenderer,
 } from "@/app/view/term/termutil";
 
 const FullConfig = {
@@ -56,5 +57,14 @@ describe("term theme defaults", () => {
         const [theme] = computeTheme(FullConfig, resolveTermThemeName(null, "light"), 0.5);
 
         expect(theme.selectionBackground).toBe("#0969da33");
+    });
+
+    it("uses the DOM renderer for bright terminal palettes so text stays crisp", () => {
+        const [lightTheme] = computeTheme(FullConfig, DefaultLightTermTheme, 0);
+        const [darkTheme] = computeTheme(FullConfig, DefaultTermTheme, 0.5);
+
+        expect(shouldUseWebGlRenderer(false, lightTheme)).toBe(false);
+        expect(shouldUseWebGlRenderer(false, darkTheme)).toBe(true);
+        expect(shouldUseWebGlRenderer(true, darkTheme)).toBe(false);
     });
 });
