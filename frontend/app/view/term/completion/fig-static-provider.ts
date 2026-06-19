@@ -5,29 +5,9 @@ import FigCommandNames from "@withfig/autocomplete";
 import type { CompletionContext, CompletionItem, CompletionProvider } from "./types";
 
 const FigBaseScore = 700;
-const FigSpecModules = import.meta.glob([
-    "/node_modules/@withfig/autocomplete/build/brew.js",
-    "/node_modules/@withfig/autocomplete/build/cargo.js",
-    "/node_modules/@withfig/autocomplete/build/curl.js",
-    "/node_modules/@withfig/autocomplete/build/df.js",
-    "/node_modules/@withfig/autocomplete/build/docker-compose.js",
-    "/node_modules/@withfig/autocomplete/build/docker.js",
-    "/node_modules/@withfig/autocomplete/build/find.js",
-    "/node_modules/@withfig/autocomplete/build/gh.js",
-    "/node_modules/@withfig/autocomplete/build/git.js",
-    "/node_modules/@withfig/autocomplete/build/go.js",
-    "/node_modules/@withfig/autocomplete/build/grep.js",
-    "/node_modules/@withfig/autocomplete/build/kubectl.js",
-    "/node_modules/@withfig/autocomplete/build/ls.js",
-    "/node_modules/@withfig/autocomplete/build/node.js",
-    "/node_modules/@withfig/autocomplete/build/npm.js",
-    "/node_modules/@withfig/autocomplete/build/pnpm.js",
-    "/node_modules/@withfig/autocomplete/build/python.js",
-    "/node_modules/@withfig/autocomplete/build/rg.js",
-    "/node_modules/@withfig/autocomplete/build/ssh.js",
-    "/node_modules/@withfig/autocomplete/build/wrangler.js",
-    "/node_modules/@withfig/autocomplete/build/yarn.js",
-]);
+// Bundle the full Fig spec corpus (lazy-loaded, one chunk per command) the way Warp does,
+// rather than a hand-picked subset, so most commands get real flag/subcommand/arg specs.
+const FigSpecModules = import.meta.glob("/node_modules/@withfig/autocomplete/build/*.js");
 
 type FigName = string | string[];
 
@@ -325,13 +305,18 @@ export function makeFigStaticCompletionProvider(options: FigProviderOptions = {}
         priority: 8,
         provideCompletions: async (ctx) => {
             if (ctx.tokenIndex <= 0) {
+                const term = ctx.searchTerm;
                 return commandNames
-                    .filter((command) => !command.includes("/") && startsWithIgnoreCase(command, ctx.searchTerm))
+                    .filter(
+                        (command) =>
+                            !command.includes("/") &&
+                            startsWithIgnoreCase(command, term) &&
+                            command.toLowerCase() !== term.toLowerCase()
+                    )
                     .map((command, idx) => ({
                         label: command,
                         insertText: command,
                         kind: "command" as const,
-                        detail: "Fig spec",
                         score: FigBaseScore - idx,
                     }));
             }
