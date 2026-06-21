@@ -68,6 +68,12 @@ jobs:
               with:
                   version: 0.13.0
 
+            # electron-builder's pacman target shells out to fpm -> bsdtar to build the
+            # Arch package; bsdtar isn't on the ubuntu runner by default.
+            - name: Install libarchive-tools (Linux pacman packaging)
+              if: matrix.platform == 'linux'
+              run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+
             - name: Force Git dependencies to HTTPS
               run: |
                   git config --global url.https://github.com/.insteadof ssh://git@github.com/
@@ -89,13 +95,8 @@ jobs:
 
                   # The production vite bundle is large; the default ~2GB Node heap OOMs.
                   NODE_OPTIONS: "--max-old-space-size=6144"
-
-                  # --- macOS signing + notarization (optional; set these secrets to enable) ---
-                  CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-                  CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-                  APPLE_ID: ${{ secrets.APPLE_ID }}
-                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-                  # --- Windows signing (optional; gates `windowsShouldSign` in the builder config) ---
-                  SM_CODE_SIGNING_CERT_SHA1_HASH: ${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }}
+                  # macOS code-signing env (CSC_LINK / APPLE_*) is intentionally NOT set here:
+                  # an undefined secret expands to "", and electron-builder treats CSC_LINK=""
+                  # as a cert path -> resolves to the repo root -> "<repo> not a file". Builds
+                  # are ad-hoc signed (unsigned). To ship signed later, add a step that exports
+                  # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* only when those secrets are non-empty.
