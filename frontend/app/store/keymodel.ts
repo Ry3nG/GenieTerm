@@ -33,6 +33,7 @@ import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { menuItemsToCommandPaletteCommands, type CommandPaletteCommand } from "./commandpalette";
+import type { KeybindingActionDef } from "./keybindings";
 import { modalsModel } from "./modalmodel";
 import { isBuilderWindow, isTabWindow } from "./windowtype";
 
@@ -504,6 +505,23 @@ const PALETTE_LABELS: Record<string, string> = {
     "app:refocus": "Refocus Terminal",
 };
 
+// The rebindable actions surfaced in the keybindings editor: those carrying a
+// human label. Reads the most recently built action list so it reflects the
+// live config (defaults + overrides).
+export function getRebindableKeybindings(): KeybindingActionDef[] {
+    return lastBuiltActions
+        .filter((action) => action.id in PALETTE_LABELS)
+        .map((action) => ({
+            id: action.id,
+            label: PALETTE_LABELS[action.id],
+            defaultBindings: toBindingArray(action.defaultBinding),
+        }));
+}
+
+export function writeKeybindingOverrides(overrides: Record<string, any>) {
+    setConfigValue("app:keybindings", overrides);
+}
+
 const FlagColors: { label: string; value: string }[] = [
     { label: "Green", value: "#30D158" },
     { label: "Teal", value: "#00FFDB" },
@@ -654,6 +672,9 @@ function getAppCommands(): CommandPaletteCommand[] {
         makePaletteCommand("app:relaunch-all-windows", "Relaunch All Windows", () => getApi().relaunchAllWindows()),
         makePaletteCommand("app:check-for-updates", "Check for Updates", () => getApi().checkForUpdates()),
         makePaletteCommand("app:about", "About GenieTerm", () => modalsModel.pushModal("AboutModal")),
+        makePaletteCommand("app:keybindings-editor", "Keyboard Shortcuts", () =>
+            modalsModel.pushModal("KeybindingsModal")
+        ),
         makePaletteCommand("config:edit-settings", "Config: Edit settings.json", () => openConfigFile("settings.json")),
         makePaletteCommand("config:edit-widgets", "Config: Edit widgets.json", () => openConfigFile("widgets.json")),
         makePaletteCommand("config:edit-connections", "Config: Edit connections.json", () =>

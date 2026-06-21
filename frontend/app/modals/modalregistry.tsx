@@ -9,10 +9,12 @@ import { DeleteFileModal, PublishAppModal, RenameFileModal } from "@/builder/bui
 import { SetSecretDialog } from "@/builder/tabs/builder-secrettab";
 import { AboutModal } from "./about";
 import { CommandPalette } from "./commandpalette";
+import { KeybindingsModal } from "./keybindingseditor";
 import { UserInputModal } from "./userinputmodal";
 
 const modalRegistry: { [key: string]: React.ComponentType<any> } = {
     [CommandPalette.displayName || "CommandPalette"]: CommandPalette,
+    [KeybindingsModal.displayName || "KeybindingsModal"]: KeybindingsModal,
     [NewInstallOnboardingModal.displayName || "NewInstallOnboardingModal"]: NewInstallOnboardingModal,
     [UpgradeOnboardingModal.displayName || "UpgradeOnboardingModal"]: UpgradeOnboardingModal,
     [UpgradeOnboardingPatch.displayName || "UpgradeOnboardingPatch"]: UpgradeOnboardingPatch,
