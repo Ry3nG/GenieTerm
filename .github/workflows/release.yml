@@ -60,9 +60,10 @@ jobs:
                   version: 3.x
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-            # Windows wavesrv is cross-compiled with `zig cc` (see Taskfile build:server:windows).
-            - name: Install Zig (Windows CGO toolchain)
-              if: matrix.platform == 'windows'
+            # Linux and Windows wavesrv are cross-compiled with `zig cc` (see Taskfile
+            # build:server:linux / build:server:windows). macOS uses the native clang.
+            - name: Install Zig (CGO toolchain)
+              if: matrix.platform != 'macos'
               uses: mlugg/setup-zig@v1
               with:
                   version: 0.13.0
@@ -85,6 +86,9 @@ jobs:
               env:
                   # GitHub Release publishing (uses the built-in token).
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+                  # The production vite bundle is large; the default ~2GB Node heap OOMs.
+                  NODE_OPTIONS: "--max-old-space-size=6144"
 
                   # --- macOS signing + notarization (optional; set these secrets to enable) ---
                   CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
