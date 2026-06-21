@@ -104,8 +104,8 @@ const config = {
         target: ["nsis", "msi", "zip"],
         signtoolOptions: windowsShouldSign && {
             signingHashAlgorithms: ["sha256"],
-            publisherName: "Command Line Inc",
-            certificateSubjectName: "Command Line Inc",
+            publisherName: "GenieTerm",
+            certificateSubjectName: "GenieTerm",
             certificateSha1: process.env.SM_CODE_SIGNING_CERT_SHA1_HASH,
         },
     },
@@ -122,7 +122,11 @@ const config = {
         // this should remove /usr/lib/.build-id/ links which can conflict with other electron apps like slack
         fpm: ["--rpm-rpmbuild-define", "_build_id_links none"],
     },
-    publish: null,
+    publish: {
+        provider: "github",
+        owner: "Ry3nG",
+        repo: "GenieTerm",
+    },
     afterPack: (context) => {
         if (context.electronPlatformName === "darwin") {
             const appBundlePath = path.resolve(context.appOutDir, `${pkg.productName}.app`);

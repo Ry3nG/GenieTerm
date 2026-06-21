@@ -1,0 +1,97 @@
+name: Release
+
+# Push a tag like v0.4.35 to build and publish a GitHub Release for all platforms.
+# Code-signing and notarization are OPTIONAL: they activate only when the matching
+# repo secrets are present, so the pipeline produces unsigned builds until you add them.
+on:
+    push:
+        tags:
+            - "v*"
+    workflow_dispatch:
+        inputs:
+            publish:
+                description: "Publish artifacts to a GitHub Release (otherwise dry build)"
+                type: boolean
+                default: false
+
+permissions:
+    contents: write
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    NODE_VERSION: 22
+    GO_VERSION_FILE: go.mod
+
+jobs:
+    build:
+        name: Build ${{ matrix.platform }}
+        runs-on: ${{ matrix.runner }}
+        strategy:
+            # Don't let one platform's failure abort releases for the others.
+            fail-fast: false
+            matrix:
+                include:
+                    - platform: macos
+                      runner: macos-latest
+                    - platform: linux
+                      runner: ubuntu-latest
+                    - platform: windows
+                      runner: windows-latest
+        steps:
+            - uses: actions/checkout@v6
+
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
+            - name: Install Task
+              uses: arduino/setup-task@v2
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # Windows wavesrv is cross-compiled with `zig cc` (see Taskfile build:server:windows).
+            - name: Install Zig (Windows CGO toolchain)
+              if: matrix.platform == 'windows'
+              uses: mlugg/setup-zig@v1
+              with:
+                  version: 0.13.0
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - name: Build and package
+              # `task package` builds wavesrv + wsh/genie + tsunamiscaffold + frontend, then runs
+              # electron-builder. The trailing --publish overrides the task's default `-p never`.
+              run: task package -- --publish ${{ ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event.inputs.publish == 'true') && 'always' || 'never' }}
+              env:
+                  # GitHub Release publishing (uses the built-in token).
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+                  # --- macOS signing + notarization (optional; set these secrets to enable) ---
+                  CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+                  CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+                  # --- Windows signing (optional; gates `windowsShouldSign` in the builder config) ---
+                  SM_CODE_SIGNING_CERT_SHA1_HASH: ${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }}
