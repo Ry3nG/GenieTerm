@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip } from "@/app/element/tooltip";
+import { modalsModel } from "@/app/store/modalmodel";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
@@ -337,13 +338,8 @@ const Widgets = memo(() => {
     const appsButtonRef = useRef<HTMLDivElement>(null);
 
     const openSettings = useCallback(() => {
-        const blockDef: BlockDef = {
-            meta: {
-                view: "waveconfig",
-            },
-        };
-        env.createBlock(blockDef, false, true);
-    }, [env]);
+        modalsModel.pushModal("SettingsModal");
+    }, []);
     const settingsActionItems = makeWidgetSettingsActionItems({
         hasConfigErrors,
         onOpenSettings: openSettings,

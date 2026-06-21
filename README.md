@@ -10,9 +10,10 @@ It is built on top of the Wave Terminal codebase and keeps Wave's strong foundat
 
 ## Current Focus
 
-- GenieTerm 0.3.0 Semantic Terminal Foundation.
-- Warp-style semantic command presentation as the default terminal mode.
-- Classic xterm presentation as a compatibility mode over the same `TerminalView` / `TermWrap` runtime.
+- Warp-style semantic command blocks as the default terminal presentation, with classic xterm as a compatibility mode over the same `TerminalView` / `TermWrap` runtime.
+- Inline command completion powered by the Fig spec corpus (commands, flags, paths, history).
+- A keyless AI command composer (natural language → command) that stays out of the normal workflow.
+- A dark-only, Apple-inspired visual identity.
 - Remote file and transfer flows that present `genie://` identity while preserving `wsh://` compatibility.
 
 ## Product Direction

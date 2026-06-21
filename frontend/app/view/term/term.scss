@@ -60,6 +60,9 @@
         overflow: hidden;
         line-height: 1;
         margin: 5px 1px 5px 4px;
+        // Left gutter so semantic command-block status spines paint left of the
+        // prompt glyphs (xterm decorations start at column 0).
+        padding-left: 14px;
     }
 
     .term-presentation-shell {
@@ -73,16 +76,112 @@
     // Warp-style command blocks: each finished command is an xterm decoration drawn
     // BEHIND the live text (registerDecoration layer "bottom"), spanning the command's
     // buffer range full-width. The real terminal text renders on top - one render, no
-    // double-render. Keep the left edge flat: decorations start at column 0, so a rail
-    // or rounded corner competes with prompt glyphs.
+    // double-render. Decorations start at column 0, so the status spine can't sit on the
+    // glyphs; the left gutter (padding-left on .term-connectelem) gives the ::before
+    // spine room to paint just left of the prompt text.
     .term-cmdblock-deco {
         box-sizing: border-box;
         border-radius: 0;
         pointer-events: none;
+        overflow: visible;
         background: color-mix(in srgb, var(--main-text-color) 4%, transparent);
+
+        &::before {
+            content: "";
+            position: absolute;
+            top: 1px;
+            bottom: 1px;
+            left: -10px;
+            width: 3px;
+            border-radius: 2px;
+            background: color-mix(in srgb, var(--main-text-color) 22%, transparent);
+        }
+
+        &.is-success::before {
+            background: var(--success-color);
+        }
 
         &.is-error {
             background: color-mix(in srgb, var(--error-color) 9%, transparent);
+
+            &::before {
+                background: var(--error-color);
+            }
+        }
+    }
+
+    // Per-block header on the command's prompt line: status pill + duration, with
+    // copy/rerun revealed on hover. Right-aligned over the line's trailing space.
+    .term-cmdblock-header {
+        pointer-events: none;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+
+        &.is-success .term-cmdblock-pill {
+            color: var(--success-color);
+        }
+
+        &.is-error .term-cmdblock-pill {
+            color: var(--error-color);
+        }
+    }
+
+    .term-cmdblock-header-strip {
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 100%;
+        padding: 0 6px 0 18px;
+        font-size: 11px;
+        line-height: 1;
+        background: linear-gradient(to right, transparent, var(--app-bg-color) 16px);
+
+        .term-cmdblock-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: color-mix(in srgb, var(--main-text-color) 55%, transparent);
+
+            i {
+                font-size: 10px;
+            }
+        }
+
+        .term-cmdblock-duration {
+            color: color-mix(in srgb, var(--main-text-color) 40%, transparent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .term-cmdblock-actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity 0.12s ease;
+        }
+
+        &:hover .term-cmdblock-actions {
+            opacity: 1;
+        }
+
+        .term-cmdblock-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: color-mix(in srgb, var(--main-text-color) 50%, transparent);
+            border-radius: 4px;
+
+            &:hover {
+                background: color-mix(in srgb, var(--main-text-color) 12%, transparent);
+                color: var(--main-text-color);
+            }
         }
     }
 
