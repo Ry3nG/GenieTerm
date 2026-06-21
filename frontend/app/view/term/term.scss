@@ -110,6 +110,81 @@
         }
     }
 
+    // Per-block header on the command's prompt line: status pill + duration, with
+    // copy/rerun revealed on hover. Right-aligned over the line's trailing space.
+    .term-cmdblock-header {
+        pointer-events: none;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+
+        &.is-success .term-cmdblock-pill {
+            color: var(--success-color);
+        }
+
+        &.is-error .term-cmdblock-pill {
+            color: var(--error-color);
+        }
+    }
+
+    .term-cmdblock-header-strip {
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 100%;
+        padding: 0 6px 0 18px;
+        font-size: 11px;
+        line-height: 1;
+        background: linear-gradient(to right, transparent, var(--app-bg-color) 16px);
+
+        .term-cmdblock-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: color-mix(in srgb, var(--main-text-color) 55%, transparent);
+
+            i {
+                font-size: 10px;
+            }
+        }
+
+        .term-cmdblock-duration {
+            color: color-mix(in srgb, var(--main-text-color) 40%, transparent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .term-cmdblock-actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity 0.12s ease;
+        }
+
+        &:hover .term-cmdblock-actions {
+            opacity: 1;
+        }
+
+        .term-cmdblock-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: color-mix(in srgb, var(--main-text-color) 50%, transparent);
+            border-radius: 4px;
+
+            &:hover {
+                background: color-mix(in srgb, var(--main-text-color) 12%, transparent);
+                color: var(--main-text-color);
+            }
+        }
+    }
+
     .term-command-action-bar {
         flex: 0 0 auto;
         display: grid;
