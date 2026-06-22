@@ -134,12 +134,26 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
 
     const [dropOver, setDropOver] = React.useState(false);
 
-    const onClick = () => {
+    const onClick = (e: React.MouseEvent) => {
+        // second click of a double-click: let onDoubleClick handle it so we don't
+        // toggle expand back (folders) or open the file twice
+        if (e.detail > 1) {
+            return;
+        }
         if (isDir) {
             ctx.model.toggleTreeExpanded(fileInfo.path);
             return;
         }
         fireAndForget(() => createBlock({ meta: { view: "preview", file: fileInfo.path, connection: ctx.connName } }));
+    };
+
+    // double-click a folder to enter it: re-roots the tree at that folder (matches
+    // the table view's double-click-to-navigate)
+    const onDoubleClick = () => {
+        if (!isDir) {
+            return;
+        }
+        fireAndForget(() => ctx.model.goHistory(fileInfo.path));
     };
 
     const onContextMenu = (e: React.MouseEvent) => {
@@ -186,6 +200,7 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
                 )}
                 style={{ paddingLeft: depth * IndentPx + 6 }}
                 onClick={onClick}
+                onDoubleClick={onDoubleClick}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
                 onDrop={onDrop}
