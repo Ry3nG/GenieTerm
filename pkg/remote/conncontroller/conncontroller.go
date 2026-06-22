@@ -223,48 +223,54 @@ func (conn *SSHConn) closeInternal_withlifecyclelock() {
 		}
 		conn.Monitor = nil
 	})
+	// Detach the network handles up front, then close them in the background.
+	// Closing an SSH client/listener/session over a dead transport can block
+	// indefinitely (DomainSockListener.Close() sends SSH protocol packets), and
+	// this runs while holding lifecycleLock — so a synchronous close on a dead
+	// network would wedge every future connect/disconnect on this conn. Nil the
+	// handles now so a reconnect starts fresh, and let the slow closes happen
+	// detached where blocking is harmless.
+	connName := conn.GetName()
 	client := conn.GetClient()
-	if client != nil {
-		// this MUST go first to force close the connection.
-		// the DomainSockListener.Close() sends SSH protocol packets which can block on a dead network conn
-		startTime := time.Now()
-		client.Close()
-		duration := time.Since(startTime).Milliseconds()
-		if duration > 100 {
-			log.Printf("[conncontroller] conn:%s Client.Close() took %d ms", conn.GetName(), duration)
-		}
-		conn.WithLock(func() {
-			conn.Client = nil
-		})
-	}
 	listener := WithLockRtn(conn, func() net.Listener {
 		return conn.DomainSockListener
 	})
-	if listener != nil {
-		startTime := time.Now()
-		listener.Close()
-		duration := time.Since(startTime).Milliseconds()
-		if duration > 100 {
-			log.Printf("[conncontroller] conn:%s DomainSockListener.Close() took %d ms", conn.GetName(), duration)
-		}
-		conn.WithLock(func() {
-			conn.DomainSockListener = nil
-			conn.DomainSockName = ""
-		})
-	}
 	controller := WithLockRtn(conn, func() *ssh.Session {
 		return conn.ConnController
 	})
-	if controller != nil {
-		startTime := time.Now()
-		controller.Close()
-		duration := time.Since(startTime).Milliseconds()
-		if duration > 100 {
-			log.Printf("[conncontroller] conn:%s ConnController.Close() took %d ms", conn.GetName(), duration)
+	conn.WithLock(func() {
+		conn.Client = nil
+		conn.DomainSockListener = nil
+		conn.DomainSockName = ""
+		conn.ConnController = nil
+	})
+	if client == nil && listener == nil && controller == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("conncontroller:closeInternal", recover())
+		}()
+		// client.Close() MUST go first to force-close the transport so the
+		// listener/controller closes below don't block sending SSH packets.
+		if client != nil {
+			closeWithLog(connName, "Client.Close()", client)
 		}
-		conn.WithLock(func() {
-			conn.ConnController = nil
-		})
+		if listener != nil {
+			closeWithLog(connName, "DomainSockListener.Close()", listener)
+		}
+		if controller != nil {
+			closeWithLog(connName, "ConnController.Close()", controller)
+		}
+	}()
+}
+
+func closeWithLog(connName string, label string, closer io.Closer) {
+	startTime := time.Now()
+	closer.Close()
+	duration := time.Since(startTime).Milliseconds()
+	if duration > 100 {
+		log.Printf("[conncontroller] conn:%s %s took %d ms", connName, label, duration)
 	}
 }
 
