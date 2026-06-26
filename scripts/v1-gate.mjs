@@ -46,6 +46,7 @@ run("TypeScript typecheck", "npm", ["exec", "tsc", "--", "--noEmit"]);
 run("Vitest suite", "npm", ["test", "--", "--run"]);
 run("Go test suite", "go", ["test", "./..."]);
 run("Production build", "npm", ["run", "build:prod"]);
+run("Preview build", "task", ["build:preview"]);
 
 if (shouldPackage) {
     run("macOS arm64 package", "task", ["package", "--", "--mac", "zip", "--arm64"], {

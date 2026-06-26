@@ -45,6 +45,7 @@ The release gate must pass:
 - Full Vitest suite.
 - Go test suite for repo packages.
 - Production frontend/electron build.
+- Standalone preview build, including visual QA fixtures.
 - macOS packaging on the release machine.
 - Installed app bundle version and signature verification on macOS.
 

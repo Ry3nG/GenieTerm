@@ -837,29 +837,44 @@ function GitPreviewPanel({
 interface GitPanelProps {
     open: boolean;
     onClose: () => void;
+    previewData?: {
+        cwd: string;
+        conn?: string;
+        activeTab?: GitPanelTab;
+        status?: Partial<GitPanelStatus>;
+        graph?: Partial<GitPanelGraph>;
+        selectedHash?: string;
+        preview?: GitPreview;
+        commitFiles?: CommitFilesState;
+    };
 }
 
-export function GitPanel({ open, onClose }: GitPanelProps) {
+export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
     const layoutModel = getLayoutModelForStaticTab();
     const focusedNode = useAtomValue(layoutModel?.focusedNode ?? (NullAtom as Atom<any>));
     const focusedBlockId = focusedNode?.data?.blockId ?? "";
     const blockAtom = React.useMemo(() => makeFocusedBlockAtom(focusedBlockId), [focusedBlockId]);
     const blockData = useAtomValue(blockAtom);
-    const { cwd, conn } = getGitContext(blockData);
-    const [activeTab, setActiveTab] = React.useState<GitPanelTab>("changes");
-    const [status, setStatus] = React.useState<GitPanelStatus>(EmptyStatus);
-    const [graph, setGraph] = React.useState<GitPanelGraph>(EmptyGraph);
+    const gitContext = previewData
+        ? { cwd: previewData.cwd, conn: previewData.conn ?? "local" }
+        : getGitContext(blockData);
+    const { cwd, conn } = gitContext;
+    const [activeTab, setActiveTab] = React.useState<GitPanelTab>(previewData?.activeTab ?? "changes");
+    const [status, setStatus] = React.useState<GitPanelStatus>({ ...EmptyStatus, ...previewData?.status });
+    const [graph, setGraph] = React.useState<GitPanelGraph>({ ...EmptyGraph, ...previewData?.graph });
     const [commitMessage, setCommitMessage] = React.useState("");
-    const [selectedHash, setSelectedHash] = React.useState("");
-    const [preview, setPreview] = React.useState<GitPreview>(EmptyPreview);
+    const [selectedHash, setSelectedHash] = React.useState(previewData?.selectedHash ?? "");
+    const [preview, setPreview] = React.useState<GitPreview>(previewData?.preview ?? EmptyPreview);
     const [operation, setOperation] = React.useState<GitOperation>(EmptyOperation);
     const [graphFilter, setGraphFilter] = React.useState("");
-    const [commitFiles, setCommitFiles] = React.useState<CommitFilesState>({
-        hash: "",
-        files: [],
-        loading: false,
-        error: "",
-    });
+    const [commitFiles, setCommitFiles] = React.useState<CommitFilesState>(
+        previewData?.commitFiles ?? {
+            hash: "",
+            files: [],
+            loading: false,
+            error: "",
+        }
+    );
     const contextLabel = formatContextLabel(conn, cwd);
     const groups = React.useMemo(() => makeChangeGroups(status.files), [status.files]);
     const filteredCommits = React.useMemo(() => {
@@ -900,6 +915,9 @@ export function GitPanel({ open, onClose }: GitPanelProps) {
     );
 
     const refreshStatus = React.useCallback(async () => {
+        if (previewData) {
+            return;
+        }
         if (!open) {
             return;
         }
@@ -923,9 +941,12 @@ export function GitPanel({ open, onClose }: GitPanelProps) {
         } catch (e) {
             setStatus({ ...EmptyStatus, error: String(e) });
         }
-    }, [conn, cwd, open]);
+    }, [conn, cwd, open, previewData]);
 
     const refreshGraph = React.useCallback(async () => {
+        if (previewData) {
+            return;
+        }
         if (!open || isBlank(cwd)) {
             return;
         }
@@ -947,7 +968,7 @@ export function GitPanel({ open, onClose }: GitPanelProps) {
         } catch (e) {
             setGraph({ ...EmptyGraph, error: String(e) });
         }
-    }, [conn, cwd, open]);
+    }, [conn, cwd, open, previewData]);
 
     const refreshAll = React.useCallback(() => {
         fireAndForget(refreshStatus);
@@ -1031,17 +1052,26 @@ export function GitPanel({ open, onClose }: GitPanelProps) {
     );
 
     React.useEffect(() => {
+        if (previewData) {
+            return;
+        }
         fireAndForget(refreshStatus);
-    }, [refreshStatus]);
+    }, [previewData, refreshStatus]);
 
     React.useEffect(() => {
+        if (previewData) {
+            return;
+        }
         if (activeTab !== "graph") {
             return;
         }
         fireAndForget(refreshGraph);
-    }, [activeTab, refreshGraph]);
+    }, [activeTab, previewData, refreshGraph]);
 
     React.useEffect(() => {
+        if (previewData) {
+            return;
+        }
         if (activeTab !== "graph" || !selectedCommit) {
             return;
         }
@@ -1079,7 +1109,7 @@ export function GitPanel({ open, onClose }: GitPanelProps) {
         return () => {
             active = false;
         };
-    }, [activeTab, runGit, selectedCommit]);
+    }, [activeTab, previewData, runGit, selectedCommit]);
 
     const showFileDiff = React.useCallback(
         (file: GitStatusFile, groupId: GitChangeGroupId) => {
