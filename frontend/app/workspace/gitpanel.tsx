@@ -1261,8 +1261,12 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
     return (
         <aside
             className={cn(
-                "flex h-full shrink-0 flex-col border-l border-border bg-panel text-primary transition-[width] duration-150",
-                activeTab === "graph" ? "w-[960px]" : preview.kind === "diff" ? "w-[760px]" : "w-[460px]"
+                "flex h-full max-w-full shrink-0 flex-col border-l border-border bg-panel text-primary transition-[width] duration-150",
+                activeTab === "graph"
+                    ? "w-[min(960px,calc(100vw-2rem))]"
+                    : preview.kind === "diff"
+                      ? "w-[min(760px,calc(100vw-2rem))]"
+                      : "w-[min(460px,calc(100vw-2rem))]"
             )}
         >
             <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">

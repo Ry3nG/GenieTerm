@@ -46,6 +46,7 @@ The release gate must pass:
 - Go test suite for repo packages.
 - Production frontend/electron build.
 - Standalone preview build, including visual QA fixtures.
+- Preview screenshot QA at fixed desktop and narrow viewports.
 - macOS packaging on the release machine.
 - Installed app bundle version and signature verification on macOS.
 

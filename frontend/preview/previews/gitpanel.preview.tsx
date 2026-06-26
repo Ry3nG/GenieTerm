@@ -122,7 +122,7 @@ const CommitFiles = [
 export default function GitPanelPreview() {
     return (
         <div className="flex w-full flex-col gap-6 px-6">
-            <div className="flex h-[720px] min-w-[1680px] gap-4">
+            <div className="flex min-h-[720px] flex-col gap-4 2xl:flex-row">
                 <GitPanel
                     open
                     onClose={() => {}}
@@ -172,7 +172,7 @@ export default function GitPanelPreview() {
                     }}
                 />
             </div>
-            <div className="flex h-[360px] gap-4">
+            <div className="flex min-h-[360px] flex-col gap-4 xl:flex-row">
                 <GitPanel
                     open
                     onClose={() => {}}

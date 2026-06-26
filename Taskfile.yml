@@ -69,6 +69,12 @@ tasks:
         deps:
             - npm:install
 
+    visual:preview:
+        desc: Capture component preview screenshots and run visual QA assertions.
+        cmd: node scripts/preview-visual-qa.mjs
+        deps:
+            - npm:install
+
     electron:winquickdev:
         desc: Run the Electron application via the Vite dev server (quick dev - Windows amd64 only, no generate, no wsh).
         cmd: npm run dev

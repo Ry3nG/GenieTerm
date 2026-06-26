@@ -7,7 +7,7 @@
     "productName": "GenieTerm",
     "description": "Workspace-native terminal for commands, files, and durable sessions",
     "license": "Apache-2.0",
-    "version": "0.4.55",
+    "version": "0.4.56",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"
@@ -25,6 +25,7 @@
         "build:dev": "electron-vite build --mode development",
         "build:prod": "electron-vite build --mode production",
         "coverage": "vitest run --coverage",
+        "visual:preview": "node scripts/preview-visual-qa.mjs",
         "test": "vitest",
         "postinstall": "node ./postinstall.cjs"
     },
@@ -53,6 +54,7 @@
         "eslint-config-prettier": "^10.1.8",
         "globals": "^17.6.0",
         "node-abi": "^4.31.0",
+        "playwright": "^1.61.1",
         "prettier": "^3.8.1",
         "prettier-plugin-jsdoc": "^1.8.0",
         "prettier-plugin-organize-imports": "^4.3.0",

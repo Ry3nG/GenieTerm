@@ -8,6 +8,15 @@ Preview URL:
 http://localhost:7007/?preview=gitpanel
 ```
 
+Automated capture:
+
+```sh
+task visual:preview
+```
+
+Screenshots are written to `artifacts/visual-qa/gitpanel-desktop.png` and
+`artifacts/visual-qa/gitpanel-narrow.png`.
+
 ## Covered States
 
 - Dense working tree with merge, staged, unstaged, untracked, and renamed files.
@@ -28,6 +37,4 @@ http://localhost:7007/?preview=gitpanel
 
 ## Follow-Up
 
-- Add a screenshot runner so this preview can be captured at fixed desktop and narrow widths.
 - Split the fixture into separate preview entries if narrow screenshots become too crowded.
-- Replace the native detached-HEAD confirmation with an app-native modal before v1.0.0.

@@ -47,6 +47,7 @@ run("Vitest suite", "npm", ["test", "--", "--run"]);
 run("Go test suite", "go", ["test", "./..."]);
 run("Production build", "npm", ["run", "build:prod"]);
 run("Preview build", "task", ["build:preview"]);
+run("Preview visual QA", "task", ["visual:preview"]);
 
 if (shouldPackage) {
     run("macOS arm64 package", "task", ["package", "--", "--mac", "zip", "--arm64"], {
