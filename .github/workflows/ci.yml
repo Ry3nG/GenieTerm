@@ -22,6 +22,7 @@ jobs:
     v1-gate:
         name: V1 gate
         runs-on: ubuntu-latest
+        timeout-minutes: 25
         if: github.event.pull_request.draft == false
         permissions:
             contents: read
@@ -50,5 +51,24 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Run v1 baseline gate
-              run: node scripts/v1-gate.mjs --ci
+            - name: TypeScript typecheck
+              run: npm exec tsc -- --noEmit
+
+            - name: Vitest suite
+              run: npm test -- --run
+
+            - name: Go test suite
+              run: go test ./...
+
+            - name: Production build
+              run: npm run build:prod
+
+            - name: Preview build
+              working-directory: frontend/preview
+              run: npx vite build
+
+            - name: Preview visual QA
+              run: npm run visual:preview
+
+            - name: Preview interaction QA
+              run: npm run interaction:preview
