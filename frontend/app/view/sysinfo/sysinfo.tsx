@@ -6,7 +6,6 @@ import { makeORef } from "@/app/store/wos";
 import * as util from "@/util/util";
 import * as Plot from "@observablehq/plot";
 import clsx from "clsx";
-import dayjs from "dayjs";
 import * as htl from "htl";
 import * as jotai from "jotai";
 import * as React from "react";
@@ -35,6 +34,15 @@ type DataItem = {
     ts: number;
     [k: string]: number;
 };
+
+function padTime(value: number): string {
+    return String(value).padStart(2, "0");
+}
+
+function formatTimeOfDay(unixMillis: number): string {
+    const date = new Date(unixMillis);
+    return `${padTime(date.getHours())}:${padTime(date.getMinutes())}:${padTime(date.getSeconds())}`;
+}
 
 function defaultCpuMeta(name: string): TimeSeriesMeta {
     return {
@@ -478,13 +486,25 @@ function SingleLinePlot({
         marks.push(
             Plot.ruleX(
                 plotData,
-                Plot.pointerX({ x: "ts", py: yval, stroke: "var(--grey-text-color)", strokeWidth: 1, strokeDasharray: 2 })
+                Plot.pointerX({
+                    x: "ts",
+                    py: yval,
+                    stroke: "var(--grey-text-color)",
+                    strokeWidth: 1,
+                    strokeDasharray: 2,
+                })
             )
         );
         marks.push(
             Plot.ruleY(
                 plotData,
-                Plot.pointerX({ px: "ts", y: yval, stroke: "var(--grey-text-color)", strokeWidth: 1, strokeDasharray: 2 })
+                Plot.pointerX({
+                    px: "ts",
+                    y: yval,
+                    stroke: "var(--grey-text-color)",
+                    strokeWidth: 1,
+                    strokeDasharray: 2,
+                })
             )
         );
         marks.push(
@@ -496,8 +516,7 @@ function SingleLinePlot({
                     fill: "var(--main-bg-color)",
                     anchor: "middle",
                     dy: -30,
-                    title: (d) =>
-                        `${dayjs.unix(d.ts / 1000).format("HH:mm:ss")} ${Number(d[yval]).toFixed(decimalPlaces)}${labelY}`,
+                    title: (d) => `${formatTimeOfDay(d.ts)} ${Number(d[yval]).toFixed(decimalPlaces)}${labelY}`,
                     textPadding: 3,
                 })
             )
@@ -517,7 +536,7 @@ function SingleLinePlot({
             x: {
                 grid: true,
                 label: "time",
-                tickFormat: (d) => `${dayjs.unix(d / 1000).format("HH:mm:ss")}`,
+                tickFormat: (d) => `${formatTimeOfDay(Number(d))}`,
                 domain: [minX, maxX],
             },
             y: { label: labelY, domain: [minY, maxY] },
@@ -630,10 +649,7 @@ const DiskMeter = React.memo(({ disk }: { disk: DiskUsageData }) => {
                 <span className="ml-auto font-mono text-[11px] text-muted shrink-0">
                     {fmtDiskSize(disk.used)} / {fmtDiskSize(disk.total)}
                 </span>
-                <span
-                    className="font-mono text-[11px] w-[34px] text-right shrink-0"
-                    style={{ color: usageColor(pct) }}
-                >
+                <span className="font-mono text-[11px] w-[34px] text-right shrink-0" style={{ color: usageColor(pct) }}>
                     {fmtPct(pct)}
                 </span>
             </div>
@@ -673,7 +689,10 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
         <div className="flex flex-col gap-[10px] p-0.5">
             <div className="bg-modalbg border border-border rounded-[10px] px-3.5 py-3">
                 <div className="flex items-center gap-2.5">
-                    <i className="fa-sharp fa-solid fa-microchip text-[16px]" style={{ color: "var(--accent-color)" }} />
+                    <i
+                        className="fa-sharp fa-solid fa-microchip text-[16px]"
+                        style={{ color: "var(--accent-color)" }}
+                    />
                     <span className="text-foreground text-[13px]">CPU</span>
                     {coreKeys.length > 0 && (
                         <button
@@ -689,7 +708,10 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
                             />
                         </button>
                     )}
-                    <span className="ml-auto font-mono text-[26px] font-medium leading-none" style={{ color: usageColor(cpu) }}>
+                    <span
+                        className="ml-auto font-mono text-[26px] font-medium leading-none"
+                        style={{ color: usageColor(cpu) }}
+                    >
                         {fmtPct(cpu)}
                     </span>
                 </div>
@@ -725,7 +747,10 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
                             {fmtGB(memUsed)} / {fmtGB(memTotal)} GB
                         </span>
                     )}
-                    <span className="ml-auto font-mono text-[20px] font-medium leading-none" style={{ color: usageColor(memPct) }}>
+                    <span
+                        className="ml-auto font-mono text-[20px] font-medium leading-none"
+                        style={{ color: usageColor(memPct) }}
+                    >
                         {fmtPct(memPct)}
                     </span>
                 </div>
@@ -750,7 +775,10 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
 
             <div className="bg-modalbg border border-border rounded-[10px] px-3.5 py-3">
                 <div className="flex items-center gap-2.5">
-                    <i className="fa-sharp fa-solid fa-arrows-up-down text-[16px]" style={{ color: "var(--accent-color)" }} />
+                    <i
+                        className="fa-sharp fa-solid fa-arrows-up-down text-[16px]"
+                        style={{ color: "var(--accent-color)" }}
+                    />
                     <span className="text-foreground text-[13px]">Network</span>
                     <span className="ml-auto flex items-center gap-4 font-mono text-[13px]">
                         <span style={{ color: "var(--accent-color)" }}>
@@ -767,7 +795,10 @@ function SysinfoDashboard({ model, plotData, plotMeta, targetLen }: SysinfoDashb
 
             <div className="bg-modalbg border border-border rounded-[10px] px-3.5 py-3">
                 <div className="flex items-center gap-2.5 mb-2">
-                    <i className="fa-sharp fa-solid fa-hard-drive text-[16px]" style={{ color: "var(--accent-color)" }} />
+                    <i
+                        className="fa-sharp fa-solid fa-hard-drive text-[16px]"
+                        style={{ color: "var(--accent-color)" }}
+                    />
                     <span className="text-foreground text-[13px]">Disk</span>
                     {disks.length > 0 && (
                         <span className="text-muted font-mono text-[12px]">

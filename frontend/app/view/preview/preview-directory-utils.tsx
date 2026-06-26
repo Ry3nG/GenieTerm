@@ -4,7 +4,6 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget, isBlank } from "@/util/util";
-import dayjs from "dayjs";
 import React from "react";
 import { type PreviewModel } from "./preview-model";
 
@@ -37,6 +36,8 @@ export const displaySuffixes = {
     TiB: "t",
 };
 
+const ShortMonthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
+
 export function getBestUnit(bytes: number, si = false, sigfig = 3): string {
     if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return "-";
     if (bytes === 0) return "0B";
@@ -55,18 +56,30 @@ function padDay(day: number) {
     return String(day).padStart(2, " ");
 }
 
+function padTime(value: number) {
+    return String(value).padStart(2, "0");
+}
+
+function formatTime(date: Date) {
+    return `${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
+}
+
+function formatDate(date: Date) {
+    return `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}`;
+}
+
 export function getLastModifiedTime(unixMillis: number): string {
-    const file = dayjs(unixMillis);
-    const now = dayjs();
+    const file = new Date(unixMillis);
+    const now = new Date();
 
-    const day = padDay(file.date());
-    const time = file.format("HH:mm");
+    const day = padDay(file.getDate());
+    const time = formatTime(file);
 
-    if (now.isSame(file, "year")) {
-        return `${file.format("MMM")} ${day} ${time}`;
+    if (now.getFullYear() == file.getFullYear()) {
+        return `${ShortMonthFormatter.format(file)} ${day} ${time}`;
     }
 
-    return `${file.format("YYYY-MM-DD")}`;
+    return formatDate(file);
 }
 
 const iconRegex = /^[a-z0-9- ]+$/;
