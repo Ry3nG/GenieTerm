@@ -68,7 +68,9 @@ jobs:
               run: npx vite build
 
             - name: Preview visual QA
+              timeout-minutes: 6
               run: npm run visual:preview
 
             - name: Preview interaction QA
+              timeout-minutes: 4
               run: npm run interaction:preview

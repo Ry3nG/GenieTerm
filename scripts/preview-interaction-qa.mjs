@@ -12,6 +12,8 @@ const ScriptDir = path.dirname(fileURLToPath(import.meta.url));
 const RepoRoot = path.resolve(ScriptDir, "..");
 const PreviewDir = path.join(RepoRoot, "frontend", "preview");
 const Host = "127.0.0.1";
+const PageTimeoutMs = 10000;
+const NavigationTimeoutMs = 15000;
 
 function log(message) {
     console.log(`[preview-interaction-qa] ${message}`);
@@ -117,6 +119,8 @@ async function newCheckedPage(browser, baseUrl, previewName, viewport = { width:
         viewport,
         deviceScaleFactor: 1,
     });
+    page.setDefaultTimeout(PageTimeoutMs);
+    page.setDefaultNavigationTimeout(NavigationTimeoutMs);
     const consoleErrors = [];
     page.on("console", (message) => {
         if (message.type() === "error") {
@@ -126,7 +130,8 @@ async function newCheckedPage(browser, baseUrl, previewName, viewport = { width:
     page.on("pageerror", (error) => {
         consoleErrors.push(error.message);
     });
-    await page.goto(`${baseUrl}/?preview=${previewName}`, { waitUntil: "networkidle" });
+    log(`checking ${previewName}`);
+    await page.goto(`${baseUrl}/?preview=${previewName}`, { waitUntil: "domcontentloaded", timeout: NavigationTimeoutMs });
     await page.locator("body").waitFor({ state: "visible" });
     await page.evaluate(() => document.fonts?.ready);
     return {

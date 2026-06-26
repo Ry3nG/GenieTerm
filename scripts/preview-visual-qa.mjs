@@ -14,6 +14,8 @@ const RepoRoot = path.resolve(ScriptDir, "..");
 const PreviewDir = path.join(RepoRoot, "frontend", "preview");
 const ArtifactDir = path.join(RepoRoot, "artifacts", "visual-qa");
 const Host = "127.0.0.1";
+const PageTimeoutMs = 10000;
+const NavigationTimeoutMs = 15000;
 
 const PreviewCases = [
     {
@@ -257,6 +259,8 @@ async function runPreviewCase(browser, baseUrl, previewCase) {
             },
             deviceScaleFactor: 1,
         });
+        page.setDefaultTimeout(PageTimeoutMs);
+        page.setDefaultNavigationTimeout(NavigationTimeoutMs);
         const consoleErrors = [];
         page.on("console", (message) => {
             if (message.type() === "error") {
@@ -268,9 +272,16 @@ async function runPreviewCase(browser, baseUrl, previewCase) {
         });
 
         const url = new URL(previewCase.path, baseUrl).toString();
-        await page.goto(url, { waitUntil: "networkidle" });
+        log(`checking ${previewCase.name}/${viewport.name}`);
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: NavigationTimeoutMs });
         await page.locator("body").waitFor({ state: "visible" });
         await page.evaluate(() => document.fonts?.ready);
+        if (previewCase.checks.length > 0) {
+            await page.getByText(previewCase.checks[0], { exact: false }).first().waitFor({
+                state: "visible",
+                timeout: PageTimeoutMs,
+            });
+        }
 
         for (const text of previewCase.checks) {
             const count = await page.getByText(text, { exact: false }).count();
