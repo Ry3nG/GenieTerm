@@ -29,8 +29,8 @@ import { Terminal } from "@xterm/xterm";
 import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
-import { formatCmdBlockDuration, getCmdBlockStatus, type CmdBlockStatusDisplay } from "./cmdblockdisplay";
-import { blockHasCommand, getBlockOutputText, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
+import { getCmdBlockStatus } from "./cmdblockdisplay";
+import { blockHasCommand, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
 import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
@@ -926,95 +926,7 @@ export class TermWrap {
                 el.classList.add("term-cmdblock-deco", `is-${status.tone}`);
             });
             this.cmdDecorations.push(decoration);
-
-            // A second, interactive decoration on the command's prompt line (layer "top"):
-            // a right-aligned status pill + duration that reveals copy/rerun on hover. The
-            // running/active command has no decoration, so the floating action bar owns it.
-            const header = this.terminal.registerDecoration({
-                marker: block.startMarker,
-                width: cols,
-                height: 1,
-                layer: "top",
-            });
-            if (header != null) {
-                header.onRender((el) => {
-                    if (el.dataset.cmdHeaderBuilt === "1") {
-                        return;
-                    }
-                    el.dataset.cmdHeaderBuilt = "1";
-                    el.classList.add("term-cmdblock-header", `is-${status.tone}`);
-                    el.appendChild(this.buildCmdBlockHeader(block, status));
-                });
-                this.cmdDecorations.push(header);
-            }
         }
-    }
-
-    buildCmdBlockHeader(block: CmdBlock, status: CmdBlockStatusDisplay): HTMLElement {
-        const strip = document.createElement("div");
-        strip.className = "term-cmdblock-header-strip";
-
-        const pill = document.createElement("span");
-        pill.className = "term-cmdblock-pill";
-        const pillIcon = document.createElement("i");
-        pillIcon.className = status.iconClass;
-        pill.appendChild(pillIcon);
-        const pillLabel = document.createElement("span");
-        pillLabel.textContent = status.label;
-        pill.appendChild(pillLabel);
-        strip.appendChild(pill);
-
-        const duration = document.createElement("span");
-        duration.className = "term-cmdblock-duration";
-        duration.textContent = formatCmdBlockDuration(block);
-        strip.appendChild(duration);
-
-        const actions = document.createElement("div");
-        actions.className = "term-cmdblock-actions";
-        actions.appendChild(
-            this.makeCmdBlockAction("fa-solid fa-terminal", "Copy command", () => {
-                if (block.command) {
-                    navigator.clipboard?.writeText(block.command);
-                }
-            })
-        );
-        actions.appendChild(
-            this.makeCmdBlockAction("fa-solid fa-copy", "Copy output", () => {
-                const text = getBlockOutputText(block, this.terminal);
-                if (text) {
-                    navigator.clipboard?.writeText(text);
-                }
-            })
-        );
-        actions.appendChild(
-            this.makeCmdBlockAction("fa-solid fa-rotate-right", "Re-run", () => {
-                if (!block.command) {
-                    return;
-                }
-                this.terminal.focus();
-                this.sendDataHandler?.(`${block.command}\r`);
-            })
-        );
-        strip.appendChild(actions);
-        return strip;
-    }
-
-    makeCmdBlockAction(iconClass: string, label: string, onClick: () => void): HTMLButtonElement {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "term-cmdblock-action cursor-pointer";
-        btn.title = label;
-        btn.setAttribute("aria-label", label);
-        const icon = document.createElement("i");
-        icon.className = iconClass;
-        btn.appendChild(icon);
-        btn.addEventListener("mousedown", (e) => e.preventDefault());
-        btn.addEventListener("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onClick();
-        });
-        return btn;
     }
 
     handleCmdBlockMarkerDisposed(marker: TermTypes.IMarker) {

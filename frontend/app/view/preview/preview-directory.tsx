@@ -111,6 +111,7 @@ function DirectoryTableHeaderCell({ header }: DirectoryTableHeaderCellProps) {
 }
 
 declare module "@tanstack/react-table" {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     interface TableMeta<TData extends RowData> {
         updateName: (path: string, isDir: boolean) => void;
         newFile: () => void;
