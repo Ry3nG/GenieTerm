@@ -7,7 +7,7 @@
     "productName": "GenieTerm",
     "description": "Workspace-native terminal for commands, files, and durable sessions",
     "license": "Apache-2.0",
-    "version": "0.4.58",
+    "version": "0.4.59",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"
@@ -25,6 +25,7 @@
         "build:dev": "electron-vite build --mode development",
         "build:prod": "electron-vite build --mode production",
         "coverage": "vitest run --coverage",
+        "interaction:preview": "node scripts/preview-interaction-qa.mjs",
         "visual:preview": "node scripts/preview-visual-qa.mjs",
         "test": "vitest",
         "postinstall": "node ./postinstall.cjs"

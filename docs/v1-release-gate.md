@@ -48,6 +48,8 @@ The release gate must pass:
 - Standalone preview build, including visual QA fixtures.
 - Preview screenshot QA at fixed desktop and narrow viewports.
   Current preview coverage is tracked in `docs/visual-qa/preview-screenshot-gate.md`.
+- Preview interaction QA for the highest-risk preview surfaces.
+  Current interaction coverage is tracked in `docs/visual-qa/preview-interaction-gate.md`.
 - macOS packaging on the release machine.
 - Installed app bundle version and signature verification on macOS.
 
