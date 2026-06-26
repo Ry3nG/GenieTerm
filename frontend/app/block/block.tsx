@@ -12,7 +12,7 @@ import { useTabModel } from "@/app/store/tab-model";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { ErrorBoundary } from "@/element/errorboundary";
 import { CenteredDiv } from "@/element/quickelems";
-import { useDebouncedNodeInnerRect } from "@/layout/index";
+import { useDebouncedNodeInnerRect } from "@/layout/lib/layoutModelHooks";
 import { counterInc } from "@/store/counters";
 import { getBlockComponentModel, registerBlockComponentModel, unregisterBlockComponentModel } from "@/store/global";
 import { makeORef } from "@/store/wos";

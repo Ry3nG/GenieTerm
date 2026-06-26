@@ -27,7 +27,8 @@ import {
     CommandComposerDefaultBinding,
     isCommandComposerEnabled,
 } from "@/app/view/term/command-composer";
-import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
+import { NavigateDirection } from "@/layout/index";
+import { deleteLayoutModelForTab, getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import * as keyutil from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";

@@ -4,7 +4,7 @@
 import { Tooltip } from "@/app/element/tooltip";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
-import { deleteLayoutModelForTab } from "@/layout/index";
+import { deleteLayoutModelForTab } from "@/layout/lib/layoutModelHooks";
 import { isMacOSTahoeOrLater } from "@/util/platformutil";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";

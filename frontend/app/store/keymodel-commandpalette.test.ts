@@ -83,9 +83,11 @@ describe("keymodel command palette commands", () => {
             CommandComposerDefaultBinding: "Ctrl:Shift:a",
             isCommandComposerEnabled: vi.fn(() => false),
         }));
-        vi.doMock("@/layout/index", () => ({
+        vi.doMock("@/layout/lib/layoutModelHooks", () => ({
             deleteLayoutModelForTab: vi.fn(),
             getLayoutModelForStaticTab: vi.fn(() => ({ focusedNode: "focusedNode" })),
+        }));
+        vi.doMock("@/layout/index", () => ({
             NavigateDirection: {
                 Up: "up",
                 Down: "down",
