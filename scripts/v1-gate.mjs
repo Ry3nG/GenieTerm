@@ -51,12 +51,14 @@ run("Preview visual QA", "task", ["visual:preview"]);
 run("Preview interaction QA", "task", ["interaction:preview"]);
 
 if (shouldPackage) {
+    const packageOutput = process.env.GENIETERM_BUILD_OUTPUT || "/private/tmp/genieterm-v1-gate";
     run("macOS arm64 package", "task", ["package", "--", "--mac", "zip", "--arm64"], {
         env: {
             ...process.env,
-            GENIETERM_BUILD_OUTPUT: process.env.GENIETERM_BUILD_OUTPUT || "/private/tmp/genieterm-v1-gate",
+            GENIETERM_BUILD_OUTPUT: packageOutput,
         },
     });
+    run("macOS package artifact verification", "task", ["package:verify", "--", packageOutput]);
 }
 
 if (shouldVerifyInstalled) {

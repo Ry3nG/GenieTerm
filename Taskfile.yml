@@ -103,6 +103,12 @@ tasks:
             - build:backend
             - build:tsunamiscaffold
 
+    package:verify:
+        desc: Verify packaged macOS app identity, version, helpers, artifact, and signature.
+        cmd: node scripts/verify-package-artifact.mjs {{.CLI_ARGS}}
+        deps:
+            - npm:install
+
     build:frontend:dev:
         desc: Build the frontend in development mode.
         cmd: npm run build:dev

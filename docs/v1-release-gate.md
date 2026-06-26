@@ -51,6 +51,8 @@ The release gate must pass:
 - Preview interaction QA for the highest-risk preview surfaces.
   Current interaction coverage is tracked in `docs/visual-qa/preview-interaction-gate.md`.
 - macOS packaging on the release machine.
+- Packaged app artifact identity, version, helper binaries, zip presence, and signature verification on macOS.
+  Current package artifact checks are tracked in `docs/packaging-artifact-gate.md`.
 - Installed app bundle version and signature verification on macOS.
 
 ## Visual QA Gate
