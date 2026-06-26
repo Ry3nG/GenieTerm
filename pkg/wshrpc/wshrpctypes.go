@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/telemetry/telemetrydata"
@@ -17,6 +16,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
+	"github.com/google/uuid"
 )
 
 type RespOrErrorUnion[T any] struct {
@@ -95,6 +95,8 @@ type WshRpcInterface interface {
 	FetchSuggestionsCommand(ctx context.Context, data FetchSuggestionsData) (*FetchSuggestionsResponse, error)
 	DisposeSuggestionsCommand(ctx context.Context, widgetId string) error
 	RunCompletionGenCommand(ctx context.Context, data CommandRunCompletionGenData) (CommandRunCompletionGenRtnData, error)
+	GitStatusCommand(ctx context.Context, data CommandGitStatusData) (*GitStatusResponse, error)
+	GitGraphCommand(ctx context.Context, data CommandGitGraphData) (*GitGraphResponse, error)
 	GetTabCommand(ctx context.Context, tabId string) (*waveobj.Tab, error)
 	UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error
 	UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error
@@ -342,7 +344,6 @@ type CommandEventReadHistoryData struct {
 	Scope    string `json:"scope"`
 	MaxItems int    `json:"maxitems"`
 }
-
 
 type CpuDataRequest struct {
 	Id    string `json:"id"`
@@ -666,6 +667,55 @@ type CommandRunCompletionGenRtnData struct {
 	Stderr    string `json:"stderr"`
 	ExitCode  int    `json:"exitcode"`
 	Supported bool   `json:"supported"`
+}
+
+type CommandGitStatusData struct {
+	ConnName  string `json:"connname,omitempty"`
+	Cwd       string `json:"cwd,omitempty"`
+	TimeoutMs int    `json:"timeoutms,omitempty"`
+}
+
+type GitStatusFile struct {
+	Path     string `json:"path"`
+	OrigPath string `json:"origpath,omitempty"`
+	Index    string `json:"index"`
+	Worktree string `json:"worktree"`
+}
+
+type GitStatusResponse struct {
+	Branch    string          `json:"branch,omitempty"`
+	Files     []GitStatusFile `json:"files"`
+	Stdout    string          `json:"stdout,omitempty"`
+	Stderr    string          `json:"stderr,omitempty"`
+	ExitCode  int             `json:"exitcode"`
+	Supported bool            `json:"supported"`
+}
+
+type CommandGitGraphData struct {
+	ConnName  string `json:"connname,omitempty"`
+	Cwd       string `json:"cwd,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+	TimeoutMs int    `json:"timeoutms,omitempty"`
+}
+
+type GitGraphCommit struct {
+	Hash      string   `json:"hash"`
+	ShortHash string   `json:"shorthash"`
+	Parents   []string `json:"parents"`
+	Refs      []string `json:"refs"`
+	Subject   string   `json:"subject"`
+	Author    string   `json:"author"`
+	RelDate   string   `json:"reldate"`
+	Timestamp int64    `json:"timestamp"`
+	Graph     string   `json:"graph"`
+}
+
+type GitGraphResponse struct {
+	Commits   []GitGraphCommit `json:"commits"`
+	Stdout    string           `json:"stdout,omitempty"`
+	Stderr    string           `json:"stderr,omitempty"`
+	ExitCode  int              `json:"exitcode"`
+	Supported bool             `json:"supported"`
 }
 
 type SuggestionType struct {

@@ -434,6 +434,21 @@ declare global {
         chatid: string;
     };
 
+    // wshrpc.CommandGitGraphData
+    type CommandGitGraphData = {
+        connname?: string;
+        cwd?: string;
+        limit?: number;
+        timeoutms?: number;
+    };
+
+    // wshrpc.CommandGitStatusData
+    type CommandGitStatusData = {
+        connname?: string;
+        cwd?: string;
+        timeoutms?: number;
+    };
+
     // wshrpc.CommandJobCmdExitedData
     type CommandJobCmdExitedData = {
         jobid: string;
@@ -1065,6 +1080,46 @@ declare global {
         configerrors: ConfigError[];
         version: string;
         buildtime: string;
+    };
+
+    // wshrpc.GitGraphCommit
+    type GitGraphCommit = {
+        hash: string;
+        shorthash: string;
+        parents: string[];
+        refs: string[];
+        subject: string;
+        author: string;
+        reldate: string;
+        timestamp: number;
+        graph: string;
+    };
+
+    // wshrpc.GitGraphResponse
+    type GitGraphResponse = {
+        commits: GitGraphCommit[];
+        stdout?: string;
+        stderr?: string;
+        exitcode: number;
+        supported: boolean;
+    };
+
+    // wshrpc.GitStatusFile
+    type GitStatusFile = {
+        path: string;
+        origpath?: string;
+        index: string;
+        worktree: string;
+    };
+
+    // wshrpc.GitStatusResponse
+    type GitStatusResponse = {
+        branch?: string;
+        files: GitStatusFile[];
+        stdout?: string;
+        stderr?: string;
+        exitcode: number;
+        supported: boolean;
     };
 
     // waveobj.Job
