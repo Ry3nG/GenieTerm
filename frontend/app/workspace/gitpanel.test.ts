@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    checkoutConfirmationForCommit,
     checkoutTargetForCommit,
     fileDiffArgs,
     makeGraphRenderModel,
@@ -81,6 +82,16 @@ describe("gitpanel helpers", () => {
         expect(checkoutTargetForCommit(commit({ refs: ["origin/feature", "tag: v1"] }))).toEqual({
             target: "abc123456789",
             detached: true,
+        });
+    });
+
+    it("builds detached checkout confirmations only when checkout would use a raw hash", () => {
+        expect(checkoutConfirmationForCommit(commit({ refs: ["HEAD -> main", "origin/main"] }))).toBeNull();
+        expect(checkoutConfirmationForCommit(commit({ refs: ["origin/feature"] }))).toEqual({
+            hash: "abc123456789",
+            shorthash: "abc1234",
+            subject: "Subject",
+            target: "abc123456789",
         });
     });
 

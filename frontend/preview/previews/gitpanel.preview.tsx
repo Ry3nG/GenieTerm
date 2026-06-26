@@ -112,7 +112,11 @@ const CommitFiles = [
     { status: "M", path: "frontend/app/workspace/gitpanel.tsx" },
     { status: "A", path: "frontend/app/workspace/gitpanel.test.ts" },
     { status: "M", path: "pkg/wshrpc/wshserver/git.go" },
-    { status: "R100", path: "frontend/app/workspace/source-control.tsx", origpath: "frontend/app/workspace/gitpanel-old.tsx" },
+    {
+        status: "R100",
+        path: "frontend/app/workspace/source-control.tsx",
+        origpath: "frontend/app/workspace/gitpanel-old.tsx",
+    },
 ];
 
 export default function GitPanelPreview() {
@@ -152,12 +156,18 @@ export default function GitPanelPreview() {
                         graph: {
                             commits: SampleCommits,
                         },
-                        selectedHash: SampleCommits[0].hash,
+                        selectedHash: SampleCommits[2].hash,
                         commitFiles: {
-                            hash: SampleCommits[0].hash,
+                            hash: SampleCommits[2].hash,
                             files: CommitFiles,
                             loading: false,
                             error: "",
+                        },
+                        pendingCheckout: {
+                            hash: SampleCommits[2].hash,
+                            shorthash: SampleCommits[2].shorthash,
+                            subject: SampleCommits[2].subject,
+                            target: SampleCommits[2].hash,
                         },
                     }}
                 />

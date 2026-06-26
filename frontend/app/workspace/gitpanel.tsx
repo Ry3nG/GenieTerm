@@ -57,6 +57,13 @@ type CommitFilesState = {
     error: string;
 };
 
+type GitCheckoutConfirmation = {
+    hash: string;
+    shorthash: string;
+    subject: string;
+    target: string;
+};
+
 type DiffLine = {
     type: "context" | "add" | "del" | "hunk" | "meta";
     oldLine?: number;
@@ -533,6 +540,19 @@ export function checkoutTargetForCommit(commit: GitGraphCommit): { target: strin
     return { target: commit.hash, detached: true };
 }
 
+export function checkoutConfirmationForCommit(commit: GitGraphCommit): GitCheckoutConfirmation | null {
+    const checkout = checkoutTargetForCommit(commit);
+    if (!checkout.detached) {
+        return null;
+    }
+    return {
+        hash: commit.hash,
+        shorthash: commit.shorthash,
+        subject: commit.subject,
+        target: checkout.target,
+    };
+}
+
 function GitPanelTabButton({
     active,
     icon,
@@ -846,6 +866,7 @@ interface GitPanelProps {
         selectedHash?: string;
         preview?: GitPreview;
         commitFiles?: CommitFilesState;
+        pendingCheckout?: GitCheckoutConfirmation;
     };
 }
 
@@ -867,6 +888,7 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
     const [preview, setPreview] = React.useState<GitPreview>(previewData?.preview ?? EmptyPreview);
     const [operation, setOperation] = React.useState<GitOperation>(EmptyOperation);
     const [graphFilter, setGraphFilter] = React.useState("");
+    const [pendingCheckout, setPendingCheckout] = React.useState<GitCheckoutConfirmation>(previewData?.pendingCheckout);
     const [commitFiles, setCommitFiles] = React.useState<CommitFilesState>(
         previewData?.commitFiles ?? {
             hash: "",
@@ -896,6 +918,8 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
     );
     const canRunCommand = !isBlank(cwd);
     const busy = status.loading || graph.loading || operation.loading || preview.loading;
+    const activeCheckoutConfirmation =
+        selectedCommit && pendingCheckout?.hash === selectedCommit.hash ? pendingCheckout : null;
 
     const openGitArgsInTerminal = React.useCallback(
         (args: string[]) => {
@@ -1072,6 +1096,7 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
         if (previewData) {
             return;
         }
+        setPendingCheckout(null);
         if (activeTab !== "graph" || !selectedCommit) {
             return;
         }
@@ -1198,6 +1223,33 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
             setCommitMessage("");
         });
     }, [commitMessage, runGitAction]);
+
+    const checkoutCommit = React.useCallback(
+        (commit: GitGraphCommit) => {
+            const confirmation = checkoutConfirmationForCommit(commit);
+            if (confirmation) {
+                setPendingCheckout(confirmation);
+                return;
+            }
+            const checkout = checkoutTargetForCommit(commit);
+            setPendingCheckout(null);
+            fireAndForget(async () => {
+                await runGitAction("Checked out branch", ["checkout", checkout.target]);
+            });
+        },
+        [runGitAction]
+    );
+
+    const confirmCheckoutCommit = React.useCallback(() => {
+        if (!activeCheckoutConfirmation) {
+            return;
+        }
+        const checkout = activeCheckoutConfirmation;
+        setPendingCheckout(null);
+        fireAndForget(async () => {
+            await runGitAction("Checked out revision", ["checkout", checkout.target]);
+        });
+    }, [activeCheckoutConfirmation, runGitAction]);
 
     if (!open) {
         return null;
@@ -1521,6 +1573,24 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
                                     })
                                 )}
                             </div>
+                            {activeCheckoutConfirmation && (
+                                <div className="mb-2 rounded-sm border border-warning/40 bg-warning/10 px-2 py-2 text-xs text-warning">
+                                    <div className="mb-1 flex items-center gap-2">
+                                        <span className="min-w-0 flex-1 font-semibold">Detached HEAD checkout</span>
+                                        <button
+                                            type="button"
+                                            className="cursor-pointer rounded-sm px-1.5 py-0.5 text-warning hover:bg-warning/15"
+                                            onClick={() => setPendingCheckout(null)}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                    <div className="break-words">
+                                        Checkout {activeCheckoutConfirmation.shorthash} without a branch. New commits
+                                        will not be on a branch unless you create one.
+                                    </div>
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     type="button"
@@ -1542,23 +1612,19 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
                                 </button>
                                 <button
                                     type="button"
-                                    className="cursor-pointer rounded-sm bg-hoverbg px-2 py-1.5 text-xs text-primary transition-colors hover:bg-hover"
+                                    className={cn(
+                                        "cursor-pointer rounded-sm px-2 py-1.5 text-xs text-primary transition-colors",
+                                        activeCheckoutConfirmation
+                                            ? "bg-warning/70 hover:bg-warning"
+                                            : "bg-hoverbg hover:bg-hover"
+                                    )}
                                     onClick={() =>
-                                        fireAndForget(async () => {
-                                            const checkout = checkoutTargetForCommit(selectedCommit);
-                                            if (
-                                                checkout.detached &&
-                                                !window.confirm(
-                                                    `Checkout ${selectedCommit.shorthash} in detached HEAD state?`
-                                                )
-                                            ) {
-                                                return;
-                                            }
-                                            await runGitAction("Checked out revision", ["checkout", checkout.target]);
-                                        })
+                                        activeCheckoutConfirmation
+                                            ? confirmCheckoutCommit()
+                                            : checkoutCommit(selectedCommit)
                                     }
                                 >
-                                    Checkout
+                                    {activeCheckoutConfirmation ? "Confirm Checkout" : "Checkout"}
                                 </button>
                             </div>
                         </div>
