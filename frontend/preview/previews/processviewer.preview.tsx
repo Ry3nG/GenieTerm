@@ -73,7 +73,7 @@ export default function ProcessViewerPreview() {
             makeMockNodeModel({
                 nodeId: PreviewNodeId,
                 blockId: ProcessViewerBlockId,
-                innerRect: { width: "800px", height: "500px" },
+                innerRect: { width: "100%", height: "500px" },
                 numLeafs: 1,
             }),
         []

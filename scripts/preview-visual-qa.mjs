@@ -32,6 +32,51 @@ const PreviewCases = [
             { name: "narrow", width: 960, height: 1100 },
         ],
     },
+    {
+        name: "transfer-queue",
+        path: "/?preview=transfer-queue",
+        checks: ["Files transfer queue strip", "upload", "download", "failed"],
+        viewports: [
+            { name: "desktop", width: 1180, height: 760 },
+            { name: "narrow", width: 720, height: 760 },
+        ],
+    },
+    {
+        name: "processviewer",
+        path: "/?preview=processviewer",
+        checks: ["processviewer block", "Processes", "kernel_task", "WindowServer"],
+        viewports: [
+            { name: "desktop", width: 1180, height: 820 },
+            { name: "narrow", width: 760, height: 820 },
+        ],
+    },
+    {
+        name: "sysinfo",
+        path: "/?preview=sysinfo",
+        checks: ["full sysinfo block", "CPU", "Memory"],
+        viewports: [
+            { name: "desktop", width: 1180, height: 900 },
+            { name: "narrow", width: 760, height: 900 },
+        ],
+    },
+    {
+        name: "web",
+        path: "/?preview=web",
+        checks: ["full web block", "preview mock", "electron webview unavailable"],
+        viewports: [
+            { name: "desktop", width: 1240, height: 900 },
+            { name: "narrow", width: 760, height: 900 },
+        ],
+    },
+    {
+        name: "files-upload-drop",
+        path: "/?preview=files-upload-drop",
+        checks: ["Files upload drop affordance", "reports", "release notes.txt"],
+        viewports: [
+            { name: "desktop", width: 980, height: 680 },
+            { name: "narrow", width: 640, height: 680 },
+        ],
+    },
 ];
 
 function log(message) {
@@ -164,6 +209,18 @@ function assertScreenshotHasContent(filePath) {
 }
 
 async function assertNoHorizontalDocumentOverflow(page, caseName, viewportName) {
+    const documentOverflow = await page.evaluate(() => {
+        const width = document.documentElement.clientWidth;
+        const scrollWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
+        return {
+            width,
+            scrollWidth,
+            overflow: scrollWidth - width,
+        };
+    });
+    if (documentOverflow.overflow <= 2) {
+        return;
+    }
     const overflow = await page.evaluate(() => {
         const width = document.documentElement.clientWidth;
         return Array.from(document.querySelectorAll("body *"))
@@ -183,9 +240,12 @@ async function assertNoHorizontalDocumentOverflow(page, caseName, viewportName) 
     });
     if (overflow.length > 0) {
         throw new Error(
-            `${caseName}/${viewportName} has horizontal document overflow: ${JSON.stringify(overflow.slice(0, 5))}`
+            `${caseName}/${viewportName} has ${documentOverflow.overflow}px horizontal document overflow: ${JSON.stringify(
+                overflow.slice(0, 5)
+            )}`
         );
     }
+    throw new Error(`${caseName}/${viewportName} has ${documentOverflow.overflow}px horizontal document overflow`);
 }
 
 async function runPreviewCase(browser, baseUrl, previewCase) {
