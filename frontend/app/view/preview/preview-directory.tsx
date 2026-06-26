@@ -638,38 +638,44 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         globalStore.set(model.treeViewMode, fileView == "tree");
     }, [fileView, model.treeViewMode]);
 
-    useEffect(
-        () =>
-            fireAndForget(async () => {
-                const entries: FileInfo[] = [];
-                try {
-                    const remotePath = await model.formatRemoteUri(dirPath, globalStore.get);
-                    const stream = env.rpc.FileListStreamCommand(TabRpcClient, { path: remotePath }, null);
-                    for await (const chunk of stream) {
-                        if (chunk?.fileinfo) {
-                            entries.push(...chunk.fileinfo);
-                        }
+    useEffect(() => {
+        let cancelled = false;
+        fireAndForget(async () => {
+            const entries: FileInfo[] = [];
+            try {
+                const remotePath = await model.formatRemoteUri(dirPath, globalStore.get);
+                const stream = env.rpc.FileListStreamCommand(TabRpcClient, { path: remotePath }, null);
+                for await (const chunk of stream) {
+                    if (chunk?.fileinfo) {
+                        entries.push(...chunk.fileinfo);
                     }
-                    if (finfo?.dir && finfo?.path !== finfo?.dir) {
-                        entries.unshift({
-                            name: "..",
-                            path: finfo.dir,
-                            isdir: true,
-                            modtime: new Date().getTime(),
-                            mimetype: "directory",
-                        });
-                    }
-                } catch (e) {
+                }
+                if (finfo?.dir && finfo?.path !== finfo?.dir) {
+                    entries.unshift({
+                        name: "..",
+                        path: finfo.dir,
+                        isdir: true,
+                        modtime: new Date().getTime(),
+                        mimetype: "directory",
+                    });
+                }
+            } catch (e) {
+                if (!cancelled) {
                     console.error("Directory Read Error", e);
                     setErrorMsg({
                         status: "Cannot Read Directory",
                         text: `${e}`,
                     });
                 }
+            }
+            if (!cancelled) {
                 setUnfilteredData(entries);
-            }),
-        [conn, dirPath, refreshVersion]
-    );
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [conn, dirPath, refreshVersion]);
 
     const filteredData = useMemo(
         () =>
