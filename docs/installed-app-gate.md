@@ -20,6 +20,12 @@ For final release smoke, include a launch check:
 task installed:verify -- --launch-smoke
 ```
 
+For the stronger packaged-window smoke used by the release gate:
+
+```sh
+task installed:verify -- --window-smoke
+```
+
 ## Verified Evidence
 
 - The installed app bundle exists.
@@ -29,6 +35,7 @@ task installed:verify -- --launch-smoke
 - Stale `genie-*` or `wsh-*` helper binaries from older versions fail the gate.
 - `codesign --verify --deep --strict` passes.
 - With `--launch-smoke`, the app launches with an isolated user-data directory and a running process is observed.
+- With `--window-smoke`, Playwright launches the packaged Electron executable, verifies the window title and packaged URL, rejects React error boundaries and console errors, and checks that the rendered screenshot is nonblank.
 
 ## Current Local Evidence
 

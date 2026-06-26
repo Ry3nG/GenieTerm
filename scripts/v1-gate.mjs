@@ -53,7 +53,7 @@ if (shouldVerifyInstalled) {
     if (!isDarwin) {
         fail("--installed is currently implemented for macOS only");
     }
-    run("Installed app verification", "task", ["installed:verify"]);
+    run("Installed app verification", "task", ["installed:verify", "--", "--window-smoke"]);
 }
 
 console.log("\n[v1-gate] all checks passed");

@@ -53,7 +53,7 @@ The release gate must pass:
 - macOS packaging on the release machine.
 - Packaged app artifact identity, version, helper binaries, zip presence, and signature verification on macOS.
   Current package artifact checks are tracked in `docs/packaging-artifact-gate.md`.
-- Installed app bundle version and signature verification on macOS.
+- Installed app bundle version, helper binaries, signature, and packaged-window smoke verification on macOS.
   Current installed app checks are tracked in `docs/installed-app-gate.md`.
 
 ## Visual QA Gate
