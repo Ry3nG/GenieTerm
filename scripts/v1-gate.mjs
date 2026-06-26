@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import process from "node:process";
 
 const args = new Set(process.argv.slice(2));
@@ -31,17 +30,6 @@ function fail(message) {
     process.exit(1);
 }
 
-function read(command, commandArgs) {
-    const result = spawnSync(command, commandArgs, {
-        encoding: "utf8",
-        shell: process.platform === "win32",
-    });
-    if (result.status !== 0) {
-        fail(result.stderr || result.stdout || `${command} failed`);
-    }
-    return result.stdout.trim();
-}
-
 run("TypeScript typecheck", "npm", ["exec", "tsc", "--", "--noEmit"]);
 run("Vitest suite", "npm", ["test", "--", "--run"]);
 run("Go test suite", "go", ["test", "./..."]);
@@ -65,20 +53,7 @@ if (shouldVerifyInstalled) {
     if (!isDarwin) {
         fail("--installed is currently implemented for macOS only");
     }
-    const appPath = "/Applications/GenieTerm.app";
-    if (!existsSync(appPath)) {
-        fail(`${appPath} does not exist`);
-    }
-    const pkgVersion = read("node", ["version.cjs"]);
-    const appVersion = read("/usr/libexec/PlistBuddy", [
-        "-c",
-        "Print CFBundleShortVersionString",
-        `${appPath}/Contents/Info.plist`,
-    ]);
-    if (pkgVersion !== appVersion) {
-        fail(`installed app version ${appVersion} does not match package version ${pkgVersion}`);
-    }
-    run("Installed app signature", "codesign", ["--verify", "--deep", "--strict", appPath]);
+    run("Installed app verification", "task", ["installed:verify"]);
 }
 
 console.log("\n[v1-gate] all checks passed");

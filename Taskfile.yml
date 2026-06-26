@@ -109,6 +109,12 @@ tasks:
         deps:
             - npm:install
 
+    installed:verify:
+        desc: Verify installed macOS app identity, version, helpers, signature, and optional launch smoke.
+        cmd: node scripts/verify-installed-app.mjs {{.CLI_ARGS}}
+        deps:
+            - npm:install
+
     build:frontend:dev:
         desc: Build the frontend in development mode.
         cmd: npm run build:dev
