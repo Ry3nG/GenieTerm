@@ -5,6 +5,26 @@ package wshserver
 
 import "testing"
 
+func TestNormalizeGitGraphLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		limit int
+		want  int
+	}{
+		{name: "default", limit: 0, want: GitGraphDefaultLimit},
+		{name: "negative", limit: -1, want: GitGraphDefaultLimit},
+		{name: "inside max", limit: 120, want: 120},
+		{name: "clamps above max", limit: 250, want: GitGraphMaxLimit},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := normalizeGitGraphLimit(tc.limit); got != tc.want {
+				t.Fatalf("normalizeGitGraphLimit(%d) = %d, want %d", tc.limit, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestParseGitStatusPorcelain(t *testing.T) {
 	resp := parseGitStatusPorcelain("## main...origin/main\x00 M file one.txt\x00?? 新文件.go\x00R  new-name.ts\x00old-name.ts\x00")
 	if resp.Branch != "main...origin/main" {

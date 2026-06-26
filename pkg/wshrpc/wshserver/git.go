@@ -85,9 +85,7 @@ func gitStatusArgs() []string {
 }
 
 func gitGraphArgs(limit int) []string {
-	if limit <= 0 || limit > GitGraphMaxLimit {
-		limit = GitGraphDefaultLimit
-	}
+	limit = normalizeGitGraphLimit(limit)
 	return []string{
 		"-c",
 		"color.ui=false",
@@ -101,6 +99,16 @@ func gitGraphArgs(limit int) []string {
 		fmt.Sprintf("--max-count=%d", limit),
 		"--pretty=format:%x1f%H%x1f%h%x1f%P%x1f%D%x1f%an%x1f%ar%x1f%ct%x1f%s",
 	}
+}
+
+func normalizeGitGraphLimit(limit int) int {
+	if limit <= 0 {
+		limit = GitGraphDefaultLimit
+	}
+	if limit > GitGraphMaxLimit {
+		return GitGraphMaxLimit
+	}
+	return limit
 }
 
 func runGitCommand(ctx context.Context, connName string, cwd string, args []string) (string, string, int, bool) {

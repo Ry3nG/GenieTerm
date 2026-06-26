@@ -131,6 +131,7 @@ const GraphLaneGap = 24;
 const GraphLaneStart = 28;
 const GraphRowHeight = 42;
 const GraphWidth = 188;
+const GitGraphLimit = 200;
 
 function makeFocusedBlockAtom(blockId: string): Atom<Block> {
     if (isBlank(blockId)) {
@@ -245,7 +246,7 @@ function formatRefLabel(ref: string): string {
         .replace(/^tag: refs\/tags\//, "tag: ");
 }
 
-function fileDiffArgs(file: GitStatusFile, groupId: GitChangeGroupId): { args: string[]; allowExitCodes?: number[] } {
+export function fileDiffArgs(file: GitStatusFile, groupId: GitChangeGroupId): { args: string[]; allowExitCodes?: number[] } {
     const baseArgs = ["--no-pager", "diff", "--no-ext-diff", "--unified=8"];
     if (groupId === "staged") {
         return { args: [...baseArgs, "--cached", "--", file.path] };
@@ -269,7 +270,7 @@ function fileActionArgs(file: GitStatusFile, groupId: GitChangeGroupId): string[
     return ["add", "--", file.path];
 }
 
-function parseCommitFiles(stdout: string): CommitFileChange[] {
+export function parseCommitFiles(stdout: string): CommitFileChange[] {
     return stdout
         .split("\n")
         .map((line) => line.trim())
@@ -284,7 +285,7 @@ function parseCommitFiles(stdout: string): CommitFileChange[] {
         .filter((file) => !isBlank(file.path));
 }
 
-function parseUnifiedDiff(content: string): DiffFile[] {
+export function parseUnifiedDiff(content: string): DiffFile[] {
     const files: DiffFile[] = [];
     let cur: DiffFile | null = null;
     let oldLine = 0;
@@ -375,7 +376,7 @@ function allocateGraphLane(lanes: string[], hash: string): number {
     return lanes.length - 1;
 }
 
-function makeGraphRenderModel(commits: GitGraphCommit[]): GraphRenderModel {
+export function makeGraphRenderModel(commits: GitGraphCommit[]): GraphRenderModel {
     const paths: GraphRenderPath[] = [];
     const points: GraphRenderPoint[] = [];
     const colorByHash = new Map<string, string>();
@@ -507,6 +508,29 @@ function GitGraphCanvas({ model, topOffset }: { model: GraphRenderModel; topOffs
             })}
         </svg>
     );
+}
+
+export function checkoutTargetForCommit(commit: GitGraphCommit): { target: string; detached: boolean } {
+    for (const ref of commit.refs) {
+        if (ref.startsWith("HEAD -> ")) {
+            return { target: formatRefLabel(ref), detached: false };
+        }
+    }
+    for (const ref of commit.refs) {
+        const label = formatRefLabel(ref);
+        if (
+            isBlank(label) ||
+            label === "HEAD" ||
+            label.startsWith("tag:") ||
+            label.startsWith("origin/") ||
+            label.startsWith("upstream/") ||
+            label.includes("stash")
+        ) {
+            continue;
+        }
+        return { target: label, detached: false };
+    }
+    return { target: commit.hash, detached: true };
 }
 
 function GitPanelTabButton({
@@ -910,7 +934,7 @@ export function GitPanel({ open, onClose }: GitPanelProps) {
             const rtn = await RpcApi.GitGraphCommand(TabRpcClient, {
                 connname: conn || "local",
                 cwd,
-                limit: 250,
+                limit: GitGraphLimit,
                 timeoutms: 8000,
             });
             const error = rtn.exitcode === 0 ? "" : (rtn.stderr || rtn.stdout || "git log failed").trim();
@@ -1490,13 +1514,18 @@ export function GitPanel({ open, onClose }: GitPanelProps) {
                                     type="button"
                                     className="cursor-pointer rounded-sm bg-hoverbg px-2 py-1.5 text-xs text-primary transition-colors hover:bg-hover"
                                     onClick={() =>
-                                        fireAndForget(
-                                            async () =>
-                                                await runGitAction("Checked out commit", [
-                                                    "checkout",
-                                                    selectedCommit.hash,
-                                                ])
-                                        )
+                                        fireAndForget(async () => {
+                                            const checkout = checkoutTargetForCommit(selectedCommit);
+                                            if (
+                                                checkout.detached &&
+                                                !window.confirm(
+                                                    `Checkout ${selectedCommit.shorthash} in detached HEAD state?`
+                                                )
+                                            ) {
+                                                return;
+                                            }
+                                            await runGitAction("Checked out revision", ["checkout", checkout.target]);
+                                        })
                                     }
                                 >
                                     Checkout
