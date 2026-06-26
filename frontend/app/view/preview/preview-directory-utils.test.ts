@@ -1,15 +1,40 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it, vi } from "vitest";
-import { atom } from "jotai";
 import { globalStore } from "@/app/store/jotaiStore";
+import { atom } from "jotai";
+import { describe, expect, it, vi } from "vitest";
 import {
     copyWithOverwriteConfirmation,
+    getLastModifiedTime,
     isFileCopyFailure,
     makeDirectoryDefaultMenuItems,
     overwriteError,
 } from "./preview-directory-utils";
+
+describe("getLastModifiedTime", () => {
+    it("shows month, padded day, and local time for files from the current year", () => {
+        vi.useFakeTimers();
+        try {
+            vi.setSystemTime(new Date(2026, 5, 1, 12, 0, 0));
+
+            expect(getLastModifiedTime(new Date(2026, 0, 5, 9, 7, 0).getTime())).toBe("Jan  5 09:07");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("shows the date for files from a different year", () => {
+        vi.useFakeTimers();
+        try {
+            vi.setSystemTime(new Date(2026, 5, 1, 12, 0, 0));
+
+            expect(getLastModifiedTime(new Date(2025, 11, 31, 23, 59, 0).getTime())).toBe("2025-12-31");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
 
 describe("copyWithOverwriteConfirmation", () => {
     it("narrows file copy failures with a type guard", () => {

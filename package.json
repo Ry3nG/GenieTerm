@@ -7,7 +7,7 @@
     "productName": "GenieTerm",
     "description": "Workspace-native terminal for commands, files, and durable sessions",
     "license": "Apache-2.0",
-    "version": "0.4.44",
+    "version": "0.4.47",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"
@@ -90,7 +90,6 @@
         "clsx": "^2.1.1",
         "colord": "^2.9.3",
         "css-tree": "^3.1.0",
-        "dayjs": "^1.11.19",
         "debug": "^4.4.3",
         "electron-updater": "^6.6",
         "env-paths": "^3.0.0",
