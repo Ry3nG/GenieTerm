@@ -520,6 +520,12 @@ func GitGraphCommand(w *wshutil.WshRpc, data wshrpc.CommandGitGraphData, opts *w
 	return resp, err
 }
 
+// command "gitrun", wshserver.GitRunCommand
+func GitRunCommand(w *wshutil.WshRpc, data wshrpc.CommandGitRunData, opts *wshrpc.RpcOpts) (*wshrpc.GitRunResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.GitRunResponse](w, "gitrun", data, opts)
+	return resp, err
+}
+
 // command "gitstatus", wshserver.GitStatusCommand
 func GitStatusCommand(w *wshutil.WshRpc, data wshrpc.CommandGitStatusData, opts *wshrpc.RpcOpts) (*wshrpc.GitStatusResponse, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.GitStatusResponse](w, "gitstatus", data, opts)

@@ -442,6 +442,14 @@ declare global {
         timeoutms?: number;
     };
 
+    // wshrpc.CommandGitRunData
+    type CommandGitRunData = {
+        connname?: string;
+        cwd?: string;
+        args: string[];
+        timeoutms?: number;
+    };
+
     // wshrpc.CommandGitStatusData
     type CommandGitStatusData = {
         connname?: string;
@@ -1098,6 +1106,14 @@ declare global {
     // wshrpc.GitGraphResponse
     type GitGraphResponse = {
         commits: GitGraphCommit[];
+        stdout?: string;
+        stderr?: string;
+        exitcode: number;
+        supported: boolean;
+    };
+
+    // wshrpc.GitRunResponse
+    type GitRunResponse = {
         stdout?: string;
         stderr?: string;
         exitcode: number;

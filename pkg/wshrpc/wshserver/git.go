@@ -6,6 +6,7 @@ package wshserver
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -57,6 +58,26 @@ func (ws *WshServer) GitGraphCommand(ctx context.Context, data wshrpc.CommandGit
 	rtn.ExitCode = exitCode
 	rtn.Supported = supported
 	return rtn, nil
+}
+
+func (ws *WshServer) GitRunCommand(ctx context.Context, data wshrpc.CommandGitRunData) (*wshrpc.GitRunResponse, error) {
+	if len(data.Args) == 0 {
+		return nil, errors.New("git args are required")
+	}
+	timeoutMs := data.TimeoutMs
+	if timeoutMs <= 0 || timeoutMs > GitStatusMaxTimeoutMs {
+		timeoutMs = GitStatusDefaultTimeoutMs
+	}
+	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+
+	stdout, stderr, exitCode, supported := runGitCommand(runCtx, data.ConnName, data.Cwd, data.Args)
+	return &wshrpc.GitRunResponse{
+		Stdout:    stdout,
+		Stderr:    stderr,
+		ExitCode:  exitCode,
+		Supported: supported,
+	}, nil
 }
 
 func gitStatusArgs() []string {

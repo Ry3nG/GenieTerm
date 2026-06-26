@@ -522,6 +522,12 @@ export class RpcApiType {
         return client.wshRpcCall("gitgraph", data, opts);
     }
 
+    // command "gitrun" [call]
+    GitRunCommand(client: WshClient, data: CommandGitRunData, opts?: RpcOpts): Promise<GitRunResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "gitrun", data, opts);
+        return client.wshRpcCall("gitrun", data, opts);
+    }
+
     // command "gitstatus" [call]
     GitStatusCommand(client: WshClient, data: CommandGitStatusData, opts?: RpcOpts): Promise<GitStatusResponse> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "gitstatus", data, opts);

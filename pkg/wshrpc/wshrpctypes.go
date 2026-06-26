@@ -97,6 +97,7 @@ type WshRpcInterface interface {
 	RunCompletionGenCommand(ctx context.Context, data CommandRunCompletionGenData) (CommandRunCompletionGenRtnData, error)
 	GitStatusCommand(ctx context.Context, data CommandGitStatusData) (*GitStatusResponse, error)
 	GitGraphCommand(ctx context.Context, data CommandGitGraphData) (*GitGraphResponse, error)
+	GitRunCommand(ctx context.Context, data CommandGitRunData) (*GitRunResponse, error)
 	GetTabCommand(ctx context.Context, tabId string) (*waveobj.Tab, error)
 	UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error
 	UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error
@@ -716,6 +717,20 @@ type GitGraphResponse struct {
 	Stderr    string           `json:"stderr,omitempty"`
 	ExitCode  int              `json:"exitcode"`
 	Supported bool             `json:"supported"`
+}
+
+type CommandGitRunData struct {
+	ConnName  string   `json:"connname,omitempty"`
+	Cwd       string   `json:"cwd,omitempty"`
+	Args      []string `json:"args"`
+	TimeoutMs int      `json:"timeoutms,omitempty"`
+}
+
+type GitRunResponse struct {
+	Stdout    string `json:"stdout,omitempty"`
+	Stderr    string `json:"stderr,omitempty"`
+	ExitCode  int    `json:"exitcode"`
+	Supported bool   `json:"supported"`
 }
 
 type SuggestionType struct {
