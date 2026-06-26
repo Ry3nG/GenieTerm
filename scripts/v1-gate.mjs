@@ -18,6 +18,9 @@ function run(label, command, commandArgs, options = {}) {
         ...options,
     });
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    if (result.error) {
+        console.error(`[v1-gate] failed to start ${command}: ${result.error.message}`);
+    }
     if (result.status !== 0) {
         console.error(`[v1-gate] failed: ${label} (${elapsed}s)`);
         process.exit(result.status ?? 1);
@@ -34,9 +37,9 @@ run("TypeScript typecheck", "npm", ["exec", "tsc", "--", "--noEmit"]);
 run("Vitest suite", "npm", ["test", "--", "--run"]);
 run("Go test suite", "go", ["test", "./..."]);
 run("Production build", "npm", ["run", "build:prod"]);
-run("Preview build", "task", ["build:preview"]);
-run("Preview visual QA", "task", ["visual:preview"]);
-run("Preview interaction QA", "task", ["interaction:preview"]);
+run("Preview build", "npx", ["vite", "build"], { cwd: "frontend/preview" });
+run("Preview visual QA", "npm", ["run", "visual:preview"]);
+run("Preview interaction QA", "npm", ["run", "interaction:preview"]);
 
 if (shouldPackage) {
     const packageOutput = process.env.GENIETERM_BUILD_OUTPUT || "/private/tmp/genieterm-v1-gate";

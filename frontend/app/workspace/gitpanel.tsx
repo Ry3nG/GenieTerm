@@ -158,7 +158,7 @@ function shellQuote(value: string): string {
     return "'" + value.replace(/'/g, "'\\''") + "'";
 }
 
-function gitCommandText(args: string[]): string {
+export function gitCommandText(args: string[]): string {
     return ["git", ...args].map(shellQuote).join(" ");
 }
 
@@ -270,11 +270,26 @@ export function fileDiffArgs(file: GitStatusFile, groupId: GitChangeGroupId): { 
     return { args: [...baseArgs, "--", file.path] };
 }
 
-function fileActionArgs(file: GitStatusFile, groupId: GitChangeGroupId): string[] {
+export function fileActionArgs(file: GitStatusFile, groupId: GitChangeGroupId): string[] {
     if (groupId === "staged") {
         return ["restore", "--staged", "--", file.path];
     }
     return ["add", "--", file.path];
+}
+
+export function groupActionArgs(groupId: GitChangeGroupId): string[] {
+    if (groupId === "staged") {
+        return ["restore", "--staged", "."];
+    }
+    return ["add", "-A"];
+}
+
+export function commitArgs(message: string): string[] {
+    return ["commit", "-m", message];
+}
+
+export function checkoutArgs(target: string): string[] {
+    return ["checkout", target];
 }
 
 export function parseCommitFiles(stdout: string): CommitFileChange[] {
@@ -1191,11 +1206,10 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
     const stageGroup = React.useCallback(
         (groupId: GitChangeGroupId) => {
             fireAndForget(async () => {
-                if (groupId === "staged") {
-                    await runGitAction("Unstaged all files", ["restore", "--staged", "."]);
-                    return;
-                }
-                await runGitAction("Staged all files", ["add", "-A"]);
+                await runGitAction(
+                    groupId === "staged" ? "Unstaged all files" : "Staged all files",
+                    groupActionArgs(groupId)
+                );
             });
         },
         [runGitAction]
@@ -1207,7 +1221,7 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
             return;
         }
         fireAndForget(async () => {
-            await runGitAction("Committed staged changes", ["commit", "-m", message]);
+            await runGitAction("Committed staged changes", commitArgs(message));
             setCommitMessage("");
         });
     }, [commitMessage, runGitAction]);
@@ -1218,8 +1232,8 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
             return;
         }
         fireAndForget(async () => {
-            await runGitAction("Staged all files", ["add", "-A"], false);
-            await runGitAction("Committed all changes", ["commit", "-m", message]);
+            await runGitAction("Staged all files", groupActionArgs("changes"), false);
+            await runGitAction("Committed all changes", commitArgs(message));
             setCommitMessage("");
         });
     }, [commitMessage, runGitAction]);
@@ -1234,7 +1248,7 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
             const checkout = checkoutTargetForCommit(commit);
             setPendingCheckout(null);
             fireAndForget(async () => {
-                await runGitAction("Checked out branch", ["checkout", checkout.target]);
+                await runGitAction("Checked out branch", checkoutArgs(checkout.target));
             });
         },
         [runGitAction]
@@ -1247,7 +1261,7 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
         const checkout = activeCheckoutConfirmation;
         setPendingCheckout(null);
         fireAndForget(async () => {
-            await runGitAction("Checked out revision", ["checkout", checkout.target]);
+            await runGitAction("Checked out revision", checkoutArgs(checkout.target));
         });
     }, [activeCheckoutConfirmation, runGitAction]);
 

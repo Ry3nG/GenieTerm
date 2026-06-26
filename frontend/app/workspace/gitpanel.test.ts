@@ -4,9 +4,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    checkoutArgs,
     checkoutConfirmationForCommit,
     checkoutTargetForCommit,
+    commitArgs,
+    fileActionArgs,
     fileDiffArgs,
+    gitCommandText,
+    groupActionArgs,
     makeGraphRenderModel,
     parseCommitFiles,
     parseUnifiedDiff,
@@ -42,6 +47,26 @@ describe("gitpanel helpers", () => {
             "new file.txt",
         ]);
         expect(diff.allowExitCodes).toEqual([0, 1]);
+    });
+
+    it("keeps file actions parameterized and separates pathspecs from flags", () => {
+        const file = { index: " ", worktree: "M", path: "--looks-like-a-flag.txt" };
+
+        expect(fileActionArgs(file, "changes")).toEqual(["add", "--", "--looks-like-a-flag.txt"]);
+        expect(fileActionArgs(file, "staged")).toEqual(["restore", "--staged", "--", "--looks-like-a-flag.txt"]);
+    });
+
+    it("keeps group, commit, and checkout operations as argument arrays", () => {
+        expect(groupActionArgs("changes")).toEqual(["add", "-A"]);
+        expect(groupActionArgs("staged")).toEqual(["restore", "--staged", "."]);
+        expect(commitArgs("fix quoted path 'alpha beta'")).toEqual(["commit", "-m", "fix quoted path 'alpha beta'"]);
+        expect(checkoutArgs("feat/git graph")).toEqual(["checkout", "feat/git graph"]);
+    });
+
+    it("quotes terminal fallback commands without changing RPC argument arrays", () => {
+        expect(gitCommandText(["diff", "--", "path with 'quote'.txt"])).toBe(
+            "'git' 'diff' '--' 'path with '\\''quote'\\''.txt'"
+        );
     });
 
     it("parses renamed commit file lists", () => {
