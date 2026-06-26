@@ -4,7 +4,7 @@
 import { Tooltip } from "@/app/element/tooltip";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { getLayoutModelForStaticTab } from "@/layout/index";
+import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import { createBlock, WOS } from "@/store/global";
 import { cn, fireAndForget, isBlank, makeIconClass, NullAtom } from "@/util/util";
 import { Atom, useAtomValue } from "jotai";
