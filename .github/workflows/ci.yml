@@ -16,10 +16,11 @@ on:
 
 env:
     NODE_VERSION: 22
+    GO_VERSION_FILE: go.mod
 
 jobs:
-    transfer-tests:
-        name: Transfer tests
+    v1-gate:
+        name: V1 gate
         runs-on: ubuntu-latest
         if: github.event.pull_request.draft == false
         permissions:
@@ -33,6 +34,11 @@ jobs:
                   cache: npm
                   cache-dependency-path: package-lock.json
 
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
             - name: Force Git dependencies to HTTPS
               run: |
                   git config --global url.https://github.com/.insteadof ssh://git@github.com/
@@ -44,5 +50,5 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Run transfer tests
-              run: npm test -- frontend/util/transferutil.test.ts emain/transfer/download-folder.test.ts frontend/util/previewutil.test.ts --run
+            - name: Run v1 baseline gate
+              run: node scripts/v1-gate.mjs --ci

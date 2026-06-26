@@ -385,6 +385,18 @@ tasks:
         deps:
             - npm:install
 
+    v1:gate:
+        desc: Run the GenieTerm v1.0.0 baseline quality gate.
+        cmd: node scripts/v1-gate.mjs {{.CLI_ARGS}}
+        deps:
+            - npm:install
+
+    v1:gate:package:
+        desc: Run the GenieTerm v1.0.0 release quality gate with packaging and installed-app verification.
+        cmd: node scripts/v1-gate.mjs --package --installed {{.CLI_ARGS}}
+        deps:
+            - npm:install
+
     init:
         desc: Initialize the project for development.
         cmds:
