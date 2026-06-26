@@ -14,6 +14,7 @@ const PreviewDir = path.join(RepoRoot, "frontend", "preview");
 const Host = "127.0.0.1";
 const PageTimeoutMs = 10000;
 const NavigationTimeoutMs = 15000;
+const CleanupTimeoutMs = 5000;
 
 function log(message) {
     console.log(`[preview-interaction-qa] ${message}`);
@@ -112,6 +113,25 @@ async function stopPreviewServer(child) {
             resolve();
         });
     });
+}
+
+async function cleanupWithTimeout(label, cleanup) {
+    let timer = null;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => {
+            log(`${label} cleanup timed out`);
+            resolve();
+        }, CleanupTimeoutMs);
+    });
+    await Promise.race([
+        cleanup().catch((error) => {
+            log(`${label} cleanup failed: ${error.message}`);
+        }),
+        timeout,
+    ]);
+    if (timer) {
+        clearTimeout(timer);
+    }
 }
 
 async function newCheckedPage(browser, baseUrl, previewName, viewport = { width: 1440, height: 1000 }) {
@@ -265,9 +285,9 @@ async function main() {
         failure = error.stack || error.message;
     } finally {
         if (browser) {
-            await browser.close();
+            await cleanupWithTimeout("browser", () => browser.close());
         }
-        await stopPreviewServer(server);
+        await cleanupWithTimeout("preview server", () => stopPreviewServer(server));
     }
     if (failure) {
         fail(failure);
@@ -275,3 +295,4 @@ async function main() {
 }
 
 await main();
+process.exit(0);

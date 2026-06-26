@@ -16,6 +16,7 @@ const ArtifactDir = path.join(RepoRoot, "artifacts", "visual-qa");
 const Host = "127.0.0.1";
 const PageTimeoutMs = 10000;
 const NavigationTimeoutMs = 15000;
+const CleanupTimeoutMs = 5000;
 
 const PreviewCases = [
     {
@@ -180,6 +181,25 @@ async function stopPreviewServer(child) {
     });
 }
 
+async function cleanupWithTimeout(label, cleanup) {
+    let timer = null;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => {
+            log(`${label} cleanup timed out`);
+            resolve();
+        }, CleanupTimeoutMs);
+    });
+    await Promise.race([
+        cleanup().catch((error) => {
+            log(`${label} cleanup failed: ${error.message}`);
+        }),
+        timeout,
+    ]);
+    if (timer) {
+        clearTimeout(timer);
+    }
+}
+
 function assertScreenshotHasContent(filePath) {
     const png = PNG.sync.read(readFileSync(filePath));
     const buckets = new Set();
@@ -332,9 +352,9 @@ async function main() {
         failure = error.stack || error.message;
     } finally {
         if (browser) {
-            await browser.close();
+            await cleanupWithTimeout("browser", () => browser.close());
         }
-        await stopPreviewServer(server);
+        await cleanupWithTimeout("preview server", () => stopPreviewServer(server));
     }
     if (failure) {
         fail(failure);
@@ -342,3 +362,4 @@ async function main() {
 }
 
 await main();
+process.exit(0);
