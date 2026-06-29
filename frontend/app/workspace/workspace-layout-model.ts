@@ -8,8 +8,8 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atoms, getApi, getOrefMetaKeyAtom, getSettingsKeyAtom } from "@/store/global";
 import * as jotai from "jotai";
-import { debounce } from "lodash-es";
 import { ImperativePanelGroupHandle, ImperativePanelHandle } from "react-resizable-panels";
+import { debounce } from "throttle-debounce";
 
 const VTabBar_DefaultWidth = 220;
 const VTabBar_MinWidth = 110;
@@ -58,7 +58,7 @@ class WorkspaceLayoutModel {
         this.handleOuterPanelLayout = this.handleOuterPanelLayout.bind(this);
         this.handleInnerPanelLayout = this.handleInnerPanelLayout.bind(this);
 
-        this.debouncedPersistVTabWidth = debounce(() => {
+        this.debouncedPersistVTabWidth = debounce(300, () => {
             if (!this.vtabVisible) return;
             const width = this.vtabPanelWrapperRef?.offsetWidth;
             if (width == null || width <= 0) return;
@@ -70,7 +70,7 @@ class WorkspaceLayoutModel {
             } catch (e) {
                 console.warn("Failed to persist vtabbar width:", e);
             }
-        }, 300);
+        });
     }
 
     static getInstance(): WorkspaceLayoutModel {

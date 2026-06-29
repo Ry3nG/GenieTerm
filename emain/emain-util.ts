@@ -3,6 +3,8 @@
 
 import * as electron from "electron";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
+import { fireAndForget } from "../frontend/util/util";
+import { safeOpenExternal } from "./safe-open";
 
 export const WaveAppPathVarName = "WAVETERM_APP_PATH";
 export const WaveAppResourcesPathVarName = "WAVETERM_RESOURCES_PATH";
@@ -111,9 +113,9 @@ export function shNavHandler(event: Electron.Event<Electron.WebContentsWillNavig
         return;
     }
     event.preventDefault();
-    if (url.startsWith("https://") || url.startsWith("http://") || url.startsWith("file://")) {
+    if (url.startsWith("https://") || url.startsWith("http://")) {
         console.log("open external, shNav", url);
-        electron.shell.openExternal(url);
+        fireAndForget(() => safeOpenExternal(url));
     } else {
         console.log("navigation canceled", url);
     }
@@ -142,7 +144,7 @@ export function shFrameNavHandler(event: Electron.Event<Electron.WebContentsWill
         // this will *not* effect the initial load because srcdoc does not count as an electron navigation
         console.log("open external, frameNav", url);
         event.preventDefault();
-        electron.shell.openExternal(url);
+        fireAndForget(() => safeOpenExternal(url));
         return;
     }
     if (
@@ -174,7 +176,7 @@ export function shFrameNavHandler(event: Electron.Event<Electron.WebContentsWill
             }
             // If navigation is not to expected port, open externally
             event.preventDefault();
-            electron.shell.openExternal(url);
+            fireAndForget(() => safeOpenExternal(url));
             return;
         } catch (e) {
             // Invalid URL, fall through to prevent navigation

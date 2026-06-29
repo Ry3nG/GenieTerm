@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { _electron } from "playwright";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { chromium } from "playwright";
 import { PNG } from "pngjs";
 import { fail, MacAppExpectations, run, verifyDirectory, verifyMacAppBundle } from "./macos-app-verifier.mjs";
 
@@ -17,132 +17,200 @@ const appPathArg = process.argv.find((arg) => arg.endsWith(".app"));
 const AppPath = path.resolve(appPathArg || DefaultAppPath);
 
 function log(message) {
-    console.log(`[${Scope}] ${message}`);
+  console.log(`[${Scope}] ${message}`);
 }
 
 function launchSmoke(appPath) {
-    const userDataDir = mkdtempSync(path.join(tmpdir(), "genieterm-installed-smoke-"));
-    run(Scope, "open", ["-n", appPath, "--args", "--user-data-dir", userDataDir, "--disable-gpu"]);
-    const pids = waitForLaunch(userDataDir);
-    for (const pid of pids) {
-        try {
-            process.kill(Number(pid), "SIGTERM");
-        } catch {
-            // The app may have exited between pgrep and SIGTERM.
-        }
+  const userDataDir = mkdtempSync(path.join(tmpdir(), "genieterm-installed-smoke-"));
+  run(Scope, "open", ["-n", appPath, "--args", "--user-data-dir", userDataDir, "--disable-gpu"]);
+  const pids = waitForLaunch(userDataDir);
+  for (const pid of pids) {
+    try {
+      process.kill(Number(pid), "SIGTERM");
+    } catch {
+      // The app may have exited between pgrep and SIGTERM.
     }
-    rmSync(userDataDir, { recursive: true, force: true });
+  }
+  rmSync(userDataDir, { recursive: true, force: true });
 }
 
 function waitForLaunch(userDataDir) {
-    const started = Date.now();
-    while (Date.now() - started < 15000) {
-        const result = spawnSync("pgrep", ["-f", userDataDir], { encoding: "utf8" });
-        const pids = result.stdout
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean);
-        if (pids.length > 0) {
-            return pids;
-        }
-        spawnSync("sleep", ["0.25"]);
+  const started = Date.now();
+  while (Date.now() - started < 15000) {
+    const result = spawnSync("pgrep", ["-f", userDataDir], { encoding: "utf8" });
+    const pids = result.stdout.trim().split(/\s+/).filter(Boolean);
+    if (pids.length > 0) {
+      return pids;
     }
-    fail(Scope, "launch smoke did not observe a running GenieTerm process");
+    spawnSync("sleep", ["0.25"]);
+  }
+  fail(Scope, "launch smoke did not observe a running GenieTerm process");
 }
 
 function assertScreenshotHasContent(buffer) {
-    const png = PNG.sync.read(buffer);
-    const buckets = new Set();
-    let visiblePixels = 0;
-    let nonBackgroundPixels = 0;
-    for (let idx = 0; idx < png.data.length; idx += 4 * 53) {
-        const r = png.data[idx];
-        const g = png.data[idx + 1];
-        const b = png.data[idx + 2];
-        const a = png.data[idx + 3];
-        if (a < 8) {
-            continue;
-        }
-        visiblePixels += 1;
-        buckets.add(`${r >> 4}:${g >> 4}:${b >> 4}`);
-        if (Math.abs(r - 18) > 8 || Math.abs(g - 18) > 8 || Math.abs(b - 18) > 8) {
-            nonBackgroundPixels += 1;
-        }
+  const png = PNG.sync.read(buffer);
+  const buckets = new Set();
+  let visiblePixels = 0;
+  let nonBackgroundPixels = 0;
+  for (let idx = 0; idx < png.data.length; idx += 4 * 53) {
+    const r = png.data[idx];
+    const g = png.data[idx + 1];
+    const b = png.data[idx + 2];
+    const a = png.data[idx + 3];
+    if (a < 8) {
+      continue;
     }
-    if (visiblePixels < 500) {
-        fail(Scope, "window screenshot has too few visible pixels");
+    visiblePixels += 1;
+    buckets.add(`${r >> 4}:${g >> 4}:${b >> 4}`);
+    if (Math.abs(r - 18) > 8 || Math.abs(g - 18) > 8 || Math.abs(b - 18) > 8) {
+      nonBackgroundPixels += 1;
     }
-    if (buckets.size < 12) {
-        fail(Scope, "window screenshot appears visually blank or monochrome");
-    }
-    if (nonBackgroundPixels / visiblePixels < 0.04) {
-        fail(Scope, "window screenshot has too little foreground content");
-    }
+  }
+  if (visiblePixels < 500) {
+    fail(Scope, "window screenshot has too few visible pixels");
+  }
+  if (buckets.size < 12) {
+    fail(Scope, "window screenshot appears visually blank or monochrome");
+  }
+  if (nonBackgroundPixels / visiblePixels < 0.04) {
+    fail(Scope, "window screenshot has too little foreground content");
+  }
 }
 
 async function windowSmoke(appPath) {
-    const executablePath = path.join(appPath, "Contents", "MacOS", MacAppExpectations.productName);
-    const userDataDir = mkdtempSync(path.join(tmpdir(), "genieterm-window-smoke-"));
-    let electronApp = null;
-    try {
-        electronApp = await _electron.launch({
-            executablePath,
-            args: ["--user-data-dir", userDataDir, "--disable-gpu"],
-            timeout: 20000,
-        });
-        const window = await electronApp.firstWindow({ timeout: 20000 });
-        const consoleErrors = [];
-        window.on("console", (message) => {
-            if (message.type() === "error") {
-                consoleErrors.push(message.text());
-            }
-        });
-        window.on("pageerror", (error) => {
-            consoleErrors.push(error.message);
-        });
-        await window.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
-        const title = await window.title();
-        if (title !== MacAppExpectations.productName) {
-            fail(Scope, `window title expected ${MacAppExpectations.productName}, got ${title}`);
-        }
-        if (!window.url().includes("app.asar")) {
-            fail(Scope, `window URL does not point at packaged app content: ${window.url()}`);
-        }
-        const errorBoundaryCount = await window.getByText("Something went wrong", { exact: false }).count();
-        if (errorBoundaryCount > 0) {
-            fail(Scope, "window rendered the React error boundary");
-        }
-        if (consoleErrors.length > 0) {
-            fail(Scope, `window console errors: ${consoleErrors.join("\n")}`);
-        }
-        assertScreenshotHasContent(await window.screenshot({ fullPage: true }));
-    } finally {
-        if (electronApp) {
-            await electronApp.close().catch(() => {});
-        }
-        rmSync(userDataDir, { recursive: true, force: true });
+  const executablePath = path.join(appPath, "Contents", "MacOS", MacAppExpectations.productName);
+  const userDataDir = mkdtempSync(path.join(tmpdir(), "genieterm-window-smoke-"));
+  let browser = null;
+  let appProcess = null;
+  try {
+    const { child, wsUrl } = await launchPackagedAppForCdp(executablePath, userDataDir);
+    appProcess = child;
+    browser = await chromium.connectOverCDP(wsUrl);
+    const window = await waitForFirstPage(browser, 20000);
+    const consoleErrors = [];
+    window.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+    window.on("pageerror", (error) => {
+      consoleErrors.push(error.message);
+    });
+    await window.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
+    const title = await window.title();
+    if (title !== MacAppExpectations.productName) {
+      fail(Scope, `window title expected ${MacAppExpectations.productName}, got ${title}`);
     }
+    if (!window.url().includes("app.asar")) {
+      fail(Scope, `window URL does not point at packaged app content: ${window.url()}`);
+    }
+    const errorBoundaryCount = await window.getByText("Something went wrong", { exact: false }).count();
+    if (errorBoundaryCount > 0) {
+      fail(Scope, "window rendered the React error boundary");
+    }
+    if (consoleErrors.length > 0) {
+      fail(Scope, `window console errors: ${consoleErrors.join("\n")}`);
+    }
+    assertScreenshotHasContent(await window.screenshot({ fullPage: true }));
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+    stopAppProcesses(appProcess, userDataDir);
+    rmSync(userDataDir, { recursive: true, force: true });
+  }
+}
+
+async function launchPackagedAppForCdp(executablePath, userDataDir) {
+  const child = spawn(executablePath, ["--remote-debugging-port=0", "--user-data-dir", userDataDir, "--disable-gpu"], {
+    env: {
+      ...process.env,
+      GENIETERM_SKIP_SINGLE_INSTANCE: "1",
+      WAVETERM_CONFIG_HOME: path.join(userDataDir, "config"),
+      WAVETERM_DATA_HOME: path.join(userDataDir, "data"),
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  const wsUrl = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`timed out waiting for DevTools endpoint\n${output}`));
+    }, 20000);
+    const onData = (buffer) => {
+      output += buffer.toString();
+      const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (match) {
+        clearTimeout(timeout);
+        resolve(match[1]);
+      }
+    };
+    child.stdout.on("data", onData);
+    child.stderr.on("data", onData);
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("exit", (code, signal) => {
+      if (!/DevTools listening on ws:\/\//.test(output)) {
+        clearTimeout(timeout);
+        reject(new Error(`app exited before DevTools endpoint was ready: code=${code} signal=${signal}\n${output}`));
+      }
+    });
+  });
+  return { child, wsUrl };
+}
+
+async function waitForFirstPage(browser, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    for (const context of browser.contexts()) {
+      const pages = context.pages();
+      if (pages.length > 0) {
+        return pages[0];
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  fail(Scope, "window smoke did not observe a page");
+}
+
+function stopAppProcesses(appProcess, userDataDir) {
+  if (appProcess?.pid) {
+    try {
+      process.kill(appProcess.pid, "SIGTERM");
+    } catch {
+      // The launcher may have exited after spawning the packaged Electron app.
+    }
+  }
+  const pids = spawnSync("pgrep", ["-f", userDataDir], { encoding: "utf8" }).stdout.trim().split(/\s+/).filter(Boolean);
+  for (const pid of pids) {
+    try {
+      process.kill(Number(pid), "SIGTERM");
+    } catch {
+      // The process may have exited between pgrep and SIGTERM.
+    }
+  }
 }
 
 async function main() {
-    if (process.platform !== "darwin") {
-        fail(Scope, "installed app verification is currently implemented for macOS only");
-    }
-    if (!existsSync(AppPath)) {
-        fail(Scope, `${AppPath} does not exist`);
-    }
-    verifyDirectory(Scope, AppPath, "installed app bundle");
-    verifyMacAppBundle(Scope, AppPath);
-    log(`verified ${AppPath}`);
-    if (shouldLaunchSmoke) {
-        launchSmoke(AppPath);
-        log("launch smoke passed");
-    }
-    if (shouldWindowSmoke) {
-        await windowSmoke(AppPath);
-        log("window smoke passed");
-    }
-    log("all installed app checks passed");
+  if (process.platform !== "darwin") {
+    fail(Scope, "installed app verification is currently implemented for macOS only");
+  }
+  if (!existsSync(AppPath)) {
+    fail(Scope, `${AppPath} does not exist`);
+  }
+  verifyDirectory(Scope, AppPath, "installed app bundle");
+  verifyMacAppBundle(Scope, AppPath);
+  log(`verified ${AppPath}`);
+  if (shouldLaunchSmoke) {
+    launchSmoke(AppPath);
+    log("launch smoke passed");
+  }
+  if (shouldWindowSmoke) {
+    await windowSmoke(AppPath);
+    log("window smoke passed");
+  }
+  log("all installed app checks passed");
 }
 
 await main();

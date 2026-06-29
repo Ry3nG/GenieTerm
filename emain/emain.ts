@@ -9,8 +9,8 @@ import { sprintf } from "sprintf-js";
 import * as services from "../frontend/app/store/services";
 import { initElectronWshrpc, shutdownWshrpc } from "../frontend/app/store/wshrpcutil-base";
 import { fireAndForget, sleep } from "../frontend/util/util";
-import { AuthKey, configureAuthKeyRequestInjection } from "./authkey";
 import { applyDockIconVariant } from "./app-icon";
+import { AuthKey, configureAuthKeyRequestInjection } from "./authkey";
 import {
     getActivityState,
     getAndClearTermCommandsDurable,
@@ -380,17 +380,21 @@ async function appMain() {
         electronApp.disableHardwareAcceleration();
     }
     const startTs = Date.now();
-    const instanceLock = electronApp.requestSingleInstanceLock();
-    if (!instanceLock) {
-        console.log("genieterm-app could not get single-instance-lock, shutting down");
-        setUserConfirmedQuit(true);
-        electronApp.quit();
-        return;
+    if (process.env.GENIETERM_SKIP_SINGLE_INSTANCE !== "1") {
+        const instanceLock = electronApp.requestSingleInstanceLock();
+        if (!instanceLock) {
+            console.log("genieterm-app could not get single-instance-lock, shutting down");
+            setUserConfirmedQuit(true);
+            electronApp.quit();
+            return;
+        }
+        electronApp.on("second-instance", (_event, argv, workingDirectory) => {
+            console.log("second-instance event, argv:", argv, "workingDirectory:", workingDirectory);
+            fireAndForget(createNewWaveWindow);
+        });
+    } else {
+        console.log("skipping single-instance lock for verification run");
     }
-    electronApp.on("second-instance", (_event, argv, workingDirectory) => {
-        console.log("second-instance event, argv:", argv, "workingDirectory:", workingDirectory);
-        fireAndForget(createNewWaveWindow);
-    });
     try {
         await runWaveSrv(handleWSEvent);
     } catch (e) {

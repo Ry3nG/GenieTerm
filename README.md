@@ -40,7 +40,13 @@ Install dependencies:
 task init
 ```
 
-Run targeted tests for the first GenieTerm transfer slice:
+Run the baseline quality gate before merging release-bound work:
+
+```sh
+task v1:gate
+```
+
+Run targeted tests for a quick GenieTerm transfer-slice regression:
 
 ```sh
 npm test -- frontend/util/transferutil.test.ts emain/transfer/download-folder.test.ts frontend/util/previewutil.test.ts --run

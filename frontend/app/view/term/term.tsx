@@ -337,6 +337,7 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
     const status = activeBlock != null ? getCmdBlockStatus(activeBlock) : null;
     const duration = activeBlock != null ? formatCmdBlockDuration(activeBlock, nowTs) : "";
     const inlineAIPrompt = activeBlock != null ? getInlineAICommandPrompt(activeBlock) : "";
+    const commandComposerEnabled = jotai.useAtomValue(getSettingsKeyAtom("term:commandcomposer")) !== false;
 
     React.useEffect(() => {
         if (activeBlock?.state !== "running") {
@@ -439,7 +440,7 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                 >
                     <i className="fa-solid fa-rotate-right" aria-hidden="true" />
                 </button>
-                {inlineAIPrompt && (
+                {commandComposerEnabled && inlineAIPrompt && (
                     <button
                         type="button"
                         className="term-command-action-btn cursor-pointer"

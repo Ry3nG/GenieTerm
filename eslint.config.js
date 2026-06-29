@@ -65,6 +65,16 @@ export default [
     },
 
     {
+        files: ["scripts/**/*.mjs"],
+        languageOptions: {
+            globals: {
+                ...globals.node,
+                ...globals.browser,
+            },
+        },
+    },
+
+    {
         files: ["**/*.js", "**/*.cjs"],
         rules: {
             "@typescript-eslint/no-require-imports": "off",

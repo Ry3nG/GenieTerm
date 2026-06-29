@@ -51,8 +51,17 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
+            - name: Runtime dependency audit
+              run: npm audit --omit=dev --audit-level=moderate
+
             - name: TypeScript typecheck
               run: npm exec tsc -- --noEmit
+
+            - name: ESLint
+              run: npm run lint
+
+            - name: Format check
+              run: npm run format:check
 
             - name: Vitest suite
               run: npm test -- --run

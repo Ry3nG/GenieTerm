@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/google/uuid"
 )
 
 const (
@@ -792,6 +792,10 @@ func (router *WshRouter) bindRouteLocally(linkId baseds.LinkId, routeId string, 
 		if lm.linkKind != LinkKind_Router {
 			return fmt.Errorf("cannot bind route %q to link %d (link is not a router)", routeId, linkId)
 		}
+	}
+	existingLinkId := router.routeMap[routeId]
+	if existingLinkId != baseds.NoLinkId && existingLinkId != linkId {
+		return fmt.Errorf("cannot bind route %q to link %d (route already bound to link %d)", routeId, linkId, existingLinkId)
 	}
 	router.routeMap[routeId] = linkId
 	return nil

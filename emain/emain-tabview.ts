@@ -4,7 +4,7 @@
 import { RpcApi } from "@/app/store/wshclientapi";
 import { adaptFromElectronKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
-import { Rectangle, shell, WebContentsView } from "electron";
+import { Rectangle, WebContentsView } from "electron";
 import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import os from "os";
 import path from "path";
@@ -21,6 +21,7 @@ import {
     shNavHandler,
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
+import { safeOpenExternal } from "./safe-open";
 
 function handleWindowsMenuAccelerators(
     waveEvent: WaveKeyboardEvent,
@@ -364,9 +365,11 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
         }
     });
     tabView.webContents.setWindowOpenHandler(({ url, frameName }) => {
-        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://")) {
+        if (url.startsWith("http://") || url.startsWith("https://")) {
             console.log("openExternal fallback", url);
-            shell.openExternal(url);
+            safeOpenExternal(url).catch((err) => {
+                console.error(`Failed to open URL ${url}:`, err);
+            });
         }
         console.log("window-open denied", url);
         return { action: "deny" };

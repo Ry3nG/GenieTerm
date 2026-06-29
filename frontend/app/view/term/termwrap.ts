@@ -9,6 +9,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import {
     fetchWaveFile,
     getApi,
+    getBlockMetaKeyAtom,
     getOverrideConfigAtom,
     getSettingsKeyAtom,
     globalStore,
@@ -115,7 +116,7 @@ export class TermWrap {
     fitAddon: FitAddon;
     searchAddon: SearchAddon;
     serializeAddon: SerializeAddon;
-    mainFileSubject: SubjectWithRef<WSFileEventData>;
+    mainFileSubject: SubjectWithRef<WSFileEventData> | null;
     loaded: boolean;
     heldData: Uint8Array[];
     handleResize_debounced: () => void;
@@ -533,7 +534,8 @@ export class TermWrap {
                 /* nothing */
             }
         });
-        this.mainFileSubject.release();
+        this.mainFileSubject?.release();
+        this.mainFileSubject = null;
     }
 
     disposeCmdDecorations() {
@@ -831,6 +833,7 @@ export class TermWrap {
         this.currentPromptInput = "";
         this.pendingCmdBlock.command = command;
         this.pendingCmdBlock.startTs = Date.now();
+        this.pendingCmdBlock.cwd = (globalStore.get(getBlockMetaKeyAtom(this.blockId, "cmd:cwd")) as string) || null;
         this.publishCmdBlocks();
     }
 
@@ -843,7 +846,8 @@ export class TermWrap {
         block.state = "done";
         block.doneTs = Date.now();
         const inlineAIPrompt = getInlineAICommandPrompt(block);
-        if (inlineAIPrompt && shouldAutoComposeInlineAI(block)) {
+        const commandComposerEnabled = globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
+        if (commandComposerEnabled && inlineAIPrompt && shouldAutoComposeInlineAI(block)) {
             this.onInlineAIRequest?.(inlineAIPrompt, block, { auto: true });
         }
         this.publishCmdBlocks();

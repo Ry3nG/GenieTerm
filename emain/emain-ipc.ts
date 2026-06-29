@@ -13,6 +13,7 @@ import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import * as keyutil from "../frontend/util/keyutil";
 import type { TransferError, TransferJobInput } from "../frontend/util/transferqueue";
 import { fireAndForget, parseDataUrl } from "../frontend/util/util";
+import { applyDockIconVariant, getAppIconPath, normalizeAppIconVariant, type AppIconVariant } from "./app-icon";
 import {
     incrementTermCommandsDurable,
     incrementTermCommandsRemote,
@@ -20,14 +21,19 @@ import {
     incrementTermCommandsWsl,
     setWasActive,
 } from "./emain-activity";
-import { applyDockIconVariant, getAppIconPath, normalizeAppIconVariant, type AppIconVariant } from "./app-icon";
 import { createBuilderWindow, getAllBuilderWindows, getBuilderWindowByWebContentsId } from "./emain-builder";
 import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-platform";
 import { clearTabCache, getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { decreaseZoomLevel, handleCtrlShiftState, increaseZoomLevel, resetZoomLevel } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
-import { createNewWaveWindow, getAllWaveWindows, getWaveWindowByWebContentsId, relaunchBrowserWindows } from "./emain-window";
+import {
+    createNewWaveWindow,
+    getAllWaveWindows,
+    getWaveWindowByWebContentsId,
+    relaunchBrowserWindows,
+} from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { safeOpenExternal } from "./safe-open";
 import { registerDownloadFolderHandler } from "./transfer/download-folder";
 import {
     buildFileDownloadTransferJobInput,
@@ -270,11 +276,9 @@ export function initIpcHandlers() {
     electron.ipcMain.on("open-external", (event, url) => {
         if (url && typeof url === "string") {
             fireAndForget(() =>
-                callWithOriginalXdgCurrentDesktopAsync(() =>
-                    electron.shell.openExternal(url).catch((err) => {
-                        console.error(`Failed to open URL ${url}:`, err);
-                    })
-                )
+                safeOpenExternal(url).catch((err) => {
+                    console.error(`Failed to open URL ${url}:`, err);
+                })
             );
         } else {
             console.error("Invalid URL received in open-external event:", url);
@@ -496,10 +500,16 @@ export function initIpcHandlers() {
     electron.ipcMain.handle("clear-webview-storage", async (event, webContentsId: number) => {
         try {
             const wc = electron.webContents.fromId(webContentsId);
-            if (wc && wc.session) {
-                await wc.session.clearStorageData();
-                console.log("Cleared cookies and storage for webContentsId:", webContentsId);
+            if (
+                wc == null ||
+                wc.isDestroyed() ||
+                wc.getType() !== "webview" ||
+                wc.hostWebContents?.id !== event.sender.id
+            ) {
+                throw new Error("Cannot clear storage for an unrelated webview");
             }
+            await wc.session.clearStorageData();
+            console.log("Cleared cookies and storage for webContentsId:", webContentsId);
         } catch (e) {
             console.error("Failed to clear cookies and storage:", e);
             throw e;

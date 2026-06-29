@@ -329,6 +329,10 @@ export class TermViewModel implements ViewModel {
                     rtn.push(webglButton);
                 }
             }
+            const shellIntegrationButton = this.getShellIntegrationIconButton(get);
+            if (shellIntegrationButton) {
+                rtn.push(shellIntegrationButton);
+            }
 
             if (blockData?.meta?.["controller"] != "cmd" && shellProcStatus != "done") {
                 return rtn;
@@ -640,7 +644,15 @@ export class TermViewModel implements ViewModel {
         navigator.clipboard.writeText(text);
     }
 
-    openCommandComposer(initialInput?: string) {
+    isCommandComposerEnabled(): boolean {
+        return globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
+    }
+
+    openCommandComposer(initialInput?: string): boolean {
+        if (!this.isCommandComposerEnabled()) {
+            return false;
+        }
+        this.completionModel.dismiss();
         if (initialInput != null) {
             globalStore.set(this.commandComposerInputAtom, initialInput);
         }
@@ -650,6 +662,7 @@ export class TermViewModel implements ViewModel {
         globalStore.set(this.commandComposerErrorAtom, "");
         globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
         globalStore.set(this.commandComposerProviderStatusAtom, UnknownCommandAIProviderStatus);
+        return true;
     }
 
     closeCommandComposer() {
@@ -723,6 +736,10 @@ export class TermViewModel implements ViewModel {
     }
 
     async generateInlineCommandAI(prompt: string, block: CmdBlock) {
+        if (!this.isCommandComposerEnabled()) {
+            this.clearInlineCommandAIState(block);
+            return;
+        }
         const trimmedPrompt = prompt.trim();
         if (!trimmedPrompt) {
             this.clearInlineCommandAIState(block);
@@ -824,6 +841,10 @@ export class TermViewModel implements ViewModel {
     }
 
     openInlineCommandAI(prompt: string, block: CmdBlock, options?: CommandInlineAIRequestOptions) {
+        if (!this.isCommandComposerEnabled()) {
+            return;
+        }
+        this.completionModel.dismiss();
         const trimmedPrompt = prompt.trim();
         if (!trimmedPrompt) {
             return;
@@ -832,7 +853,9 @@ export class TermViewModel implements ViewModel {
             fireAndForget(() => this.generateInlineCommandAI(trimmedPrompt, block));
             return;
         }
-        this.openCommandComposer(trimmedPrompt);
+        if (!this.openCommandComposer(trimmedPrompt)) {
+            return;
+        }
         fireAndForget(() =>
             this.generateCommandProposals(trimmedPrompt, this.getCommandComposerContextInputForBlock(block))
         );
