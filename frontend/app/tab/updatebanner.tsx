@@ -17,8 +17,10 @@ type UpdateBannerEnv = WaveEnvSubset<{
 
 function getUpdateStatusMessage(status: string): string {
     switch (status) {
+        case "available":
+            return "Update Now";
         case "ready":
-            return "Update";
+            return "Restart";
         case "downloading":
             return "Downloading";
         case "installing":
@@ -41,15 +43,20 @@ const UpdateStatusBannerComponent = () => {
         return null;
     }
 
-    const isReady = appUpdateStatus === "ready";
-    const tooltipContent = isReady ? "Click to Install Update" : updateStatusMessage;
+    const canAct = appUpdateStatus === "available" || appUpdateStatus === "ready";
+    const tooltipContent =
+        appUpdateStatus === "available"
+            ? "Download Update"
+            : appUpdateStatus === "ready"
+              ? "Restart to Install Update"
+              : updateStatusMessage;
 
     return (
         <Tooltip
             content={tooltipContent}
             placement="bottom"
-            divOnClick={isReady ? onClick : undefined}
-            divClassName={`flex items-center gap-1 px-2 mb-1 h-[22px] text-xs font-medium text-primary bg-accent rounded-sm transition-all ${isReady ? "cursor-pointer hover:bg-accenthover" : ""}`}
+            divOnClick={canAct ? onClick : undefined}
+            divClassName={`flex items-center gap-1 px-2 mb-1 h-[22px] text-xs font-medium text-primary bg-accent rounded-sm transition-all ${canAct ? "cursor-pointer hover:bg-accenthover" : ""}`}
             divStyle={{ WebkitAppRegion: "no-drag" } as any}
         >
             <i className="fa fa-download" />

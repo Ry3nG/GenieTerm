@@ -3,6 +3,7 @@
 
 import { dialog, ipcMain, Notification } from "electron";
 import { autoUpdater } from "electron-updater";
+import type { UpdateInfo } from "electron-updater";
 import { readFileSync } from "fs";
 import path from "path";
 import YAML from "yaml";
@@ -41,6 +42,9 @@ export class Updater {
     autoCheckEnabled: boolean;
     availableUpdateReleaseName: string | null;
     availableUpdateReleaseNotes: string | null;
+    availableUpdateInfo: UpdateInfo | null;
+    updatePromptInProgress: boolean;
+    lastPromptedUpdateVersion: string | null;
     private _status: UpdaterStatus;
     lastUpdateCheck: Date;
 
@@ -54,8 +58,14 @@ export class Updater {
         this.lastUpdateCheck = new Date(0);
         this.autoCheckInterval = null;
         this.availableUpdateReleaseName = null;
+        this.availableUpdateReleaseNotes = null;
+        this.availableUpdateInfo = null;
+        this.updatePromptInProgress = false;
+        this.lastPromptedUpdateVersion = null;
 
+        autoUpdater.autoDownload = false;
         autoUpdater.autoInstallOnAppQuit = settings["autoupdate:installonquit"];
+        console.log("Download update automatically:", autoUpdater.autoDownload);
         console.log("Install update on quit:", settings["autoupdate:installonquit"]);
 
         // Only update the release channel if it's specified, otherwise use the one configured in the updater.
@@ -75,20 +85,26 @@ export class Updater {
             this.status = "checking";
         });
 
-        autoUpdater.on("update-available", () => {
-            console.log("update-available; downloading...");
-            this.status = "downloading";
+        autoUpdater.on("update-available", (event) => {
+            console.log("update-available", [event]);
+            this.setAvailableUpdate(event);
+            if (this.status != "ready") {
+                this.status = "available";
+            }
+            fireAndForget(() => this.promptToDownloadUpdate(false));
         });
 
         autoUpdater.on("update-not-available", () => {
             console.log("update-not-available");
+            this.availableUpdateInfo = null;
+            this.availableUpdateReleaseName = null;
+            this.availableUpdateReleaseNotes = null;
             this.status = "up-to-date";
         });
 
         autoUpdater.on("update-downloaded", (event) => {
             console.log("update-downloaded", [event]);
-            this.availableUpdateReleaseName = event.releaseName;
-            this.availableUpdateReleaseNotes = event.releaseNotes as string | null;
+            this.setAvailableUpdate(event);
 
             // Display the update banner and create a system notification
             this.status = "ready";
@@ -118,6 +134,12 @@ export class Updater {
                 tab.webContents.send("app-update-status", value);
             });
         });
+    }
+
+    private setAvailableUpdate(updateInfo: UpdateInfo) {
+        this.availableUpdateInfo = updateInfo;
+        this.availableUpdateReleaseName = updateInfo.releaseName ?? `GenieTerm ${updateInfo.version}`;
+        this.availableUpdateReleaseNotes = formatReleaseNotes(updateInfo.releaseNotes);
     }
 
     /**
@@ -159,8 +181,7 @@ export class Updater {
         ) {
             const result = await autoUpdater.checkForUpdates();
 
-            // If the user requested this check and we do not have an available update, let them know with a popup dialog. No need to tell them if there is an update, because we show a banner once the update is ready to install.
-            if (userInput && !result.downloadPromise) {
+            if (userInput && !result?.isUpdateAvailable) {
                 const dialogOpts: Electron.MessageBoxOptions = {
                     type: "info",
                     message: "There are currently no updates available.",
@@ -169,9 +190,75 @@ export class Updater {
                     dialog.showMessageBox(focusedWaveWindow, dialogOpts);
                 }
             }
+            if (userInput && result?.isUpdateAvailable) {
+                await this.promptToDownloadUpdate(true);
+            }
 
             // Only update the last check time if this is an automatic check. This ensures the interval remains consistent.
             if (!userInput) this.lastUpdateCheck = now;
+        }
+    }
+
+    async promptToDownloadUpdate(userInput: boolean) {
+        if (this.status == "downloading" || this.status == "ready" || this.status == "installing") {
+            return;
+        }
+        if (!this.availableUpdateInfo) {
+            return;
+        }
+        if (this.updatePromptInProgress) {
+            return;
+        }
+        if (!userInput && this.lastPromptedUpdateVersion == this.availableUpdateInfo.version) {
+            return;
+        }
+        this.lastPromptedUpdateVersion = this.availableUpdateInfo.version;
+        this.updatePromptInProgress = true;
+
+        const releaseTitle = this.availableUpdateReleaseName ?? `GenieTerm ${this.availableUpdateInfo.version}`;
+        const releaseNotes = this.availableUpdateReleaseNotes ? `\n\n${this.availableUpdateReleaseNotes}` : "";
+        const dialogOpts: Electron.MessageBoxOptions = {
+            type: "info",
+            buttons: ["Update Now", "Later"],
+            defaultId: 0,
+            cancelId: 1,
+            title: "GenieTerm Update",
+            message: `${releaseTitle} is available.`,
+            detail: `Download the update now. GenieTerm will ask before restarting to install it.${releaseNotes}`,
+        };
+
+        const allWindows = getAllWaveWindows();
+        if (allWindows.length > 0) {
+            await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts).then(({ response }) => {
+                if (response === 0) {
+                    fireAndForget(this.downloadUpdate.bind(this));
+                }
+            });
+        } else {
+            const updateNotification = new Notification({
+                title: "GenieTerm Update",
+                body: `${releaseTitle} is available.`,
+            });
+            updateNotification.on("click", () => {
+                fireAndForget(() => this.promptToDownloadUpdate(true));
+            });
+            updateNotification.show();
+        }
+
+        this.updatePromptInProgress = false;
+    }
+
+    async downloadUpdate() {
+        if (this.status != "available") {
+            return;
+        }
+        this.status = "downloading";
+        try {
+            await autoUpdater.downloadUpdate();
+        } catch (e) {
+            console.log("update download error");
+            console.log(e);
+            this.status = "error";
         }
     }
 
@@ -179,6 +266,13 @@ export class Updater {
      * Prompts the user to install the downloaded application update and restarts the application
      */
     async promptToInstallUpdate() {
+        if (this.status == "available") {
+            await this.promptToDownloadUpdate(true);
+            return;
+        }
+        if (this.status != "ready") {
+            return;
+        }
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "info",
             buttons: ["Restart", "Later"],
@@ -212,6 +306,24 @@ export class Updater {
 
 export function getResolvedUpdateChannel(): string {
     return isDev() ? "dev" : (autoUpdater.channel ?? "latest");
+}
+
+function formatReleaseNotes(releaseNotes: UpdateInfo["releaseNotes"]): string | null {
+    if (releaseNotes == null) {
+        return null;
+    }
+    if (typeof releaseNotes === "string") {
+        return releaseNotes;
+    }
+    return releaseNotes
+        .map((noteInfo) => {
+            if (!noteInfo.note) {
+                return null;
+            }
+            return `${noteInfo.version}: ${noteInfo.note}`;
+        })
+        .filter(Boolean)
+        .join("\n\n");
 }
 
 ipcMain.on("install-app-update", () => fireAndForget(updater?.promptToInstallUpdate.bind(updater)));
