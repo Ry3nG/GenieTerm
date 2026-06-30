@@ -11,7 +11,6 @@ import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { isDev } from "../frontend/util/isdev";
 import { fireAndForget } from "../frontend/util/util";
 import { setUserConfirmedQuit } from "./emain-activity";
-import { delay } from "./emain-util";
 import { focusedWaveWindow, getAllWaveWindows } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { formatReleaseNotes } from "./update-release-notes";
@@ -44,8 +43,7 @@ export class Updater {
     availableUpdateReleaseName: string | null;
     availableUpdateReleaseNotes: string | null;
     availableUpdateInfo: UpdateInfo | null;
-    updatePromptInProgress: boolean;
-    lastPromptedUpdateVersion: string | null;
+    installPromptInProgress: boolean;
     private _status: UpdaterStatus;
     lastUpdateCheck: Date;
 
@@ -61,10 +59,9 @@ export class Updater {
         this.availableUpdateReleaseName = null;
         this.availableUpdateReleaseNotes = null;
         this.availableUpdateInfo = null;
-        this.updatePromptInProgress = false;
-        this.lastPromptedUpdateVersion = null;
+        this.installPromptInProgress = false;
 
-        autoUpdater.autoDownload = false;
+        autoUpdater.autoDownload = true;
         autoUpdater.autoInstallOnAppQuit = settings["autoupdate:installonquit"];
         console.log("Download update automatically:", autoUpdater.autoDownload);
         console.log("Install update on quit:", settings["autoupdate:installonquit"]);
@@ -83,6 +80,9 @@ export class Updater {
 
         autoUpdater.on("checking-for-update", () => {
             console.log("checking-for-update");
+            if (this.status == "ready" || this.status == "installing") {
+                return;
+            }
             this.status = "checking";
         });
 
@@ -90,9 +90,14 @@ export class Updater {
             console.log("update-available", [event]);
             this.setAvailableUpdate(event);
             if (this.status != "ready") {
-                this.status = "available";
+                this.status = "downloading";
             }
-            fireAndForget(() => this.promptToDownloadUpdate(false));
+        });
+
+        autoUpdater.on("download-progress", () => {
+            if (this.status != "ready" && this.status != "installing") {
+                this.status = "downloading";
+            }
         });
 
         autoUpdater.on("update-not-available", () => {
@@ -107,11 +112,15 @@ export class Updater {
             console.log("update-downloaded", [event]);
             this.setAvailableUpdate(event);
 
-            // Display the update banner and create a system notification
             this.status = "ready";
+            const allWindows = getAllWaveWindows();
+            if (allWindows.length > 0) {
+                fireAndForget(this.promptToInstallUpdate.bind(this));
+                return;
+            }
             const updateNotification = new Notification({
-                title: "GenieTerm",
-                body: "A new version of GenieTerm is ready to install.",
+                title: "GenieTerm Update Ready",
+                body: `${this.availableUpdateReleaseName ?? "A new GenieTerm update"} is ready to install.`,
             });
             updateNotification.on("click", () => {
                 fireAndForget(this.promptToInstallUpdate.bind(this));
@@ -172,6 +181,15 @@ export class Updater {
      * @param userInput Whether the user is requesting this. If so, an alert will report the result of the check.
      */
     async checkForUpdates(userInput: boolean) {
+        if (userInput && this.status == "ready") {
+            await this.promptToInstallUpdate();
+            return;
+        }
+        if (userInput && (this.status == "available" || this.status == "downloading" || this.status == "checking")) {
+            await this.showUpdateDownloadingMessage();
+            return;
+        }
+
         const now = new Date();
 
         // Run an update check always if the user requests it, otherwise only if there's an active update check interval and enough time has elapsed.
@@ -192,7 +210,11 @@ export class Updater {
                 }
             }
             if (userInput && result?.isUpdateAvailable) {
-                await this.promptToDownloadUpdate(true);
+                if (this.status == "ready") {
+                    await this.promptToInstallUpdate();
+                } else {
+                    await this.showUpdateDownloadingMessage();
+                }
             }
 
             // Only update the last check time if this is an automatic check. This ensures the interval remains consistent.
@@ -200,66 +222,36 @@ export class Updater {
         }
     }
 
-    async promptToDownloadUpdate(userInput: boolean) {
-        if (this.status == "downloading" || this.status == "ready" || this.status == "installing") {
+    async showUpdateDownloadingMessage() {
+        if (this.status == "ready") {
+            await this.promptToInstallUpdate();
             return;
         }
-        if (!this.availableUpdateInfo) {
-            return;
-        }
-        if (this.updatePromptInProgress) {
-            return;
-        }
-        if (!userInput && this.lastPromptedUpdateVersion == this.availableUpdateInfo.version) {
-            return;
-        }
-        this.lastPromptedUpdateVersion = this.availableUpdateInfo.version;
-        this.updatePromptInProgress = true;
 
-        const releaseTitle = this.availableUpdateReleaseName ?? `GenieTerm ${this.availableUpdateInfo.version}`;
-        const releaseNotes = this.availableUpdateReleaseNotes ? `\n\n${this.availableUpdateReleaseNotes}` : "";
+        const releaseTitle = this.availableUpdateReleaseName ?? "A GenieTerm update";
+        const isChecking = this.status == "checking" && !this.availableUpdateInfo;
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "info",
-            buttons: ["Update Now", "Later"],
-            defaultId: 0,
-            cancelId: 1,
             title: "GenieTerm Update",
-            message: `${releaseTitle} is available.`,
-            detail: `Download the update now. GenieTerm will ask before restarting to install it.${releaseNotes}`,
+            message: isChecking
+                ? "GenieTerm is checking for updates."
+                : `${releaseTitle} is downloading in the background.`,
+            detail: isChecking
+                ? "GenieTerm will let you know if an update is available."
+                : "GenieTerm will let you know when it is ready to install.",
         };
 
         const allWindows = getAllWaveWindows();
         if (allWindows.length > 0) {
-            await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts).then(({ response }) => {
-                if (response === 0) {
-                    fireAndForget(this.downloadUpdate.bind(this));
-                }
-            });
+            await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts);
         } else {
             const updateNotification = new Notification({
                 title: "GenieTerm Update",
-                body: `${releaseTitle} is available.`,
-            });
-            updateNotification.on("click", () => {
-                fireAndForget(() => this.promptToDownloadUpdate(true));
+                body: isChecking
+                    ? "GenieTerm is checking for updates."
+                    : `${releaseTitle} is downloading in the background.`,
             });
             updateNotification.show();
-        }
-
-        this.updatePromptInProgress = false;
-    }
-
-    async downloadUpdate() {
-        if (this.status != "available") {
-            return;
-        }
-        this.status = "downloading";
-        try {
-            await autoUpdater.downloadUpdate();
-        } catch (e) {
-            console.log("update download error");
-            console.log(e);
-            this.status = "error";
         }
     }
 
@@ -267,28 +259,41 @@ export class Updater {
      * Prompts the user to install the downloaded application update and restarts the application
      */
     async promptToInstallUpdate() {
-        if (this.status == "available") {
-            await this.promptToDownloadUpdate(true);
+        if (this.status == "available" || this.status == "downloading" || this.status == "checking") {
+            await this.showUpdateDownloadingMessage();
             return;
         }
         if (this.status != "ready") {
             return;
         }
+        if (this.installPromptInProgress) {
+            return;
+        }
+        this.installPromptInProgress = true;
+
+        const releaseTitle = this.availableUpdateReleaseName ?? "A GenieTerm update";
+        const releaseNotes = this.availableUpdateReleaseNotes ? `\n\n${this.availableUpdateReleaseNotes}` : "";
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "info",
-            buttons: ["Restart", "Later"],
-            title: "Application Update",
-            message: process.platform === "win32" ? this.availableUpdateReleaseNotes : this.availableUpdateReleaseName,
-            detail: "A new version has been downloaded. Restart the application to apply the updates.",
+            buttons: ["Restart Now", "Later"],
+            defaultId: 0,
+            cancelId: 1,
+            title: "GenieTerm Update",
+            message: `${releaseTitle} is ready to install.`,
+            detail: `Restart GenieTerm now to finish installing the update.${releaseNotes}`,
         };
 
-        const allWindows = getAllWaveWindows();
-        if (allWindows.length > 0) {
-            await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts).then(({ response }) => {
-                if (response === 0) {
-                    fireAndForget(this.installUpdate.bind(this));
-                }
-            });
+        try {
+            const allWindows = getAllWaveWindows();
+            if (allWindows.length > 0) {
+                await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts).then(({ response }) => {
+                    if (response === 0) {
+                        fireAndForget(this.installUpdate.bind(this));
+                    }
+                });
+            }
+        } finally {
+            this.installPromptInProgress = false;
         }
     }
 
@@ -298,7 +303,6 @@ export class Updater {
     async installUpdate() {
         if (this.status == "ready") {
             this.status = "installing";
-            await delay(1000);
             setUserConfirmedQuit(true);
             autoUpdater.quitAndInstall();
         }

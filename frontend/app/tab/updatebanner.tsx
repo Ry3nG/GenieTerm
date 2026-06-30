@@ -1,8 +1,8 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Tooltip } from "@/element/tooltip";
 import { WaveEnv, WaveEnvSubset, useWaveEnv } from "@/app/waveenv/waveenv";
+import { Tooltip } from "@/element/tooltip";
 import { useAtomValue } from "jotai";
 import { memo, useCallback } from "react";
 
@@ -15,19 +15,43 @@ type UpdateBannerEnv = WaveEnvSubset<{
     };
 }>;
 
-function getUpdateStatusMessage(status: string): string {
+export function getUpdateStatusMessage(status: UpdaterStatus): string | null {
     switch (status) {
         case "available":
-            return "Update Now";
-        case "ready":
-            return "Restart";
         case "downloading":
-            return "Downloading";
+            return "Downloading Update";
+        case "ready":
+            return "Install Update";
         case "installing":
-            return "Installing";
+            return "Installing Update";
         default:
             return null;
     }
+}
+
+export function getUpdateStatusIcon(status: UpdaterStatus): string {
+    switch (status) {
+        case "ready":
+            return "fa fa-refresh";
+        case "installing":
+            return "fa fa-spinner fa-spin";
+        default:
+            return "fa fa-download";
+    }
+}
+
+export function isUpdateStatusActionable(status: UpdaterStatus): boolean {
+    return status === "ready";
+}
+
+export function getUpdateStatusTooltip(status: UpdaterStatus, message: string): string {
+    if (status === "ready") {
+        return "Restart GenieTerm to install update";
+    }
+    if (status === "downloading" || status === "available") {
+        return "Downloading update in the background";
+    }
+    return message;
 }
 
 const UpdateStatusBannerComponent = () => {
@@ -43,13 +67,8 @@ const UpdateStatusBannerComponent = () => {
         return null;
     }
 
-    const canAct = appUpdateStatus === "available" || appUpdateStatus === "ready";
-    const tooltipContent =
-        appUpdateStatus === "available"
-            ? "Download Update"
-            : appUpdateStatus === "ready"
-              ? "Restart to Install Update"
-              : updateStatusMessage;
+    const canAct = isUpdateStatusActionable(appUpdateStatus);
+    const tooltipContent = getUpdateStatusTooltip(appUpdateStatus, updateStatusMessage);
 
     return (
         <Tooltip
@@ -59,7 +78,7 @@ const UpdateStatusBannerComponent = () => {
             divClassName={`flex items-center gap-1 px-2 mb-1 h-[22px] text-xs font-medium text-primary bg-accent rounded-sm transition-all ${canAct ? "cursor-pointer hover:bg-accenthover" : ""}`}
             divStyle={{ WebkitAppRegion: "no-drag" } as any}
         >
-            <i className="fa fa-download" />
+            <i className={getUpdateStatusIcon(appUpdateStatus)} />
             {updateStatusMessage}
         </Tooltip>
     );

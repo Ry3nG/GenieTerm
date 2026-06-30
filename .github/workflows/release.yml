@@ -191,7 +191,7 @@ jobs:
                       make/*.msi
                       make/*.pacman
                       make/*.rpm
-                      make/*.yml
+                      make/*-mac.yml
                       make/*.zip
 
     publish:

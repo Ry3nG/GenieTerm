@@ -77,9 +77,10 @@ function VTabBarPreviewInner({ platform, setPlatform }: VTabBarPreviewInnerProps
                         className="rounded border border-border bg-background px-2 py-1 text-foreground"
                     >
                         <option value="up-to-date">Hidden</option>
-                        <option value="ready">Update Available</option>
-                        <option value="downloading">Downloading</option>
-                        <option value="installing">Installing</option>
+                        <option value="available">Available</option>
+                        <option value="downloading">Downloading Update</option>
+                        <option value="ready">Ready to Install</option>
+                        <option value="installing">Installing Update</option>
                         <option value="error">Error</option>
                     </select>
                 </label>
