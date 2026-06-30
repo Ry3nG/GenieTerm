@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.4.35 to build and publish a GitHub Release for all platforms.
+# Push a tag like v0.4.35 to build and publish a macOS GitHub Release.
 # Code-signing and notarization are OPTIONAL: they activate only when the matching
 # repo secrets are present, so the pipeline produces unsigned builds until you add them.
 on:
@@ -110,10 +110,6 @@ jobs:
                 include:
                     - platform: macos
                       runner: macos-latest
-                    - platform: linux
-                      runner: ubuntu-latest
-                    - platform: windows
-                      runner: windows-latest
         steps:
             - uses: actions/checkout@v6
 
