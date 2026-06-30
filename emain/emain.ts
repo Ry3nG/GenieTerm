@@ -300,6 +300,10 @@ electronApp.on("before-quit", (e) => {
     }
     getWaveSrvProc()?.kill("SIGINT");
     shutdownWshrpc();
+    if (updater?.status == "installing") {
+        console.log("update installing, allowing updater quit to proceed");
+        return;
+    }
     if (getForceQuit()) {
         return;
     }
