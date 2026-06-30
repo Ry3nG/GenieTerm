@@ -136,7 +136,7 @@ const EmptyOperation: GitOperation = {
 const GraphStrokeColors = ["#1594e8", "#15c928", "#d800a6", "#ff9d26", "#8b5cf6", "#00b8d9", "#ef4444"];
 const GraphLaneGap = 24;
 const GraphLaneStart = 28;
-const GraphRowHeight = 42;
+const GraphRowHeight = 32;
 const GraphWidth = 188;
 const GitGraphLimit = 200;
 
@@ -719,9 +719,10 @@ function GitGraphRow({
         <button
             type="button"
             className={cn(
-                "relative z-10 grid h-[42px] w-full cursor-pointer grid-cols-[190px_minmax(260px,1fr)_116px_126px_78px] items-center border-b border-border/60 px-2 text-left text-xs transition-colors",
+                "relative z-10 grid w-full cursor-pointer grid-cols-[190px_minmax(260px,1fr)_116px_126px_78px] items-center border-b border-border/60 px-2 text-left text-xs transition-colors",
                 selected ? "bg-accent/15" : "hover:bg-hoverbg"
             )}
+            style={{ height: GraphRowHeight }}
             onClick={onSelect}
         >
             <div />
@@ -1495,7 +1496,8 @@ export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
                                 {status.files.length > 0 && (
                                     <button
                                         type="button"
-                                        className="relative z-10 grid h-[42px] w-full cursor-pointer grid-cols-[190px_minmax(260px,1fr)_116px_126px_78px] items-center border-b border-border/60 bg-hoverbg/60 px-2 text-left text-xs hover:bg-hover"
+                                        className="relative z-10 grid w-full cursor-pointer grid-cols-[190px_minmax(260px,1fr)_116px_126px_78px] items-center border-b border-border/60 bg-hoverbg/60 px-2 text-left text-xs hover:bg-hover"
+                                        style={{ height: GraphRowHeight }}
                                         onClick={() => setActiveTab("changes")}
                                     >
                                         <div className="pl-[14px]">

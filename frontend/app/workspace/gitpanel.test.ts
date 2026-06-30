@@ -129,7 +129,7 @@ describe("gitpanel helpers", () => {
             commit({ hash: "b", parents: [] }),
         ]);
 
-        expect(model.height).toBe(126);
+        expect(model.height).toBe(96);
         expect(model.points).toHaveLength(3);
         expect(model.width).toBeGreaterThanOrEqual(188);
         expect(model.paths.length).toBeGreaterThan(0);
