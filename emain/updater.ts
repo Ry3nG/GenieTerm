@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { dialog, ipcMain, Notification } from "electron";
-import { autoUpdater } from "electron-updater";
 import type { UpdateInfo } from "electron-updater";
+import { autoUpdater } from "electron-updater";
 import { readFileSync } from "fs";
 import path from "path";
 import YAML from "yaml";
@@ -14,6 +14,7 @@ import { setUserConfirmedQuit } from "./emain-activity";
 import { delay } from "./emain-util";
 import { focusedWaveWindow, getAllWaveWindows } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { formatReleaseNotes } from "./update-release-notes";
 
 export let updater: Updater;
 
@@ -306,24 +307,6 @@ export class Updater {
 
 export function getResolvedUpdateChannel(): string {
     return isDev() ? "dev" : (autoUpdater.channel ?? "latest");
-}
-
-function formatReleaseNotes(releaseNotes: UpdateInfo["releaseNotes"]): string | null {
-    if (releaseNotes == null) {
-        return null;
-    }
-    if (typeof releaseNotes === "string") {
-        return releaseNotes;
-    }
-    return releaseNotes
-        .map((noteInfo) => {
-            if (!noteInfo.note) {
-                return null;
-            }
-            return `${noteInfo.version}: ${noteInfo.note}`;
-        })
-        .filter(Boolean)
-        .join("\n\n");
 }
 
 ipcMain.on("install-app-update", () => fireAndForget(updater?.promptToInstallUpdate.bind(updater)));
