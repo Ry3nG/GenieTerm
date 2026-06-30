@@ -31,6 +31,14 @@ export function run(scope, command, args, options = {}) {
   return result.stdout.trim();
 }
 
+export function runResult(command, args, options = {}) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    ...options,
+  });
+}
+
 export function readPlist(scope, plistPath, key) {
   return run(scope, "/usr/libexec/PlistBuddy", ["-c", `Print ${key}`, plistPath]);
 }
@@ -94,5 +102,15 @@ export function verifyMacAppBundle(scope, appPath) {
   const binDir = path.join(appPath, "Contents", "Resources", "app.asar.unpacked", "dist", "bin");
   verifyDirectory(scope, binDir, "unpacked helper binary directory");
   verifyHelperBinaries(scope, binDir);
-  run(scope, "codesign", ["--verify", "--deep", "--strict", appPath]);
+  const signingResult = runResult("codesign", ["--verify", "--deep", "--strict", appPath]);
+  if (signingResult.status === 0) {
+    return;
+  }
+  if (process.env.GENIETERM_ALLOW_UNSIGNED_MAC === "1") {
+    console.warn(
+      `[${scope}] warning: macOS app is not signed; bundle identity and packaged contents were verified only`
+    );
+    return;
+  }
+  fail(scope, `codesign --verify --deep --strict ${appPath} failed: ${signingResult.stderr || signingResult.stdout}`);
 }

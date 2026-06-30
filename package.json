@@ -7,7 +7,7 @@
     "productName": "GenieTerm",
     "description": "Workspace-native terminal for commands, files, and durable sessions",
     "license": "Apache-2.0",
-    "version": "0.4.68",
+    "version": "0.4.69",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"
@@ -29,7 +29,7 @@
         "interaction:preview": "node scripts/preview-interaction-qa.mjs",
         "lint": "eslint frontend emain scripts --ext .ts,.tsx,.js,.mjs --quiet",
         "package:verify": "node scripts/verify-package-artifact.mjs",
-        "format:check": "prettier --check README.md package.json eslint.config.js .github/workflows/*.yml scripts/*.mjs emain/emain.ts emain/emain-ipc.ts emain/emain-tabview.ts emain/emain-util.ts emain/safe-open*.ts frontend/app/view/term/term-model.ts frontend/app/view/term/term.tsx frontend/app/view/term/termwrap.ts frontend/app/workspace/workspace-layout-model.ts --log-level warn",
+        "format:check": "prettier --check README.md package.json eslint.config.js electron-builder.config.cjs .github/workflows/*.yml scripts/*.mjs emain/emain.ts emain/emain-ipc.ts emain/emain-tabview.ts emain/emain-util.ts emain/safe-open*.ts frontend/app/view/term/term-model.ts frontend/app/view/term/term.tsx frontend/app/view/term/termwrap.ts frontend/app/workspace/workspace-layout-model.ts --log-level warn",
         "visual:preview": "node scripts/preview-visual-qa.mjs",
         "test": "vitest",
         "postinstall": "node ./postinstall.cjs"

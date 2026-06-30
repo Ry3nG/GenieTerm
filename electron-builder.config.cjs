@@ -5,6 +5,23 @@ const path = require("path");
 const childProcess = require("node:child_process");
 
 const windowsShouldSign = !!process.env.SM_CODE_SIGNING_CERT_SHA1_HASH;
+const defaultLinuxTargets = ["zip", "deb", "rpm", "snap", "AppImage", "pacman"];
+const linuxTargets = process.env.GENIETERM_LINUX_TARGETS
+    ? process.env.GENIETERM_LINUX_TARGETS.split(",")
+          .map((target) => target.trim())
+          .filter(Boolean)
+    : defaultLinuxTargets;
+const githubPublishConfig = {
+    provider: "github",
+    owner: "Ry3nG",
+    repo: "GenieTerm",
+};
+const genericPublishConfig = {
+    provider: "generic",
+    url: "https://github.com/Ry3nG/GenieTerm/releases/latest/download/",
+};
+const publishConfig =
+    process.env.GENIETERM_ELECTRON_BUILDER_PUBLISH === "1" ? githubPublishConfig : genericPublishConfig;
 
 function deleteXattrRecursive(attributeName, targetPath) {
     childProcess.execFileSync("xattr", ["-dr", attributeName, targetPath], { stdio: "ignore" });
@@ -76,7 +93,8 @@ const config = {
             NSCameraUsageDescription: "A CLI application running in GenieTerm wants to use the camera.",
             NSMicrophoneUsageDescription: "A CLI application running in GenieTerm wants to use your microphone.",
             NSCalendarsUsageDescription: "A CLI application running in GenieTerm wants to use Calendar data.",
-            NSLocationUsageDescription: "A CLI application running in GenieTerm wants to use your location information.",
+            NSLocationUsageDescription:
+                "A CLI application running in GenieTerm wants to use your location information.",
             NSAppleEventsUsageDescription: "A CLI application running in GenieTerm wants to use AppleScript.",
         },
     },
@@ -84,7 +102,7 @@ const config = {
         artifactName: "${name}-${platform}-${arch}-${version}.${ext}",
         category: "TerminalEmulator",
         executableName: pkg.name,
-        target: ["zip", "deb", "rpm", "snap", "AppImage", "pacman"],
+        target: linuxTargets,
         synopsis: pkg.description,
         description: null,
         desktop: {
@@ -122,11 +140,7 @@ const config = {
         // this should remove /usr/lib/.build-id/ links which can conflict with other electron apps like slack
         fpm: ["--rpm-rpmbuild-define", "_build_id_links none"],
     },
-    publish: {
-        provider: "github",
-        owner: "Ry3nG",
-        repo: "GenieTerm",
-    },
+    publish: publishConfig,
     afterPack: (context) => {
         if (context.electronPlatformName === "darwin") {
             const appBundlePath = path.resolve(context.appOutDir, `${pkg.productName}.app`);
