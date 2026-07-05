@@ -40,6 +40,7 @@ import * as React from "react";
 import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
 import {
     buildCommandComposerContext,
+    ErrorFallbackCommandAIProviderStatus,
     getCommandProposalApplyMode,
     UnknownCommandAIProviderStatus,
     type CommandComposerBackend,
@@ -690,6 +691,10 @@ export class TermViewModel implements ViewModel {
         } catch (e) {
             console.error("command composer failed", e);
             globalStore.set(this.commandComposerProposalsAtom, []);
+            globalStore.set(this.commandComposerProviderStatusAtom, {
+                ...ErrorFallbackCommandAIProviderStatus,
+                detail: e instanceof Error ? e.message : String(e),
+            });
             globalStore.set(this.commandComposerStatusAtom, "error");
             globalStore.set(this.commandComposerErrorAtom, e instanceof Error ? e.message : String(e));
         }
@@ -770,6 +775,10 @@ export class TermViewModel implements ViewModel {
             this.setInlineCommandAIState(block, {
                 prompt: trimmedPrompt,
                 status: "error",
+                providerStatus: {
+                    ...ErrorFallbackCommandAIProviderStatus,
+                    detail: e instanceof Error ? e.message : String(e),
+                },
                 error: e instanceof Error ? e.message : String(e),
             });
         }

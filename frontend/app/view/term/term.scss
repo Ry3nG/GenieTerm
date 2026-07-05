@@ -437,6 +437,46 @@
         color: var(--error-color);
     }
 
+    .term-command-composer-provider-guidance {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 9px 12px;
+        border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+        color: var(--secondary-text-color);
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .term-command-composer-provider-detail {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .term-command-composer-provider-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+    }
+
+    .term-command-composer-provider-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+        border-radius: 6px;
+        background: var(--app-bg-color);
+        color: var(--main-text-color);
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    .term-command-composer-provider-action:hover {
+        background: var(--hover-bg-color);
+    }
+
     .term-command-composer-results {
         max-height: 280px;
         overflow: auto;

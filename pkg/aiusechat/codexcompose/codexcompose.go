@@ -8,7 +8,7 @@
 // isolated helper so it can't affect the interactive AI chat path.
 //
 // The endpoint is undocumented/reverse-engineered and may change; callers must
-// treat any error as non-fatal and fall back to a local generator.
+// treat any error as non-fatal and surface structured status instead of secrets.
 package codexcompose
 
 import (
@@ -16,10 +16,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -32,9 +34,37 @@ const (
 	codexResponsesURL = "https://chatgpt.com/backend-api/codex/responses"
 	defaultCodexModel = "gpt-5.5"
 	requestTimeout    = 60 * time.Second
+
+	StatusReady         = "ready"
+	StatusLoginRequired = "loginrequired"
+	StatusExpired       = "expired"
+	StatusRequestFailed = "requestfailed"
+	StatusEmptyResponse = "emptyresponse"
+
+	defaultLoginCommand   = "codex login"
+	defaultInstallCommand = "npm install -g @openai/codex"
 )
 
 var configModelRe = regexp.MustCompile(`(?m)^\s*model\s*=\s*"([^"]+)"`)
+var errCodexUnauthorized = errors.New("codex oauth token expired")
+
+type Status struct {
+	Available      bool
+	Code           string
+	Message        string
+	LoginCommand   string
+	InstallCommand string
+	CliFound       bool
+	HttpStatus     int
+}
+
+type httpStatusError struct {
+	statusCode int
+}
+
+func (e httpStatusError) Error() string {
+	return fmt.Sprintf("codex responses HTTP %d", e.statusCode)
+}
 
 type codexAuth struct {
 	AccessToken string
@@ -71,6 +101,55 @@ func readCodexAuth() (*codexAuth, error) {
 func IsAvailable() bool {
 	_, err := readCodexAuth()
 	return err == nil
+}
+
+func loginRequiredStatus() Status {
+	_, cliErr := exec.LookPath("codex")
+	return Status{
+		Available:      false,
+		Code:           StatusLoginRequired,
+		Message:        "Sign in with ChatGPT from Codex CLI to enable Command AI.",
+		LoginCommand:   defaultLoginCommand,
+		InstallCommand: defaultInstallCommand,
+		CliFound:       cliErr == nil,
+	}
+}
+
+func AuthStatus() Status {
+	_, err := readCodexAuth()
+	if err != nil {
+		return loginRequiredStatus()
+	}
+	return Status{
+		Available: true,
+		Code:      StatusReady,
+		Message:   "Using your local Codex OAuth login.",
+	}
+}
+
+func StatusForComposeError(err error) Status {
+	if errors.Is(err, errCodexUnauthorized) {
+		return Status{
+			Available:    false,
+			Code:         StatusExpired,
+			Message:      "Codex OAuth login expired. Run codex login, then retry.",
+			LoginCommand: defaultLoginCommand,
+		}
+	}
+	var httpErr httpStatusError
+	if errors.As(err, &httpErr) {
+		return Status{
+			Available:  true,
+			Code:       StatusRequestFailed,
+			Message:    fmt.Sprintf("Codex request failed with HTTP %d.", httpErr.statusCode),
+			HttpStatus: httpErr.statusCode,
+		}
+	}
+	return Status{
+		Available: true,
+		Code:      StatusRequestFailed,
+		Message:   "Codex request failed. Check your network or try again.",
+	}
 }
 
 // codexModel returns the model from ~/.codex/config.toml, or the default. The
@@ -134,11 +213,10 @@ func ComposeText(ctx context.Context, systemPrompt string, userPrompt string) (s
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		snippet, _ := bufio.NewReader(resp.Body).Peek(400)
 		if resp.StatusCode == http.StatusUnauthorized {
-			return "", fmt.Errorf("Codex login expired — run `codex` once to refresh (HTTP 401)")
+			return "", errCodexUnauthorized
 		}
-		return "", fmt.Errorf("codex responses HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+		return "", httpStatusError{statusCode: resp.StatusCode}
 	}
 	return accumulateSSEText(resp.Body)
 }

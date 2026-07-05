@@ -36,11 +36,22 @@ export type CommandProposal = {
 };
 
 export type CommandComposerProviderState = "unknown" | "codex" | "fallback" | "error";
+export type CommandComposerProviderReason =
+    | "ready"
+    | "loginrequired"
+    | "expired"
+    | "requestfailed"
+    | "emptyresponse";
 
 export type CommandComposerProviderStatus = {
     state: CommandComposerProviderState;
     label: string;
     detail: string;
+    reason?: CommandComposerProviderReason;
+    actionLabel?: string;
+    actionCommand?: string;
+    secondaryActionLabel?: string;
+    secondaryActionCommand?: string;
 };
 
 export type CommandComposerResult = {
@@ -100,13 +111,14 @@ export const CodexCommandAIProviderStatus: CommandComposerProviderStatus = {
 export const LocalFallbackCommandAIProviderStatus: CommandComposerProviderStatus = {
     state: "fallback",
     label: "Local fallback",
-    detail: "Codex is not signed in",
+    detail: "Using deterministic local command suggestions.",
 };
 
 export const ErrorFallbackCommandAIProviderStatus: CommandComposerProviderStatus = {
     state: "error",
-    label: "Local fallback",
+    label: "Command AI unavailable",
     detail: "Codex request failed",
+    reason: "requestfailed",
 };
 
 const MaxSelectedOutputChars = 4000;
