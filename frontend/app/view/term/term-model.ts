@@ -1040,10 +1040,14 @@ export class TermViewModel implements ViewModel {
                 return false;
             }
             if (keyutil.checkKeyPressed(waveEvent, "Tab") || keyutil.checkKeyPressed(waveEvent, "Enter")) {
-                this.acceptCompletionSelected();
-                event.preventDefault();
-                event.stopPropagation();
-                return false;
+                if (this.completionModel.shouldAcceptSelectedFromKey()) {
+                    this.acceptCompletionSelected();
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+                this.completionModel.dismiss();
+                return true;
             }
             if (keyutil.checkKeyPressed(waveEvent, "Escape")) {
                 this.completionModel.dismiss();

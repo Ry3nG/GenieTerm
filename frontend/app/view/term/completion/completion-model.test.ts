@@ -42,8 +42,18 @@ describe("TermCompletionModel", () => {
         expect(globalStore.get(model.openAtom)).toBe(true);
         expect(globalStore.get(model.itemsAtom)).toEqual([item("checkout")]);
         expect(globalStore.get(model.selectedIndexAtom)).toBe(0);
+        expect(model.shouldAcceptSelectedFromKey()).toBe(false);
         expect(globalStore.get(model.contextAtom)).toBe(ctx);
         expect(globalStore.get(model.statusAtom)).toBe("ready");
+    });
+
+    it("allows key acceptance immediately for manual completion requests", async () => {
+        const model = new TermCompletionModel();
+        const service = { provideCompletions: vi.fn(async () => [item("checkout")]) };
+
+        await model.requestCompletions(service, makeContext({ requestKind: "manual" }));
+
+        expect(model.shouldAcceptSelectedFromKey()).toBe(true);
     });
 
     it("dismisses when providers return no items", async () => {
@@ -64,9 +74,21 @@ describe("TermCompletionModel", () => {
 
         model.moveSelection(-1);
         expect(globalStore.get(model.selectedIndexAtom)).toBe(1);
+        expect(model.shouldAcceptSelectedFromKey()).toBe(true);
 
         model.moveSelection(1);
         expect(globalStore.get(model.selectedIndexAtom)).toBe(0);
+    });
+
+    it("resets explicit selection state on dismiss", async () => {
+        const model = new TermCompletionModel();
+        const service = { provideCompletions: vi.fn(async () => [item("checkout"), item("cherry-pick")]) };
+        await model.requestCompletions(service, makeContext());
+        model.moveSelection(1);
+
+        model.dismiss();
+
+        expect(model.shouldAcceptSelectedFromKey()).toBe(false);
     });
 
     it("accepts the selected item through the provided send function", async () => {
