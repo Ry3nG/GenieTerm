@@ -70,6 +70,12 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
         [model]
     );
 
+    const copyCommand = React.useCallback((command: string) => {
+        fireAndForget(async () => {
+            await navigator.clipboard?.writeText(command);
+        });
+    }, []);
+
     const onKeyDown = React.useCallback(
         (e: React.KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -87,6 +93,12 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
     if (!isOpen) {
         return null;
     }
+
+    const showProviderGuidance =
+        status !== "loading" &&
+        (providerStatus.state === "error" ||
+            providerStatus.actionCommand != null ||
+            providerStatus.secondaryActionCommand != null);
 
     return (
         <div className="term-command-composer" role="dialog" aria-label="Command Composer">
@@ -126,7 +138,36 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
             {status === "error" && (
                 <div className="term-command-composer-error">{error || "Command composer failed"}</div>
             )}
-            {status !== "loading" && proposals.length === 0 && status !== "error" && (
+            {showProviderGuidance && (
+                <div className="term-command-composer-provider-guidance">
+                    <div className="term-command-composer-provider-detail">{providerStatus.detail}</div>
+                    <div className="term-command-composer-provider-actions">
+                        {providerStatus.actionCommand != null && (
+                            <button
+                                type="button"
+                                className="term-command-composer-provider-action cursor-pointer"
+                                title={providerStatus.actionCommand}
+                                onClick={() => copyCommand(providerStatus.actionCommand)}
+                            >
+                                <i className="fa-solid fa-copy" aria-hidden="true" />
+                                {providerStatus.actionLabel || "Copy command"}
+                            </button>
+                        )}
+                        {providerStatus.secondaryActionCommand != null && (
+                            <button
+                                type="button"
+                                className="term-command-composer-provider-action cursor-pointer"
+                                title={providerStatus.secondaryActionCommand}
+                                onClick={() => copyCommand(providerStatus.secondaryActionCommand)}
+                            >
+                                <i className="fa-solid fa-copy" aria-hidden="true" />
+                                {providerStatus.secondaryActionLabel || "Copy command"}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+            {status !== "loading" && proposals.length === 0 && status !== "error" && !showProviderGuidance && (
                 <div className="term-command-composer-empty">No proposals</div>
             )}
             {proposals.length > 0 && (

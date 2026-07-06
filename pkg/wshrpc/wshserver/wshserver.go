@@ -606,21 +606,43 @@ func buildComposeSystemPrompt(data wshrpc.AiCommandComposeData) string {
 	return sb.String()
 }
 
-// AiCommandComposeCommand generates shell-command proposals for the composer using
-// the user's Codex/ChatGPT login (keyless). Returns Available=false when no Codex
-// login is present so the frontend can fall back to the local generator.
-func (ws *WshServer) AiCommandComposeCommand(ctx context.Context, data wshrpc.AiCommandComposeData) (wshrpc.AiCommandComposeRtn, error) {
-	if strings.TrimSpace(data.Prompt) == "" {
-		return wshrpc.AiCommandComposeRtn{Available: codexcompose.IsAvailable()}, nil
+func aiCommandComposeRtnFromStatus(status codexcompose.Status) wshrpc.AiCommandComposeRtn {
+	return wshrpc.AiCommandComposeRtn{
+		Available:      status.Available,
+		Status:         status.Code,
+		StatusDetail:   status.Message,
+		LoginCommand:   status.LoginCommand,
+		InstallCommand: status.InstallCommand,
+		CliFound:       status.CliFound,
+		HttpStatus:     status.HttpStatus,
 	}
-	if !codexcompose.IsAvailable() {
-		return wshrpc.AiCommandComposeRtn{Available: false}, nil
+}
+
+// AiCommandComposeCommand generates shell-command proposals for the composer using
+// the user's Codex/ChatGPT login (keyless). Auth and request failures return
+// structured status so the frontend can show login/retry guidance without secrets.
+func (ws *WshServer) AiCommandComposeCommand(ctx context.Context, data wshrpc.AiCommandComposeData) (wshrpc.AiCommandComposeRtn, error) {
+	status := codexcompose.AuthStatus()
+	if strings.TrimSpace(data.Prompt) == "" {
+		return aiCommandComposeRtnFromStatus(status), nil
+	}
+	if !status.Available {
+		return aiCommandComposeRtnFromStatus(status), nil
 	}
 	text, err := codexcompose.ComposeText(ctx, buildComposeSystemPrompt(data), data.Prompt)
 	if err != nil {
-		return wshrpc.AiCommandComposeRtn{Available: true}, err
+		return aiCommandComposeRtnFromStatus(codexcompose.StatusForComposeError(err)), nil
 	}
-	return wshrpc.AiCommandComposeRtn{Available: true, Text: text}, nil
+	if strings.TrimSpace(text) == "" {
+		return aiCommandComposeRtnFromStatus(codexcompose.Status{
+			Available: true,
+			Code:      codexcompose.StatusEmptyResponse,
+			Message:   "Codex did not return a usable command suggestion.",
+		}), nil
+	}
+	rtn := aiCommandComposeRtnFromStatus(status)
+	rtn.Text = text
+	return rtn, nil
 }
 
 func (ws *WshServer) ConnStatusCommand(ctx context.Context) ([]wshrpc.ConnStatus, error) {

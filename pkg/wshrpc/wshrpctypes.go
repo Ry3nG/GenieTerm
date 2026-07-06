@@ -398,8 +398,14 @@ type AiCommandComposeData struct {
 }
 
 type AiCommandComposeRtn struct {
-	Text      string `json:"text"`
-	Available bool   `json:"available"`
+	Text           string `json:"text"`
+	Available      bool   `json:"available"`
+	Status         string `json:"status,omitempty"`
+	StatusDetail   string `json:"statusdetail,omitempty"`
+	LoginCommand   string `json:"logincommand,omitempty"`
+	InstallCommand string `json:"installcommand,omitempty"`
+	CliFound       bool   `json:"clifound,omitempty"`
+	HttpStatus     int    `json:"httpstatus,omitempty"`
 }
 
 type DiskUsageData struct {
