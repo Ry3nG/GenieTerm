@@ -25,6 +25,9 @@ export const ConnectionButton = React.memo(
             const isLocal = util.isLocalConnName(connection);
             const connStatus = jotai.useAtomValue(waveEnv.getConnStatusAtom(connection));
             const localName = jotai.useAtomValue(waveEnv.getLocalHostDisplayNameAtom());
+            const configuredDisplayName = jotai.useAtomValue(
+                waveEnv.getConnConfigKeyAtom(connection ?? "", "display:name")
+            );
             let showDisconnectedSlash = false;
             let connIconElem: React.ReactNode = null;
             const connColorNum = computeConnColorNum(connStatus);
@@ -59,12 +62,16 @@ export const ConnectionButton = React.memo(
                     />
                 );
             } else {
-                titleText = "Connected to " + connection;
+                const remoteDisplayName = configuredDisplayName || connection;
+                titleText = "Connected to " + remoteDisplayName;
+                if (configuredDisplayName && configuredDisplayName !== connection) {
+                    titleText += ` (${connection})`;
+                }
                 let iconName = "arrow-right-arrow-left";
                 let iconSvg = null;
                 if (connStatus?.status == "connecting") {
                     color = "var(--warning-color)";
-                    titleText = "Connecting to " + connection;
+                    titleText = "Connecting to " + remoteDisplayName;
                     shouldSpin = false;
                     iconSvg = (
                         <div className="relative top-[5px] left-[9px] [&_svg]:fill-warning">
@@ -73,22 +80,22 @@ export const ConnectionButton = React.memo(
                     );
                 } else if (connStatus?.status == "error") {
                     color = "var(--error-color)";
-                    titleText = "Error connecting to " + connection;
+                    titleText = "Error connecting to " + remoteDisplayName;
                     if (connStatus?.error != null) {
                         titleText += " (" + connStatus.error + ")";
                     }
                     showDisconnectedSlash = true;
                 } else if (!connStatus?.connected) {
                     color = "var(--grey-text-color)";
-                    titleText = "Disconnected from " + connection;
+                    titleText = "Disconnected from " + remoteDisplayName;
                     showDisconnectedSlash = true;
                 } else if (connStatus?.connhealthstatus === "degraded" || connStatus?.connhealthstatus === "stalled") {
                     color = "var(--warning-color)";
                     iconName = "signal-bars-slash";
                     if (connStatus.connhealthstatus === "degraded") {
-                        titleText = "Connection degraded: " + connection;
+                        titleText = "Connection degraded: " + remoteDisplayName;
                     } else {
-                        titleText = "Connection stalled: " + connection;
+                        titleText = "Connection stalled: " + remoteDisplayName;
                     }
                 }
                 if (iconSvg != null) {
@@ -139,7 +146,9 @@ export const ConnectionButton = React.memo(
                                 {connDisplayName}
                             </div>
                         ) : isLocal ? null : (
-                            <div className="flex-[1_2_auto] overflow-hidden pr-1 ellipsis">{connection}</div>
+                            <div className="flex-[1_2_auto] overflow-hidden pr-1 ellipsis">
+                                {configuredDisplayName || connection}
+                            </div>
                         )}
                     </div>
                     {showNoWshButton && (

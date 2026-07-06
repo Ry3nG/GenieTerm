@@ -1162,6 +1162,23 @@ export class TermViewModel implements ViewModel {
         });
     }
 
+    async startDurableSession() {
+        if (globalStore.get(this.isRestarting)) {
+            return;
+        }
+        this.triggerRestartAtom();
+        const termsize = {
+            rows: this.termRef.current?.terminal?.rows,
+            cols: this.termRef.current?.terminal?.cols,
+        };
+        await RpcApi.ControllerResyncCommand(TabRpcClient, {
+            tabid: globalStore.get(atoms.staticTabId),
+            blockid: this.blockId,
+            forcerestart: true,
+            rtopts: { termsize: termsize },
+        });
+    }
+
     async restartSessionWithDurability(isDurable: boolean) {
         await RpcApi.SetMetaCommand(TabRpcClient, {
             oref: WOS.makeORef("block", this.blockId),

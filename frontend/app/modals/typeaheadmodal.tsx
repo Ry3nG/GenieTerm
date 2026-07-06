@@ -37,10 +37,13 @@ const Suggestions = forwardRef<HTMLDivElement, SuggestionsProps>(
                 }}
                 className={clsx("suggestion-item", { selected: selectIndex === index })}
             >
-                <div className="typeahead-item-name ellipsis">
-                    {item.icon &&
-                        renderIcon(item.icon, "iconColor" in item && item.iconColor ? item.iconColor : "inherit")}
-                    {item.label}
+                <div className="typeahead-item-text min-w-0">
+                    <div className="typeahead-item-name ellipsis">
+                        {item.icon &&
+                            renderIcon(item.icon, "iconColor" in item && item.iconColor ? item.iconColor : "inherit")}
+                        <span className="ellipsis">{item.label}</span>
+                    </div>
+                    {item.description && <div className="typeahead-item-description ellipsis">{item.description}</div>}
                 </div>
                 {"current" in item && item.current && (
                     <i className={clsx(makeIconClass("check", false), "typeahead-current-checkbox")} />
