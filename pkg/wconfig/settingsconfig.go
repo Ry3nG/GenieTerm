@@ -397,6 +397,7 @@ type ConnKeywords struct {
 	ConnIgnoreSshConfig     *bool  `json:"conn:ignoresshconfig,omitempty"`
 
 	DisplayHidden *bool   `json:"display:hidden,omitempty"`
+	DisplayName   string  `json:"display:name,omitempty"`
 	DisplayOrder  float32 `json:"display:order,omitempty"`
 
 	TermClear      bool    `json:"term:*,omitempty"`
@@ -901,9 +902,17 @@ func SetConnectionsConfigValue(connName string, toMerge waveobj.MetaMapType) err
 		connData = make(waveobj.MetaMapType)
 	}
 	for configKey, val := range toMerge {
+		if val == nil {
+			delete(connData, configKey)
+			continue
+		}
 		connData[configKey] = val
 	}
-	m[connName] = connData
+	if len(connData) == 0 {
+		delete(m, connName)
+	} else {
+		m[connName] = connData
+	}
 	return WriteWaveHomeConfigFile(ConnectionsFile, m)
 }
 

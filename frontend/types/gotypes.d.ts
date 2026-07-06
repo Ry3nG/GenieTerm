@@ -882,6 +882,7 @@ declare global {
         "conn:shellpath"?: string;
         "conn:ignoresshconfig"?: boolean;
         "display:hidden"?: boolean;
+        "display:name"?: string;
         "display:order"?: number;
         "term:*"?: boolean;
         "term:fontsize"?: number;

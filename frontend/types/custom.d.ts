@@ -419,6 +419,7 @@ declare global {
         label: string;
         value: string;
         icon?: string | React.ReactNode;
+        description?: string;
     }
 
     interface SuggestionConnectionItem extends SuggestionBaseItem {

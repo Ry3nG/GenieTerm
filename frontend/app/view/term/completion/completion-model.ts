@@ -16,6 +16,7 @@ export class TermCompletionModel {
     openAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
     itemsAtom = jotai.atom<CompletionItem[]>([]) as jotai.PrimitiveAtom<CompletionItem[]>;
     selectedIndexAtom = jotai.atom(0) as jotai.PrimitiveAtom<number>;
+    selectionExplicitAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
     statusAtom = jotai.atom<CompletionStatus>("idle") as jotai.PrimitiveAtom<CompletionStatus>;
     contextAtom = jotai.atom(null) as jotai.PrimitiveAtom<CompletionContext>;
     manualRequestVersionAtom = jotai.atom(0) as jotai.PrimitiveAtom<number>;
@@ -44,6 +45,7 @@ export class TermCompletionModel {
         }
         globalStore.set(this.itemsAtom, items);
         globalStore.set(this.selectedIndexAtom, 0);
+        globalStore.set(this.selectionExplicitAtom, ctx.requestKind === "manual");
         globalStore.set(this.openAtom, true);
         globalStore.set(this.statusAtom, "ready");
     }
@@ -56,6 +58,7 @@ export class TermCompletionModel {
         globalStore.set(this.openAtom, false);
         globalStore.set(this.itemsAtom, []);
         globalStore.set(this.selectedIndexAtom, 0);
+        globalStore.set(this.selectionExplicitAtom, false);
         globalStore.set(this.statusAtom, "idle");
     }
 
@@ -66,6 +69,11 @@ export class TermCompletionModel {
         }
         const selectedIndex = globalStore.get(this.selectedIndexAtom);
         globalStore.set(this.selectedIndexAtom, (selectedIndex + delta + items.length) % items.length);
+        globalStore.set(this.selectionExplicitAtom, true);
+    }
+
+    shouldAcceptSelectedFromKey(): boolean {
+        return globalStore.get(this.selectionExplicitAtom);
     }
 
     acceptSelected(sendData: (data: string) => void): boolean {

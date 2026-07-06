@@ -1049,10 +1049,14 @@ export class TermViewModel implements ViewModel {
                 return false;
             }
             if (keyutil.checkKeyPressed(waveEvent, "Tab")) {
-                this.acceptCompletionSelected();
-                event.preventDefault();
-                event.stopPropagation();
-                return false;
+                if (this.completionModel.shouldAcceptSelectedFromKey()) {
+                    this.acceptCompletionSelected();
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+                this.completionModel.dismiss();
+                return true;
             }
             if (keyutil.checkKeyPressed(waveEvent, "Enter")) {
                 this.completionModel.dismiss();
@@ -1163,6 +1167,23 @@ export class TermViewModel implements ViewModel {
         }
         this.triggerRestartAtom();
         await RpcApi.ControllerDestroyCommand(TabRpcClient, this.blockId);
+        const termsize = {
+            rows: this.termRef.current?.terminal?.rows,
+            cols: this.termRef.current?.terminal?.cols,
+        };
+        await RpcApi.ControllerResyncCommand(TabRpcClient, {
+            tabid: globalStore.get(atoms.staticTabId),
+            blockid: this.blockId,
+            forcerestart: true,
+            rtopts: { termsize: termsize },
+        });
+    }
+
+    async startDurableSession() {
+        if (globalStore.get(this.isRestarting)) {
+            return;
+        }
+        this.triggerRestartAtom();
         const termsize = {
             rows: this.termRef.current?.terminal?.rows,
             cols: this.termRef.current?.terminal?.cols,

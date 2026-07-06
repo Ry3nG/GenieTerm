@@ -24,17 +24,47 @@ import * as React from "react";
 // newConnList -> connList => filteredList -> remoteItems -> sortedRemoteItems => remoteSuggestion
 // filteredList -> createNew
 
+function getConnConfig(fullConfig: FullConfigType, connName: string): ConnKeywords {
+    return fullConfig?.connections?.[connName];
+}
+
+function getConnectionDisplayName(fullConfig: FullConfigType, connName: string): string {
+    const displayName = getConnConfig(fullConfig, connName)?.["display:name"]?.trim();
+    return displayName || connName;
+}
+
+function getConnectionDescription(fullConfig: FullConfigType, connName: string): string {
+    const displayName = getConnectionDisplayName(fullConfig, connName);
+    if (displayName === connName) {
+        return null;
+    }
+    return connName;
+}
+
+function matchesConnectionFilter(fullConfig: FullConfigType, connName: string, connSelected: string): boolean {
+    const filter = connSelected.trim().toLowerCase();
+    if (filter === "") {
+        return true;
+    }
+    const displayName = getConnectionDisplayName(fullConfig, connName);
+    return connName.toLowerCase().includes(filter) || displayName.toLowerCase().includes(filter);
+}
+
 function filterConnections(
     connList: Array<string>,
     connSelected: string,
     fullConfig: FullConfigType,
-    filterOutNowsh: boolean
+    filterOutNowsh: boolean,
+    makeConfigKey: (conn: string) => string = (conn) => conn
 ): Array<string> {
-    const connectionsConfig = fullConfig.connections;
+    const connectionsConfig = fullConfig?.connections;
     return connList.filter((conn) => {
-        const hidden = connectionsConfig?.[conn]?.["display:hidden"] ?? false;
-        const wshEnabled = connectionsConfig?.[conn]?.["conn:wshenabled"] ?? true;
-        return conn.includes(connSelected) && !hidden && (wshEnabled || !filterOutNowsh);
+        const configKey = makeConfigKey(conn);
+        const hidden = connectionsConfig?.[configKey]?.["display:hidden"] ?? false;
+        const wshEnabled = connectionsConfig?.[configKey]?.["conn:wshenabled"] ?? true;
+        return (
+            matchesConnectionFilter(fullConfig, configKey, connSelected) && !hidden && (wshEnabled || !filterOutNowsh)
+        );
     });
 }
 
@@ -42,31 +72,37 @@ function sortConnSuggestionItems(
     connSuggestions: Array<SuggestionConnectionItem>,
     fullConfig: FullConfigType
 ): Array<SuggestionConnectionItem> {
-    const connectionsConfig = fullConfig.connections;
+    const connectionsConfig = fullConfig?.connections;
     return connSuggestions.sort((itemA: SuggestionConnectionItem, itemB: SuggestionConnectionItem) => {
         const connNameA = itemA.value;
         const connNameB = itemB.value;
         const valueA = connectionsConfig?.[connNameA]?.["display:order"] ?? 0;
         const valueB = connectionsConfig?.[connNameB]?.["display:order"] ?? 0;
-        return valueA - valueB;
+        if (valueA !== valueB) {
+            return valueA - valueB;
+        }
+        return itemA.label.localeCompare(itemB.label);
     });
 }
 
 function createRemoteSuggestionItems(
     filteredList: Array<string>,
     connection: string,
-    connStatusMap: Map<string, ConnStatus>
+    connStatusMap: Map<string, ConnStatus>,
+    fullConfig: FullConfigType
 ): Array<SuggestionConnectionItem> {
     return filteredList.map((connName) => {
         const connStatus = connStatusMap.get(connName);
         const connColorNum = computeConnColorNum(connStatus);
+        const label = getConnectionDisplayName(fullConfig, connName);
         const item: SuggestionConnectionItem = {
             status: "connected",
             icon: "arrow-right-arrow-left",
             iconColor:
                 connStatus?.status == "connected" ? `var(--conn-icon-color-${connColorNum})` : "var(--grey-text-color)",
             value: connName,
-            label: connName,
+            label,
+            description: getConnectionDescription(fullConfig, connName),
             current: connName == connection,
         };
         return item;
@@ -76,19 +112,23 @@ function createRemoteSuggestionItems(
 function createWslSuggestionItems(
     filteredList: Array<string>,
     connection: string,
-    connStatusMap: Map<string, ConnStatus>
+    connStatusMap: Map<string, ConnStatus>,
+    fullConfig: FullConfigType
 ): Array<SuggestionConnectionItem> {
     return filteredList.map((connName) => {
-        const connStatus = connStatusMap.get(`wsl://${connName}`);
+        const connValue = `wsl://${connName}`;
+        const connStatus = connStatusMap.get(connValue);
         const connColorNum = computeConnColorNum(connStatus);
+        const label = getConnectionDisplayName(fullConfig, connValue);
         const item: SuggestionConnectionItem = {
             status: "connected",
             icon: "arrow-right-arrow-left",
             iconColor:
                 connStatus?.status == "connected" ? `var(--conn-icon-color-${connColorNum})` : "var(--grey-text-color)",
-            value: "wsl://" + connName,
-            label: "wsl://" + connName,
-            current: "wsl://" + connName == connection,
+            value: connValue,
+            label,
+            description: getConnectionDescription(fullConfig, connValue),
+            current: connValue == connection,
         };
         return item;
     });
@@ -99,7 +139,7 @@ function createFilteredLocalSuggestionItem(
     connection: string,
     connSelected: string
 ): Array<SuggestionConnectionItem> {
-    if (localName.includes(connSelected)) {
+    if ((localName ?? "").toLowerCase().includes(connSelected.trim().toLowerCase())) {
         const localSuggestion: SuggestionConnectionItem = {
             status: "connected",
             icon: "laptop",
@@ -117,16 +157,19 @@ function getReconnectItem(
     connStatus: ConnStatus,
     connSelected: string,
     blockId: string,
-    changeConnModalAtom: jotai.PrimitiveAtom<boolean>
+    changeConnModalAtom: jotai.PrimitiveAtom<boolean>,
+    fullConfig: FullConfigType
 ): SuggestionConnectionItem | null {
     if (connSelected != "" || (connStatus.status != "disconnected" && connStatus.status != "error")) {
         return null;
     }
+    const connLabel = getConnectionDisplayName(fullConfig, connStatus.connection);
     const reconnectSuggestionItem: SuggestionConnectionItem = {
         status: "connected",
         icon: "arrow-right-arrow-left",
         iconColor: "var(--grey-text-color)",
-        label: `Reconnect to ${connStatus.connection}`,
+        label: `Reconnect to ${connLabel}`,
+        description: getConnectionDescription(fullConfig, connStatus.connection),
         value: "",
         onSelect: async (_: string) => {
             globalStore.set(changeConnModalAtom, false);
@@ -151,8 +194,14 @@ function getLocalSuggestions(
     filterOutNowsh: boolean,
     hasGitBash: boolean
 ): SuggestionConnectionScope | null {
-    const wslFiltered = filterConnections(connList, connSelected, fullConfig, filterOutNowsh);
-    const wslSuggestionItems = createWslSuggestionItems(wslFiltered, connection, connStatusMap);
+    const wslFiltered = filterConnections(
+        connList,
+        connSelected,
+        fullConfig,
+        filterOutNowsh,
+        (conn) => `wsl://${conn}`
+    );
+    const wslSuggestionItems = createWslSuggestionItems(wslFiltered, connection, connStatusMap, fullConfig);
     const localSuggestionItem = createFilteredLocalSuggestionItem(localName, connection, connSelected);
 
     const gitBashItems: Array<SuggestionConnectionItem> = [];
@@ -188,7 +237,7 @@ function getRemoteSuggestions(
     filterOutNowsh: boolean
 ): SuggestionConnectionScope | null {
     const filtered = filterConnections(connList, connSelected, fullConfig, filterOutNowsh);
-    const suggestionItems = createRemoteSuggestionItems(filtered, connection, connStatusMap);
+    const suggestionItems = createRemoteSuggestionItems(filtered, connection, connStatusMap, fullConfig);
     const sortedSuggestionItems = sortConnSuggestionItems(suggestionItems, fullConfig);
     if (sortedSuggestionItems.length == 0) {
         return null;
@@ -203,7 +252,8 @@ function getRemoteSuggestions(
 function getDisconnectItem(
     connection: string,
     connStatusMap: Map<string, ConnStatus>,
-    changeConnModalAtom: jotai.PrimitiveAtom<boolean>
+    changeConnModalAtom: jotai.PrimitiveAtom<boolean>,
+    fullConfig: FullConfigType
 ): SuggestionConnectionItem | null {
     if (util.isLocalConnName(connection)) {
         return null;
@@ -212,11 +262,13 @@ function getDisconnectItem(
     if (!connStatus || connStatus.status != "connected") {
         return null;
     }
+    const connLabel = getConnectionDisplayName(fullConfig, connection);
     const disconnectSuggestionItem: SuggestionConnectionItem = {
         status: "connected",
         icon: "xmark",
         iconColor: "var(--grey-text-color)",
-        label: `Disconnect ${connStatus.connection}`,
+        label: `Disconnect ${connLabel}`,
+        description: getConnectionDescription(fullConfig, connection),
         value: "",
         onSelect: async (_: string) => {
             globalStore.set(changeConnModalAtom, false);
@@ -375,7 +427,13 @@ const ChangeConnectionBlockModal = React.memo(
             [blockId, blockData]
         );
 
-        const reconnectSuggestionItem = getReconnectItem(connStatus, connSelected, blockId, changeConnModalAtom);
+        const reconnectSuggestionItem = getReconnectItem(
+            connStatus,
+            connSelected,
+            blockId,
+            changeConnModalAtom,
+            fullConfig
+        );
         const localSuggestions = getLocalSuggestions(
             localName,
             wslList,
@@ -395,7 +453,7 @@ const ChangeConnectionBlockModal = React.memo(
             filterOutNowsh
         );
         const connectionsEditItem = getConnectionsEditItem(changeConnModalAtom, connSelected);
-        const disconnectItem = getDisconnectItem(connection, connStatusMap, changeConnModalAtom);
+        const disconnectItem = getDisconnectItem(connection, connStatusMap, changeConnModalAtom, fullConfig);
         const newConnectionSuggestionItem = getNewConnectionSuggestionItem(
             connSelected,
             localName,

@@ -53,7 +53,8 @@ function StandardSessionContent({ viewModel, onClose }: StandardSessionContentPr
             >
                 <i className="fa-solid fa-shield text-sky-500" />
                 Restart as Durable
-            </button>        </div>
+            </button>
+        </div>
     );
 }
 
@@ -71,7 +72,8 @@ function DurableAttachedContent({ onClose }: DurableAttachedContentProps) {
             <div className="text-xs text-secondary leading-relaxed">
                 Your shell state, running programs, and history are protected. This session will survive network
                 disconnects.
-            </div>        </div>
+            </div>
+        </div>
     );
 }
 
@@ -89,20 +91,36 @@ function DurableDetachedContent({ onClose }: DurableDetachedContentProps) {
             <div className="text-xs text-secondary leading-relaxed">
                 Connection lost, but your session is still running on the remote server. GenieTerm will automatically
                 reconnect when the connection is restored.
-            </div>        </div>
+            </div>
+        </div>
     );
 }
 
 interface DurableAwaitingStartProps {
     connected: boolean;
     viewModel: TermViewModel;
-    onClose: () => void;
 }
 
-function DurableAwaitingStart({ connected, viewModel, onClose }: DurableAwaitingStartProps) {
+function DurableAwaitingStart({ connected, viewModel }: DurableAwaitingStartProps) {
+    const [isStarting, setIsStarting] = useState(false);
+    const [startError, setStartError] = useState("");
+
     const handleStartSession = () => {
-        onClose();
-        util.fireAndForget(() => viewModel.forceRestartController());
+        if (isStarting) {
+            return;
+        }
+        setIsStarting(true);
+        setStartError("");
+        util.fireAndForget(async () => {
+            try {
+                await viewModel.startDurableSession();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setStartError(message);
+            } finally {
+                setIsStarting(false);
+            }
+        });
     };
 
     if (!connected) {
@@ -114,7 +132,8 @@ function DurableAwaitingStart({ connected, viewModel, onClose }: DurableAwaiting
                 </div>
                 <div className="text-xs text-secondary leading-relaxed">
                     Configured for a durable session. The session will start when the connection is established.
-                </div>            </div>
+                </div>
+            </div>
         );
     }
 
@@ -128,12 +147,22 @@ function DurableAwaitingStart({ connected, viewModel, onClose }: DurableAwaiting
                 Configured for a durable session, but session hasn't started yet. Click below to start it manually.
             </div>
             <button
-                className="bg-zinc-700 text-foreground rounded px-3 py-1.5 text-xs font-medium hover:bg-zinc-600 transition-colors cursor-pointer flex items-center justify-center gap-2 mt-1"
+                className={cn(
+                    "bg-zinc-700 text-foreground rounded px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-2 mt-1",
+                    isStarting ? "opacity-70" : "hover:bg-zinc-600 cursor-pointer"
+                )}
                 onClick={handleStartSession}
+                disabled={isStarting}
             >
-                <i className="fa-solid fa-shield text-sky-500" />
-                Start Session
-            </button>        </div>
+                <i className={cn("fa-solid text-sky-500", isStarting ? "fa-spinner fa-spin" : "fa-shield")} />
+                {isStarting ? "Starting..." : "Start Session"}
+            </button>
+            {startError && (
+                <div className="text-[11px] text-error leading-relaxed max-h-[3.5rem] overflow-y-auto">
+                    {startError}
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -148,7 +177,8 @@ function DurableStartingContent({ onClose }: DurableStartingContentProps) {
                 <i className="fa-sharp fa-solid fa-shield text-sky-300" />
                 Durable Session (Starting)
             </div>
-            <div className="text-xs text-secondary leading-relaxed">The durable session is starting.</div>        </div>
+            <div className="text-xs text-secondary leading-relaxed">The durable session is starting.</div>
+        </div>
     );
 }
 
@@ -210,7 +240,8 @@ function DurableEndedContent({ doneReason, startupError, viewModel, onClose }: D
                 >
                     <i className="fa-sharp fa-regular fa-shield text-muted" />
                     Restart as Standard
-                </button>            </div>
+                </button>
+            </div>
         );
     }
 
@@ -229,7 +260,8 @@ function DurableEndedContent({ doneReason, startupError, viewModel, onClose }: D
                     <i className="fa-solid fa-shield text-sky-500" />
                     Restart Session
                 </button>
-            )}        </div>
+            )}
+        </div>
     );
 }
 
@@ -263,7 +295,7 @@ function getContentToRender(
             />
         );
     } else if (status == null) {
-        return <DurableAwaitingStart connected={!!connStatus?.connected} viewModel={viewModel} onClose={onClose} />;
+        return <DurableAwaitingStart connected={!!connStatus?.connected} viewModel={viewModel} />;
     }
     console.log("DurableSessionFlyover: unexpected jobStatus", jobStatus);
     return null;

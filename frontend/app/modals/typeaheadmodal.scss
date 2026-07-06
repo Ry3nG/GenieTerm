@@ -94,17 +94,34 @@
                 background-color: var(--highlight-bg-color);
             }
 
-            .typeahead-item-name {
+            .typeahead-item-text {
+                flex: 1 1 auto;
                 display: flex;
-                gap: 8px;
-                font-size: 11px;
-                font-weight: 400;
-                line-height: 14px;
+                min-width: 0;
+                flex-direction: column;
+                gap: 2px;
 
-                i {
-                    display: inline-block;
-                    position: relative;
-                    top: 2px;
+                .typeahead-item-name {
+                    display: flex;
+                    min-width: 0;
+                    gap: 8px;
+                    font-size: 11px;
+                    font-weight: 400;
+                    line-height: 14px;
+
+                    i {
+                        display: inline-block;
+                        position: relative;
+                        top: 2px;
+                        flex: 0 0 auto;
+                    }
+                }
+
+                .typeahead-item-description {
+                    padding-left: 22px;
+                    color: var(--grey-text-color);
+                    font-size: 10px;
+                    line-height: 12px;
                 }
             }
 

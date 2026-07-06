@@ -36,7 +36,7 @@ export type BlockEnv = WaveEnvSubset<{
     wos: WaveEnv["wos"];
     getConnStatusAtom: WaveEnv["getConnStatusAtom"];
     getLocalHostDisplayNameAtom: WaveEnv["getLocalHostDisplayNameAtom"];
-    getConnConfigKeyAtom: ConnConfigKeyAtomFnType<"conn:wshenabled">;
+    getConnConfigKeyAtom: ConnConfigKeyAtomFnType<"conn:wshenabled" | "display:name">;
     getBlockMetaKeyAtom: MetaKeyAtomFnType<
         | "frame:text"
         | "frame:activebordercolor"

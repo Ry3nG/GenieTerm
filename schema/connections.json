@@ -21,6 +21,9 @@
         "display:hidden": {
           "type": "boolean"
         },
+        "display:name": {
+          "type": "string"
+        },
         "display:order": {
           "type": "number"
         },

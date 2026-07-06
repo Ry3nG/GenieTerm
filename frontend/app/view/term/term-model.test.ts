@@ -90,11 +90,28 @@ describe("TermViewModel completion key handling", () => {
         expect(globalStore.get(model.completionModel.openAtom)).toBe(false);
     });
 
-    it("keeps Tab as the explicit accept key for completions", () => {
+    it("lets Tab fall through instead of accepting an auto completion before explicit selection", () => {
         const model = makeTermModel();
         globalStore.set(model.completionModel.itemsAtom, [makeItem()]);
         globalStore.set(model.completionModel.contextAtom, makeContext({ requestKind: "auto" }));
         globalStore.set(model.completionModel.openAtom, true);
+        const event = makeKeydownEvent("Tab");
+
+        const handled = model.handleTerminalKeydown(event);
+
+        expect(handled).toBe(true);
+        expect(model.acceptCompletionSelected).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+        expect(globalStore.get(model.completionModel.openAtom)).toBe(false);
+    });
+
+    it("keeps Tab as the explicit accept key after selecting a completion", () => {
+        const model = makeTermModel();
+        globalStore.set(model.completionModel.itemsAtom, [makeItem()]);
+        globalStore.set(model.completionModel.contextAtom, makeContext({ requestKind: "auto" }));
+        globalStore.set(model.completionModel.openAtom, true);
+        model.completionModel.moveSelection(1);
         const event = makeKeydownEvent("Tab");
 
         const handled = model.handleTerminalKeydown(event);

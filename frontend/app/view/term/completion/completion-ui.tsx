@@ -25,6 +25,36 @@ import type { CompletionItem, ShellType, TermInputBuffer } from "./types";
 
 const CompletionDebounceMs = 90;
 const MaxRecentCommands = 80;
+const DirectoryCompletionLimit = 200;
+const ShellDirectoryListScript = [
+    "dir=${GT_COMPLETION_DIR:-.}",
+    'case "$dir" in',
+    '  "~") dir=$HOME ;;',
+    '  "~/"*) dir=$HOME/${dir#~/} ;;',
+    "esac",
+    '[ -d "$dir" ] || exit 0',
+    "count=0",
+    'for p in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do',
+    '  [ -e "$p" ] || continue',
+    "  name=${p##*/}",
+    '  [ "$name" = "." ] && continue',
+    '  [ "$name" = ".." ] && continue',
+    "  type=f",
+    '  [ -d "$p" ] && type=d',
+    `  printf '%s\\0%s\\0%s\\0' "$type" "$name" "$p"`,
+    "  count=$((count + 1))",
+    '  [ "$count" -ge "$GT_COMPLETION_LIMIT" ] && break',
+    "done",
+].join("\n");
+
+type CompletionGeneratorRequest = {
+    command: string;
+    args: string[];
+    cwd: string;
+    connId: string;
+    env?: Record<string, string>;
+    timeoutMs?: number;
+};
 
 function getTerminalCursorMetrics(termWrap: TermWrap | null): { x: number; y: number; cellHeight: number } {
     const terminal = termWrap?.terminal;
@@ -48,23 +78,62 @@ function getTerminalCursorMetrics(termWrap: TermWrap | null): { x: number; y: nu
 async function listDirectoryForCompletion(path: string, ctx: { connId: string }): Promise<FileInfo[]> {
     const entries: FileInfo[] = [];
     const remotePath = formatRemoteUri(path, ctx.connId || "local");
-    const stream = RpcApi.FileListStreamCommand(TabRpcClient, { path: remotePath, opts: { limit: 200 } }, null);
-    for await (const chunk of stream) {
-        if (chunk?.fileinfo) {
-            entries.push(...chunk.fileinfo);
+    try {
+        const stream = RpcApi.FileListStreamCommand(
+            TabRpcClient,
+            { path: remotePath, opts: { limit: DirectoryCompletionLimit } },
+            null
+        );
+        for await (const chunk of stream) {
+            if (chunk?.fileinfo) {
+                entries.push(...chunk.fileinfo);
+            }
         }
+        return entries;
+    } catch {
+        return listDirectoryViaCompletionGenerator(path, ctx);
+    }
+}
+
+async function listDirectoryViaCompletionGenerator(path: string, ctx: { connId: string }): Promise<FileInfo[]> {
+    const rtn = await runCompletionGenerator({
+        command: "sh",
+        args: ["-c", ShellDirectoryListScript],
+        cwd: "",
+        connId: ctx.connId,
+        env: {
+            GT_COMPLETION_DIR: path,
+            GT_COMPLETION_LIMIT: String(DirectoryCompletionLimit),
+        },
+        timeoutMs: 3000,
+    });
+    if (!rtn.supported || rtn.exitcode !== 0 || rtn.stdout === "") {
+        return [];
+    }
+    const fields = rtn.stdout.split("\0");
+    const entries: FileInfo[] = [];
+    for (let idx = 0; idx + 2 < fields.length; idx += 3) {
+        const type = fields[idx];
+        const name = fields[idx + 1];
+        const entryPath = fields[idx + 2];
+        if (!name || !entryPath) {
+            continue;
+        }
+        entries.push({ path: entryPath, dir: path, name, isdir: type === "d" });
     }
     return entries;
 }
 
-async function runCompletionGenerator(req: { command: string; args: string[]; cwd: string; connId: string }) {
+async function runCompletionGenerator(req: CompletionGeneratorRequest) {
     const rtn = await RpcApi.RunCompletionGenCommand(TabRpcClient, {
         connname: req.connId || "",
         cwd: req.cwd,
         command: req.command,
         args: req.args,
+        env: req.env,
+        timeoutms: req.timeoutMs,
     });
-    return { stdout: rtn.stdout, supported: rtn.supported };
+    return { stdout: rtn.stdout, exitcode: rtn.exitcode, supported: rtn.supported };
 }
 
 function recentCommandsFromBlocks(cmdBlocks: CmdBlock[]): string[] {
@@ -150,7 +219,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
     React.useEffect(() => {
         const manualRequest = manualRequestVersion !== lastManualRequestVersion.current;
         lastManualRequestVersion.current = manualRequestVersion;
-        if (termWrap == null || inputBuffer == null || shellIntegrationStatus !== "ready" || altScreenActive) {
+        if (termWrap == null || inputBuffer == null || shellIntegrationStatus === "running-command" || altScreenActive) {
             completionModel.dismiss();
             return;
         }
