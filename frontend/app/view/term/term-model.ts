@@ -1183,6 +1183,7 @@ export class TermViewModel implements ViewModel {
         if (globalStore.get(this.isRestarting)) {
             return;
         }
+        this.requireWshForDurableSession();
         this.triggerRestartAtom();
         const termsize = {
             rows: this.termRef.current?.terminal?.rows,
@@ -1196,7 +1197,23 @@ export class TermViewModel implements ViewModel {
         });
     }
 
+    requireWshForDurableSession() {
+        const connName = globalStore.get(getBlockMetaKeyAtom(this.blockId, "connection")) ?? "";
+        const connStatus = globalStore.get(getConnStatusAtom(connName));
+        if (!connStatus?.connected) {
+            throw new Error(`Durable sessions require an active SSH connection to ${connName || "the remote"}.`);
+        }
+        if (connStatus.wshenabled) {
+            return;
+        }
+        const reason = connStatus.wsherror || connStatus.nowshreason || "connserver is unavailable";
+        throw new Error(`Durable sessions require GenieTerm shell integration on ${connName}. ${reason}`);
+    }
+
     async restartSessionWithDurability(isDurable: boolean) {
+        if (isDurable) {
+            this.requireWshForDurableSession();
+        }
         await RpcApi.SetMetaCommand(TabRpcClient, {
             oref: WOS.makeORef("block", this.blockId),
             meta: { "term:durable": isDurable },

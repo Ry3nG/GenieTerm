@@ -107,6 +107,7 @@ func MakeConnServerCommand(primaryPath string, fallbackPath string, connName str
 		flagStr = " " + flagStr
 	}
 	return strings.TrimSpace(strings.Join([]string{
+		fmt.Sprintf("mkdir -p %s %s || exit 1;", shellutil.SoftQuote(wavebase.RemoteFullGenieHomePath), shellutil.SoftQuote(wavebase.RemoteFullGenieHomePath+"/client")),
 		fmt.Sprintf("_genieterm_helper=%s;", shellutil.SoftQuote(primaryPath)),
 		fmt.Sprintf("if [ ! -x \"$_genieterm_helper\" ] && [ -x %s ]; then _genieterm_helper=%s; fi;", shellutil.SoftQuote(fallbackPath), shellutil.SoftQuote(fallbackPath)),
 		"\"$_genieterm_helper\" version 2> /dev/null || (echo -n \"not-installed \"; uname -sm; exit 0);",
@@ -304,7 +305,7 @@ func (conn *SSHConn) OpenDomainSocketListener(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error generating random string: %w", err)
 	}
-	sockName := fmt.Sprintf("/tmp/waveterm-%s.sock", randStr)
+	sockName := fmt.Sprintf("/tmp/genieterm-%s.sock", randStr)
 	conn.Infof(ctx, "generated domain socket name %s\n", sockName)
 	listener, err := client.ListenUnix(sockName)
 	if err != nil {

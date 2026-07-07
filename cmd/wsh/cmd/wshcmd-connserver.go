@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/wshfs"
@@ -28,6 +28,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshremote"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/spf13/cobra"
 )
 
 var serverCmd = &cobra.Command{
@@ -116,17 +117,26 @@ func startJobLogCleanup() {
 
 func getRemoteDomainSocketName() string {
 	homeDir := wavebase.GetHomeDir()
-	return filepath.Join(homeDir, wavebase.RemoteWaveHomeDirName, wavebase.RemoteDomainSocketBaseName)
+	return filepath.Join(homeDir, wavebase.RemoteGenieHomeDirName, wavebase.RemoteDomainSocketBaseName)
 }
 
 func MakeRemoteUnixListener() (net.Listener, error) {
 	serverAddr := getRemoteDomainSocketName()
-	os.Remove(serverAddr) // ignore error
+	serverDir := filepath.Dir(serverAddr)
+	if err := os.MkdirAll(serverDir, 0700); err != nil {
+		return nil, fmt.Errorf("error creating listener directory at %v: %v", serverDir, err)
+	}
+	if err := os.Remove(serverAddr); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("error removing existing listener at %v: %v", serverAddr, err)
+	}
 	rtn, err := net.Listen("unix", serverAddr)
 	if err != nil {
 		return nil, fmt.Errorf("error creating listener at %v: %v", serverAddr, err)
 	}
-	os.Chmod(serverAddr, 0700)
+	if err := os.Chmod(serverAddr, 0700); err != nil {
+		rtn.Close()
+		return nil, fmt.Errorf("error setting listener permissions at %v: %v", serverAddr, err)
+	}
 	log.Printf("Server [unix-domain] listening on %s\n", serverAddr)
 	return rtn, nil
 }
@@ -442,7 +452,7 @@ func serverRun(cmd *cobra.Command, args []string) error {
 	var logFile *os.File
 	if connServerDev {
 		var err error
-		logFilePath := fmt.Sprintf("/tmp/waveterm-connserver-%d.log", os.Getuid())
+		logFilePath := fmt.Sprintf("/tmp/genieterm-connserver-%d.log", os.Getuid())
 		logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to open log file: %v\n", err)

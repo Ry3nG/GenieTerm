@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -51,5 +52,34 @@ func TestResolveWaveCachesDirUsesGenieTermBundle(t *testing.T) {
 				t.Fatalf("expected cache dir %q, got %q", expected, actual)
 			}
 		})
+	}
+}
+
+func TestRemoteRuntimePathsUseGenieTerm(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	if RemoteFullDomainSocketPath != "~/.genieterm/genie-remote.sock" {
+		t.Fatalf("unexpected remote domain socket path: %q", RemoteFullDomainSocketPath)
+	}
+
+	persistentSock := GetPersistentRemoteSockName("client-test")
+	if persistentSock != "~/.genieterm/client/client-test/genieterm.sock" {
+		t.Fatalf("unexpected persistent remote socket path: %q", persistentSock)
+	}
+
+	jobLogDir := GetRemoteJobLogDir()
+	if jobLogDir != filepath.Join(homeDir, ".genieterm", "jobs") {
+		t.Fatalf("unexpected remote job log dir: %q", jobLogDir)
+	}
+
+	jobSock := GetRemoteJobSocketPath("job-test")
+	if !strings.Contains(jobSock, string(filepath.Separator)+"genieterm-") {
+		t.Fatalf("job socket should use genieterm temp prefix: %q", jobSock)
+	}
+
+	legacyJobSock := GetLegacyRemoteJobSocketPath("job-test")
+	if !strings.Contains(legacyJobSock, string(filepath.Separator)+"waveterm-") {
+		t.Fatalf("legacy job socket should keep waveterm temp prefix: %q", legacyJobSock)
 	}
 }

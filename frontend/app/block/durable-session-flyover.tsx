@@ -31,10 +31,27 @@ interface StandardSessionContentProps {
 }
 
 function StandardSessionContent({ viewModel, onClose }: StandardSessionContentProps) {
+    const [isRestarting, setIsRestarting] = useState(false);
+    const [restartError, setRestartError] = useState("");
+
     const handleRestartAsDurable = () => {
+        if (isRestarting) {
+            return;
+        }
         recordTEvent("action:termdurable", { "action:type": "restartdurable" });
-        onClose();
-        util.fireAndForget(() => viewModel.restartSessionWithDurability(true));
+        setIsRestarting(true);
+        setRestartError("");
+        util.fireAndForget(async () => {
+            try {
+                await viewModel.restartSessionWithDurability(true);
+                onClose();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setRestartError(message);
+            } finally {
+                setIsRestarting(false);
+            }
+        });
     };
 
     return (
@@ -48,12 +65,21 @@ function StandardSessionContent({ viewModel, onClose }: StandardSessionContentPr
                 programs, and history alive through network changes, computer sleep, and GenieTerm restarts.
             </div>
             <button
-                className="bg-zinc-700 text-foreground rounded px-3 py-1.5 text-xs font-medium hover:bg-zinc-600 transition-colors cursor-pointer flex items-center justify-center gap-2 mt-1"
+                className={cn(
+                    "bg-zinc-700 text-foreground rounded px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-2 mt-1",
+                    isRestarting ? "opacity-70" : "hover:bg-zinc-600 cursor-pointer"
+                )}
                 onClick={handleRestartAsDurable}
+                disabled={isRestarting}
             >
-                <i className="fa-solid fa-shield text-sky-500" />
-                Restart as Durable
+                <i className={cn("fa-solid text-sky-500", isRestarting ? "fa-spinner fa-spin" : "fa-shield")} />
+                {isRestarting ? "Restarting..." : "Restart as Durable"}
             </button>
+            {restartError && (
+                <div className="text-[11px] text-error leading-relaxed max-h-[3.5rem] overflow-y-auto">
+                    {restartError}
+                </div>
+            )}
         </div>
     );
 }

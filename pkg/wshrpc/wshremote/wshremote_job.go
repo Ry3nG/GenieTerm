@@ -16,11 +16,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 func isProcessRunning(pid int, pidStartTs int64) (*process.Process, error) {
@@ -41,16 +41,35 @@ func isProcessRunning(pid int, pidStartTs int64) (*process.Process, error) {
 	return proc, nil
 }
 
-// returns jobRouteId, cleanupFunc, error
-func (impl *ServerImpl) connectToJobManager(ctx context.Context, jobId string, mainServerJwtToken string) (string, func(), error) {
+func dialJobManagerSocket(jobId string) (net.Conn, string, error) {
 	socketPath := wavebase.GetRemoteJobSocketPath(jobId)
 	log.Printf("connectToJobManager: connecting to socket: %s\n", socketPath)
 	conn, err := net.Dial("unix", socketPath)
-	if err != nil {
-		log.Printf("connectToJobManager: error connecting to socket: %v\n", err)
-		return "", nil, fmt.Errorf("cannot connect to job manager socket: %w", err)
+	if err == nil {
+		return conn, socketPath, nil
 	}
-	log.Printf("connectToJobManager: connected to socket\n")
+	log.Printf("connectToJobManager: error connecting to socket: %v\n", err)
+
+	legacySocketPath := wavebase.GetLegacyRemoteJobSocketPath(jobId)
+	if legacySocketPath == socketPath {
+		return nil, "", fmt.Errorf("cannot connect to job manager socket: %w", err)
+	}
+	log.Printf("connectToJobManager: trying legacy socket: %s\n", legacySocketPath)
+	legacyConn, legacyErr := net.Dial("unix", legacySocketPath)
+	if legacyErr == nil {
+		return legacyConn, legacySocketPath, nil
+	}
+	log.Printf("connectToJobManager: error connecting to legacy socket: %v\n", legacyErr)
+	return nil, "", fmt.Errorf("cannot connect to job manager socket: %w; legacy: %v", err, legacyErr)
+}
+
+// returns jobRouteId, cleanupFunc, error
+func (impl *ServerImpl) connectToJobManager(ctx context.Context, jobId string, mainServerJwtToken string) (string, func(), error) {
+	conn, socketPath, err := dialJobManagerSocket(jobId)
+	if err != nil {
+		return "", nil, err
+	}
+	log.Printf("connectToJobManager: connected to socket: %s\n", socketPath)
 
 	proxy := wshutil.MakeRpcProxy("jobmanager")
 	linkId := impl.Router.RegisterUntrustedLink(proxy)

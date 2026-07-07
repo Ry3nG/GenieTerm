@@ -58,16 +58,23 @@ var Dev_VarCache string                 // caches WAVETERM_DEV
 
 const WaveLockFile = "wave.lock"
 const DomainSocketBaseName = "wave.sock"
-const RemoteDomainSocketBaseName = "wave-remote.sock"
+const RemoteDomainSocketBaseName = "genie-remote.sock"
+const LegacyRemoteDomainSocketBaseName = "wave-remote.sock"
 const WaveDBDir = "db"
 const ConfigDir = "config"
 const LocalAppBundleName = "genieterm"
 const RemoteGenieHomeDirName = ".genieterm"
 const RemoteWaveHomeDirName = ".waveterm"
 const RemoteWshBinDirName = "bin"
+const RemotePersistentSocketBaseName = "genieterm.sock"
+const RemoteJobSocketDirPrefix = "genieterm"
+const LegacyRemoteJobSocketDirPrefix = "waveterm"
+const RemoteFullGenieHomePath = "~/" + RemoteGenieHomeDirName
+const RemoteFullWaveHomePath = "~/" + RemoteWaveHomeDirName
 const RemoteFullGenieBinPath = "~/.genieterm/bin/genie"
 const RemoteFullWshBinPath = "~/.waveterm/bin/wsh"
-const RemoteFullDomainSocketPath = "~/.waveterm/wave-remote.sock"
+const RemoteFullDomainSocketPath = RemoteFullGenieHomePath + "/" + RemoteDomainSocketBaseName
+const LegacyRemoteFullDomainSocketPath = RemoteFullWaveHomePath + "/" + LegacyRemoteDomainSocketBaseName
 
 const AppPathBinDir = "bin"
 
@@ -189,7 +196,7 @@ func GetDomainSocketName() string {
 // returns a Unix-style path for the remote socket (using fmt.Sprintf instead of filepath.Join
 // because this path is for a remote Unix system, not the local OS which might be Windows)
 func GetPersistentRemoteSockName(clientId string) string {
-	return fmt.Sprintf("~/.waveterm/client/%s/waveterm.sock", clientId)
+	return fmt.Sprintf("~/%s/client/%s/%s", RemoteGenieHomeDirName, clientId, RemotePersistentSocketBaseName)
 }
 
 func EnsureWaveDataDir() error {
@@ -479,9 +486,21 @@ func getSystemSummary(ctx context.Context) string {
 	}
 }
 
-// job socket path on remote machine
+func GetRemoteJobSocketDir() string {
+	return filepath.Join("/tmp", fmt.Sprintf("%s-%d", RemoteJobSocketDirPrefix, os.Getuid()))
+}
+
+func GetLegacyRemoteJobSocketDir() string {
+	return filepath.Join("/tmp", fmt.Sprintf("%s-%d", LegacyRemoteJobSocketDirPrefix, os.Getuid()))
+}
+
 func GetRemoteJobSocketPath(jobId string) string {
-	socketDir := filepath.Join("/tmp", fmt.Sprintf("waveterm-%d", os.Getuid()))
+	socketDir := GetRemoteJobSocketDir()
+	return filepath.Join(socketDir, fmt.Sprintf("%s.sock", jobId))
+}
+
+func GetLegacyRemoteJobSocketPath(jobId string) string {
+	socketDir := GetLegacyRemoteJobSocketDir()
 	return filepath.Join(socketDir, fmt.Sprintf("%s.sock", jobId))
 }
 
@@ -494,6 +513,6 @@ func GetRemoteJobFilePath(jobId string, extension string) string {
 // job file dir on remote machines
 func GetRemoteJobLogDir() string {
 	homeDir := GetHomeDir()
-	jobDir := filepath.Join(homeDir, ".waveterm", "jobs")
+	jobDir := filepath.Join(homeDir, RemoteGenieHomeDirName, "jobs")
 	return jobDir
 }

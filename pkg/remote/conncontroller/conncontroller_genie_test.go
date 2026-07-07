@@ -59,6 +59,9 @@ func TestMakeConnServerCommandPrefersGenieWithWshFallback(t *testing.T) {
 	if strings.Index(cmd, wavebase.RemoteFullGenieBinPath) > strings.Index(cmd, wavebase.RemoteFullWshBinPath) {
 		t.Fatalf("command should prefer genie before wsh fallback: %s", cmd)
 	}
+	if !strings.Contains(cmd, "mkdir -p ~/.genieterm ~/.genieterm/client || exit 1;") {
+		t.Fatalf("command should create genie runtime directories before helper startup: %s", cmd)
+	}
 	if !strings.Contains(cmd, "connserver --conn prod-east --dev --router-domainsocket") {
 		t.Fatalf("command does not preserve connserver arguments: %s", cmd)
 	}

@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
 	"github.com/Ry3nG/GenieTerm/pkg/jobcontroller"
@@ -25,8 +24,10 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wslconn"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
+	"github.com/google/uuid"
 )
 
 const (
@@ -267,7 +268,11 @@ func ResyncController(ctx context.Context, tabId string, blockId string, rtOpts 
 		// For shell/cmd, check connection status first (for non-local connections)
 		if controllerName == BlockController_Shell || controllerName == BlockController_Cmd {
 			if !conncontroller.IsLocalConnName(connName) {
-				err = CheckConnStatus(blockId)
+				if shouldUseDurableShellController {
+					err = CheckConnWshStatus(blockId)
+				} else {
+					err = CheckConnStatus(blockId)
+				}
 				if err != nil {
 					return fmt.Errorf("cannot start shellproc: %w", err)
 				}
@@ -452,6 +457,49 @@ func CheckConnStatus(blockId string) error {
 	connStatus := conn.DeriveConnStatus()
 	if connStatus.Status != conncontroller.Status_Connected {
 		return fmt.Errorf("not connected: %s", connStatus.Status)
+	}
+	return nil
+}
+
+func CheckConnWshStatus(blockId string) error {
+	bdata, err := wstore.DBMustGet[*waveobj.Block](context.Background(), blockId)
+	if err != nil {
+		return fmt.Errorf("error getting block: %w", err)
+	}
+	connName := bdata.Meta.GetString(waveobj.MetaKey_Connection, "")
+	if conncontroller.IsLocalConnName(connName) {
+		return nil
+	}
+	if conncontroller.IsWslConnName(connName) {
+		return fmt.Errorf("durable sessions require an SSH connection")
+	}
+	opts, err := remote.ParseOpts(connName)
+	if err != nil {
+		return fmt.Errorf("error parsing connection name: %w", err)
+	}
+	conn := conncontroller.MaybeGetConn(opts)
+	if conn == nil {
+		return fmt.Errorf("no connection found")
+	}
+	connStatus := conn.DeriveConnStatus()
+	if connStatus.Status != conncontroller.Status_Connected {
+		return fmt.Errorf("not connected: %s", connStatus.Status)
+	}
+	if !connStatus.WshEnabled {
+		reason := connStatus.WshError
+		if reason == "" {
+			reason = connStatus.NoWshReason
+		}
+		if reason == "" {
+			reason = "connserver is unavailable"
+		}
+		return fmt.Errorf("durable sessions require WSH; connserver unavailable: %s", reason)
+	}
+	routeId := wshutil.MakeConnectionRouteId(connName)
+	waitCtx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelFn()
+	if err := wshutil.DefaultRouter.WaitForRegister(waitCtx, routeId); err != nil {
+		return fmt.Errorf("durable sessions require WSH; connserver route %q is unavailable", routeId)
 	}
 	return nil
 }
