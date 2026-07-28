@@ -59,7 +59,6 @@ class WSControl {
         this.stableId = stableId;
         this.open = false;
         this.eoOpts = electronOverrideOpts;
-        setInterval(this.sendPing.bind(this), 5000);
     }
 
     shutdown() {
@@ -194,13 +193,6 @@ class WSControl {
                 console.log("[error] messageCallback", e);
             }
         }
-    }
-
-    sendPing() {
-        if (!this.open) {
-            return;
-        }
-        this.wsConn.send(JSON.stringify({ type: "ping", stime: Date.now() }));
     }
 
     sendMessage(data: WSCommandType) {

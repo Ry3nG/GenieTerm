@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skratchdot/open-golang/open"
 	"github.com/Ry3nG/GenieTerm/pkg/aiusechat"
 	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/chatstore"
 	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/codexcompose"
@@ -62,6 +61,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wslconn"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
 	"github.com/Ry3nG/GenieTerm/tsunami/build"
+	"github.com/skratchdot/open-golang/open"
 )
 
 var InvalidWslDistroNames = []string{"docker-desktop", "docker-desktop-data"}
@@ -956,7 +956,8 @@ func (ws *WshServer) DismissWshFailCommand(ctx context.Context, connName string)
 }
 
 func (ws *WshServer) NotifySystemResumeCommand(ctx context.Context) error {
-	log.Printf("NotifySystemResumeCommand called\n")
+	notified := conncontroller.NotifySystemResume()
+	log.Printf("NotifySystemResumeCommand checked %d SSH connections\n", notified)
 	return nil
 }
 

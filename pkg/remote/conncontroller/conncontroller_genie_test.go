@@ -5,6 +5,8 @@ package conncontroller
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"net"
 	"strings"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestIsWshVersionUpToDateRequiresGeniePrimaryHelper(t *testing.T) {
@@ -132,5 +135,147 @@ func TestCloseInternalDoesNotBlockOnDeadHandle(t *testing.T) {
 	conn.lock.Unlock()
 	if !detached {
 		t.Fatal("expected DomainSockListener to be detached (nil) so a reconnect starts fresh")
+	}
+}
+
+type trackingCloser struct {
+	closeCount atomic.Int32
+}
+
+func (c *trackingCloser) Close() error {
+	c.closeCount.Add(1)
+	return nil
+}
+
+func TestCloseClientOwnedSSHHandlesUsesParentOwnership(t *testing.T) {
+	client := &trackingCloser{}
+	listener := &trackingCloser{}
+	controller := &trackingCloser{}
+
+	closeClientOwnedSSHHandles("test", client, listener, controller)
+
+	if client.closeCount.Load() != 1 {
+		t.Fatalf("expected client to close once, got %d", client.closeCount.Load())
+	}
+	if listener.closeCount.Load() != 0 {
+		t.Fatalf("expected client-owned listener close to be skipped, got %d", listener.closeCount.Load())
+	}
+	if controller.closeCount.Load() != 0 {
+		t.Fatalf("expected client-owned controller close to be skipped, got %d", controller.closeCount.Load())
+	}
+}
+
+func TestSSHUnixListenerCloseAfterClientCloseReturns(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	signer, err := ssh.NewSignerFromKey(privateKey)
+	if err != nil {
+		t.Fatalf("NewSignerFromKey failed: %v", err)
+	}
+
+	serverConfig := &ssh.ServerConfig{NoClientAuth: true}
+	serverConfig.AddHostKey(signer)
+	tcpListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("test server Listen failed: %v", err)
+	}
+	defer tcpListener.Close()
+	serverResult := make(chan error, 1)
+	go func() {
+		serverNetConn, acceptErr := tcpListener.Accept()
+		if acceptErr != nil {
+			serverResult <- acceptErr
+			return
+		}
+		serverConn, newChannels, requests, serverErr := ssh.NewServerConn(serverNetConn, serverConfig)
+		if serverErr != nil {
+			serverResult <- serverErr
+			return
+		}
+		go func() {
+			for newChannel := range newChannels {
+				newChannel.Reject(ssh.UnknownChannelType, "test server does not accept channels")
+			}
+		}()
+		for request := range requests {
+			request.Reply(request.Type == "streamlocal-forward@openssh.com", nil)
+		}
+		serverResult <- serverConn.Close()
+	}()
+
+	clientNetConn, err := net.Dial("tcp", tcpListener.Addr().String())
+	if err != nil {
+		t.Fatalf("test client Dial failed: %v", err)
+	}
+	clientConfig := &ssh.ClientConfig{
+		User:            "test",
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+	clientConn, newChannels, requests, err := ssh.NewClientConn(clientNetConn, "pipe", clientConfig)
+	if err != nil {
+		t.Fatalf("NewClientConn failed: %v", err)
+	}
+	client := ssh.NewClient(clientConn, newChannels, requests)
+	listener, err := client.ListenUnix("/tmp/genieterm-close-regression.sock")
+	if err != nil {
+		client.Close()
+		t.Fatalf("ListenUnix failed: %v", err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("client Close failed: %v", err)
+	}
+
+	listenerClosed := make(chan struct{})
+	go func() {
+		listener.Close()
+		close(listenerClosed)
+	}()
+	select {
+	case <-listenerClosed:
+	case <-time.After(time.Second):
+		t.Fatal("listener Close spun after its parent SSH client closed")
+	}
+
+	select {
+	case serverErr := <-serverResult:
+		if serverErr != nil && !errors.Is(serverErr, net.ErrClosed) {
+			t.Fatalf("SSH test server failed: %v", serverErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("SSH test server did not stop after client close")
+	}
+}
+
+func TestNotifySystemResumeSignalsActiveMonitors(t *testing.T) {
+	opts, err := remote.ParseOpts("resume-test@example.com")
+	if err != nil {
+		t.Fatalf("ParseOpts failed: %v", err)
+	}
+	monitor := &ConnMonitor{checkNotifyCh: make(chan struct{}, 1)}
+	conn := &SSHConn{
+		lock:    &sync.Mutex{},
+		Opts:    opts,
+		Monitor: monitor,
+	}
+
+	globalLock.Lock()
+	originalConnections := clientControllerMap
+	clientControllerMap = map[remote.SSHOpts]*SSHConn{*opts: conn}
+	globalLock.Unlock()
+	t.Cleanup(func() {
+		globalLock.Lock()
+		defer globalLock.Unlock()
+		clientControllerMap = originalConnections
+	})
+
+	if notified := NotifySystemResume(); notified != 1 {
+		t.Fatalf("expected one monitor notification, got %d", notified)
+	}
+	select {
+	case <-monitor.checkNotifyCh:
+	default:
+		t.Fatal("active monitor did not receive a resume check notification")
 	}
 }

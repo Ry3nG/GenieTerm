@@ -94,6 +94,12 @@ declare global {
     type AiCommandComposeRtn = {
         text: string;
         available: boolean;
+        status?: string;
+        statusdetail?: string;
+        logincommand?: string;
+        installcommand?: string;
+        clifound?: boolean;
+        httpstatus?: number;
     };
 
     // wshrpc.AiMessageData

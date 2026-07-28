@@ -69,10 +69,12 @@ const (
 )
 
 const DefaultConnectionTimeout = 60 * time.Second
+const sshCloseWarningTimeout = 5 * time.Second
 
 var globalLock = &sync.Mutex{}
 var clientControllerMap = make(map[remote.SSHOpts]*SSHConn)
 var activeConnCounter = &atomic.Int32{}
+var activeSSHCleanupCount = &atomic.Int64{}
 
 type SSHConn struct {
 	lock          *sync.Mutex // this lock protects the fields in the struct from concurrent access
@@ -128,6 +130,31 @@ func GetAllConnStatus() []wshrpc.ConnStatus {
 		connStatuses = append(connStatuses, conn.DeriveConnStatus())
 	}
 	return connStatuses
+}
+
+func getConnectionSnapshot() []*SSHConn {
+	globalLock.Lock()
+	defer globalLock.Unlock()
+
+	connections := make([]*SSHConn, 0, len(clientControllerMap))
+	for _, conn := range clientControllerMap {
+		connections = append(connections, conn)
+	}
+	return connections
+}
+
+func NotifySystemResume() int {
+	connections := getConnectionSnapshot()
+	notified := 0
+	for _, conn := range connections {
+		monitor := conn.GetMonitor()
+		if monitor == nil {
+			continue
+		}
+		monitor.NotifyCheck()
+		notified++
+	}
+	return notified
 }
 
 func GetNumSSHHasConnected() int {
@@ -252,24 +279,50 @@ func (conn *SSHConn) closeInternal_withlifecyclelock() {
 		defer func() {
 			panichandler.PanicHandler("conncontroller:closeInternal", recover())
 		}()
-		// client.Close() MUST go first to force-close the transport so the
-		// listener/controller closes below don't block sending SSH packets.
-		if client != nil {
-			closeWithLog(connName, "Client.Close()", client)
-		}
-		if listener != nil {
-			closeWithLog(connName, "DomainSockListener.Close()", listener)
-		}
-		if controller != nil {
-			closeWithLog(connName, "ConnController.Close()", controller)
-		}
+		activeSSHCleanupCount.Add(1)
+		defer activeSSHCleanupCount.Add(-1)
+		closeDetachedSSHHandles(connName, client, listener, controller)
 	}()
+}
+
+func closeDetachedSSHHandles(connName string, client *ssh.Client, listener net.Listener, controller *ssh.Session) {
+	if client != nil {
+		closeClientOwnedSSHHandles(connName, client, listener, controller)
+		return
+	}
+	if listener != nil {
+		closeWithLog(connName, "DomainSockListener.Close()", listener)
+	}
+	if controller != nil {
+		closeWithLog(connName, "ConnController.Close()", controller)
+	}
+}
+
+func closeClientOwnedSSHHandles(connName string, client io.Closer, _ io.Closer, _ io.Closer) {
+	// ssh.Client owns its forwarded listeners and sessions. Once its mux is
+	// closed, invoking protocol-level child Close methods can block forever in
+	// older x/crypto versions and cannot provide any additional cleanup.
+	closeWithLog(connName, "Client.Close()", client)
 }
 
 func closeWithLog(connName string, label string, closer io.Closer) {
 	startTime := time.Now()
-	closer.Close()
+	warningTimer := time.AfterFunc(sshCloseWarningTimeout, func() {
+		log.Printf(
+			"[conncontroller] conn:%s still waiting for %s after %s (active cleanups:%d)",
+			connName,
+			label,
+			sshCloseWarningTimeout,
+			activeSSHCleanupCount.Load(),
+		)
+	})
+	err := closer.Close()
+	warningTimer.Stop()
 	duration := time.Since(startTime).Milliseconds()
+	if err != nil {
+		log.Printf("[conncontroller] conn:%s %s failed after %d ms: %v", connName, label, duration, err)
+		return
+	}
 	if duration > 100 {
 		log.Printf("[conncontroller] conn:%s %s took %d ms", connName, label, duration)
 	}

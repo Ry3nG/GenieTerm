@@ -202,28 +202,28 @@ export class WaveTabView extends WebContentsView {
     positionTabOnScreen(winBounds: Rectangle) {
         const curBounds = this.getBounds();
         if (
-            curBounds.width == winBounds.width &&
-            curBounds.height == winBounds.height &&
-            curBounds.x == 0 &&
-            curBounds.y == 0
+            curBounds.width != winBounds.width ||
+            curBounds.height != winBounds.height ||
+            curBounds.x != 0 ||
+            curBounds.y != 0
         ) {
-            return;
+            this.setBounds({ x: 0, y: 0, width: winBounds.width, height: winBounds.height });
         }
-        this.setBounds({ x: 0, y: 0, width: winBounds.width, height: winBounds.height });
+        if (!this.getVisible()) {
+            this.setVisible(true);
+        }
     }
 
-    positionTabOffScreen(winBounds: Rectangle) {
-        this.setBounds({
-            x: -15000,
-            y: -15000,
-            width: winBounds.width,
-            height: winBounds.height,
-        });
+    hideTab() {
+        if (!this.getVisible()) {
+            return;
+        }
+        this.setVisible(false);
     }
 
     isOnScreen() {
         const bounds = this.getBounds();
-        return bounds.x == 0 && bounds.y == 0;
+        return this.getVisible() && bounds.x == 0 && bounds.y == 0;
     }
 
     destroy() {

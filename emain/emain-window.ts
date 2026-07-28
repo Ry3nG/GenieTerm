@@ -230,16 +230,6 @@ export class WaveBrowserWindow extends BaseWindow {
         this.waveWindowId = waveWindow.oid;
         this.workspaceId = waveWindow.workspaceid;
         this.allLoadedTabViews = new Map<string, WaveTabView>();
-        const winBoundsPoller = setInterval(() => {
-            if (this.isDestroyed()) {
-                clearInterval(winBoundsPoller);
-                return;
-            }
-            if (this.actionQueue.length > 0) {
-                return;
-            }
-            this.finalizePositioning();
-        }, 1000);
         this.on(
             // @ts-expect-error -- "resize" event with debounce handler not in Electron type definitions
             "resize",
@@ -523,7 +513,7 @@ export class WaveBrowserWindow extends BaseWindow {
             if (tabView == this.activeTabView) {
                 continue;
             }
-            tabView?.positionTabOffScreen(curBounds);
+            tabView?.hideTab();
         }
     }
 

@@ -14,6 +14,9 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const connMonitorCheckInterval = 10 * time.Second
+const connMonitorUrgentCheckDelay = time.Second
+
 // Lock ordering: conn.lock > cm.lock (conn.lock is outer, cm.lock is inner)
 // CRITICAL: Methods that hold cm.lock must NEVER call into SSHConn (deadlock - violates ordering).
 // Methods called from SSHConn while conn.lock is held should avoid acquiring cm.lock (keep locking simple).
@@ -28,6 +31,8 @@ type ConnMonitor struct {
 	ctx               context.Context
 	cancelFunc        context.CancelFunc
 	inputNotifyCh     chan int64
+	activityNotifyCh  chan struct{}
+	checkNotifyCh     chan struct{}
 }
 
 func MakeConnMonitor(conn *SSHConn, client *ssh.Client) *ConnMonitor {
@@ -39,12 +44,14 @@ func MakeConnMonitor(conn *SSHConn, client *ssh.Client) *ConnMonitor {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	cm := &ConnMonitor{
-		lock:          &sync.Mutex{},
-		Conn:          conn,
-		Client:        client,
-		ctx:           ctx,
-		cancelFunc:    cancelFunc,
-		inputNotifyCh: make(chan int64, 1),
+		lock:             &sync.Mutex{},
+		Conn:             conn,
+		Client:           client,
+		ctx:              ctx,
+		cancelFunc:       cancelFunc,
+		inputNotifyCh:    make(chan int64, 1),
+		activityNotifyCh: make(chan struct{}, 1),
+		checkNotifyCh:    make(chan struct{}, 1),
 	}
 	go cm.keepAliveMonitor()
 	return cm
@@ -59,6 +66,10 @@ func (cm *ConnMonitor) setConnHealthStatus(status string) {
 func (cm *ConnMonitor) UpdateLastActivityTime() {
 	cm.LastActivityTime.Store(time.Now().UnixMilli())
 	cm.setConnHealthStatus(ConnHealthStatus_Good)
+	select {
+	case cm.activityNotifyCh <- struct{}{}:
+	default:
+	}
 }
 
 func (cm *ConnMonitor) NotifyInput() {
@@ -66,6 +77,13 @@ func (cm *ConnMonitor) NotifyInput() {
 	cm.LastInputTime.Store(inputTime)
 	select {
 	case cm.inputNotifyCh <- inputTime:
+	default:
+	}
+}
+
+func (cm *ConnMonitor) NotifyCheck() {
+	select {
+	case cm.checkNotifyCh <- struct{}{}:
 	default:
 	}
 }
@@ -160,8 +178,23 @@ func (cm *ConnMonitor) keepAliveMonitor() {
 	defer func() {
 		panichandler.PanicHandler("conncontroller:keepAliveMonitor", recover())
 	}()
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	timer := time.NewTimer(connMonitorCheckInterval)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	defer timer.Stop()
+	var timerCh <-chan time.Time
+	var pendingInputTime int64
+	resetTimer := func(delay time.Duration) {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(delay)
+		timerCh = timer.C
+	}
 
 	for {
 		// check if our client is still the active one
@@ -170,19 +203,34 @@ func (cm *ConnMonitor) keepAliveMonitor() {
 		}
 
 		select {
-		case <-ticker.C:
+		case <-timerCh:
+			timerCh = nil
+			if pendingInputTime != 0 {
+				if cm.LastActivityTime.Load() < pendingInputTime {
+					cm.setConnHealthStatus(ConnHealthStatus_Degraded)
+				}
+				pendingInputTime = 0
+			}
 			cm.checkConnection()
+			if cm.LastActivityTime.Load() != 0 {
+				resetTimer(connMonitorCheckInterval)
+			}
 
 		case inputTime := <-cm.inputNotifyCh:
-			select {
-			case <-time.After(1 * time.Second):
-				if cm.LastActivityTime.Load() >= inputTime {
-					break
-				}
-				cm.setConnHealthStatus(ConnHealthStatus_Degraded)
-				cm.checkConnection()
-			case <-cm.ctx.Done():
-				return
+			if cm.LastActivityTime.Load() >= inputTime {
+				continue
+			}
+			pendingInputTime = inputTime
+			resetTimer(connMonitorUrgentCheckDelay)
+
+		case <-cm.activityNotifyCh:
+			pendingInputTime = 0
+			resetTimer(connMonitorCheckInterval)
+
+		case <-cm.checkNotifyCh:
+			cm.checkConnection()
+			if cm.LastActivityTime.Load() != 0 {
+				resetTimer(connMonitorCheckInterval)
 			}
 
 		case <-cm.ctx.Done():
