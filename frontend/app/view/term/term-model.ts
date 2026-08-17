@@ -1048,6 +1048,12 @@ export class TermViewModel implements ViewModel {
                 event.stopPropagation();
                 return false;
             }
+            if (keyutil.checkKeyPressed(waveEvent, "ArrowRight")) {
+                this.acceptCompletionSelected();
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
             if (keyutil.checkKeyPressed(waveEvent, "Tab")) {
                 if (this.completionModel.shouldAcceptSelectedFromKey()) {
                     this.acceptCompletionSelected();

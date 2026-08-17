@@ -121,4 +121,21 @@ describe("TermViewModel completion key handling", () => {
         expect(event.preventDefault).toHaveBeenCalledOnce();
         expect(event.stopPropagation).toHaveBeenCalledOnce();
     });
+
+    it("accepts the highlighted history completion with ArrowRight without submitting", () => {
+        const model = makeTermModel();
+        globalStore.set(model.completionModel.itemsAtom, [
+            makeItem({ label: "lsblk", insertText: "lsblk", kind: "history" }),
+        ]);
+        globalStore.set(model.completionModel.contextAtom, makeContext({ requestKind: "auto" }));
+        globalStore.set(model.completionModel.openAtom, true);
+        const event = makeKeydownEvent("ArrowRight");
+
+        const handled = model.handleTerminalKeydown(event);
+
+        expect(handled).toBe(false);
+        expect(model.acceptCompletionSelected).toHaveBeenCalledOnce();
+        expect(event.preventDefault).toHaveBeenCalledOnce();
+        expect(event.stopPropagation).toHaveBeenCalledOnce();
+    });
 });
