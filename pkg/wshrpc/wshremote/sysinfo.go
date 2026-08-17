@@ -4,12 +4,14 @@
 package wshremote
 
 import (
+	"context"
 	"log"
 	"os"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
@@ -23,6 +25,28 @@ import (
 )
 
 const BYTES_PER_GB = 1073741824
+
+var sysInfoWatchers atomic.Int32
+
+func SetSysInfoWatchActive(active bool) {
+	if active {
+		sysInfoWatchers.Add(1)
+		return
+	}
+	for {
+		current := sysInfoWatchers.Load()
+		if current <= 0 {
+			return
+		}
+		if sysInfoWatchers.CompareAndSwap(current, current-1) {
+			return
+		}
+	}
+}
+
+func sysInfoHasWatchers() bool {
+	return sysInfoWatchers.Load() > 0
+}
 
 func getCpuData(values map[string]float64) {
 	percentArr, err := cpu.Percent(0, false)
@@ -188,7 +212,16 @@ func RunSysInfoLoop(client *wshutil.WshRpc, connName string) {
 	}()
 	netState := &netSampler{}
 	for {
-		generateSingleServerData(client, connName, netState)
-		time.Sleep(1 * time.Second)
+		if sysInfoHasWatchers() {
+			generateSingleServerData(client, connName, netState)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		time.Sleep(5 * time.Second)
 	}
+}
+
+func (impl *ServerImpl) RemoteSysInfoWatchCommand(ctx context.Context, data wshrpc.CommandRemoteSysInfoWatchData) error {
+	SetSysInfoWatchActive(data.Active)
+	return nil
 }

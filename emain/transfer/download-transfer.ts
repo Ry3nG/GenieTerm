@@ -6,6 +6,7 @@ import {
     enqueueTransferJob,
     failTransferJob,
     getTransferJob,
+    retryTransferJob,
     startTransferJob,
     type TransferError,
     type TransferJob,
@@ -29,6 +30,7 @@ export type DownloadTransferTracker = {
     complete(jobId: string): TransferJob;
     fail(jobId: string, error: TransferError): TransferJob;
     cancel(jobId: string): TransferJob;
+    retry(jobId: string): TransferJob;
     clearInactive(): TransferQueue;
     getJob(jobId: string): TransferJob;
     getQueue(): TransferQueue;
@@ -95,6 +97,10 @@ export function createDownloadTransferTracker(nowFn: NowFn = () => Date.now()): 
         },
         cancel(jobId) {
             commit(cancelTransferJob(queue, jobId, nowFn()));
+            return getTransferJob(queue, jobId);
+        },
+        retry(jobId) {
+            commit(retryTransferJob(queue, jobId, nowFn()));
             return getTransferJob(queue, jobId);
         },
         clearInactive() {

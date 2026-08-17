@@ -4,7 +4,7 @@
 import type * as TermTypes from "@xterm/xterm";
 import { describe, expect, it } from "vitest";
 
-import { type CmdBlock, makeCmdBlockDecorationSpecs } from "./cmdblocks";
+import { type CmdBlock, blockEndLine, findCmdBlockAtLine, makeCmdBlockDecorationSpecs } from "./cmdblocks";
 
 function marker(line: number): TermTypes.IMarker {
     return { line, dispose: () => {} } as any;
@@ -55,5 +55,22 @@ describe("cmdblocks", () => {
             { block: first, cols: 120, rows: 4 },
             { block: last, cols: 120, rows: 7 },
         ]);
+    });
+
+    it("resolves jump-past-output and hover targets from buffer ranges", () => {
+        const first = block({ id: 1, startMarker: marker(2), endMarker: marker(6) });
+        const running = block({
+            id: 2,
+            startMarker: marker(6),
+            endMarker: null,
+            state: "running",
+            exitCode: null,
+        });
+        const buf = buffer({ baseY: 8, cursorY: 2 });
+
+        expect(blockEndLine(first, buf)).toBe(6);
+        expect(findCmdBlockAtLine([first, running], 3, buf)?.id).toBe(1);
+        expect(findCmdBlockAtLine([first, running], 7, buf)?.id).toBe(2);
+        expect(findCmdBlockAtLine([first, running], 1, buf)).toBeNull();
     });
 });

@@ -8,6 +8,8 @@ export type PreviewEnv = WaveEnvSubset<{
         onQuicklook: WaveEnv["electron"]["onQuicklook"];
         getTransferQueue: WaveEnv["electron"]["getTransferQueue"];
         clearTransferQueue: WaveEnv["electron"]["clearTransferQueue"];
+        cancelTransferJob: WaveEnv["electron"]["cancelTransferJob"];
+        retryTransferJob: WaveEnv["electron"]["retryTransferJob"];
         onTransferQueueUpdate: WaveEnv["electron"]["onTransferQueueUpdate"];
         startTransferJob: WaveEnv["electron"]["startTransferJob"];
         finishTransferJob: WaveEnv["electron"]["finishTransferJob"];

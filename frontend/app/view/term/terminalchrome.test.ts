@@ -38,7 +38,7 @@ describe("terminal chrome overlap safety", () => {
         const termScss = readTermFile("term.scss");
         const dockRule = termScss.match(/\.term-inline-ai-dock\s*\{[\s\S]*?\n {4}\}/)?.[0] ?? "";
 
-        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*<TermInlineAIDock/);
+        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*<TerminalPresentationShell/);
         expect(dockRule).toContain("flex: 0 0 auto");
         expect(dockRule).not.toContain("position: absolute");
         expect(dockRule).not.toContain("position: fixed");
@@ -50,10 +50,11 @@ describe("terminal chrome overlap safety", () => {
         const actionBarRule = termScss.match(/\.term-command-action-bar\s*\{[\s\S]*?\n {4}\}/)?.[0] ?? "";
 
         expect(termView).toContain("const TermCommandActionBar");
-        expect(termView).toMatch(/<\/TerminalPresentationShell>\s*<TermCommandActionBar/);
+        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*<TerminalPresentationShell/);
         expect(termView).toContain("Copy command");
         expect(termView).toContain("Copy output");
         expect(termView).toContain("Re-run command");
+        expect(termView).toContain("Jump past output");
         expect(termView).toContain("Fix with AI");
         expect(actionBarRule).toContain("flex: 0 0 auto");
         expect(actionBarRule).not.toContain("position: absolute");

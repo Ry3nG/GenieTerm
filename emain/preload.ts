@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld("api", {
     downloadFolder: (filePath) => ipcRenderer.send("download-folder", { filePath }),
     getTransferQueue: () => ipcRenderer.invoke("transfer-queue:get"),
     clearTransferQueue: () => ipcRenderer.invoke("transfer-queue:clear"),
+    cancelTransferJob: (jobId: string) => ipcRenderer.invoke("transfer-queue:cancel", jobId),
+    retryTransferJob: (jobId: string) => ipcRenderer.invoke("transfer-queue:retry", jobId),
     onTransferQueueUpdate: (callback: (queue: TransferQueue) => void) => {
         const listener = (_event: IpcRendererEvent, queue: TransferQueue) => callback(queue);
         ipcRenderer.on("transfer-queue:update", listener);

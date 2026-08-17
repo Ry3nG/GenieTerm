@@ -43,6 +43,21 @@ export function blockEndLine(block: CmdBlock, buffer: TermTypes.IBuffer): number
     return blockBufferRange(block, buffer)[1];
 }
 
+export function findCmdBlockAtLine(blocks: CmdBlock[], line: number, buffer: TermTypes.IBuffer): CmdBlock | null {
+    let match: CmdBlock | null = null;
+    for (const block of blocks ?? []) {
+        if (!blockHasCommand(block)) {
+            continue;
+        }
+        const [start, end] = blockBufferRange(block, buffer);
+        if (start < 0 || line < start || line >= end) {
+            continue;
+        }
+        match = block;
+    }
+    return match;
+}
+
 // Output text for a block, excluding the prompt/command line itself.
 export function getBlockOutputText(block: CmdBlock, terminal: TermTypes.Terminal): string {
     const buffer = terminal.buffer.active;

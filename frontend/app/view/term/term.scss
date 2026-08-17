@@ -110,6 +110,38 @@
         }
     }
 
+    .term-status-banner {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 4px 0 4px;
+        padding: 6px 8px;
+        border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent);
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--app-bg-color) 88%, var(--accent-color) 12%);
+        color: var(--main-text-color);
+        font-size: 12px;
+        line-height: 1.4;
+
+        .font-mono {
+            font-family: var(--fixed-font);
+        }
+    }
+
+    .term-status-banner-durable {
+        background: color-mix(in srgb, var(--app-bg-color) 88%, var(--accent-color) 8%);
+    }
+
+    .term-status-banner-btn {
+        border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+        background: color-mix(in srgb, var(--app-bg-color) 80%, var(--main-text-color) 8%);
+        color: var(--main-text-color);
+        border-radius: 5px;
+        padding: 2px 7px;
+        font-size: 11px;
+    }
+
     .term-command-action-bar {
         flex: 0 0 auto;
         display: grid;

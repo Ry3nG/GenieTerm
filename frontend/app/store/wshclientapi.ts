@@ -720,6 +720,12 @@ export class RpcApiType {
         return client.wshRpcStream("remotestreamcpudata", null, opts);
     }
 
+    // command "remotesysinfowatch" [call]
+    RemoteSysInfoWatchCommand(client: WshClient, data: CommandRemoteSysInfoWatchData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "remotesysinfowatch", data, opts);
+        return client.wshRpcCall("remotesysinfowatch", data, opts);
+    }
+
     // command "remoteterminatejobmanager" [call]
     RemoteTerminateJobManagerCommand(client: WshClient, data: CommandRemoteTerminateJobManagerData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "remoteterminatejobmanager", data, opts);

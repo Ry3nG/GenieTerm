@@ -13,6 +13,8 @@ type TransferQueueStatusProps = {
     bridgeError?: string;
     maxJobs?: number;
     onClearInactive?: () => void;
+    onCancel?: (jobId: string) => void;
+    onRetry?: (jobId: string) => void;
 };
 
 function DirectoryTransferQueueStatus() {
@@ -63,10 +65,55 @@ function DirectoryTransferQueueStatus() {
             });
     }, [env.electron]);
 
-    return <TransferQueueStatus queue={queue} bridgeError={bridgeError} onClearInactive={handleClearInactive} />;
+    const handleCancel = useCallback(
+        (jobId: string) => {
+            env.electron
+                .cancelTransferJob(jobId)
+                .then((nextQueue) => {
+                    setQueue(nextQueue ?? createTransferQueue());
+                    setBridgeError(null);
+                })
+                .catch((err) => {
+                    setBridgeError(`Could not cancel transfer: ${err}`);
+                });
+        },
+        [env.electron]
+    );
+
+    const handleRetry = useCallback(
+        (jobId: string) => {
+            env.electron
+                .retryTransferJob(jobId)
+                .then((nextQueue) => {
+                    setQueue(nextQueue ?? createTransferQueue());
+                    setBridgeError(null);
+                })
+                .catch((err) => {
+                    setBridgeError(`Could not retry transfer: ${err}`);
+                });
+        },
+        [env.electron]
+    );
+
+    return (
+        <TransferQueueStatus
+            queue={queue}
+            bridgeError={bridgeError}
+            onClearInactive={handleClearInactive}
+            onCancel={handleCancel}
+            onRetry={handleRetry}
+        />
+    );
 }
 
-function TransferQueueStatus({ queue, bridgeError, maxJobs = MaxVisibleTransfers, onClearInactive }: TransferQueueStatusProps) {
+function TransferQueueStatus({
+    queue,
+    bridgeError,
+    maxJobs = MaxVisibleTransfers,
+    onClearInactive,
+    onCancel,
+    onRetry,
+}: TransferQueueStatusProps) {
     const display = useMemo(() => summarizeTransferQueue(queue, maxJobs), [queue, maxJobs]);
 
     if (display.totalCount === 0 && !bridgeError) {
@@ -116,6 +163,30 @@ function TransferQueueStatus({ queue, bridgeError, maxJobs = MaxVisibleTransfers
                                 <div className="transfer-queue-row-detail">{job.detail}</div>
                                 {job.subdetail && <div className="transfer-queue-row-subdetail">{job.subdetail}</div>}
                                 {job.errorText && <div className="transfer-queue-row-error">{job.errorText}</div>}
+                            </div>
+                            <div className="transfer-queue-row-actions">
+                                {job.canCancel && onCancel && (
+                                    <button
+                                        type="button"
+                                        className="transfer-queue-row-action cursor-pointer"
+                                        title="Cancel transfer"
+                                        aria-label={`Cancel ${job.label}`}
+                                        onClick={() => onCancel(job.id)}
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                                {job.canRetry && onRetry && (
+                                    <button
+                                        type="button"
+                                        className="transfer-queue-row-action cursor-pointer"
+                                        title="Retry transfer"
+                                        aria-label={`Retry ${job.label}`}
+                                        onClick={() => onRetry(job.id)}
+                                    >
+                                        Retry
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}

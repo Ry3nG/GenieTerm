@@ -12,6 +12,8 @@ export type TransferJobDisplay = {
     errorText?: string;
     tone: TransferDisplayTone;
     iconClass: string;
+    canCancel: boolean;
+    canRetry: boolean;
 };
 
 export type TransferQueueDisplay = {
@@ -71,6 +73,11 @@ export function summarizeTransferJob(job: TransferJob): TransferJobDisplay {
         errorText: getTransferErrorText(job),
         tone: getTransferTone(job.status),
         iconClass: getTransferIconClass(job.status),
+        canCancel: job.status === "queued" || job.status === "running",
+        canRetry:
+            (job.status === "failed" || job.status === "canceled") &&
+            (job.lastError?.retryable !== false) &&
+            job.transport === "rsync",
     };
 }
 

@@ -37,7 +37,7 @@ import { isMacOS, isWindows } from "@/util/platformutil";
 import { fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
-import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
+import { blockEndLine, blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
 import {
     buildCommandComposerContext,
     ErrorFallbackCommandAIProviderStatus,
@@ -446,7 +446,7 @@ export class TermViewModel implements ViewModel {
                 elemtype: "iconbutton",
                 icon,
                 className: "text-muted",
-                title: "No shell integration — GenieTerm AI unable to run commands.",
+                title: "No shell integration — command blocks need the genie helper in this shell.",
                 noAction: true,
             };
         }
@@ -455,7 +455,7 @@ export class TermViewModel implements ViewModel {
                 elemtype: "iconbutton",
                 icon,
                 className: "text-accent",
-                title: "Shell ready — GenieTerm AI can run commands in this terminal.",
+                title: "Shell integration ready — command blocks and completions are active.",
                 noAction: true,
             };
         }
@@ -609,6 +609,25 @@ export class TermViewModel implements ViewModel {
             target = next.length > 0 ? next[0] : lines[lines.length - 1];
         }
         terminal.scrollToLine(target);
+    }
+
+    jumpPastOutput() {
+        const termWrap = this.termRef.current;
+        if (!termWrap?.terminal) {
+            return;
+        }
+        const terminal = termWrap.terminal;
+        const buffer = terminal.buffer.active;
+        if (buffer.type === "alternate") {
+            return;
+        }
+        const hoveredId = globalStore.get(termWrap.hoveredBlockIdAtom);
+        const hovered = hoveredId != null ? termWrap.cmdBlocks.find((block) => block.id === hoveredId) : null;
+        const block = blockHasCommand(hovered) ? hovered : this.findLastCommandBlock();
+        if (block == null) {
+            return;
+        }
+        terminal.scrollToLine(blockEndLine(block, buffer));
     }
 
     findLastCommandBlock(): CmdBlock {

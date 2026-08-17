@@ -131,6 +131,10 @@ func ParseURI(uri string) (*Connection, error) {
 
 	addPrecedingSlash := true
 
+	if scheme == "genie" {
+		scheme = ConnectionTypeWsh
+	}
+
 	if scheme == "" {
 		scheme = ConnectionTypeWsh
 		addPrecedingSlash = false

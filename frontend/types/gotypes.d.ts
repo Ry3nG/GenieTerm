@@ -534,6 +534,11 @@ declare global {
         publickeybase64: string;
     };
 
+    // wshrpc.CommandRemoteSysInfoWatchData
+    type CommandRemoteSysInfoWatchData = {
+        active: boolean;
+    };
+
     // wshrpc.CommandRemoteTerminateJobManagerData
     type CommandRemoteTerminateJobManagerData = {
         jobid: string;
@@ -1118,6 +1123,7 @@ declare global {
         "term:bellindicator"?: boolean;
         "term:osc52"?: string;
         "term:durable"?: boolean;
+        "term:durableprompted"?: boolean;
         "web:zoom"?: number;
         "web:hidenav"?: boolean;
         "web:partition"?: string;

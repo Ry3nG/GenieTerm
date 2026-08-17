@@ -34,7 +34,7 @@ describe("addOpenMenuItems", () => {
         expect(item).toBeTruthy();
         item.click();
 
-        expect(downloadFile).toHaveBeenCalledWith("wsh://paw-5090-ws/~/projects/out.txt");
+        expect(downloadFile).toHaveBeenCalledWith("genie://paw-5090-ws/~/projects/out.txt");
         expect(downloadFolder).not.toHaveBeenCalled();
     });
 
@@ -50,7 +50,7 @@ describe("addOpenMenuItems", () => {
         expect(item).toBeTruthy();
         item.click();
 
-        expect(downloadFolder).toHaveBeenCalledWith("wsh://paw-5090-ws/~/projects/out");
+        expect(downloadFolder).toHaveBeenCalledWith("genie://paw-5090-ws/~/projects/out");
         expect(downloadFile).not.toHaveBeenCalled();
     });
 

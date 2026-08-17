@@ -12,8 +12,10 @@ import * as React from "react";
 
 import { useDimensionsWithExistingRef } from "@/app/hook/useDimensions";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
+import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
+import { makeConnRoute } from "@/util/util";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 
 export type SysinfoEnv = WaveEnvSubset<{
@@ -377,6 +379,10 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
         }
     }, [connStatus.status, connName]);
     React.useEffect(() => {
+        const route = makeConnRoute(connName);
+        RpcApi.RemoteSysInfoWatchCommand(TabRpcClient, { active: true }, { route }).catch((err) => {
+            console.log("Error starting sysinfo sampling", err);
+        });
         const unsubFn = waveEventSubscribeSingle({
             eventType: "sysinfo",
             scope: connName,
@@ -404,6 +410,9 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
         console.log("subscribe to sysinfo", connName);
         return () => {
             unsubFn();
+            RpcApi.RemoteSysInfoWatchCommand(TabRpcClient, { active: false }, { route }).catch((err) => {
+                console.log("Error stopping sysinfo sampling", err);
+            });
         };
     }, [connName, addContinuousData]);
     if (connStatus?.status != "connected") {

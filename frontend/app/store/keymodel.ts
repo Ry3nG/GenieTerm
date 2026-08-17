@@ -499,6 +499,7 @@ const PALETTE_LABELS: Record<string, string> = {
     "term:multi-input": "Toggle Multi-Input",
     "term:jump-prev-block": "Jump to Previous Command",
     "term:jump-next-block": "Jump to Next Command",
+    "term:jump-past-output": "Jump Past Command Output",
     "term:copy-last-command": "Copy Last Command",
     "term:copy-last-output": "Copy Last Command Output",
     [CommandComposerActionId]: "Command Composer",
@@ -1044,6 +1045,19 @@ function registerGlobalKeys() {
         },
         { id: "term:jump-prev-block", defaultBinding: "Cmd:Shift:ArrowUp", handler: () => jumpFocusedTerm("prev") },
         { id: "term:jump-next-block", defaultBinding: "Cmd:Shift:ArrowDown", handler: () => jumpFocusedTerm("next") },
+        {
+            id: "term:jump-past-output",
+            defaultBinding: "Cmd:Shift:ArrowRight",
+            handler: () => {
+                const bcm = getBlockComponentModel(getFocusedBlockInStaticTab());
+                const vm = bcm?.viewModel as any;
+                if (vm?.viewType !== "term" || typeof vm.jumpPastOutput !== "function") {
+                    return false;
+                }
+                vm.jumpPastOutput();
+                return true;
+            },
+        },
         { id: "term:copy-last-command", defaultBinding: [], handler: () => copyFocusedTermBlock("command") },
         { id: "term:copy-last-output", defaultBinding: [], handler: () => copyFocusedTermBlock("output") },
         {

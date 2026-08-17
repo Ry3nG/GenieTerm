@@ -54,6 +54,8 @@ describe("transferdisplay", () => {
             subdetail: "copying files",
             tone: "active",
             iconClass: "fa-solid fa-spinner",
+            canCancel: true,
+            canRetry: false,
         });
     });
 
@@ -75,6 +77,8 @@ describe("transferdisplay", () => {
             errorText: "Folder transfer failed. rsync exited with code 23.",
             tone: "danger",
             iconClass: "fa-solid fa-circle-exclamation",
+            canCancel: false,
+            canRetry: true,
         });
     });
 

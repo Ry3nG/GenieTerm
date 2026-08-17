@@ -322,7 +322,14 @@ TermInlineAIDock.displayName = "TermInlineAIDock";
 
 const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewModel; termWrap: TermWrap | null }) => {
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
+    const hoveredBlockId = useAtomValueSafe<number | null>(termWrap?.hoveredBlockIdAtom);
     const activeBlock = React.useMemo(() => {
+        if (hoveredBlockId != null) {
+            const hovered = cmdBlocks.find((block) => block.id === hoveredBlockId);
+            if (blockHasCommand(hovered)) {
+                return hovered;
+            }
+        }
         for (let i = cmdBlocks.length - 1; i >= 0; i--) {
             const block = cmdBlocks[i];
             if (blockHasCommand(block)) {
@@ -330,7 +337,7 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
             }
         }
         return null;
-    }, [cmdBlocks]);
+    }, [cmdBlocks, hoveredBlockId]);
 
     const [copyFeedback, setCopyFeedback] = React.useState<string | null>(null);
     const [nowTs, setNowTs] = React.useState(Date.now());
@@ -377,6 +384,10 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
         termWrap.terminal.focus();
         termWrap.sendDataHandler?.(`${activeBlock.command}\r`);
     }, [activeBlock?.command, termWrap]);
+
+    const jumpPastOutput = React.useCallback(() => {
+        model.jumpPastOutput();
+    }, [model]);
 
     const fixWithAI = React.useCallback(() => {
         if (!inlineAIPrompt || activeBlock == null) {
@@ -440,6 +451,16 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                 >
                     <i className="fa-solid fa-rotate-right" aria-hidden="true" />
                 </button>
+                <button
+                    type="button"
+                    className="term-command-action-btn cursor-pointer"
+                    title="Jump past output"
+                    aria-label="Jump past output"
+                    onMouseDown={preventButtonFocus}
+                    onClick={jumpPastOutput}
+                >
+                    <i className="fa-solid fa-arrow-down" aria-hidden="true" />
+                </button>
                 {commandComposerEnabled && inlineAIPrompt && (
                     <button
                         type="button"
@@ -458,6 +479,84 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
 });
 
 TermCommandActionBar.displayName = "TermCommandActionBar";
+
+const TermShellIntegrationBanner = React.memo(({ termWrap }: { termWrap: TermWrap | null }) => {
+    const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
+    const [readyToWarn, setReadyToWarn] = React.useState(false);
+
+    React.useEffect(() => {
+        if (termWrap == null || shellIntegrationStatus != null) {
+            setReadyToWarn(false);
+            return;
+        }
+        const timer = window.setTimeout(() => setReadyToWarn(true), 2500);
+        return () => window.clearTimeout(timer);
+    }, [termWrap, shellIntegrationStatus]);
+
+    if (!readyToWarn || shellIntegrationStatus != null) {
+        return null;
+    }
+
+    return (
+        <div className="term-status-banner" role="status">
+            <i className="fa-solid fa-circle-info" aria-hidden="true" />
+            <span>
+                Command blocks need shell integration. On a new remote, connect once so GenieTerm can install{" "}
+                <span className="font-mono">genie</span>. Existing remotes: run{" "}
+                <span className="font-mono">genie rcfiles</span>.
+            </span>
+        </div>
+    );
+});
+
+TermShellIntegrationBanner.displayName = "TermShellIntegrationBanner";
+
+const TermDurablePromptBanner = React.memo(
+    ({ blockId, model, connection }: { blockId: string; model: TermViewModel; connection?: string }) => {
+        const [blockData] = WOS.useWaveObjectValue<Block>(WOS.makeORef("block", blockId));
+        const isDurable = jotai.useAtomValue(model.termConfigedDurable);
+        const isRemote = connection != null && connection !== "" && connection !== "local";
+        const alreadyAsked = Boolean(blockData?.meta?.["term:durableprompted"]);
+
+        if (!isRemote || isDurable || alreadyAsked) {
+            return null;
+        }
+
+        const dismiss = () => {
+            fireAndForget(() =>
+                RpcApi.SetMetaCommand(TabRpcClient, {
+                    oref: WOS.makeORef("block", blockId),
+                    meta: { "term:durableprompted": true },
+                })
+            );
+        };
+
+        const enable = () => {
+            fireAndForget(async () => {
+                await RpcApi.SetMetaCommand(TabRpcClient, {
+                    oref: WOS.makeORef("block", blockId),
+                    meta: { "term:durableprompted": true },
+                });
+                await model.restartSessionWithDurability(true);
+            });
+        };
+
+        return (
+            <div className="term-status-banner term-status-banner-durable" role="status">
+                <i className="fa-solid fa-shield" aria-hidden="true" />
+                <span>Keep this SSH session if GenieTerm restarts?</span>
+                <button type="button" className="term-status-banner-btn cursor-pointer" onClick={enable}>
+                    Enable durable
+                </button>
+                <button type="button" className="term-status-banner-btn cursor-pointer" onClick={dismiss}>
+                    Not now
+                </button>
+            </div>
+        );
+    }
+);
+
+TermDurablePromptBanner.displayName = "TermDurablePromptBanner";
 
 const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => {
     const viewRef = React.useRef<HTMLDivElement>(null);
@@ -740,10 +839,12 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TermStickers config={stickerConfig} />
             <TermToolbarVDomNode key="vdom-toolbar" blockId={blockId} model={model} />
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
+            <TermShellIntegrationBanner termWrap={termWrapInst} />
+            <TermDurablePromptBanner blockId={blockId} model={model} connection={blockData?.meta?.connection} />
+            <TermCommandActionBar model={model} termWrap={termWrapInst} />
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
-            <TermCommandActionBar model={model} termWrap={termWrapInst} />
             <TermInlineAIDock model={model} termWrap={termWrapInst} />
             <TermCompletion model={model} blockData={blockData} termWrap={termWrapInst} />
             <NullErrorBoundary debugName="TermLinkTooltip">

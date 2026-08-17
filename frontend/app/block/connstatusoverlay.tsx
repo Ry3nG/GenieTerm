@@ -208,7 +208,7 @@ export const ConnStatusOverlay = React.memo(
                     errTexts.push(`error: ${connStatus.error}`);
                 }
                 if (showWshError) {
-                    errTexts.push(`unable to use wsh: ${connStatus.wsherror}`);
+                    errTexts.push(`GenieTerm helper unavailable: ${connStatus.wsherror}`);
                 }
                 const textToCopy = errTexts.join("\n");
                 await navigator.clipboard.writeText(textToCopy);
@@ -241,12 +241,17 @@ export const ConnStatusOverlay = React.memo(
                                 >
                                     <CopyButton className="copy-button" onClick={handleCopy} title="Copy" />
                                     {showError ? <div>error: {connStatus.error}</div> : null}
-                                    {showWshError ? <div>unable to use wsh: {connStatus.wsherror}</div> : null}
+                                    {showWshError ? (
+                                        <div>
+                                            GenieTerm helper (`genie`) is unavailable: {connStatus.wsherror}. File
+                                            transfer and durable sessions need it on this host.
+                                        </div>
+                                    ) : null}
                                 </OverlayScrollbarsComponent>
                             )}
                             {showWshError && (
                                 <Button className={reconClassName} onClick={handleDisableWsh}>
-                                    always disable wsh
+                                    don't use helper on this host
                                 </Button>
                             )}
                         </div>

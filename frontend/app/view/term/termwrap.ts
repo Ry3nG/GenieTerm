@@ -31,7 +31,7 @@ import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { getCmdBlockStatus } from "./cmdblockdisplay";
-import { blockHasCommand, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
+import { blockHasCommand, findCmdBlockAtLine, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
 import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
@@ -149,6 +149,7 @@ export class TermWrap {
     cmdDecorations: TermTypes.IDecoration[] = [];
     syncCmdDecorations_debounced: () => void;
     semanticBlocksEnabled = false;
+    hoveredBlockIdAtom: jotai.PrimitiveAtom<number | null>;
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
     shellTypeAtom: jotai.PrimitiveAtom<ShellType>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
@@ -193,6 +194,7 @@ export class TermWrap {
         this.lastUpdated = Date.now();
         this.promptMarkers = [];
         this.cmdBlocksAtom = jotai.atom([]) as jotai.PrimitiveAtom<CmdBlock[]>;
+        this.hoveredBlockIdAtom = jotai.atom(null) as jotai.PrimitiveAtom<number | null>;
         this.altScreenActiveAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
         this.shellTypeAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellType>;
@@ -376,10 +378,20 @@ export class TermWrap {
         };
         this.connectElem.addEventListener("dragover", dragoverHandler);
         this.connectElem.addEventListener("drop", dropHandler);
+        const mouseMoveHandler = (e: MouseEvent) => {
+            this.updateHoveredBlockFromMouse(e);
+        };
+        const mouseLeaveHandler = () => {
+            globalStore.set(this.hoveredBlockIdAtom, null);
+        };
+        this.connectElem.addEventListener("mousemove", mouseMoveHandler);
+        this.connectElem.addEventListener("mouseleave", mouseLeaveHandler);
         this.toDispose.push({
             dispose: () => {
                 this.connectElem.removeEventListener("dragover", dragoverHandler);
                 this.connectElem.removeEventListener("drop", dropHandler);
+                this.connectElem.removeEventListener("mousemove", mouseMoveHandler);
+                this.connectElem.removeEventListener("mouseleave", mouseLeaveHandler);
             },
         });
         this.handleResize();
@@ -885,6 +897,29 @@ export class TermWrap {
         const inputBuffer = { text, cursorIndex };
         this.localCompletionInputBuffer = inputBuffer;
         globalStore.set(this.currentInputBufferAtom, inputBuffer);
+    }
+
+    updateHoveredBlockFromMouse(event: MouseEvent) {
+        if (!this.loaded || !this.semanticBlocksEnabled || this.terminal.rows < 1) {
+            return;
+        }
+        const buffer = this.terminal.buffer.active;
+        if (buffer.type === "alternate") {
+            globalStore.set(this.hoveredBlockIdAtom, null);
+            return;
+        }
+        const rect = this.connectElem.getBoundingClientRect();
+        const cellHeight = rect.height / this.terminal.rows;
+        if (cellHeight <= 0) {
+            return;
+        }
+        const row = Math.floor((event.clientY - rect.top) / cellHeight);
+        const line = buffer.viewportY + row;
+        const hovered = findCmdBlockAtLine(this.cmdBlocks, line, buffer);
+        const nextId = hovered?.id ?? null;
+        if (globalStore.get(this.hoveredBlockIdAtom) !== nextId) {
+            globalStore.set(this.hoveredBlockIdAtom, nextId);
+        }
     }
 
     setSemanticBlocksEnabled(enabled: boolean) {

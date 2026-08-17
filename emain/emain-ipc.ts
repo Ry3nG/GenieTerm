@@ -33,13 +33,14 @@ import {
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { safeOpenExternal } from "./safe-open";
-import { registerDownloadFolderHandler } from "./transfer/download-folder";
+import { registerDownloadFolderHandler, startTrackedFolderDownload } from "./transfer/download-folder";
 import {
     buildFileDownloadTransferJobInput,
     createDownloadTransferJobId,
     downloadTransferTracker,
     mapNativeDownloadState,
 } from "./transfer/download-transfer";
+import { invokeTransferCancelHandle, registerTransferCancelHandle } from "./transfer/transfer-handles";
 import { updater } from "./updater";
 
 const electronApp = electron.app;
@@ -49,6 +50,8 @@ let webviewKeys: string[] = [];
 const TransferQueueGetChannel = "transfer-queue:get";
 const TransferQueueUpdateChannel = "transfer-queue:update";
 const TransferQueueClearChannel = "transfer-queue:clear";
+const TransferQueueCancelChannel = "transfer-queue:cancel";
+const TransferQueueRetryChannel = "transfer-queue:retry";
 const TransferJobStartChannel = "transfer-job:start";
 const TransferJobFinishChannel = "transfer-job:finish";
 const transferQueueSubscribers = new Map<number, electron.WebContents>();
@@ -238,6 +241,27 @@ function registerTransferQueueBridge() {
     electron.ipcMain.handle(TransferQueueClearChannel, () => {
         return downloadTransferTracker.clearInactive();
     });
+    electron.ipcMain.handle(TransferQueueCancelChannel, (_event, jobId: string) => {
+        invokeTransferCancelHandle(jobId);
+        try {
+            downloadTransferTracker.cancel(jobId);
+        } catch {
+            // already terminal
+        }
+        return downloadTransferTracker.getQueue();
+    });
+    electron.ipcMain.handle(TransferQueueRetryChannel, (_event, jobId: string) => {
+        try {
+            const retried = downloadTransferTracker.retry(jobId);
+            if (retried.transport === "rsync" && retried.destination.startsWith("file://")) {
+                const destPath = decodeURI(retried.destination.replace(/^file:\/\//, ""));
+                startTrackedFolderDownload(retried.id, retried.source, destPath);
+            }
+        } catch (err) {
+            console.error("retry transfer failed", err);
+        }
+        return downloadTransferTracker.getQueue();
+    });
     electron.ipcMain.handle(TransferJobStartChannel, (_event, input: TransferJobInput) => {
         downloadTransferTracker.enqueue(input);
         downloadTransferTracker.start(input.id);
@@ -330,6 +354,9 @@ export function initIpcHandlers() {
                 return;
             }
             sender.session.off("will-download", onWillDownload);
+            registerTransferCancelHandle(jobInput.id, () => {
+                item.cancel();
+            });
             item.once("done", (_doneEvent, state) => {
                 const result = mapNativeDownloadState(state);
                 if (result.status === "completed") {

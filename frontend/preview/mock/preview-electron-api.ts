@@ -28,6 +28,8 @@ const previewElectronApi: ElectronApi = {
     downloadFolder: (_path: string) => {},
     getTransferQueue: () => Promise.resolve({ jobs: [] }),
     clearTransferQueue: () => Promise.resolve({ jobs: [] }),
+    cancelTransferJob: async () => ({ jobs: [] }),
+    retryTransferJob: async () => ({ jobs: [] }),
     onTransferQueueUpdate: (_callback: (queue: TransferQueue) => void) => () => {},
     startTransferJob: (_input) => Promise.resolve(),
     finishTransferJob: (_jobId, _outcome) => Promise.resolve(),

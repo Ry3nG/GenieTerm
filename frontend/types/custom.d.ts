@@ -101,6 +101,8 @@ declare global {
         downloadFolder: (path: string) => void; // download-folder
         getTransferQueue: () => Promise<TransferQueue>; // transfer-queue:get
         clearTransferQueue: () => Promise<TransferQueue>; // transfer-queue:clear
+        cancelTransferJob: (jobId: string) => Promise<TransferQueue>; // transfer-queue:cancel
+        retryTransferJob: (jobId: string) => Promise<TransferQueue>; // transfer-queue:retry
         onTransferQueueUpdate: (callback: (queue: TransferQueue) => void) => () => void; // transfer-queue:update
         startTransferJob: (input: TransferJobInput) => Promise<void>; // transfer-job:start
         finishTransferJob: (jobId: string, outcome: TransferJobOutcome) => Promise<void>; // transfer-job:finish

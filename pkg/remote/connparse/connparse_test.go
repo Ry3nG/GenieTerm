@@ -6,6 +6,24 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
 )
 
+func TestParseURI_GenieAlias(t *testing.T) {
+	t.Parallel()
+
+	c, err := connparse.ParseURI("genie://devbox/~/projects/out")
+	if err != nil {
+		t.Fatalf("failed to parse genie URI: %v", err)
+	}
+	if c.Scheme != "wsh" {
+		t.Fatalf("expected genie:// to normalize to wsh, got %q", c.Scheme)
+	}
+	if c.Host != "devbox" {
+		t.Fatalf("expected host devbox, got %q", c.Host)
+	}
+	if c.Path != "~/projects/out" {
+		t.Fatalf("expected path ~/projects/out, got %q", c.Path)
+	}
+}
+
 func TestParseURI_WSHWithScheme(t *testing.T) {
 	t.Parallel()
 

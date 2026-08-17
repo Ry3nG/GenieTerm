@@ -715,6 +715,12 @@ func RemoteStreamCpuDataCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan ws
 	return sendRpcRequestResponseStreamHelper[wshrpc.TimeSeriesData](w, "remotestreamcpudata", nil, opts)
 }
 
+// command "remotesysinfowatch", wshserver.RemoteSysInfoWatchCommand
+func RemoteSysInfoWatchCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteSysInfoWatchData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "remotesysinfowatch", data, opts)
+	return err
+}
+
 // command "remoteterminatejobmanager", wshserver.RemoteTerminateJobManagerCommand
 func RemoteTerminateJobManagerCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteTerminateJobManagerData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "remoteterminatejobmanager", data, opts)

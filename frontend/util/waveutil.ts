@@ -91,5 +91,5 @@ export function computeBgStyleFromMeta(meta: Omit<BackgroundConfigType, "display
 
 export function formatRemoteUri(path: string, connection: string): string {
     connection = connection ?? "local";
-    return `wsh://${connection}/${path}`;
+    return `genie://${connection}/${path}`;
 }

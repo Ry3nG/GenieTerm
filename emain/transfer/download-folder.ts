@@ -5,6 +5,7 @@ import * as path from "path";
 import type { TransferError, TransferJobInput } from "../../frontend/util/transferqueue";
 import { buildRsyncFolderArgs, getRemotePathBaseName, parseWshRemoteUri } from "../../frontend/util/transferutil";
 import { buildLocalFileUri, createDownloadTransferJobId, downloadTransferTracker } from "./download-transfer";
+import { clearTransferCancelHandle, registerTransferCancelHandle } from "./transfer-handles";
 
 type ExistsFn = (candidate: string) => boolean;
 
@@ -133,52 +134,65 @@ export function registerDownloadFolderHandler() {
             return;
         }
 
-        const plan = buildFolderDownloadPlan(remoteUri, result.filePath);
         const jobInput = buildFolderDownloadTransferJobInput(
             remoteUri,
             result.filePath,
             createDownloadTransferJobId("folder-download")
         );
         downloadTransferTracker.enqueue(jobInput);
-        downloadTransferTracker.start(jobInput.id);
-        const rsyncPath = getRsyncPath();
-        const child = child_process.spawn(rsyncPath, plan.rsyncArgs, { windowsHide: true });
-        let stderr = "";
-        let settled = false;
+        startTrackedFolderDownload(jobInput.id, remoteUri, result.filePath);
+    });
+}
 
-        const failTransfer = (kind: FolderDownloadFailureKind, err: unknown) => {
-            if (settled) {
-                return;
-            }
-            settled = true;
-            const error = mapFolderDownloadError(kind, err);
-            downloadTransferTracker.fail(jobInput.id, error);
-            showFolderDownloadError(error);
-        };
+export function startTrackedFolderDownload(jobId: string, remoteUri: string, destinationPath: string) {
+    const plan = buildFolderDownloadPlan(remoteUri, destinationPath);
+    downloadTransferTracker.start(jobId);
+    const rsyncPath = getRsyncPath();
+    const child = child_process.spawn(rsyncPath, plan.rsyncArgs, { windowsHide: true });
+    let stderr = "";
+    let settled = false;
+    registerTransferCancelHandle(jobId, () => {
+        child.kill();
+    });
 
-        child.stderr?.on("data", (chunk) => {
-            stderr += chunk.toString();
-        });
-        child.on("error", (err) => {
-            failTransfer("start", err);
-        });
-        child.on("close", (code) => {
-            if (settled) {
-                return;
-            }
-            settled = true;
-            if (code === 0) {
-                downloadTransferTracker.complete(jobInput.id);
-                new electron.Notification({
-                    title: "Folder Download Complete",
-                    body: path.basename(result.filePath),
-                }).show();
-                return;
-            }
-            const detail = stderr.trim() || `rsync exited with code ${code}.`;
-            const error = mapFolderDownloadError("exit", new Error(detail));
-            downloadTransferTracker.fail(jobInput.id, error);
-            showFolderDownloadError(error);
-        });
+    const failTransfer = (kind: FolderDownloadFailureKind, err: unknown) => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        clearTransferCancelHandle(jobId);
+        const error = mapFolderDownloadError(kind, err);
+        downloadTransferTracker.fail(jobId, error);
+        showFolderDownloadError(error);
+    };
+
+    child.stderr?.on("data", (chunk) => {
+        stderr += chunk.toString();
+    });
+    child.on("error", (err) => {
+        failTransfer("start", err);
+    });
+    child.on("close", (code, signal) => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        clearTransferCancelHandle(jobId);
+        if (signal) {
+            downloadTransferTracker.cancel(jobId);
+            return;
+        }
+        if (code === 0) {
+            downloadTransferTracker.complete(jobId);
+            new electron.Notification({
+                title: "Folder Download Complete",
+                body: path.basename(destinationPath),
+            }).show();
+            return;
+        }
+        const detail = stderr.trim() || `rsync exited with code ${code}.`;
+        const error = mapFolderDownloadError("exit", new Error(detail));
+        downloadTransferTracker.fail(jobId, error);
+        showFolderDownloadError(error);
     });
 }

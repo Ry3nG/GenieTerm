@@ -2,7 +2,7 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Last aligned with `package.json` **0.4.82** on 2026-08-17.
+Living tracker. Last aligned with `package.json` **0.4.84** on 2026-08-17.
 
 If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/`, this file wins.
 
@@ -44,31 +44,19 @@ See `docs/v1-release-gate.md`.
 
 ## Gaps vs the daily-driver bar
 
-- No jump-past-output action (`blockEndLine()` exists, unused)
-- No per-block sticky header or hover toolbar (action bar is last-command only)
-- `term:durable` defaults to `false`
-- Transfer cancel/retry exist in the queue model, not in the Files UI
-- User-visible remote paths still print `wsh://`
-- No SFTP fallback when the helper is missing
-- Remote sysinfo loop is 1 Hz whether anyone is subscribed
-- First-run onboarding still taught Wave leftovers until this cleanup
+- SFTP fallback when the helper is missing is still not implemented (we now say so instead of failing silently)
+- Process viewer still polls on its own interval
+- macOS installed-app smoke remains a release-machine gate, not a substitute for daily use
 
 ## Next work (in this order)
 
 ### P1 — Daily-driver terminal
 
-1. Jump past output
-2. Sticky current-block chrome + per-block copy / re-run
-3. Honest UI when shell integration is missing
-4. Consider durable-on-by-default for SSH, or ask once
+Shipped in 0.4.84: jump past output, sticky command action bar with hover-target + per-block copy/re-run, missing shell-integration banner, one-shot durable prompt on SSH.
 
 ### P2 — Remote workspace
 
-1. Transfer queue cancel / retry in the Files UI
-2. Present `genie://` everywhere; keep `wsh://` as the wire/compat scheme
-3. Honest helper-missing path (SFTP or an explicit install prompt)
-4. Gate sysinfo / process sampling on subscribers (`#22`)
-5. macOS installed-app smoke for download / upload / drag
+Shipped in 0.4.84: transfer cancel/retry in Files (folder rsync), `genie://` display, honest helper-missing copy, sysinfo sampling only while a sysinfo view is open.
 
 ### P3 — Leftover platform
 
