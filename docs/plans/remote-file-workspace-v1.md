@@ -2,7 +2,15 @@
 
 This document is the source of truth for GenieTerm's remote-file-workspace-v1 work. It replaces the narrower "Practical Transfer Pack" framing with a milestone plan that covers transfer reliability, file-sidebar ergonomics, preview/open-path follow-ups, and release gates.
 
-Last updated: 2026-06-17
+Last updated: 2026-08-17
+
+## Status (2026-08-17)
+
+This plan is historical sequencing, not the product definition. `docs/GENIETERM-ROADMAP.md` wins if they disagree.
+
+Code on `main` already has the transfer domain, folder download, drag-drop upload, grouped jobs, quoted drag-to-terminal paths, and a Files queue list **without** cancel/retry buttons. SFTP and the resource baseline (`#18`, `#22`) are not done. macOS installed-app smoke is still the release gate, not Ubuntu unit tests.
+
+Issue map below is unchanged for archaeology; close or retitle issues against the table in the roadmap, not against this June draft.
 
 ## Operating Rules
 

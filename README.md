@@ -6,25 +6,27 @@
 
 GenieTerm is a semantic, remote-native terminal for command blocks, durable sessions, and file workflows.
 
-It is built on top of the Wave Terminal codebase and keeps Wave's strong foundation: durable remote sessions, inline previews, built-in editing, `wsh`, and cross-platform Electron/Go packaging. GenieTerm's product direction is narrower and more opinionated: make the terminal itself understand command boundaries, status, output, duration, and remote file identity while reusing the same runtime, session, and controller path.
+It is built on the Wave Terminal codebase and keeps Wave's runtime: durable remote sessions, inline previews, built-in editing, the `genie`/`wsh` helper, and cross-platform Electron/Go packaging. The product is narrower: the terminal understands command boundaries, status, output, duration, and remote file identity on that same session path.
 
 ## Current Focus
 
-- Warp-style semantic command blocks as the default terminal presentation, with classic xterm as a compatibility mode over the same `TerminalView` / `TermWrap` runtime.
-- Inline command completion powered by the Fig spec corpus (commands, flags, paths, history).
-- A keyless AI command composer (natural language → command) that stays out of the normal workflow.
-- A dark-only, Apple-inspired visual identity.
-- Remote file and transfer flows that present `genie://` identity while preserving `wsh://` compatibility.
+- Semantic command blocks as the default presentation; classic xterm is a compatibility mode over the same `TerminalView` / `TermWrap` runtime.
+- Inline completion from the Fig spec corpus, history, and paths.
+- Optional natural-language command composer (propose a command; never auto-run). No AI chat panel.
+- Dark, Apple-inspired visual identity.
+- Remote file and transfer flows. The parser accepts `genie://` and `wsh://`; public presentation is still catching up.
 
 ## Product Direction
 
-GenieTerm will continue to develop terminal-first remote workflow features around:
+See [`docs/GENIETERM-ROADMAP.md`](docs/GENIETERM-ROADMAP.md). Short version:
 
-- Semantic command blocks with safe gutter, status, duration, copy, and jump affordances.
-- Durable local and remote sessions that remain ordinary xterm sessions underneath.
-- Remote file inspection, previewing, upload, download, and recovery flows.
-- Additive public `genie` / `genie://` aliases that do not break existing `wsh` / `wsh://` scripts.
-- Optional app-builder and AI surfaces kept out of the normal terminal workflow.
+- Command blocks with gutter, status, duration, copy, re-run, and jump.
+- Durable local and remote sessions that stay ordinary xterm sessions underneath.
+- Remote inspect, preview, upload, download, and a transfer queue.
+- Additive `genie` / `genie://` aliases that do not break `wsh` / `wsh://`.
+- App builder and Wave AI chat stay off the default path.
+
+  1.0 is terminal + durable remote + files — not a Wave-sized surface.
 
 ## Relationship To Wave
 

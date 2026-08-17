@@ -1730,7 +1730,7 @@ declare global {
         "conn:errorcode"?: string;
         "conn:suberrorcode"?: string;
         "conn:contexterror"?: boolean;
-        "onboarding:feature"?: "waveai" | "durable" | "magnify" | "wsh";
+        "onboarding:feature"?: "durable" | "blocks" | "files";
         "onboarding:version"?: string;
         "onboarding:githubstar"?: "already" | "star" | "later";
         "onboarding:page"?: string;

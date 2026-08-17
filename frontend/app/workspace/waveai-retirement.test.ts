@@ -70,16 +70,23 @@ describe("Wave AI chat retirement", () => {
         expect(waveConfigModel).not.toContain('path: "waveai.json"');
     });
 
+    it("does not keep Wave 0.12-0.14 upgrade onboarding pages", () => {
+        const removed = [
+            "onboarding/onboarding-upgrade-minor.tsx",
+            "onboarding/onboarding-upgrade-patch.tsx",
+            "onboarding/onboarding-upgrade-v0121.tsx",
+            "onboarding/onboarding-upgrade-v0145.tsx",
+        ];
+        for (const file of removed) {
+            expect(() => readAppFile(file), `${file} should be deleted`).toThrow();
+        }
+    });
+
     it("does not promote retired AI or local model setup in current onboarding", () => {
         const onboardingFiles = [
             "onboarding/onboarding-features.tsx",
-            "onboarding/onboarding-upgrade-minor.tsx",
-            "onboarding/onboarding-upgrade-v0121.tsx",
-            "onboarding/onboarding-upgrade-v0122.tsx",
-            "onboarding/onboarding-upgrade-v0123.tsx",
-            "onboarding/onboarding-upgrade-v0130.tsx",
-            "onboarding/onboarding-upgrade-v0131.tsx",
-            "onboarding/onboarding-upgrade-v0140.tsx",
+            "onboarding/onboarding-upgrade.tsx",
+            "onboarding/onboarding.tsx",
         ];
         const retiredTerms = [
             "WaveAIPage",
@@ -104,5 +111,20 @@ describe("Wave AI chat retirement", () => {
                 expect(content, `${file} should not contain ${term}`).not.toContain(term);
             }
         }
+    });
+
+    it("teaches command blocks and genie, not Wave magnify or wsh copy", () => {
+        const features = readAppFile("onboarding/onboarding-features.tsx");
+        const commands = readAppFile("onboarding/onboarding-command.tsx");
+
+        expect(features).toContain("Command Blocks");
+        expect(features).toContain("genie view [filename]");
+        expect(features).not.toContain("Magnify Blocks");
+        expect(features).not.toContain("wsh view");
+        expect(features).not.toContain("wsh edit");
+        expect(commands).toContain("genie view");
+        expect(commands).toContain("genie edit");
+        expect(commands).not.toContain("wsh view");
+        expect(commands).not.toContain("wsh edit");
     });
 });

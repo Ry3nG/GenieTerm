@@ -1,5 +1,7 @@
 # GenieTerm Remote File Transfer V1 Design
 
+> **Superseded (2026-08-17).** Historical V1 transfer design. Do not treat as current product scope. See `docs/GENIETERM-ROADMAP.md` and `docs/plans/remote-file-workspace-v1.md`.
+
 ## Product Positioning
 
 GenieTerm is a private fork of Wave focused on high-friction terminal workflows rather than competing with Codex, Claude, Cursor, or other AI applications. V1 targets remote file transfer because it is immediately useful, clearly under-served, and already validated by a real bug: downloading a remote directory currently routes through a file-only stream and saves a `.txt` error response.

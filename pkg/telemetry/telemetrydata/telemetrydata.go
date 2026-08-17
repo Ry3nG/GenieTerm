@@ -137,7 +137,7 @@ type TEventProps struct {
 	ConnSubErrorCode string `json:"conn:suberrorcode,omitempty"`
 	ConnContextError bool   `json:"conn:contexterror,omitempty"`
 
-	OnboardingFeature    string `json:"onboarding:feature,omitempty" tstype:"\"waveai\" | \"durable\" | \"magnify\" | \"wsh\""`
+	OnboardingFeature    string `json:"onboarding:feature,omitempty" tstype:"\"durable\" | \"blocks\" | \"files\""`
 	OnboardingVersion    string `json:"onboarding:version,omitempty"`
 	OnboardingGithubStar string `json:"onboarding:githubstar,omitempty" tstype:"\"already\" | \"star\" | \"later\""`
 	OnboardingPage       string `json:"onboarding:page,omitempty"`

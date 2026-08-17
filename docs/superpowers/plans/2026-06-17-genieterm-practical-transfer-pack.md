@@ -1,5 +1,7 @@
 # GenieTerm Practical Transfer Pack Implementation Plan
 
+> **Superseded (2026-08-17).** Historical agent plan from the first transfer slice. Do not execute. Current status: `docs/GENIETERM-ROADMAP.md` and `docs/plans/remote-file-workspace-v1.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Create a private GenieTerm fork of Wave that installs side-by-side with Wave and ships the first remote-file experience fix: folder-aware remote directory download.

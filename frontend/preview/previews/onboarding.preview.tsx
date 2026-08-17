@@ -5,10 +5,9 @@ import Logo from "@/app/asset/logo";
 import { InitPage, NoTelemetryStarPage } from "@/app/onboarding/onboarding";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { DurableSessionPage } from "@/app/onboarding/onboarding-durable";
-import { FilesPage, MagnifyBlocksPage } from "@/app/onboarding/onboarding-features";
+import { CommandBlocksPage, FilesPage } from "@/app/onboarding/onboarding-features";
 import { StarAskPage } from "@/app/onboarding/onboarding-starask";
-import { UpgradeMinorWelcomePage } from "@/app/onboarding/onboarding-upgrade-minor";
-import { UpgradeOnboardingFooter, UpgradeOnboardingVersions } from "@/app/onboarding/onboarding-upgrade-patch";
+import { UpgradeNotes } from "@/app/onboarding/onboarding-upgrade";
 
 function OnboardingModalWrapper({ width, children }: { width: string; children: React.ReactNode }) {
     return (
@@ -33,7 +32,7 @@ function OnboardingFeaturesV() {
                 <DurableSessionPage onNext={noop} onSkip={noop} onPrev={noop} />
             </OnboardingModalWrapper>
             <OnboardingModalWrapper width="w-[800px]">
-                <MagnifyBlocksPage onNext={noop} onSkip={noop} onPrev={noop} />
+                <CommandBlocksPage onNext={noop} onSkip={noop} onPrev={noop} />
             </OnboardingModalWrapper>
             <OnboardingModalWrapper width="w-[800px]">
                 <FilesPage onFinish={noop} onPrev={noop} />
@@ -42,45 +41,14 @@ function OnboardingFeaturesV() {
     );
 }
 
-function UpgradeOnboardingPatchV() {
-    const noop = () => {};
+function UpgradeNotesV() {
     return (
-        <div className="flex flex-col gap-6 w-full max-w-[900px]">
-            {UpgradeOnboardingVersions.map((version, idx) => {
-                const hasPrev = idx > 0;
-                const hasNext = idx < UpgradeOnboardingVersions.length - 1;
-                return (
-                    <OnboardingModalWrapper key={version.version} width="w-[650px]">
-                        <header className="flex flex-col gap-2 border-b-0 p-0 mt-1 mb-6 w-full unselectable flex-shrink-0">
-                            <div className="flex justify-center">
-                                <Logo />
-                            </div>
-                            <div className="text-center text-[25px] font-normal text-foreground">
-                                GenieTerm {version.version} Update
-                            </div>
-                        </header>
-                        <div className="flex-1">{version.content()}</div>
-                        <UpgradeOnboardingFooter
-                            hasPrev={hasPrev}
-                            hasNext={hasNext}
-                            prevText={version.prevText}
-                            nextText={version.nextText}
-                            onPrev={noop}
-                            onNext={noop}
-                            onClose={noop}
-                        />
-                    </OnboardingModalWrapper>
-                );
-            })}
-        </div>
-    );
-}
-
-function UpgradeOnboardingMinorV() {
-    const noop = () => {};
-    return (
-        <OnboardingModalWrapper width="w-[600px]">
-            <UpgradeMinorWelcomePage onStarClick={noop} onAlreadyStarred={noop} onMaybeLater={noop} />
+        <OnboardingModalWrapper width="w-[560px]">
+            <header className="flex flex-col gap-2 items-center unselectable mb-6">
+                <Logo />
+                <div className="text-[25px] font-normal text-foreground">What's in GenieTerm</div>
+            </header>
+            <UpgradeNotes />
         </OnboardingModalWrapper>
     );
 }
@@ -99,12 +67,10 @@ export function OnboardingPreview() {
         <div className="w-full max-w-[1300px] py-10 px-4 flex flex-col gap-8">
             <div className="text-sm font-mono text-muted">Onboarding features</div>
             <OnboardingFeaturesV />
-            <div className="text-sm font-mono text-muted mt-6">Onboarding minor upgrade</div>
-            <UpgradeOnboardingMinorV />
+            <div className="text-sm font-mono text-muted mt-6">Upgrade notes</div>
+            <UpgradeNotesV />
             <div className="text-sm font-mono text-muted mt-6">Onboarding star ask</div>
             <StarAskV />
-            <div className="text-sm font-mono text-muted mt-6">Onboarding patch updates</div>
-            <UpgradeOnboardingPatchV />
         </div>
     );
 }

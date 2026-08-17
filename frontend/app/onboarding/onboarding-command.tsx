@@ -3,7 +3,6 @@
 
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { FakeBlock } from "./onboarding-layout";
-import { FakeTermBlock } from "./onboarding-layout-term";
 import genieTermLogo from "/logos/genieterm-logo.png";
 
 export type CommandRevealProps = {
@@ -100,7 +99,7 @@ Use Ctrl-Shift + Arrow Keys (←→↑↓) to move between blocks in the current
 Use Ctrl-Shift + Number (1-9) to focus a specific block by its position.`;
 
     return (
-        <FakeCommand command="wsh view keyboard-shortcuts.md" onComplete={onComplete}>
+        <FakeCommand command="genie view keyboard-shortcuts.md" onComplete={onComplete}>
             <FakeBlock icon="file-lines" name="keyboard-shortcuts.md" markdown={markdown} />
         </FakeCommand>
     );
@@ -108,7 +107,7 @@ Use Ctrl-Shift + Number (1-9) to focus a specific block by its position.`;
 
 export const ViewLogoCommand = ({ onComplete }: { onComplete?: () => void }) => {
     return (
-        <FakeCommand command="wsh view public/genieterm-logo.png" onComplete={onComplete}>
+        <FakeCommand command="genie view public/genieterm-logo.png" onComplete={onComplete}>
             <FakeBlock icon="image" name="genieterm-logo.png" imgsrc={genieTermLogo} />
         </FakeCommand>
     );
@@ -119,7 +118,7 @@ export const EditBashrcCommand = ({ onComplete }: { onComplete?: () => void }) =
     const bashrcContent = `# Aliases
 alias ll="ls -lah"
 alias gst="git status"
-alias wave="wsh"
+alias g="genie"
 
 # Custom prompt
 PS1="\\[\\e[32m\\]\\u@\\h\\[\\e[0m\\]:\\[\\e[34m\\]\\w\\[\\e[0m\\]\\$ "
@@ -128,7 +127,7 @@ PS1="\\[\\e[32m\\]\\u@\\h\\[\\e[0m\\]:\\[\\e[34m\\]\\w\\[\\e[0m\\]\\$ "
 export PATH="$HOME/.local/bin:$PATH"`;
 
     return (
-        <FakeCommand command="wsh edit ~/.bashrc" onComplete={onComplete}>
+        <FakeCommand command="genie edit ~/.bashrc" onComplete={onComplete}>
             <FakeBlock
                 icon="file-lines"
                 name=".bashrc"
