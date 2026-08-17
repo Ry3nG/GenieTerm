@@ -1,8 +1,8 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { dialog, ipcMain, Notification } from "electron";
-import type { UpdateInfo } from "electron-updater";
+import { app, dialog, ipcMain, Notification } from "electron";
+import type { UpdateDownloadedEvent, UpdateInfo } from "electron-updater";
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "fs";
 import path from "path";
@@ -11,8 +11,16 @@ import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { isDev } from "../frontend/util/isdev";
 import { fireAndForget } from "../frontend/util/util";
 import { setUserConfirmedQuit } from "./emain-activity";
+import { delay } from "./emain-util";
 import { focusedWaveWindow, getAllWaveWindows } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import {
+    getDownloadedUpdateSha512,
+    getMacAppBundlePath,
+    hasDeveloperIdSignature,
+    isMacCodeSignatureError,
+    launchMacUpdateInstaller,
+} from "./mac-update-installer";
 import { formatReleaseNotes } from "./update-release-notes";
 
 export let updater: Updater;
@@ -43,6 +51,8 @@ export class Updater {
     availableUpdateReleaseName: string | null;
     availableUpdateReleaseNotes: string | null;
     availableUpdateInfo: UpdateInfo | null;
+    availableUpdateFilePath: string | null;
+    availableUpdateSha512: string | null;
     installPromptInProgress: boolean;
     private _status: UpdaterStatus;
     lastUpdateCheck: Date;
@@ -59,6 +69,8 @@ export class Updater {
         this.availableUpdateReleaseName = null;
         this.availableUpdateReleaseNotes = null;
         this.availableUpdateInfo = null;
+        this.availableUpdateFilePath = null;
+        this.availableUpdateSha512 = null;
         this.installPromptInProgress = false;
 
         autoUpdater.autoDownload = true;
@@ -75,6 +87,13 @@ export class Updater {
         autoUpdater.on("error", (err) => {
             console.log("updater error");
             console.log(err);
+            if (isMacCodeSignatureError(err) && this.availableUpdateFilePath) {
+                console.warn("macOS rejected the unsigned update; the verified fallback installer will be used.");
+                if (this.status != "installing") {
+                    this.status = "ready";
+                }
+                return;
+            }
             if (!err.toString()?.includes("net::ERR_INTERNET_DISCONNECTED")) this.status = "error";
         });
 
@@ -105,12 +124,16 @@ export class Updater {
             this.availableUpdateInfo = null;
             this.availableUpdateReleaseName = null;
             this.availableUpdateReleaseNotes = null;
+            this.availableUpdateFilePath = null;
+            this.availableUpdateSha512 = null;
             this.status = "up-to-date";
         });
 
-        autoUpdater.on("update-downloaded", (event) => {
+        autoUpdater.on("update-downloaded", (event: UpdateDownloadedEvent) => {
             console.log("update-downloaded", [event]);
             this.setAvailableUpdate(event);
+            this.availableUpdateFilePath = event.downloadedFile;
+            this.availableUpdateSha512 = getDownloadedUpdateSha512(event);
 
             this.status = "ready";
             const allWindows = getAllWaveWindows();
@@ -301,10 +324,49 @@ export class Updater {
      * Restarts the app and installs an update if it is available.
      */
     async installUpdate() {
-        if (this.status == "ready") {
-            this.status = "installing";
+        if (this.status != "ready") {
+            return;
+        }
+
+        this.status = "installing";
+
+        try {
+            if (process.platform == "darwin") {
+                const appPath = getMacAppBundlePath(process.execPath);
+                if (!hasDeveloperIdSignature(appPath)) {
+                    if (
+                        !this.availableUpdateFilePath ||
+                        !this.availableUpdateInfo?.version ||
+                        !this.availableUpdateSha512
+                    ) {
+                        throw new Error("The downloaded macOS update is missing required installer metadata.");
+                    }
+                    await launchMacUpdateInstaller({
+                        execPath: process.execPath,
+                        updateZipPath: this.availableUpdateFilePath,
+                        expectedVersion: this.availableUpdateInfo.version,
+                        expectedSha512: this.availableUpdateSha512,
+                        logPath: path.join(app.getPath("logs"), "updater-helper.log"),
+                    });
+                    autoUpdater.autoInstallOnAppQuit = false;
+                    setUserConfirmedQuit(true);
+                    app.quit();
+                    return;
+                }
+            }
+
+            await delay(1000);
             setUserConfirmedQuit(true);
             autoUpdater.quitAndInstall();
+        } catch (error) {
+            console.error("unable to launch update installer", error);
+            this.status = "ready";
+            await dialog.showMessageBox({
+                type: "error",
+                title: "GenieTerm Update",
+                message: "GenieTerm could not start the update installer.",
+                detail: "The update is still downloaded. Try Restart Now again or install the latest release manually.",
+            });
         }
     }
 }
