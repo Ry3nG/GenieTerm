@@ -44,7 +44,7 @@ const config = {
         {
             from: "./dist",
             to: "./dist",
-            filter: ["**/*", "!bin/*", "bin/wavesrv.${arch}*", "bin/wsh*", "bin/genie*", "!tsunamiscaffold/**/*"],
+            filter: ["**/*", "!bin/*", "bin/wavesrv.${arch}*", "bin/wsh*", "bin/genie*"],
         },
         {
             from: ".",
@@ -52,12 +52,6 @@ const config = {
             filter: ["package.json"],
         },
         "!node_modules", // We don't need electron-builder to package in Node modules as Vite has already bundled any code that our program is using.
-    ],
-    extraResources: [
-        {
-            from: "dist/tsunamiscaffold",
-            to: "tsunamiscaffold",
-        },
     ],
     directories: {
         output: process.env.GENIETERM_BUILD_OUTPUT || "make",

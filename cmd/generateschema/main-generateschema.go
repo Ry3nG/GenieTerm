@@ -21,7 +21,7 @@ const WaveSchemaConnectionsFileName = "schema/connections.json"
 const WaveSchemaAiPresetsFileName = "schema/aipresets.json"
 const WaveSchemaWidgetsFileName = "schema/widgets.json"
 const WaveSchemaBackgroundsFileName = "schema/backgrounds.json"
-const WaveSchemaWaveAIFileName = "schema/waveai.json"
+
 
 // ViewNameType is a string type whose JSON Schema offers enum suggestions for the most
 // common widget view names while still accepting any arbitrary string value.
@@ -31,7 +31,7 @@ func (ViewNameType) JSONSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		AnyOf: []*jsonschema.Schema{
 			{
-				Enum: []any{"term", "preview", "web", "sysinfo", "launcher"},
+				Enum: []any{"term", "preview", "web", "sysinfo"},
 			},
 			{
 				Type: "string",
@@ -211,9 +211,4 @@ func main() {
 		log.Fatalf("backgrounds schema error: %v", err)
 	}
 
-	waveAITemplate := make(map[string]wconfig.AIModeConfigType)
-	err = generateSchema(&waveAITemplate, WaveSchemaWaveAIFileName, false)
-	if err != nil {
-		log.Fatalf("waveai schema error: %v", err)
-	}
 }

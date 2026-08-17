@@ -7,7 +7,7 @@
     "productName": "GenieTerm",
     "description": "Workspace-native terminal for commands, files, and durable sessions",
     "license": "Apache-2.0",
-    "version": "0.4.81",
+    "version": "0.4.82",
     "homepage": "https://github.com/Ry3nG/GenieTerm",
     "build": {
         "appId": "dev.ry3ng.genieterm"
@@ -143,9 +143,6 @@
         "yaml": "^2.8.3"
     },
     "packageManager": "npm@10.9.2",
-    "workspaces": [
-        "tsunami/frontend"
-    ],
     "overrides": {
         "js-yaml": "4.3.1",
         "monaco-editor": {

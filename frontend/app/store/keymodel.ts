@@ -276,14 +276,15 @@ function globalRefocus() {
 function getDefaultNewBlockDef(): BlockDef {
     const adnbAtom = getSettingsKeyAtom("app:defaultnewblock");
     const adnb = globalStore.get(adnbAtom) ?? "term";
-    if (adnb == "launcher") {
+    if (adnb == "preview") {
         return {
             meta: {
-                view: "launcher",
+                view: "preview",
+                file: "~",
             },
         };
     }
-    // "term", blank, anything else, fall back to terminal
+    // anything else is a terminal
     const termBlockDef: BlockDef = {
         meta: {
             view: "term",
@@ -955,7 +956,7 @@ function registerGlobalKeys() {
                 if (blockId == null) {
                     return true;
                 }
-                replaceBlock(blockId, { meta: { view: "launcher" } }, true);
+                replaceBlock(blockId, { meta: { view: "term", controller: "shell" } }, true);
                 return true;
             },
         },
@@ -1108,15 +1109,6 @@ function registerGlobalKeys() {
     initKeybindingHotReload();
 }
 
-function registerBuilderGlobalKeys() {
-    globalKeyMap.set("Cmd:w", () => {
-        getApi().closeBuilderWindow();
-        return true;
-    });
-    const allKeys = Array.from(globalKeyMap.keys());
-    getApi().registerGlobalWebviewKeys(allKeys);
-}
-
 function getAllGlobalKeyBindings(): string[] {
     const allKeys = Array.from(globalKeyMap.keys());
     return allKeys;
@@ -1129,7 +1121,6 @@ export {
     getSimpleControlShiftAtom,
     globalRefocus,
     globalRefocusWithTimeout,
-    registerBuilderGlobalKeys,
     registerControlShiftStateUpdateHandler,
     registerElectronReinjectKeyHandler,
     registerGlobalKeys,

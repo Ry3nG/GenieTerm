@@ -2,7 +2,7 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Last aligned with `package.json` **0.4.81** on 2026-08-17.
+Living tracker. Last aligned with `package.json` **0.4.82** on 2026-08-17.
 
 If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/`, this file wins.
 
@@ -39,7 +39,7 @@ See `docs/v1-release-gate.md`.
 - Parser accepts `genie://` and `wsh://` (new formatted URIs still emit `wsh://`)
 - Files: folder download, drag-drop upload, transfer queue model + status list
 - Git sidebar; command palette; editable keybindings
-- Widget rail and app builder opt-in; telemetry / wcloud endpoints empty
+- Widget rail opt-in; WaveAI chat and Tsunami/builder removed from the tree; telemetry / wcloud endpoints empty
 - Apple-dark visual system; GenieTerm branding and data directories
 
 ## Gaps vs the daily-driver bar
@@ -70,9 +70,9 @@ See `docs/v1-release-gate.md`.
 4. Gate sysinfo / process sampling on subscribers (`#22`)
 5. macOS installed-app smoke for download / upload / drag
 
-### P3 — Leftover platform (do not merge-break)
+### P3 — Leftover platform
 
-See `docs/leftovers.md`. Default path should not ship Tsunami scaffold or live WaveAI HTTP if we can stop packaging them. Do not delete `wshrpc` / WOS / conncontroller.
+Done in 0.4.82: WaveAI chat, Tsunami/builder, launcher, and aifilediff are gone. Composer (`codexcompose`) stays. VDom RPC stays because it is still on the term `wsh` bus. See `docs/leftovers.md`.
 
 ### P4 — 1.0
 

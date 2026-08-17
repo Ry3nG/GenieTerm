@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/blockcontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/userinput"
@@ -26,7 +25,7 @@ var WaveEventDataTypes = map[string]reflect.Type{
 	wps.Event_ConnChange:          reflect.TypeOf(wshrpc.ConnStatus{}),
 	wps.Event_SysInfo:             reflect.TypeOf(wshrpc.TimeSeriesData{}),
 	wps.Event_ControllerStatus:    reflect.TypeOf((*blockcontroller.BlockControllerRuntimeStatus)(nil)),
-	wps.Event_BuilderStatus:       reflect.TypeOf(wshrpc.BuilderStatusData{}),
+	wps.Event_BuilderStatus:       nil,
 	wps.Event_BuilderOutput:       reflect.TypeOf(map[string]any{}),
 	wps.Event_WaveObjUpdate:       reflect.TypeOf(waveobj.WaveObjUpdate{}),
 	wps.Event_BlockFile:           reflect.TypeOf((*wps.WSFileEventData)(nil)),
@@ -35,9 +34,9 @@ var WaveEventDataTypes = map[string]reflect.Type{
 	wps.Event_RouteDown:           nil,
 	wps.Event_RouteUp:             nil,
 	wps.Event_WorkspaceUpdate:     nil,
-	wps.Event_WaveAIRateLimit:     reflect.TypeOf((*uctypes.RateLimitInfo)(nil)),
+	wps.Event_WaveAIRateLimit:     nil,
 	wps.Event_WaveAppAppGoUpdated: nil,
-	wps.Event_TsunamiUpdateMeta:   reflect.TypeOf(wshrpc.AppMeta{}),
+	wps.Event_TsunamiUpdateMeta:   nil,
 	wps.Event_AIModeConfig:        reflect.TypeOf(wconfig.AIModeConfigUpdate{}),
 	wps.Event_BlockJobStatus:      reflect.TypeOf(wshrpc.BlockJobStatusData{}),
 	wps.Event_Badge:               reflect.TypeOf(baseds.BadgeEvent{}),

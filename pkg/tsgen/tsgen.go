@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/uctypes"
 	"github.com/Ry3nG/GenieTerm/pkg/eventbus"
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
 	"github.com/Ry3nG/GenieTerm/pkg/service"
@@ -52,8 +51,6 @@ var ExtraTypes = []any{
 	vdom.VDomBackendUpdate{},
 	waveobj.MetaTSType{},
 	waveobj.ObjRTInfo{},
-	uctypes.RateLimitInfo{},
-	wconfig.AIModeConfigUpdate{},
 	wshrpc.BlockJobStatusData{},
 }
 

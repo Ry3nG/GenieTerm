@@ -163,13 +163,10 @@ function makeMockGlobalAtoms(
         return get(getWaveObjectAtom<Workspace>("workspace:" + wsId));
     });
     const defaults: GlobalAtomsType = {
-        builderId: atom(""),
-        builderAppId: atom("") as any,
         uiContext: atom({ windowid: "", activetabid: tabId ?? "" } as UIContext),
         workspaceId: workspaceIdAtom,
         workspace: workspaceAtom,
         fullConfigAtom,
-        waveaiModeConfigAtom: atom({}) as any,
         settingsAtom,
         hasCustomAIPresetsAtom: atom(false),
         hasConfigErrors: atom((get) => {
@@ -186,7 +183,6 @@ function makeMockGlobalAtoms(
         modalOpen: atom(false) as any,
         allConnStatus: atom([] as ConnStatus[]),
         reinitVersion: atom(0) as any,
-        waveAIRateLimitInfoAtom: atom(null) as any,
     };
     if (!atomOverrides) {
         return defaults;

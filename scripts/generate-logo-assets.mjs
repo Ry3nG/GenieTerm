@@ -13,7 +13,6 @@ const SourceDir = path.join(RootDir, "assets", "logo");
 const BuildIconsDir = path.join(RootDir, "build", "icons");
 const PublicLogosDir = path.join(RootDir, "public", "logos");
 const FrontendAssetDir = path.join(RootDir, "frontend", "app", "asset");
-const TsunamiPublicDir = path.join(RootDir, "tsunami", "frontend", "public");
 const DefaultVariant = "default";
 const Variants = {
   default: {
@@ -151,7 +150,6 @@ async function renderVariant(variantName) {
   await renderSvg(svg, path.join(PublicLogosDir, `genieterm-logo${suffix}.png`), 1024);
   await renderSvg(svg, path.join(PublicLogosDir, `genieterm-logo${suffix}-256.png`), 256);
   await renderSvg(svg, path.join(FrontendAssetDir, `genieterm-logo${suffix}.png`), 512);
-  await renderSvg(svg, path.join(TsunamiPublicDir, `genieterm-logo${suffix}-256.png`), 256);
 
   if (isDefault) {
     await renderSvg(svg, path.join(RootDir, "assets", "genieterm-logo.png"), 1024);
@@ -224,7 +222,7 @@ async function renderWindowsIcon() {
 }
 
 async function main() {
-  for (const dir of [SourceDir, BuildIconsDir, PublicLogosDir, FrontendAssetDir, TsunamiPublicDir]) {
+  for (const dir of [SourceDir, BuildIconsDir, PublicLogosDir, FrontendAssetDir]) {
     ensureDir(dir);
   }
   for (const variantName of Object.keys(Variants)) {

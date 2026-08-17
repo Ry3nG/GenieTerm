@@ -1,21 +1,24 @@
 <!-- Copyright 2026, GenieTerm. Apache-2.0. -->
 
-# Wave leftovers still in the tree
+# What stays, and why
 
-Inventory of platform that GenieTerm **inherits and currently keeps** so Wave merges stay possible. This is not a product backlog. Do not re-open these as features.
+GenieTerm deleted the unused Wave product surfaces in 0.4.82. Internal protocol names stay on purpose.
 
-Default UX should not depend on anything in the "hidden" column.
+## Deleted (do not restore)
 
-| Subsystem                                                        | Default path                                                                                   | Why it is still here                  | Cleanup later                                              |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------- |
-| `pkg/aiusechat`, WaveAI RPCs, `schema/waveai.json`               | Hidden. Chat panel removed; retirement tests lock that. Composer uses `aicommandcompose` only. | Soft-fork merge surface               | Stop registering unused HTTP/RPC if we declare a hard fork |
-| `tsunami/`, `frontend/builder/`, `tsunamiscaffold` extraResource | Hidden unless `feature:waveappbuilder === true`                                                | Soft-fork + opt-in builder            | Stop packaging the scaffold when the flag is off           |
-| `vdom` view + `/vdom/`                                           | No widget. Still used by some `wsh` HTML overlays                                              | Wire protocol                         | Keep until helper widgets are gone                         |
-| `launcher`, `aifilediff`, `cpuplot` alias                        | Not in default widgets                                                                         | Registry compatibility                | Leave registered                                           |
-| `pkg/wcloud`, telemetry loops                                    | Endpoints empty; `telemetry:enabled: false`                                                    | Merge-stable no-op                    | Idle loops can be gated                                    |
-| Wave upgrade onboarding `v0.12`–`v0.14`                          | **Removed** in the 2026-08 doc/onboarding convergence                                          | Was user-visible rot                  | Do not restore                                             |
-| `aiprompts/*`                                                    | Contributor notes only                                                                         | Describes Wave internals we still run | Read as inherited architecture, not product docs           |
-| `RELEASES.md` Wave S3 / brew / winget                            | **Rewritten** for this repo's `release.yml`                                                    | —                                     | —                                                          |
-| `SECURITY.md` Wave mailbox                                       | **Rewritten** to the GenieTerm owner                                                           | —                                     | —                                                          |
+- WaveAI chat backend (`pkg/aiusechat` except `codexcompose`), HTTP `/wave/aichat`, `wsh ai`
+- Tsunami app builder (`tsunami/`, `frontend/builder/`, builder RPCs, scaffold packaging)
+- `aifilediff`, `launcher`, `cpuplot` alias
+- Wave 0.12–0.14 upgrade onboarding
 
-Internal names (`wavesrv`, `waveterm.db`, `WAVETERM_*`, JWT issuer `waveterm`) stay. They are merge-stability internals, not leftovers to rename.
+## Kept because they still run
+
+| Thing | Why |
+| --- | --- |
+| `wshrpc`, WOS, `wavesrv`, `WAVETERM_*` | Soft-fork merge internals; the remote/session runtime |
+| `pkg/aiusechat/codexcompose` | The only AI: NL → command proposal |
+| `vdom` view + `/vdom/` + RPC | `wsh` HTML widget protocol; not a product surface, still on the term RPC bus |
+| `pkg/wcloud` loops | No-op without an endpoint; still imported by telemetry send |
+| Git / Web / Sysinfo / Processes | Shipped widgets, not 1.0 blockers |
+
+Do not re-add Tsunami, WaveAI chat, or a launcher picker.

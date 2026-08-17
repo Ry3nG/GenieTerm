@@ -59,15 +59,6 @@ export class TabClient extends WshClient {
         return await getApi().captureScreenshot(electronRect);
     }
 
-    async handle_waveaiaddcontext(rh: RpcResponseHelper, data: CommandWaveAIAddContextData): Promise<void> {
-        console.info("Ignoring retired waveaiaddcontext request", {
-            hasText: Boolean(data.text),
-            fileCount: data.files?.length ?? 0,
-            submit: data.submit,
-            newchat: data.newchat,
-        });
-    }
-
     async handle_setblockfocus(rh: RpcResponseHelper, blockId: string): Promise<void> {
         const layoutModel = getLayoutModelForStaticTab();
         if (!layoutModel) {

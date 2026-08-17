@@ -5,9 +5,6 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
 import { fireAndForget } from "../frontend/util/util";
-import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
-import { shouldShowAppBuilderSurface } from "../frontend/util/featureflags";
-import { openBuilderWindow } from "./emain-ipc";
 import { unamePlatform } from "./emain-platform";
 import { clearTabCache } from "./emain-tabview";
 import { decreaseZoomLevel, increaseZoomLevel, resetZoomLevel } from "./emain-util";
@@ -145,13 +142,7 @@ function makeFileMenu(
             },
         },
     ];
-    if (shouldShowAppBuilderSurface(fullConfig?.settings?.["feature:waveappbuilder"])) {
-        fileMenu.splice(1, 0, {
-            label: "New Widget Builder Window",
-            accelerator: unamePlatform === "darwin" ? "Command+Shift+B" : "Alt+Shift+B",
-            click: () => openBuilderWindow(""),
-        });
-    }
+
     if (numWaveWindows == 0) {
         fileMenu.push({
             label: "New Window (hidden-1)",
@@ -333,7 +324,6 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
     const webContents = workspaceOrBuilderId && getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId);
     const appMenuItems = makeAppMenuItems(webContents);
 
-    const isBuilderWindowFocused = focusedBuilderWindow != null;
     let fullscreenOnLaunch = false;
     let fullConfig: FullConfigType = null;
     try {
@@ -344,7 +334,7 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
     }
     const editMenu = makeEditMenu(fullConfig);
     const fileMenu = makeFileMenu(numWaveWindows, callbacks, fullConfig);
-    const viewMenu = makeViewMenu(webContents, callbacks, isBuilderWindowFocused, fullscreenOnLaunch);
+    const viewMenu = makeViewMenu(webContents, callbacks, false, fullscreenOnLaunch);
     let workspaceMenu: Electron.MenuItemConstructorOptions[] = null;
     try {
         workspaceMenu = await getWorkspaceMenu();
@@ -363,7 +353,7 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
         { role: "editMenu", submenu: editMenu },
         { role: "viewMenu", submenu: viewMenu },
     ];
-    if (workspaceMenu != null && !isBuilderWindowFocused) {
+    if (workspaceMenu != null) {
         menuTemplate.push({
             label: "Workspace",
             id: "workspace-menu",
@@ -409,11 +399,6 @@ function getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId: string): ele
     const ww = getWaveWindowByWorkspaceId(workspaceOrBuilderId);
     if (ww) {
         return ww.activeTabView?.webContents;
-    }
-
-    const bw = getBuilderWindowById(workspaceOrBuilderId);
-    if (bw) {
-        return bw.webContents;
     }
 
     return null;
@@ -486,19 +471,6 @@ electron.ipcMain.on("workspace-appmenu-show", (event, workspaceId: string) => {
             return;
         }
         const menu = await instantiateAppMenu(workspaceId);
-        menu.popup();
-    });
-    event.returnValue = true;
-});
-
-electron.ipcMain.on("builder-appmenu-show", (event, builderId: string) => {
-    fireAndForget(async () => {
-        const webContents = getWebContentsByWorkspaceOrBuilderId(builderId);
-        if (!webContents) {
-            console.error("invalid window for builder app menu:", builderId);
-            return;
-        }
-        const menu = await instantiateAppMenu(builderId);
         menu.popup();
     });
     event.returnValue = true;

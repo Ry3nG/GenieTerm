@@ -45,20 +45,18 @@ describe("Wave AI chat retirement", () => {
         expect(tabClient).not.toContain("setAIPanelVisible");
     });
 
-    it("removes visible builder and terminal actions that send context to Wave AI chat", () => {
-        const builderWorkspace = readAppFile("../builder/builder-workspace.tsx");
-        const builderBuildPanel = readAppFile("../builder/builder-buildpanel.tsx");
-        const builderPreviewTab = readAppFile("../builder/tabs/builder-previewtab.tsx");
+    it("removes the tsunami app builder and WaveAI file-diff surfaces", () => {
+        const removed = [
+            "../builder/builder-workspace.tsx",
+            "../builder/builder-buildpanel.tsx",
+            "view/tsunami/tsunami.tsx",
+            "view/aifilediff/aifilediff.tsx",
+            "view/launcher/launcher.tsx",
+        ];
+        for (const file of removed) {
+            expect(() => readAppFile(file), `${file} should be deleted`).toThrow();
+        }
         const termModel = readAppFile("view/term/term-model.ts");
-
-        expect(builderWorkspace).not.toContain("@/app/aipanel/aipanel");
-        expect(builderWorkspace).not.toContain("<AIPanel");
-        expect(builderBuildPanel).not.toContain("WaveAIModel");
-        expect(builderBuildPanel).not.toContain("Send Output to AI");
-        expect(builderBuildPanel).not.toContain("Add to Context");
-        expect(builderPreviewTab).not.toContain("WaveAIModel");
-        expect(builderPreviewTab).not.toContain("Ask AI to Fix");
-        expect(builderPreviewTab).not.toContain("Add Error to AI Context");
         expect(termModel).not.toContain("Send to GenieTerm AI");
     });
 

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/Ry3nG/GenieTerm/pkg/aiusechat"
 	"github.com/Ry3nG/GenieTerm/pkg/authkey"
 	"github.com/Ry3nG/GenieTerm/pkg/blockcontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
@@ -563,7 +562,6 @@ func main() {
 	sigutil.InstallSIGUSR1Handler()
 	wconfig.MigratePresetsBackgrounds()
 	startConfigWatcher()
-	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
 	go telemetryLoop()
