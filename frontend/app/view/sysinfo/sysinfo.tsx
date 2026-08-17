@@ -12,7 +12,6 @@ import * as React from "react";
 
 import { useDimensionsWithExistingRef } from "@/app/hook/useDimensions";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
-import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { makeConnRoute } from "@/util/util";
@@ -22,6 +21,7 @@ export type SysinfoEnv = WaveEnvSubset<{
     rpc: {
         EventReadHistoryCommand: WaveEnv["rpc"]["EventReadHistoryCommand"];
         SetMetaCommand: WaveEnv["rpc"]["SetMetaCommand"];
+        RemoteSysInfoWatchCommand: WaveEnv["rpc"]["RemoteSysInfoWatchCommand"];
     };
     atoms: {
         fullConfigAtom: WaveEnv["atoms"]["fullConfigAtom"];
@@ -380,7 +380,8 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
     }, [connStatus.status, connName]);
     React.useEffect(() => {
         const route = makeConnRoute(connName);
-        RpcApi.RemoteSysInfoWatchCommand(TabRpcClient, { active: true }, { route }).catch((err) => {
+        const watch = model.env.rpc.RemoteSysInfoWatchCommand.bind(model.env.rpc);
+        Promise.resolve(watch(TabRpcClient, { active: true }, { route })).catch((err) => {
             console.log("Error starting sysinfo sampling", err);
         });
         const unsubFn = waveEventSubscribeSingle({
@@ -410,11 +411,11 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
         console.log("subscribe to sysinfo", connName);
         return () => {
             unsubFn();
-            RpcApi.RemoteSysInfoWatchCommand(TabRpcClient, { active: false }, { route }).catch((err) => {
+            Promise.resolve(watch(TabRpcClient, { active: false }, { route })).catch((err) => {
                 console.log("Error stopping sysinfo sampling", err);
             });
         };
-    }, [connName, addContinuousData]);
+    }, [connName, addContinuousData, model]);
     if (connStatus?.status != "connected") {
         return null;
     }

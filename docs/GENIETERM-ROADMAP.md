@@ -2,7 +2,7 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Last aligned with `package.json` **0.4.84** on 2026-08-17.
+Living tracker. Last aligned with `package.json` **0.4.85** on 2026-08-17.
 
 If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/`, this file wins.
 

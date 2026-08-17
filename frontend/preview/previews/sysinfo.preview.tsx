@@ -29,6 +29,7 @@ export default function SysinfoPreview() {
         []
     );
 
+    useRpcOverride("RemoteSysInfoWatchCommand", async () => undefined);
     useRpcOverride("EventReadHistoryCommand", async (_client, data) => {
         if (data.event !== "sysinfo" || data.scope !== MockSysinfoConnection) {
             return [];
