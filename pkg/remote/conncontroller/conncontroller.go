@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -1307,24 +1306,21 @@ func resolveSshConfigPatterns(configFiles []string) ([]string, error) {
 	var discoveredPatterns []string
 	alreadyUsed := make(map[string]bool)
 	alreadyUsed[""] = true // this excludes the empty string from potential alias
-	var openedFiles []fs.File
-
-	defer func() {
-		for _, openedFile := range openedFiles {
-			openedFile.Close()
-		}
-	}()
 
 	var errs []error
 	for _, configFile := range configFiles {
 		fd, openErr := os.Open(configFile)
-		openedFiles = append(openedFiles, fd)
 		if fd == nil {
 			errs = append(errs, openErr)
 			continue
 		}
 
-		cfg, _ := ssh_config.Decode(fd, true)
+		cfg, decodeErr := ssh_config.Decode(fd, true)
+		fd.Close()
+		if decodeErr != nil {
+			errs = append(errs, fmt.Errorf("could not parse %s: %w", configFile, decodeErr))
+			continue
+		}
 		for _, host := range cfg.Hosts {
 			// for each host, find the first good alias
 			for _, hostPattern := range host.Patterns {

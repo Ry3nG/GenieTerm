@@ -13,6 +13,7 @@ export type WaveConfigEnv = WaveEnvSubset<{
         FileInfoCommand: WaveEnv["rpc"]["FileInfoCommand"];
         FileReadCommand: WaveEnv["rpc"]["FileReadCommand"];
         FileWriteCommand: WaveEnv["rpc"]["FileWriteCommand"];
+        ConnListCommand: WaveEnv["rpc"]["ConnListCommand"];
         SetConfigCommand: WaveEnv["rpc"]["SetConfigCommand"];
         SetConnectionsConfigCommand: WaveEnv["rpc"]["SetConnectionsConfigCommand"];
         SetMetaCommand: WaveEnv["rpc"]["SetMetaCommand"];
