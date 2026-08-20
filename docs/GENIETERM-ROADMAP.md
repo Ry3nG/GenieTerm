@@ -41,6 +41,7 @@ See `docs/v1-release-gate.md`.
 - Git sidebar; command palette; editable keybindings
 - Widget rail opt-in; WaveAI chat and Tsunami/builder removed from the tree; telemetry / wcloud endpoints empty
 - Apple-dark visual system; GenieTerm branding and data directories
+- 0.4.87: completion input mirror follows ctrl/option word-jump arrows and alt-delete; completion providers time out instead of blocking the popup; `genie://conn/` root paths parse and `tryParseRemoteUri`/`isRemoteUri` simplify URI handling
 
 ## Gaps vs the daily-driver bar
 
