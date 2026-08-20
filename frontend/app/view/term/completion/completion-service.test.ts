@@ -107,6 +107,41 @@ describe("TermCompletionService", () => {
         ]);
     });
 
+    it("times out providers that hang without blocking faster providers", async () => {
+        const service = new TermCompletionService(
+            [
+                provider("fast", [{ label: "checkout", insertText: "checkout", kind: "subcommand" }]),
+                {
+                    id: "hanging",
+                    provideCompletions: () => new Promise<never>(() => {}),
+                },
+            ],
+            { providerTimeoutMs: 30 }
+        );
+
+        const items = await service.provideCompletions(makeContext());
+
+        expect(items.map((item) => item.source)).toEqual(["fast"]);
+    });
+
+    it("returns an empty list when every provider times out", async () => {
+        const service = new TermCompletionService(
+            [
+                {
+                    id: "hanging-a",
+                    provideCompletions: () => new Promise<never>(() => {}),
+                },
+                {
+                    id: "hanging-b",
+                    provideCompletions: () => new Promise<never>(() => {}),
+                },
+            ],
+            { providerTimeoutMs: 30 }
+        );
+
+        await expect(service.provideCompletions(makeContext())).resolves.toEqual([]);
+    });
+
     it("runs fallback providers only when normal providers return no items", async () => {
         let fallbackCalls = 0;
         const fallbackProvider = provider(

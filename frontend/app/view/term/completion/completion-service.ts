@@ -9,6 +9,12 @@ type RankedCompletionItem = CompletionItem & {
     order: number;
 };
 
+export type TermCompletionServiceOptions = {
+    providerTimeoutMs?: number;
+};
+
+export const DefaultProviderTimeoutMs = 1500;
+
 function matchesShell(provider: CompletionProvider, ctx: CompletionContext): boolean {
     return provider.shellTypes == null || provider.shellTypes.includes(ctx.shellType);
 }
@@ -46,9 +52,33 @@ function compareRankedItems(a: RankedCompletionItem, b: RankedCompletionItem): n
 
 export class TermCompletionService {
     providers: CompletionProvider[];
+    private providerTimeoutMs: number;
 
-    constructor(providers: CompletionProvider[] = []) {
+    constructor(providers: CompletionProvider[] = [], options: TermCompletionServiceOptions = {}) {
         this.providers = providers;
+        this.providerTimeoutMs = options.providerTimeoutMs ?? DefaultProviderTimeoutMs;
+    }
+
+    private async provideWithTimeout(provider: CompletionProvider, ctx: CompletionContext): Promise<CompletionItem[]> {
+        if (this.providerTimeoutMs <= 0) {
+            return provider.provideCompletions(ctx);
+        }
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        try {
+            return await Promise.race([
+                provider.provideCompletions(ctx),
+                new Promise<never>((_, reject) => {
+                    timeoutId = setTimeout(
+                        () => reject(new Error(`completion provider ${provider.id} timed out after ${this.providerTimeoutMs}ms`)),
+                        this.providerTimeoutMs
+                    );
+                }),
+            ]);
+        } finally {
+            if (timeoutId != null) {
+                clearTimeout(timeoutId);
+            }
+        }
     }
 
     registerProvider(provider: CompletionProvider): void {
@@ -59,7 +89,7 @@ export class TermCompletionService {
         const batches = await Promise.all(
             providers.map(async (provider) => {
                 try {
-                    return { provider, items: await provider.provideCompletions(ctx) };
+                    return { provider, items: await this.provideWithTimeout(provider, ctx) };
                 } catch {
                     return { provider, items: [] };
                 }
