@@ -4,9 +4,11 @@ import {
     buildRsyncFolderArgs,
     ensureTrailingSlash,
     getRemotePathBaseName,
+    isRemoteUri,
     parseTransferPath,
     parseWshRemoteUri,
     toPublicRemoteUri,
+    tryParseRemoteUri,
 } from "./transferutil";
 
 describe("transferutil", () => {
@@ -46,6 +48,31 @@ describe("transferutil", () => {
         expect(() => parseWshRemoteUri("/tmp/file")).toThrow("remote genie:// or wsh:// paths");
         expect(() => parseWshRemoteUri("wsh://local/~/file")).toThrow("Folder download requires a remote connection");
         expect(() => parseWshRemoteUri("wsh://missing-path")).toThrow("Invalid remote path");
+    });
+
+    it("parses root-path remote URIs with a trailing slash", () => {
+        expect(parseWshRemoteUri("genie://paw-5090-ws/")).toEqual({
+            scheme: "genie",
+            connection: "paw-5090-ws",
+            remotePath: "/",
+        });
+        expect(parseWshRemoteUri("wsh://paw-5090-ws/")).toEqual({
+            scheme: "wsh",
+            connection: "paw-5090-ws",
+            remotePath: "/",
+        });
+    });
+
+    it("detects remote URIs and returns null for non-throwing parse attempts", () => {
+        expect(isRemoteUri("genie://devbox/~/x")).toBe(true);
+        expect(isRemoteUri("wsh://devbox/~/x")).toBe(true);
+        expect(isRemoteUri("/tmp/x")).toBe(false);
+        expect(tryParseRemoteUri("genie://devbox/~/x")).toEqual({
+            scheme: "genie",
+            connection: "devbox",
+            remotePath: "~/x",
+        });
+        expect(tryParseRemoteUri("wsh://missing-path")).toBeNull();
     });
 
     it("normalizes trailing slashes", () => {

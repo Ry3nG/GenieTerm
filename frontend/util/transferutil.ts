@@ -46,6 +46,10 @@ function getRemoteUriScheme(filePath: string): RemoteUriScheme | null {
     return null;
 }
 
+export function isRemoteUri(filePath: string): boolean {
+    return getRemoteUriScheme(filePath) != null;
+}
+
 function getRemoteUriPrefix(scheme: RemoteUriScheme): string {
     return `${scheme}://`;
 }
@@ -61,11 +65,12 @@ export function parseWshRemoteUri(filePath: string): ParsedWshRemoteUri {
     }
     const uriBody = filePath.slice(getRemoteUriPrefix(scheme).length);
     const slashIdx = uriBody.indexOf("/");
-    if (slashIdx < 1 || slashIdx === uriBody.length - 1) {
+    if (slashIdx < 1) {
         throw new Error(`Invalid remote path: ${filePath}`);
     }
     const connection = safeDecodeURIComponent(uriBody.slice(0, slashIdx));
-    const remotePath = safeDecodeURIComponent(uriBody.slice(slashIdx + 1));
+    const rawRemotePath = uriBody.slice(slashIdx + 1);
+    const remotePath = rawRemotePath === "" ? "/" : safeDecodeURIComponent(rawRemotePath);
     if (!connection || !remotePath) {
         throw new Error(`Invalid remote path: ${filePath}`);
     }
@@ -73,6 +78,15 @@ export function parseWshRemoteUri(filePath: string): ParsedWshRemoteUri {
         throw new Error("Folder download requires a remote connection");
     }
     return { scheme, connection, remotePath };
+}
+
+// Non-throwing variant for callers that only need to test/display a URI.
+export function tryParseRemoteUri(filePath: string): ParsedWshRemoteUri | null {
+    try {
+        return parseWshRemoteUri(filePath);
+    } catch {
+        return null;
+    }
 }
 
 export function getRemotePathBaseName(remotePath: string): string {
