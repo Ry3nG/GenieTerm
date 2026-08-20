@@ -54,6 +54,26 @@ describe("applyPromptInputData", () => {
         expect(applyPromptInputData(emptyPromptInputBuffer(), "\x1b[A")).toBeNull();
     });
 
+    it("moves by word for ctrl/option arrow sequences", () => {
+        let buffer = applyPromptInputData(emptyPromptInputBuffer(), "git checkout main");
+        buffer = applyPromptInputData(buffer, "\x1b[1;5D");
+        expect(buffer).toEqual({ text: "git checkout main", cursorIndex: 13 });
+        buffer = applyPromptInputData(buffer, "\x1b[1;5D");
+        expect(buffer).toEqual({ text: "git checkout main", cursorIndex: 4 });
+        buffer = applyPromptInputData(buffer, "\x1b[1;5C");
+        expect(buffer).toEqual({ text: "git checkout main", cursorIndex: 12 });
+        buffer = applyPromptInputData(buffer, "\x1b[1;3D");
+        expect(buffer).toEqual({ text: "git checkout main", cursorIndex: 4 });
+    });
+
+    it("supports alt-delete for forward word deletion", () => {
+        let buffer = applyPromptInputData(emptyPromptInputBuffer(), "git checkout main");
+        buffer = applyPromptInputData(buffer, "\x1bb\x1bb");
+        expect(buffer).toEqual({ text: "git checkout main", cursorIndex: 4 });
+        buffer = applyPromptInputData(buffer, "\x1bd");
+        expect(buffer).toEqual({ text: "git  main", cursorIndex: 4 });
+    });
+
     it("resets on enter, ctrl-c, and ctrl-u", () => {
         expect(applyPromptInputData({ text: "git", cursorIndex: 3 }, "\r")).toEqual({ text: "", cursorIndex: 0 });
         expect(applyPromptInputData({ text: "git", cursorIndex: 3 }, "\x03")).toEqual({ text: "", cursorIndex: 0 });

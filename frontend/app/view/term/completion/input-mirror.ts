@@ -45,6 +45,32 @@ function nextWordIndex(text: string, index: number): number {
     return cur;
 }
 
+const ExtendedArrowRegex = new RegExp(`^${String.fromCharCode(27)}\\[1;([2-8])([DC])`);
+
+type ExtendedArrowMatch = {
+    direction: "left" | "right";
+    wordWise: boolean;
+    length: number;
+};
+
+// Matches xterm-style modified arrow sequences: ESC [ 1 ; <modifier> (C|D).
+// modifier bits: 2=Shift, 3=Alt/Option, 4=Shift+Alt, 5=Ctrl, 6=Shift+Ctrl,
+// 7=Alt+Ctrl, 8=Shift+Alt+Ctrl. Word-wise movement is used for the same
+// modifier set that shells map to backward-word / forward-word.
+function matchExtendedArrow(data: string, index: number): ExtendedArrowMatch | null {
+    const rest = data.slice(index);
+    const match = ExtendedArrowRegex.exec(rest);
+    if (match == null) {
+        return null;
+    }
+    const modifier = Number(match[1]);
+    return {
+        direction: match[2] === "D" ? "left" : "right",
+        wordWise: modifier === 3 || modifier === 5 || modifier === 6 || modifier === 7,
+        length: match[0].length,
+    };
+}
+
 function insertText(buffer: TermInputBuffer, text: string): TermInputBuffer {
     return {
         text: buffer.text.slice(0, buffer.cursorIndex) + text + buffer.text.slice(buffer.cursorIndex),
@@ -118,6 +144,25 @@ export function applyPromptInputData(buffer: TermInputBuffer, data: string): Ter
             idx++;
             continue;
         }
+        const extendedArrow = matchExtendedArrow(data, idx);
+        if (extendedArrow != null) {
+            next =
+                extendedArrow.direction === "left"
+                    ? {
+                          ...next,
+                          cursorIndex: extendedArrow.wordWise
+                              ? previousWordIndex(next.text, next.cursorIndex)
+                              : previousCodePointIndex(next.text, next.cursorIndex),
+                      }
+                    : {
+                          ...next,
+                          cursorIndex: extendedArrow.wordWise
+                              ? nextWordIndex(next.text, next.cursorIndex)
+                              : nextCodePointIndex(next.text, next.cursorIndex),
+                      };
+            idx += extendedArrow.length;
+            continue;
+        }
         if (data.startsWith("\x1b[D", idx)) {
             next = { ...next, cursorIndex: previousCodePointIndex(next.text, next.cursorIndex) };
             idx += 3;
@@ -150,6 +195,11 @@ export function applyPromptInputData(buffer: TermInputBuffer, data: string): Ter
         }
         if (data.startsWith("\x1bf", idx)) {
             next = { ...next, cursorIndex: nextWordIndex(next.text, next.cursorIndex) };
+            idx += 2;
+            continue;
+        }
+        if (data.startsWith("\x1bd", idx)) {
+            next = deleteRange(next, next.cursorIndex, nextWordIndex(next.text, next.cursorIndex));
             idx += 2;
             continue;
         }
