@@ -4,7 +4,13 @@
 import type * as TermTypes from "@xterm/xterm";
 import { describe, expect, it } from "vitest";
 
-import { type CmdBlock, blockEndLine, findCmdBlockAtLine, makeCmdBlockDecorationSpecs } from "./cmdblocks";
+import {
+    type CmdBlock,
+    blockEndLine,
+    blockHasCommand,
+    findCmdBlockAtLine,
+    makeCmdBlockDecorationSpecs,
+} from "./cmdblocks";
 
 function marker(line: number): TermTypes.IMarker {
     return { line, dispose: () => {} } as any;
@@ -35,6 +41,11 @@ function buffer(overrides: Partial<TermTypes.IBuffer> = {}): TermTypes.IBuffer {
 }
 
 describe("cmdblocks", () => {
+    it("treats a missing block as having no command", () => {
+        expect(blockHasCommand(undefined)).toBe(false);
+        expect(blockHasCommand(null)).toBe(false);
+    });
+
     it("builds decoration specs only for completed command blocks with valid ranges", () => {
         const first = block({ id: 1, startMarker: marker(2), endMarker: marker(6) });
         const last = block({ id: 2, startMarker: marker(8), endMarker: null });

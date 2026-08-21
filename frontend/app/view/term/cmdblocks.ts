@@ -97,6 +97,6 @@ export function makeCmdBlockDecorationSpecs(
 
 // True once a real command (OSC C) has run in this block - empty Enter presses
 // (an A with no following C) are not rendered as blocks.
-export function blockHasCommand(block: CmdBlock): boolean {
-    return block.command != null && block.command.trim() !== "";
+export function blockHasCommand(block: CmdBlock | null | undefined): boolean {
+    return block != null && block.command != null && block.command.trim() !== "";
 }

@@ -970,9 +970,13 @@ export class TermWrap {
 
     handleCmdBlockMarkerDisposed(marker: TermTypes.IMarker) {
         const before = this.cmdBlocks.length;
+        const removedBlock = this.cmdBlocks.find((b) => b.startMarker === marker);
         this.cmdBlocks = this.cmdBlocks.filter((b) => b.startMarker !== marker);
         if (this.pendingCmdBlock?.startMarker === marker) {
             this.pendingCmdBlock = null;
+        }
+        if (removedBlock != null && globalStore.get(this.hoveredBlockIdAtom) === removedBlock.id) {
+            globalStore.set(this.hoveredBlockIdAtom, null);
         }
         if (this.cmdBlocks.length !== before) {
             this.publishCmdBlocks();
@@ -984,6 +988,7 @@ export class TermWrap {
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
         this.currentPromptInput = "";
+        globalStore.set(this.hoveredBlockIdAtom, null);
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
     }
