@@ -31,6 +31,7 @@ import {
 } from "./command-composer";
 import { TermCommandComposer } from "./command-composer-ui";
 import { TermCompletion } from "./completion/completion-ui";
+import { getShellIntegrationRecovery } from "./shellintegration";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
@@ -480,34 +481,90 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
 
 TermCommandActionBar.displayName = "TermCommandActionBar";
 
-const TermShellIntegrationBanner = React.memo(({ termWrap }: { termWrap: TermWrap | null }) => {
-    const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
-    const [readyToWarn, setReadyToWarn] = React.useState(false);
+const TermShellIntegrationBanner = React.memo(
+    ({ termWrap, model }: { termWrap: TermWrap | null; model: TermViewModel }) => {
+        const connStatus = jotai.useAtomValue(model.connStatus);
+        const [busy, setBusy] = React.useState(false);
+        const [error, setError] = React.useState<string>(null);
+        const recovery = getShellIntegrationRecovery(connStatus);
+        const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
+        const [readyToWarn, setReadyToWarn] = React.useState(false);
 
-    React.useEffect(() => {
-        if (termWrap == null || shellIntegrationStatus != null) {
-            setReadyToWarn(false);
-            return;
+        React.useEffect(() => {
+            if (termWrap == null || shellIntegrationStatus != null) {
+                setReadyToWarn(false);
+                return;
+            }
+            const timer = window.setTimeout(() => setReadyToWarn(true), 2500);
+            return () => window.clearTimeout(timer);
+        }, [termWrap, shellIntegrationStatus]);
+
+        if (!readyToWarn || shellIntegrationStatus != null || recovery == null) {
+            return null;
         }
-        const timer = window.setTimeout(() => setReadyToWarn(true), 2500);
-        return () => window.clearTimeout(timer);
-    }, [termWrap, shellIntegrationStatus]);
 
-    if (!readyToWarn || shellIntegrationStatus != null) {
-        return null;
+        const recover = async () => {
+            if (busy) return;
+            setBusy(true);
+            setError(null);
+            try {
+                if (recovery.action === "enable") {
+                    const metamaptype: unknown = { "conn:wshenabled": true };
+                    await RpcApi.SetConnectionsConfigCommand(TabRpcClient, {
+                        host: connStatus.connection,
+                        metamaptype,
+                    });
+                }
+                if (recovery.action === "enable" || recovery.action === "reconnect") {
+                    await RpcApi.ConnDisconnectCommand(TabRpcClient, connStatus.connection, { timeout: 10000 });
+                    await RpcApi.ConnConnectCommand(
+                        TabRpcClient,
+                        { host: connStatus.connection, logblockid: model.blockId },
+                        { timeout: 120000 }
+                    );
+                    if (!globalStore.get(model.connStatus)?.wshenabled) {
+                        return;
+                    }
+                }
+                if (globalStore.get(model.connStatus)?.connection === connStatus?.connection) {
+                    await model.forceRestartController();
+                }
+            } catch (err) {
+                setError(String(err));
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        return (
+            <div className="term-status-banner" role="status">
+                <i className="fa-solid fa-circle-info" aria-hidden="true" />
+                <span>{error ?? recovery.message}</span>
+                {recovery.action && (
+                    <button
+                        type="button"
+                        className="cursor-pointer shrink-0 underline"
+                        disabled={busy}
+                        title={
+                            recovery.action === "restart"
+                                ? "Restarts this terminal and ends its current shell process"
+                                : "Reconnects this host, interrupting its terminals, and restarts this shell"
+                        }
+                        onClick={recover}
+                    >
+                        {busy
+                            ? "Working…"
+                            : recovery.action === "enable"
+                              ? "Enable and reconnect"
+                              : recovery.action === "reconnect"
+                                ? "Retry connection"
+                                : "Restart terminal"}
+                    </button>
+                )}
+            </div>
+        );
     }
-
-    return (
-        <div className="term-status-banner" role="status">
-            <i className="fa-solid fa-circle-info" aria-hidden="true" />
-            <span>
-                Command blocks need shell integration. On a new remote, connect once so GenieTerm can install{" "}
-                <span className="font-mono">genie</span>. Existing remotes: run{" "}
-                <span className="font-mono">genie rcfiles</span>.
-            </span>
-        </div>
-    );
-});
+);
 
 TermShellIntegrationBanner.displayName = "TermShellIntegrationBanner";
 
@@ -839,7 +896,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TermStickers config={stickerConfig} />
             <TermToolbarVDomNode key="vdom-toolbar" blockId={blockId} model={model} />
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
-            <TermShellIntegrationBanner termWrap={termWrapInst} />
+            <TermShellIntegrationBanner termWrap={termWrapInst} model={model} />
             <TermDurablePromptBanner blockId={blockId} model={model} connection={blockData?.meta?.connection} />
             <TermCommandActionBar model={model} termWrap={termWrapInst} />
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
