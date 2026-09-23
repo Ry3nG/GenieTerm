@@ -226,13 +226,14 @@ jobs:
                       make/*.exe
                       make/*.pacman
                       make/*.rpm
-                      make/*.yml
+                      make/alpha*.yml
+                      make/beta*.yml
+                      make/latest*.yml
                       make/*.zip
 
     publish:
-        name: Publish GitHub Release
+        name: Verify and publish GitHub Release
         needs: build
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
@@ -241,24 +242,46 @@ jobs:
               with:
                   path: release-artifacts
 
-            - name: Publish release assets
+            - name: Verify release assets
               run: |
                   set -euo pipefail
-
-                  TAG_NAME="${GITHUB_REF_NAME}"
-
                   DUPLICATE_NAMES="$(find release-artifacts -type f -exec basename {} \; | sort | uniq -d)"
                   if [ -n "${DUPLICATE_NAMES}" ]; then
                     echo "Duplicate release asset names found:" >&2
                     echo "${DUPLICATE_NAMES}" >&2
                     exit 1
                   fi
-
                   mapfile -t ASSETS < <(find release-artifacts -type f | sort)
                   if [ "${#ASSETS[@]}" -eq 0 ]; then
                     echo "No release assets were downloaded" >&2
                     exit 1
                   fi
+
+                  VERSION="$(node -p "require('./package.json').version")"
+                  CHANNEL="${VERSION#*-}"
+                  CHANNEL="${CHANNEL%%.*}"
+                  if [ "${CHANNEL}" = "${VERSION}" ]; then
+                    CHANNEL=latest
+                  fi
+                  for EXPECTED in \
+                    "GenieTerm-win32-x64-${VERSION}.exe" \
+                    "GenieTerm-win32-x64-${VERSION}.zip" \
+                    "GenieTerm-darwin-arm64-${VERSION}.dmg" \
+                    "GenieTerm-darwin-x64-${VERSION}.dmg" \
+                    "${CHANNEL}.yml" \
+                    "${CHANNEL}-mac.yml"; do
+                    if ! find release-artifacts -type f -name "${EXPECTED}" -print -quit | grep -q .; then
+                      echo "Missing release asset: ${EXPECTED}" >&2
+                      exit 1
+                    fi
+                  done
+
+            - name: Publish release assets
+              if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+              run: |
+                  set -euo pipefail
+                  TAG_NAME="${GITHUB_REF_NAME}"
+                  mapfile -t ASSETS < <(find release-artifacts -type f | sort)
 
                   if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
                     gh release upload "${TAG_NAME}" "${ASSETS[@]}" --clobber
