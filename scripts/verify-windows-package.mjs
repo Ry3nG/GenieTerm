@@ -323,7 +323,9 @@ async function installerSmoke(installerPath) {
     const installedExe = path.join(installDir, `${ProductName}.exe`);
     requireX64Pe(installedExe);
     requireFile(path.join(installDir, "resources", "app.asar"), 1024);
+    console.log(`[${Scope}] NSIS installation verified`);
     await windowSmoke(installedExe);
+    spawnSync("taskkill", ["/IM", `${ProductName}.exe`, "/T", "/F"], { windowsHide: true, timeout: 10000 });
     const uninstaller = readdirSync(installDir).find((name) => /^Uninstall.*\.exe$/i.test(name));
     if (!uninstaller) {
       fail("NSIS install did not include an uninstaller");
@@ -332,11 +334,23 @@ async function installerSmoke(installerPath) {
       windowsHide: true,
       timeout: 180000,
     });
-    if (uninstall.error || uninstall.status !== 0 || existsSync(installedExe)) {
+    if (uninstall.error || uninstall.status !== 0) {
       fail(`NSIS silent uninstall failed: ${uninstall.error?.message || uninstall.status}`);
     }
+    const uninstallDeadline = Date.now() + 30000;
+    while (existsSync(installedExe) && Date.now() < uninstallDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    if (existsSync(installedExe)) {
+      fail("NSIS uninstaller returned but GenieTerm.exe remains installed");
+    }
+    console.log(`[${Scope}] NSIS uninstall verified`);
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    try {
+      rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    } catch (error) {
+      console.warn(`[${Scope}] temporary installer test directory is still locked: ${error.code || error}`);
+    }
   }
 }
 
