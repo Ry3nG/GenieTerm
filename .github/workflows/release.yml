@@ -8,11 +8,6 @@ on:
         tags:
             - "v*"
     workflow_dispatch:
-        inputs:
-            publish:
-                description: "Publish artifacts to a GitHub Release (otherwise dry build)"
-                type: boolean
-                default: false
 
 permissions:
     contents: write
@@ -175,14 +170,14 @@ jobs:
                   # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* only when those secrets are non-empty.
 
             - name: Build unsigned Windows x64 preview
-              if: matrix.platform == 'windows' && (contains(github.ref_name, '-') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish != 'true'))
+              if: matrix.platform == 'windows' && (github.event_name == 'workflow_dispatch' || contains(github.ref_name, '-'))
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
             - name: Require Windows signing credentials
-              if: matrix.platform == 'windows' && !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'true')
+              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
               shell: pwsh
               env:
                   WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
@@ -193,7 +188,7 @@ jobs:
                   }
 
             - name: Build signed Windows x64 release
-              if: matrix.platform == 'windows' && !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'true')
+              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
@@ -211,7 +206,7 @@ jobs:
               run: node scripts/verify-windows-package.mjs make --window-smoke
 
             - name: Verify Windows release signatures
-              if: matrix.platform == 'windows' && !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'true')
+              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
               run: node scripts/verify-windows-package.mjs make --require-signature
 
             - name: Upload package artifacts
@@ -233,7 +228,7 @@ jobs:
     publish:
         name: Publish GitHub Release
         needs: build
-        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event.inputs.publish == 'true'
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
@@ -246,12 +241,7 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  if [ "${GITHUB_EVENT_NAME}" = "push" ] && [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-                    TAG_NAME="${GITHUB_REF_NAME}"
-                  else
-                    VERSION="$(node -p "require('./package.json').version")"
-                    TAG_NAME="v${VERSION}"
-                  fi
+                  TAG_NAME="${GITHUB_REF_NAME}"
 
                   DUPLICATE_NAMES="$(find release-artifacts -type f -exec basename {} \; | sort | uniq -d)"
                   if [ -n "${DUPLICATE_NAMES}" ]; then
