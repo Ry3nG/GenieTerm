@@ -44,6 +44,7 @@ task v1:gate:package
 The release gate must pass:
 
 - TypeScript typecheck, ESLint, Vitest, Go tests
+- All local font references in the shipped Font Awesome CSS resolve to packaged source assets
 - Production frontend/electron build
 - Preview build + visual QA + interaction QA
 - macOS and Windows x64 packages + artifact identity + packaged-app smoke on their native runners

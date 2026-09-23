@@ -54,6 +54,9 @@ jobs:
             - name: Runtime dependency audit
               run: npm audit --omit=dev --audit-level=moderate
 
+            - name: Verify font asset references
+              run: npm run assets:verify
+
             - name: TypeScript typecheck
               run: npm exec tsc -- --noEmit
 

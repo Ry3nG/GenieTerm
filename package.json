@@ -22,6 +22,7 @@
         "dev": "electron-vite dev",
         "start": "electron-vite preview",
         "assets:logo": "node scripts/generate-logo-assets.mjs",
+        "assets:verify": "node scripts/verify-font-assets.mjs",
         "build:dev": "electron-vite build --mode development",
         "build:prod": "electron-vite build --mode production",
         "coverage": "vitest run --coverage",

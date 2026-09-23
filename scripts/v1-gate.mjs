@@ -57,6 +57,7 @@ function findPackagedApp(dir, depth = 0) {
 let packagedAppPath = null;
 
 run("TypeScript typecheck", "npm", ["exec", "tsc", "--", "--noEmit"]);
+run("Font asset references", "npm", ["run", "assets:verify"]);
 run("Runtime dependency audit", "npm", ["audit", "--omit=dev", "--audit-level=moderate"]);
 run("ESLint", "npm", ["run", "lint"]);
 run("Format check", "npm", ["run", "format:check"]);
