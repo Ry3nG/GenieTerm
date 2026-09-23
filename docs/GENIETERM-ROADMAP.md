@@ -2,7 +2,7 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Last aligned with `package.json` **0.4.85** on 2026-08-17.
+Living tracker. Last aligned with `package.json` **0.4.91** on 2026-09-23.
 
 If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/`, this file wins.
 
@@ -28,7 +28,7 @@ It is not Ghostty (speed), not Warp (closed + login), not VS Code Remote (an IDE
 
 See `docs/v1-release-gate.md`.
 
-## Shipped (on `main`, 0.4.80)
+## Shipped (through 0.4.91)
 
 - Semantic presentation default (`term:presentation: semantic`); classic xterm is the same `TermWrap` with decorations off
 - Command-block data from OSC 16162 A/C/D; gutter card; last-command status / duration / copy / re-run / Fix with AI
@@ -42,10 +42,12 @@ See `docs/v1-release-gate.md`.
 - Widget rail opt-in; WaveAI chat and Tsunami/builder removed from the tree; telemetry / wcloud endpoints empty
 - Apple-dark visual system; GenieTerm branding and data directories
 - 0.4.87: completion input mirror follows ctrl/option word-jump arrows and alt-delete; completion providers time out instead of blocking the popup; `genie://conn/` root paths parse and `tryParseRemoteUri`/`isRemoteUri` simplify URI handling
+- 0.4.91: command blocks and their output boundaries restore from terminal checkpoints and raw shell markers; terminal input is sent in order, and recovery deduplicates concurrent output by file offset
+- 0.4.91: helperless SSH connections use SFTP for file browsing, preview, editing, and transfer; transfer jobs survive app restarts with interrupted downloads available for retry
+- 0.4.91: large directory lists render incrementally with virtual rows; connection JSON editing detects disk changes; terminal and process views reduce background work; editor modules load on demand and release packages omit source maps
 
 ## Gaps vs the daily-driver bar
 
-- SFTP fallback when the helper is missing is still not implemented (we now say so instead of failing silently)
 - Process viewer still polls on its own interval
 - macOS installed-app smoke remains a release-machine gate, not a substitute for daily use
 

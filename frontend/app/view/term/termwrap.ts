@@ -31,7 +31,16 @@ import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { getCmdBlockStatus } from "./cmdblockdisplay";
-import { blockHasCommand, findCmdBlockAtLine, makeCmdBlockDecorationSpecs, type CmdBlock } from "./cmdblocks";
+import {
+    blockHasCommand,
+    findCmdBlockAtLine,
+    hashTerminalSnapshot,
+    makeCmdBlockDecorationSpecs,
+    makeCmdBlockIndexSnapshot,
+    parseCmdBlockIndexSnapshot,
+    type CmdBlock,
+    type CmdBlockIndexSnapshot,
+} from "./cmdblocks";
 import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
@@ -48,6 +57,7 @@ import {
     isClaudeCodeCommand,
     type ShellIntegrationStatus,
 } from "./osc-handlers";
+import { TerminalStreamBoundaryTracker } from "./terminal-stream-boundary";
 import {
     bufferLinesToText,
     createTempFileFromBlob,
@@ -118,7 +128,17 @@ export class TermWrap {
     serializeAddon: SerializeAddon;
     mainFileSubject: SubjectWithRef<WSFileEventData> | null;
     loaded: boolean;
-    heldData: Uint8Array[];
+    heldData: { data: Uint8Array; offset: number }[];
+    appendQueue: Promise<void> = Promise.resolve();
+    fileEpoch = 0;
+    termFileEpoch = 0;
+    cacheRevision = 0;
+    disposed = false;
+    cacheTimer: number | null = null;
+    cacheIdleCallback: number | null = null;
+    cacheSaveQueue: Promise<void> = Promise.resolve();
+    replayingTerminalData = false;
+    streamBoundary = new TerminalStreamBoundaryTracker();
     handleResize_debounced: () => void;
     hasResized: boolean;
     multiInputCallback: (data: string) => void;
@@ -133,6 +153,7 @@ export class TermWrap {
     pasteActive: boolean = false;
     lastUpdated: number;
     promptMarkers: TermTypes.IMarker[] = [];
+    outputMarkers: TermTypes.IMarker[] = [];
     cmdBlocks: CmdBlock[] = [];
     cmdBlocksAtom: jotai.PrimitiveAtom<CmdBlock[]>;
     altScreenActiveAtom: jotai.PrimitiveAtom<boolean>;
@@ -146,7 +167,10 @@ export class TermWrap {
     publishCmdBlocks: () => void;
     // Warp-style command-block chrome: one xterm decoration per finished command,
     // drawn behind the live text (no extraction, no double-render).
-    cmdDecorations: TermTypes.IDecoration[] = [];
+    cmdDecorations = new Map<
+        number,
+        { decoration: TermTypes.IDecoration; marker: TermTypes.IMarker; cols: number; rows: number; tone: string }
+    >();
     syncCmdDecorations_debounced: () => void;
     semanticBlocksEnabled = false;
     hoveredBlockIdAtom: jotai.PrimitiveAtom<number | null>;
@@ -516,15 +540,44 @@ export class TermWrap {
         }
 
         try {
-            await this.loadInitialTerminalData();
+            do {
+                const epoch = this.fileEpoch;
+                await this.loadInitialTerminalData();
+                if (epoch !== this.fileEpoch) {
+                    this.terminal.clear();
+                    this.ptyOffset = 0;
+                    this.streamBoundary.reset();
+                    continue;
+                }
+                while (this.heldData.length > 0 && epoch === this.fileEpoch) {
+                    const held = this.heldData.shift();
+                    await this.applyFileAppend(held.data, held.offset, epoch);
+                }
+                if (epoch === this.fileEpoch) {
+                    this.loaded = true;
+                    this.publishCmdBlocks();
+                    this.scheduleCmdDecorationSync();
+                }
+            } while (!this.loaded && !this.disposed);
         } finally {
-            this.loaded = true;
+            this.loaded = !this.disposed;
         }
-        this.runProcessIdleTimeout();
+        if (!this.disposed) {
+            this.runProcessIdleTimeout();
+        }
     }
 
     dispose() {
+        this.disposed = true;
         this.loaded = false;
+        if (this.cacheTimer != null) {
+            window.clearTimeout(this.cacheTimer);
+            this.cacheTimer = null;
+        }
+        if (this.cacheIdleCallback != null) {
+            window.cancelIdleCallback(this.cacheIdleCallback);
+            this.cacheIdleCallback = null;
+        }
         this.promptMarkers.forEach((marker) => {
             try {
                 marker.dispose();
@@ -533,6 +586,8 @@ export class TermWrap {
             }
         });
         this.promptMarkers = [];
+        this.outputMarkers.forEach((marker) => marker.dispose());
+        this.outputMarkers = [];
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
         this.disposeCmdDecorations();
@@ -551,14 +606,14 @@ export class TermWrap {
     }
 
     disposeCmdDecorations() {
-        for (const deco of this.cmdDecorations) {
+        for (const { decoration } of this.cmdDecorations.values()) {
             try {
-                deco.dispose();
+                decoration.dispose();
             } catch (_) {
                 /* nothing */
             }
         }
-        this.cmdDecorations = [];
+        this.cmdDecorations.clear();
     }
 
     handleTermData(data: string) {
@@ -631,15 +686,22 @@ export class TermWrap {
 
     handleNewFileSubjectData(msg: WSFileEventData) {
         if (msg.fileop == "truncate") {
+            this.fileEpoch++;
+            this.termFileEpoch = msg.fileepoch || this.termFileEpoch + 1;
             this.terminal.clear();
             this.heldData = [];
+            this.ptyOffset = 0;
+            this.streamBoundary.reset();
             this.resetCmdBlocks();
         } else if (msg.fileop == "append") {
             const decodedData = base64ToArray(msg.data64);
             if (this.loaded) {
-                this.doTerminalWrite(decodedData, null);
+                const epoch = this.fileEpoch;
+                this.appendQueue = this.appendQueue
+                    .then(() => this.applyFileAppend(decodedData, msg.offset, epoch))
+                    .catch((error) => console.error("Terminal append failed", error));
             } else {
-                this.heldData.push(decodedData);
+                this.heldData.push({ data: decodedData, offset: msg.offset });
             }
         } else {
             console.log("bad fileop for terminal", msg);
@@ -647,7 +709,32 @@ export class TermWrap {
         }
     }
 
-    doTerminalWrite(data: string | Uint8Array, setPtyOffset?: number): Promise<void> {
+    async applyFileAppend(data: Uint8Array, offset: number, epoch: number): Promise<void> {
+        if (this.disposed || epoch !== this.fileEpoch) {
+            return;
+        }
+        if (offset > this.ptyOffset) {
+            const { data: missing, fileInfo } = await fetchWaveFile(this.getZoneId(), TermFileName, this.ptyOffset);
+            if (this.disposed || epoch !== this.fileEpoch) {
+                return;
+            }
+            if (missing?.length && fileInfo != null) {
+                await this.doTerminalWrite(missing, fileInfo.size, true, true);
+            }
+        }
+        const overlap = Math.max(0, this.ptyOffset - offset);
+        if (overlap >= data.length || this.disposed || epoch !== this.fileEpoch) {
+            return;
+        }
+        await this.doTerminalWrite(data.slice(overlap), offset + data.length, true, true);
+    }
+
+    doTerminalWrite(
+        data: string | Uint8Array,
+        setPtyOffset?: number,
+        countForCache = false,
+        trackRawBoundary = false
+    ): Promise<void> {
         if (isDev() && this.loaded) {
             const dataStr = data instanceof Uint8Array ? new TextDecoder().decode(data) : data;
             this.recentWrites.push({ idx: this.recentWritesCounter++, ts: Date.now(), data: dataStr });
@@ -660,8 +747,14 @@ export class TermWrap {
             resolve = presolve;
         });
         this.terminal.write(data, () => {
+            if (trackRawBoundary && data instanceof Uint8Array) {
+                this.streamBoundary.feed(data);
+            }
             if (setPtyOffset != null) {
                 this.ptyOffset = setPtyOffset;
+                if (countForCache) {
+                    this.dataBytesProcessed += data.length;
+                }
             } else {
                 this.ptyOffset += data.length;
                 this.dataBytesProcessed += data.length;
@@ -676,34 +769,123 @@ export class TermWrap {
         const startTs = Date.now();
         const zoneId = this.getZoneId();
         const { data: cacheData, fileInfo: cacheFile } = await fetchWaveFile(zoneId, TermCacheFileName);
-        let ptyOffset = 0;
-        if (cacheFile != null) {
-            ptyOffset = cacheFile.meta["ptyoffset"] ?? 0;
-            if (cacheData.byteLength > 0) {
-                const curTermSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
-                const fileTermSize: TermSize = cacheFile.meta["termsize"];
-                let didResize = false;
-                if (
-                    fileTermSize != null &&
-                    (fileTermSize.rows != curTermSize.rows || fileTermSize.cols != curTermSize.cols)
-                ) {
-                    console.log("terminal restore size mismatch, temp resize", fileTermSize, curTermSize);
-                    this.terminal.resize(fileTermSize.cols, fileTermSize.rows);
-                    didResize = true;
-                }
-                this.doTerminalWrite(cacheData, ptyOffset);
-                if (didResize) {
-                    this.terminal.resize(curTermSize.cols, curTermSize.rows);
-                }
+        let ptyOffset = Number(cacheFile?.meta?.["ptyoffset"] ?? 0);
+        let { data: mainData, fileInfo: mainFile } = await fetchWaveFile(zoneId, TermFileName, ptyOffset);
+        let termFileEpoch = Number(mainFile?.meta?.["fileepoch"] ?? 0);
+        this.termFileEpoch = termFileEpoch;
+        const fileTermSize: TermSize = cacheFile?.meta?.["termsize"];
+        let useCache =
+            cacheFile != null &&
+            cacheData?.byteLength > 0 &&
+            ptyOffset > 0 &&
+            mainFile != null &&
+            ptyOffset <= mainFile.size &&
+            Number(cacheFile.meta?.["fileepoch"] ?? 0) === termFileEpoch;
+        let snapshot: CmdBlockIndexSnapshot | null = null;
+        if (useCache && cacheFile.meta?.["statehash"] != null) {
+            const rawIndex = cacheFile.meta["commandindex"];
+            const revision = Number(cacheFile.meta["revision"]);
+            snapshot = parseCmdBlockIndexSnapshot(rawIndex, ptyOffset, fileTermSize?.cols);
+            if (snapshot == null || typeof rawIndex !== "string" || !Number.isSafeInteger(revision)) {
+                useCache = false;
+            } else {
+                const hash = await hashTerminalSnapshot(
+                    new TextDecoder().decode(cacheData),
+                    ptyOffset,
+                    fileTermSize,
+                    rawIndex,
+                    termFileEpoch,
+                    revision
+                );
+                useCache = hash === cacheFile.meta["statehash"];
             }
         }
-        const { data: mainData, fileInfo: mainFile } = await fetchWaveFile(zoneId, TermFileName, ptyOffset);
+        if (!useCache) {
+            ptyOffset = 0;
+            ({ data: mainData, fileInfo: mainFile } = await fetchWaveFile(zoneId, TermFileName, 0));
+            termFileEpoch = Number(mainFile?.meta?.["fileepoch"] ?? 0);
+            this.termFileEpoch = termFileEpoch;
+        } else {
+            const curTermSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
+            const didResize =
+                fileTermSize != null &&
+                (fileTermSize.rows !== curTermSize.rows || fileTermSize.cols !== curTermSize.cols);
+            if (didResize) {
+                this.terminal.resize(fileTermSize.cols, fileTermSize.rows);
+            }
+            await this.doTerminalWrite(cacheData, ptyOffset);
+            if (snapshot != null) {
+                this.restoreCmdBlockMarkers(snapshot);
+            }
+            if (didResize) {
+                this.terminal.resize(curTermSize.cols, curTermSize.rows);
+            }
+        }
         console.log(
-            `terminal loaded cachefile:${cacheData?.byteLength ?? 0} main:${mainData?.byteLength ?? 0} bytes, ${Date.now() - startTs}ms`
+            `terminal loaded cachefile:${useCache ? cacheData.byteLength : 0} main:${mainData?.byteLength ?? 0} bytes, ${Date.now() - startTs}ms`
         );
         if (mainFile != null) {
-            await this.doTerminalWrite(mainData, null);
+            this.replayingTerminalData = true;
+            try {
+                await this.doTerminalWrite(mainData, mainFile.size, false, true);
+            } finally {
+                this.replayingTerminalData = false;
+            }
         }
+    }
+
+    restoreCmdBlockMarkers(snapshot: CmdBlockIndexSnapshot): void {
+        const buffer = this.terminal.buffer.active;
+        const cursorLine = buffer.baseY + buffer.cursorY;
+        const markers = new Map<number, TermTypes.IMarker>();
+        const makeMarker = (line: number): TermTypes.IMarker | null => {
+            if (line < 0 || line >= buffer.length) {
+                return null;
+            }
+            const existing = markers.get(line);
+            if (existing != null) {
+                return existing;
+            }
+            const marker = this.terminal.registerMarker(line - cursorLine);
+            if (marker != null) {
+                markers.set(line, marker);
+                this.promptMarkers.push(marker);
+                marker.onDispose(() => {
+                    const index = this.promptMarkers.indexOf(marker);
+                    if (index !== -1) {
+                        this.promptMarkers.splice(index, 1);
+                    }
+                    this.handleCmdBlockMarkerDisposed(marker);
+                });
+            }
+            return marker;
+        };
+        for (const saved of snapshot.blocks) {
+            const startMarker = makeMarker(saved.startline);
+            if (startMarker == null) {
+                continue;
+            }
+            const endMarker = saved.endline == null ? null : makeMarker(saved.endline);
+            const block: CmdBlock = {
+                id: saved.id,
+                startMarker,
+                outputMarker: saved.outputline == null ? null : makeMarker(saved.outputline),
+                endMarker,
+                command: saved.command,
+                exitCode: saved.exitcode,
+                state: saved.state,
+                startTs: saved.startts,
+                doneTs: saved.donets,
+                cwd: saved.cwd,
+            };
+            this.cmdBlocks.push(block);
+            this.cmdBlockIdCounter = Math.max(this.cmdBlockIdCounter, block.id);
+            if (block.state === "running") {
+                this.pendingCmdBlock = block;
+            }
+        }
+        this.publishCmdBlocks();
+        this.scheduleCmdDecorationSync();
     }
 
     async resyncController(reason: string) {
@@ -744,21 +926,67 @@ export class TermWrap {
     }
 
     processAndCacheData() {
-        if (this.dataBytesProcessed < MinDataProcessedForCache) {
+        if (
+            this.disposed ||
+            this.inSyncTransaction ||
+            this.terminal.buffer.active.type !== "normal" ||
+            !this.streamBoundary.isSafe ||
+            this.dataBytesProcessed < MinDataProcessedForCache
+        ) {
             return;
         }
         const serializedOutput = this.serializeAddon.serialize();
         const termSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
+        const ptyOffset = this.ptyOffset;
+        const epoch = this.fileEpoch;
+        const termFileEpoch = this.termFileEpoch;
+        const revision = (this.cacheRevision = Math.max(Date.now(), this.cacheRevision + 1));
+        const commandIndex = JSON.stringify(makeCmdBlockIndexSnapshot(this.cmdBlocks, ptyOffset, termSize.cols));
         console.log("idle timeout term", this.dataBytesProcessed, serializedOutput.length, termSize);
-        fireAndForget(() =>
-            services.BlockService.SaveTerminalState(this.blockId, serializedOutput, "full", this.ptyOffset, termSize)
-        );
+        this.cacheSaveQueue = this.cacheSaveQueue
+            .catch((error) => console.error("Terminal cache save failed", error))
+            .then(async () => {
+                if (this.disposed || epoch !== this.fileEpoch) {
+                    return;
+                }
+                const hash = await hashTerminalSnapshot(
+                    serializedOutput,
+                    ptyOffset,
+                    termSize,
+                    commandIndex,
+                    termFileEpoch,
+                    revision
+                );
+                if (this.disposed || epoch !== this.fileEpoch) {
+                    return;
+                }
+                await services.BlockService.SaveTerminalState(
+                    this.blockId,
+                    serializedOutput,
+                    "full",
+                    ptyOffset,
+                    termSize,
+                    commandIndex,
+                    hash,
+                    termFileEpoch,
+                    revision
+                );
+            });
+        fireAndForget(() => this.cacheSaveQueue);
         this.dataBytesProcessed = 0;
     }
 
     runProcessIdleTimeout() {
-        setTimeout(() => {
-            window.requestIdleCallback(() => {
+        if (this.disposed) {
+            return;
+        }
+        this.cacheTimer = window.setTimeout(() => {
+            this.cacheTimer = null;
+            this.cacheIdleCallback = window.requestIdleCallback(() => {
+                this.cacheIdleCallback = null;
+                if (this.disposed) {
+                    return;
+                }
                 this.processAndCacheData();
                 this.runProcessIdleTimeout();
             });
@@ -823,6 +1051,7 @@ export class TermWrap {
         const block: CmdBlock = {
             id: ++this.cmdBlockIdCounter,
             startMarker: marker,
+            outputMarker: null,
             endMarker: null,
             command: null,
             exitCode: null,
@@ -838,28 +1067,41 @@ export class TermWrap {
         this.scheduleCmdDecorationSync();
     }
 
-    onCommandStart(command: string | null) {
+    onCommandStart(command: string | null, replaying = false) {
         if (this.pendingCmdBlock == null) {
             return;
         }
         this.currentPromptInput = "";
+        const outputMarker = this.terminal.registerMarker(0);
+        if (outputMarker != null) {
+            this.pendingCmdBlock.outputMarker = outputMarker;
+            this.outputMarkers.push(outputMarker);
+            outputMarker.onDispose(() => {
+                const index = this.outputMarkers.indexOf(outputMarker);
+                if (index !== -1) {
+                    this.outputMarkers.splice(index, 1);
+                }
+            });
+        }
         this.pendingCmdBlock.command = command;
-        this.pendingCmdBlock.startTs = Date.now();
-        this.pendingCmdBlock.cwd = (globalStore.get(getBlockMetaKeyAtom(this.blockId, "cmd:cwd")) as string) || null;
+        this.pendingCmdBlock.startTs = replaying ? 0 : Date.now();
+        this.pendingCmdBlock.cwd = replaying
+            ? null
+            : (globalStore.get(getBlockMetaKeyAtom(this.blockId, "cmd:cwd")) as string) || null;
         this.publishCmdBlocks();
     }
 
-    onCommandDone(exitCode: number | null) {
+    onCommandDone(exitCode: number | null, replaying = false) {
         if (this.pendingCmdBlock == null) {
             return;
         }
         const block = this.pendingCmdBlock;
         block.exitCode = exitCode;
         block.state = "done";
-        block.doneTs = Date.now();
+        block.doneTs = replaying ? null : Date.now();
         const inlineAIPrompt = getInlineAICommandPrompt(block);
         const commandComposerEnabled = globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
-        if (commandComposerEnabled && inlineAIPrompt && shouldAutoComposeInlineAI(block)) {
+        if (!replaying && commandComposerEnabled && inlineAIPrompt && shouldAutoComposeInlineAI(block)) {
             this.onInlineAIRequest?.(inlineAIPrompt, block, { auto: true });
         }
         this.publishCmdBlocks();
@@ -941,17 +1183,30 @@ export class TermWrap {
     // Output is never copied or removed from the buffer: it renders exactly once, so
     // there is no double-render and no capture to go stale.
     syncCmdDecorations() {
-        this.disposeCmdDecorations();
         if (!this.loaded || !this.semanticBlocksEnabled) {
+            this.disposeCmdDecorations();
             return;
         }
         const buffer = this.terminal.buffer.active;
         if (buffer.type === "alternate") {
+            this.disposeCmdDecorations();
             return;
         }
+        const seen = new Set<number>();
         for (const spec of makeCmdBlockDecorationSpecs(this.cmdBlocks, buffer, this.terminal.cols)) {
             const { block, cols, rows } = spec;
             const status = getCmdBlockStatus(block);
+            seen.add(block.id);
+            const existing = this.cmdDecorations.get(block.id);
+            if (
+                existing?.marker === block.startMarker &&
+                existing.cols === cols &&
+                existing.rows === rows &&
+                existing.tone === status.tone
+            ) {
+                continue;
+            }
+            existing?.decoration.dispose();
             const decoration = this.terminal.registerDecoration({
                 marker: block.startMarker,
                 width: cols,
@@ -959,12 +1214,25 @@ export class TermWrap {
                 layer: "bottom",
             });
             if (decoration == null) {
+                this.cmdDecorations.delete(block.id);
                 continue;
             }
             decoration.onRender((el) => {
                 el.classList.add("term-cmdblock-deco", `is-${status.tone}`);
             });
-            this.cmdDecorations.push(decoration);
+            this.cmdDecorations.set(block.id, {
+                decoration,
+                marker: block.startMarker,
+                cols,
+                rows,
+                tone: status.tone,
+            });
+        }
+        for (const [id, existing] of this.cmdDecorations) {
+            if (!seen.has(id)) {
+                existing.decoration.dispose();
+                this.cmdDecorations.delete(id);
+            }
         }
     }
 
@@ -987,6 +1255,8 @@ export class TermWrap {
     resetCmdBlocks() {
         this.cmdBlocks = [];
         this.pendingCmdBlock = null;
+        this.outputMarkers.forEach((marker) => marker.dispose());
+        this.outputMarkers = [];
         this.currentPromptInput = "";
         globalStore.set(this.hoveredBlockIdAtom, null);
         this.publishCmdBlocks();

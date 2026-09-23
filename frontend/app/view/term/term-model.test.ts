@@ -13,6 +13,7 @@ vi.mock("@/app/view/vdom/vdom-model", () => ({
 }));
 
 import { globalStore } from "@/store/global";
+import { RpcApi } from "@/app/store/wshclientapi";
 import * as jotai from "jotai";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { CompletionContext, CompletionItem } from "./completion/types";
@@ -70,10 +71,35 @@ function makeTermModel(): TermViewModel {
     model.keyDownHandler = vi.fn(() => false);
     model.shouldHandleCtrlVPaste = vi.fn(() => false);
     model.acceptCompletionSelected = vi.fn();
+    model.inputQueue = Promise.resolve();
     return model;
 }
 
 describe("TermViewModel completion key handling", () => {
+    it("delivers rapid terminal input to the controller in keystroke order", async () => {
+        const pending: Array<() => void> = [];
+        const send = vi.spyOn(RpcApi, "ControllerInputCommand").mockImplementation(
+            () => new Promise<void>((resolve) => pending.push(resolve))
+        );
+        try {
+            const model = makeTermModel();
+            model.sendDataToController("a");
+            model.sendDataToController(" ");
+            model.sendDataToController("b");
+
+            await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+            pending.shift()();
+            await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+            pending.shift()();
+            await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+            pending.shift()();
+            await model.inputQueue;
+            expect(send.mock.calls.map(([, data]) => data.inputdata64)).toEqual(["YQ==", "IA==", "Yg=="]);
+        } finally {
+            send.mockRestore();
+        }
+    });
+
     it("lets Enter submit the terminal input instead of accepting an auto completion", () => {
         const model = makeTermModel();
         globalStore.set(model.completionModel.itemsAtom, [makeItem()]);

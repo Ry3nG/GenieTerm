@@ -11,6 +11,7 @@ import {
     getTransferGroupJobs,
     getTransferJob,
     retryTransferJob,
+    recoverTransferQueue,
     summarizeTransferGroup,
     startTransferJob,
     updateTransferProgress,
@@ -28,6 +29,27 @@ const baseJobInput: TransferJobInput = {
 };
 
 describe("transferqueue", () => {
+    it("recovers interrupted downloads as retryable and uploads as requiring a fresh source", () => {
+        const download = startTransferJob(
+            enqueueTransferJob(createTransferQueue(), baseJobInput, 1000),
+            "job-1",
+            1100
+        );
+        const uploadInput = { ...baseJobInput, id: "upload-1", operation: "upload" as const };
+        const withUpload = enqueueTransferJob(download, uploadInput, 1200);
+        const recovered = recoverTransferQueue(withUpload, 2000);
+
+        expect(recovered.jobs[0]).toMatchObject({
+            status: "failed",
+            lastError: { code: "transfer_interrupted", retryable: true },
+        });
+        expect(recovered.jobs[1]).toMatchObject({
+            status: "failed",
+            lastError: { code: "transfer_interrupted", retryable: false },
+        });
+        expect(recoverTransferQueue({ jobs: [{ id: 3 }] }, 2000)).toEqual(createTransferQueue());
+    });
+
     it("enqueues transfer jobs without mutating the previous queue", () => {
         const empty = createTransferQueue();
         const queued = enqueueTransferJob(empty, baseJobInput, 1000);

@@ -65,6 +65,7 @@ import {
 import { TermWrap, WebGLSupported } from "./termwrap";
 
 export class TermViewModel implements ViewModel {
+    inputQueue: Promise<void> = Promise.resolve();
     viewType: string;
     nodeModel: BlockNodeModel;
     tabModel: TabModel;
@@ -543,7 +544,9 @@ export class TermViewModel implements ViewModel {
 
     sendDataToController(data: string) {
         const b64data = stringToBase64(data);
-        RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data });
+        this.inputQueue = this.inputQueue
+            .then(() => RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data }))
+            .catch((error) => console.error("Terminal input failed", error));
     }
 
     acceptCompletionSelected() {

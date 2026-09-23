@@ -10,7 +10,7 @@ import { RpcResponseHelper, WshClient } from "@/app/store/wshclient";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { makeFeBlockRouteId } from "@/app/store/wshrouter";
 import { DefaultRouter, TabRpcClient } from "@/app/store/wshrpcutil";
-import { VDomView } from "@/app/view/vdom/vdom";
+import { lazy } from "react";
 import { applyCanvasOp, mergeBackendUpdates, restoreVDomElems } from "@/app/view/vdom/vdom-utils";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { adaptFromReactOrNativeKeyEvent, checkKeyPressed } from "@/util/keyutil";
@@ -19,6 +19,7 @@ import debug from "debug";
 import * as jotai from "jotai";
 
 const dlog = debug("wave:vdom");
+const LazyVDomView = lazy(() => import("@/app/view/vdom/vdom").then(({ VDomView }) => ({ default: VDomView })));
 
 type AtomContainer = {
     val: any;
@@ -189,7 +190,7 @@ export class VDomModel {
     }
 
     get viewComponent(): ViewComponent {
-        return VDomView;
+        return LazyVDomView;
     }
 
     dispose() {

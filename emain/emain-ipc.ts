@@ -21,7 +21,7 @@ import {
     incrementTermCommandsWsl,
     setWasActive,
 } from "./emain-activity";
-import { callWithOriginalXdgCurrentDesktopAsync, unamePlatform } from "./emain-platform";
+import { callWithOriginalXdgCurrentDesktopAsync, getWaveDataDir, unamePlatform } from "./emain-platform";
 import { clearTabCache, getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { decreaseZoomLevel, handleCtrlShiftState, increaseZoomLevel, resetZoomLevel } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
@@ -36,11 +36,18 @@ import { safeOpenExternal } from "./safe-open";
 import { registerDownloadFolderHandler, startTrackedFolderDownload } from "./transfer/download-folder";
 import {
     buildFileDownloadTransferJobInput,
+    configureDownloadTransferPersistence,
     createDownloadTransferJobId,
     downloadTransferTracker,
+    flushDownloadTransferPersistence,
     mapNativeDownloadState,
+    NativeDownloadDestination,
 } from "./transfer/download-transfer";
-import { invokeTransferCancelHandle, registerTransferCancelHandle } from "./transfer/transfer-handles";
+import {
+    clearTransferCancelHandle,
+    invokeTransferCancelHandle,
+    registerTransferCancelHandle,
+} from "./transfer/transfer-handles";
 import { updater } from "./updater";
 
 const electronApp = electron.app;
@@ -228,11 +235,54 @@ function broadcastTransferQueue(queue: ReturnType<typeof downloadTransferTracker
     }
 }
 
+function startTrackedFileDownload(jobId: string, filePath: string, sender: electron.WebContents): void {
+    const baseName = encodeURIComponent(path.basename(filePath));
+    const streamingUrl =
+        getWebServerEndpoint() + "/wave/stream-file/" + baseName + "?path=" + encodeURIComponent(filePath);
+    downloadTransferTracker.start(jobId);
+    const onWillDownload = (
+        _downloadEvent: Electron.Event,
+        item: Electron.DownloadItem,
+        webContents: Electron.WebContents
+    ) => {
+        if (webContents.id !== sender.id || item.getURL() !== streamingUrl) {
+            return;
+        }
+        sender.session.off("will-download", onWillDownload);
+        registerTransferCancelHandle(jobId, () => item.cancel());
+        item.once("done", (_doneEvent, state) => {
+            clearTransferCancelHandle(jobId);
+            const result = mapNativeDownloadState(state);
+            if (result.status === "completed") {
+                downloadTransferTracker.complete(jobId);
+            } else if (result.status === "canceled") {
+                downloadTransferTracker.cancel(jobId);
+            } else {
+                downloadTransferTracker.fail(jobId, result.error);
+            }
+        });
+    };
+    sender.session.on("will-download", onWillDownload);
+    try {
+        sender.downloadURL(streamingUrl);
+    } catch (error) {
+        sender.session.off("will-download", onWillDownload);
+        downloadTransferTracker.fail(jobId, {
+            code: "native_download_failed",
+            message: "Could not start native download.",
+            detail: String(error),
+            retryable: true,
+        });
+    }
+}
+
 function registerTransferQueueBridge() {
     if (transferQueueBridgeRegistered) {
         return;
     }
     transferQueueBridgeRegistered = true;
+    configureDownloadTransferPersistence(path.join(getWaveDataDir(), "transfers.json"));
+    electronApp.on("before-quit", flushDownloadTransferPersistence);
 
     electron.ipcMain.handle(TransferQueueGetChannel, (event) => {
         registerTransferQueueSubscriber(event.sender);
@@ -250,12 +300,20 @@ function registerTransferQueueBridge() {
         }
         return downloadTransferTracker.getQueue();
     });
-    electron.ipcMain.handle(TransferQueueRetryChannel, (_event, jobId: string) => {
+    electron.ipcMain.handle(TransferQueueRetryChannel, (event, jobId: string) => {
         try {
             const retried = downloadTransferTracker.retry(jobId);
             if (retried.transport === "rsync" && retried.destination.startsWith("file://")) {
                 const destPath = decodeURI(retried.destination.replace(/^file:\/\//, ""));
                 startTrackedFolderDownload(retried.id, retried.source, destPath);
+            } else if (
+                retried.operation === "download" &&
+                retried.transport === "wsh" &&
+                retried.destination === NativeDownloadDestination
+            ) {
+                startTrackedFileDownload(retried.id, retried.source, event.sender);
+            } else if (retried.operation === "upload") {
+                downloadTransferTracker.start(retried.id);
             }
         } catch (err) {
             console.error("retry transfer failed", err);
@@ -335,51 +393,12 @@ export function initIpcHandlers() {
     });
 
     electron.ipcMain.on("download", (event, payload) => {
-        const baseName = encodeURIComponent(path.basename(payload.filePath));
-        const streamingUrl =
-            getWebServerEndpoint() + "/wave/stream-file/" + baseName + "?path=" + encodeURIComponent(payload.filePath);
         const jobInput = buildFileDownloadTransferJobInput(
             payload.filePath,
             createDownloadTransferJobId("file-download")
         );
         downloadTransferTracker.enqueue(jobInput);
-        downloadTransferTracker.start(jobInput.id);
-        const sender = event.sender;
-        const onWillDownload = (
-            _downloadEvent: Electron.Event,
-            item: Electron.DownloadItem,
-            webContents: Electron.WebContents
-        ) => {
-            if (webContents.id !== sender.id || item.getURL() !== streamingUrl) {
-                return;
-            }
-            sender.session.off("will-download", onWillDownload);
-            registerTransferCancelHandle(jobInput.id, () => {
-                item.cancel();
-            });
-            item.once("done", (_doneEvent, state) => {
-                const result = mapNativeDownloadState(state);
-                if (result.status === "completed") {
-                    downloadTransferTracker.complete(jobInput.id);
-                } else if (result.status === "canceled") {
-                    downloadTransferTracker.cancel(jobInput.id);
-                } else {
-                    downloadTransferTracker.fail(jobInput.id, result.error);
-                }
-            });
-        };
-        sender.session.on("will-download", onWillDownload);
-        try {
-            sender.downloadURL(streamingUrl);
-        } catch (err) {
-            sender.session.off("will-download", onWillDownload);
-            downloadTransferTracker.fail(jobInput.id, {
-                code: "native_download_failed",
-                message: "Could not start native download.",
-                retryable: true,
-            });
-            throw err;
-        }
+        startTrackedFileDownload(jobInput.id, jobInput.source, event.sender);
     });
     registerDownloadFolderHandler();
 
