@@ -303,12 +303,17 @@ async function windowSmoke(executablePath) {
     if (!commandOutputSeen) {
       fail("local PowerShell command produced no terminal output");
     }
+    console.log(`[${Scope}] packaged PowerShell command verified`);
   } finally {
-    await browser?.close().catch(() => {});
     if (appProcess.pid) {
       spawnSync("taskkill", ["/PID", String(appProcess.pid), "/T", "/F"], { windowsHide: true });
     }
-    rmSync(isolatedHome, { recursive: true, force: true });
+    await browser?.close().catch(() => {});
+    try {
+      rmSync(isolatedHome, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    } catch (error) {
+      console.warn(`[${Scope}] isolated test profile is still locked: ${error.code || error}`);
+    }
   }
 }
 
