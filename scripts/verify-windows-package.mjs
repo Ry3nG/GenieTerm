@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Copyright 2026, Command Line Inc.
+// SPDX-License-Identifier: Apache-2.0
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -23,6 +25,7 @@ import YAML from "yaml";
 const Scope = "verify-windows-package";
 const OutputDir = path.resolve(process.argv[2] || process.env.GENIETERM_BUILD_OUTPUT || "make");
 const WindowSmoke = process.argv.includes("--window-smoke");
+const InstallerSmoke = process.argv.includes("--installer-smoke");
 const RequireSignature = process.argv.includes("--require-signature");
 const { productName: ProductName, version: Version } = JSON.parse(readFileSync("package.json", "utf8"));
 const UpdateChannel = Version.match(/^\d+\.\d+\.\d+-([A-Za-z0-9-]+)/)?.[1] || "latest";
@@ -244,8 +247,11 @@ async function windowSmoke(executablePath) {
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") {
-        errors.push(message.text());
+        errors.push(`${message.text()} at ${message.location().url}`);
       }
+    });
+    page.on("requestfailed", (request) => {
+      errors.push(`request failed: ${request.url()} ${request.failure()?.errorText || ""}`);
     });
     await page.waitForLoadState("domcontentloaded", { timeout: 30000 });
     await page.locator(".term-connectelem").first().waitFor({ state: "visible", timeout: 10000 });
@@ -306,6 +312,34 @@ async function windowSmoke(executablePath) {
   }
 }
 
+async function installerSmoke(installerPath) {
+  const root = mkdtempSync(path.join(tmpdir(), "genieterm-installer-smoke-"));
+  const installDir = path.join(root, "installed");
+  try {
+    const install = spawnSync(installerPath, ["/S", `/D=${installDir}`], { windowsHide: true, timeout: 180000 });
+    if (install.error || install.status !== 0) {
+      fail(`NSIS silent install failed: ${install.error?.message || install.status}`);
+    }
+    const installedExe = path.join(installDir, `${ProductName}.exe`);
+    requireX64Pe(installedExe);
+    requireFile(path.join(installDir, "resources", "app.asar"), 1024);
+    await windowSmoke(installedExe);
+    const uninstaller = readdirSync(installDir).find((name) => /^Uninstall.*\.exe$/i.test(name));
+    if (!uninstaller) {
+      fail("NSIS install did not include an uninstaller");
+    }
+    const uninstall = spawnSync(path.join(installDir, uninstaller), ["/S"], {
+      windowsHide: true,
+      timeout: 180000,
+    });
+    if (uninstall.error || uninstall.status !== 0 || existsSync(installedExe)) {
+      fail(`NSIS silent uninstall failed: ${uninstall.error?.message || uninstall.status}`);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   if (process.platform !== "win32") {
     fail("run this verifier on native Windows");
@@ -352,8 +386,11 @@ async function main() {
   if (WindowSmoke) {
     await windowSmoke(executablePath);
   }
+  if (InstallerSmoke) {
+    await installerSmoke(installerPath);
+  }
   console.log(
-    `[${Scope}] ${ProductName} ${Version} Windows x64 package verified${WindowSmoke ? " with window smoke" : ""}`
+    `[${Scope}] ${ProductName} ${Version} Windows x64 package verified${WindowSmoke ? " with window smoke" : ""}${InstallerSmoke ? " and installer smoke" : ""}`
   );
 }
 

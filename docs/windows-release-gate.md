@@ -6,7 +6,7 @@ The Windows package is ready for a public stable release when every check below 
 
 ## Package and update files
 
-- The Windows x64 CI job builds the current version's NSIS installer and ZIP, and the package verifier passes.
+- The Windows x64 CI job builds the current version's NSIS installer and ZIP. The package verifier checks an isolated NSIS install, packaged-app launch, and uninstall.
 - The unpacked app contains `GenieTerm.exe`, `app.asar`, `wavesrv.x64.exe`, and the matching version's Windows x64 `genie` and `wsh` helpers.
 - The Windows update manifest (`latest.yml` for stable, `beta.yml` for a beta preview) names the published Windows x64 update package with matching size and SHA-512; every referenced asset is present in the GitHub Release and downloads successfully.
 - The published installer and executables have a verifiable signature from the intended publisher. Unsigned artifacts can be used for internal testing but do not satisfy this public-release gate.

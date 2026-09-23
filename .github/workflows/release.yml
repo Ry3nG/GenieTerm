@@ -204,7 +204,7 @@ jobs:
 
             - name: Verify Windows package artifact
               if: matrix.platform == 'windows'
-              run: node scripts/verify-windows-package.mjs make --window-smoke
+              run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
 
             - name: Verify Windows release signatures
               if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')

@@ -137,10 +137,8 @@ jobs:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-            - name: Verify Windows package and launch
-              run: node scripts/verify-windows-package.mjs make --window-smoke
-
-            - uses: actions/upload-artifact@v4
+            - name: Upload Windows preview artifacts
+              uses: actions/upload-artifact@v4
               with:
                   name: genieterm-windows-x64
                   if-no-files-found: error
@@ -148,3 +146,6 @@ jobs:
                       make/*.exe
                       make/*.zip
                       make/*.yml
+
+            - name: Verify Windows package and launch
+              run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke

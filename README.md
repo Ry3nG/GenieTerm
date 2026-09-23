@@ -72,7 +72,7 @@ On Windows x64, build and check an unpacked app and release packages on a native
 
 ```powershell
 task package -- --win --x64
-node scripts/verify-windows-package.mjs make --window-smoke
+node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
 ```
 
 Install the arm64 app locally:
