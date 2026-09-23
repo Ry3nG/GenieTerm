@@ -102,23 +102,17 @@ const ConnectionRow = memo(({ model, connName, connConfig, discovered }: Connect
         setError("");
         const nextDisplayName = trimmedDisplayName || (canImport ? connName : "");
         const value = nextDisplayName === "" ? null : nextDisplayName;
+        const contentBeforeSave = globalStore.get(model.fileContentAtom);
         model.env.rpc
             .SetConnectionsConfigCommand(TabRpcClient, {
                 host: connName,
                 metamaptype: { "display:name": value },
             })
-            .then(() => {
-                const nextContent = updateConnectionsJsonDisplayName(
-                    globalStore.get(model.fileContentAtom),
-                    connName,
-                    nextDisplayName
-                );
-                globalStore.set(model.fileContentAtom, nextContent);
-                globalStore.set(model.originalContentAtom, nextContent);
-                globalStore.set(model.hasEditedAtom, false);
+            .then(async () => {
+                const synchronized = await model.refreshConnectionsFile(contentBeforeSave);
                 setDisplayName(nextDisplayName);
                 setSavedDisplayName(nextDisplayName);
-                setSaved(true);
+                setSaved(synchronized);
             })
             .catch((saveError) => {
                 const message = saveError instanceof Error ? saveError.message : String(saveError);
@@ -206,19 +200,13 @@ const AddConnectionForm = memo(({ model, existingConnectionNames, onAdded }: Add
         setIsSaving(true);
         setError("");
         const persistedDisplayName = trimmedDisplayName || trimmedAddress;
+        const contentBeforeSave = globalStore.get(model.fileContentAtom);
         try {
             await model.env.rpc.SetConnectionsConfigCommand(TabRpcClient, {
                 host: trimmedAddress,
                 metamaptype: { "display:name": persistedDisplayName },
             });
-            const nextContent = updateConnectionsJsonDisplayName(
-                globalStore.get(model.fileContentAtom),
-                trimmedAddress,
-                persistedDisplayName
-            );
-            globalStore.set(model.fileContentAtom, nextContent);
-            globalStore.set(model.originalContentAtom, nextContent);
-            globalStore.set(model.hasEditedAtom, false);
+            await model.refreshConnectionsFile(contentBeforeSave);
             onAdded(trimmedAddress);
             setAddress("");
             setDisplayName("");

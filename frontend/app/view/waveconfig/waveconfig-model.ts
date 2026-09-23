@@ -9,12 +9,13 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { ConnectionsContent } from "@/app/view/waveconfig/connectionscontent";
 import { GeneralSettingsContent } from "@/app/view/waveconfig/generalcontent";
 import { SecretsContent } from "@/app/view/waveconfig/secretscontent";
-import { WaveConfigView } from "@/app/view/waveconfig/waveconfig";
 import type { WaveConfigEnv } from "@/app/view/waveconfig/waveconfigenv";
 import { base64ToString, stringToBase64 } from "@/util/util";
 import { atom, type Atom, type PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import * as React from "react";
+
+const LazyWaveConfigView = React.lazy(() => import("@/app/view/waveconfig/waveconfig").then(({ WaveConfigView }) => ({ default: WaveConfigView })));
 
 type ValidationResult = { success: true } | { error: string };
 type ConfigValidator = (parsed: any) => ValidationResult;
@@ -111,7 +112,7 @@ export class WaveConfigViewModel implements ViewModel {
     viewType = "waveconfig";
     viewIcon = atom("gear");
     viewName = atom("GenieTerm Config");
-    viewComponent = WaveConfigView;
+    viewComponent = LazyWaveConfigView;
     noPadding = atom(true);
     nodeModel: BlockNodeModel;
     tabModel: TabModel;
@@ -306,6 +307,36 @@ export class WaveConfigViewModel implements ViewModel {
         }
     }
 
+    async refreshConnectionsFile(expectedContent: string): Promise<boolean> {
+        const selectedFile = globalStore.get(this.selectedFileAtom);
+        if (selectedFile?.path !== "connections.json") {
+            return false;
+        }
+        const fileData = await this.env.rpc.FileReadCommand(TabRpcClient, {
+            info: { path: `${this.configDir}/${selectedFile.path}` },
+        });
+        const content = fileData?.data64 ? base64ToString(fileData.data64) : "";
+        if (globalStore.get(this.fileContentAtom) !== expectedContent) {
+            globalStore.set(this.hasEditedAtom, true);
+            globalStore.set(this.errorMessageAtom, "Connections changed on disk. Review your Raw JSON edits before saving.");
+            return false;
+        }
+        globalStore.set(this.fileContentAtom, content.trim() === "" ? "{\n\n}" : content);
+        globalStore.set(this.originalContentAtom, content);
+        globalStore.set(this.hasEditedAtom, false);
+        return true;
+    }
+
+    async assertFileUnchanged(file: ConfigFile): Promise<void> {
+        const fileData = await this.env.rpc.FileReadCommand(TabRpcClient, {
+            info: { path: `${this.configDir}/${file.path}` },
+        });
+        const currentContent = fileData?.data64 ? base64ToString(fileData.data64) : "";
+        if (currentContent !== globalStore.get(this.originalContentAtom)) {
+            throw new Error(`${file.name} changed on disk. Reload and review the latest version before saving.`);
+        }
+    }
+
     async saveFile() {
         const selectedFile = globalStore.get(this.selectedFileAtom);
         if (!selectedFile) return;
@@ -319,6 +350,7 @@ export class WaveConfigViewModel implements ViewModel {
 
             try {
                 const fullPath = `${this.configDir}/${selectedFile.path}`;
+                await this.assertFileUnchanged(selectedFile);
                 await this.env.rpc.FileWriteCommand(TabRpcClient, {
                     info: { path: fullPath },
                     data64: stringToBase64(""),
@@ -361,6 +393,7 @@ export class WaveConfigViewModel implements ViewModel {
 
             try {
                 const fullPath = `${this.configDir}/${selectedFile.path}`;
+                await this.assertFileUnchanged(selectedFile);
                 await this.env.rpc.FileWriteCommand(TabRpcClient, {
                     info: { path: fullPath },
                     data64: stringToBase64(formatted),

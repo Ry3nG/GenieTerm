@@ -71,6 +71,46 @@ export function createTransferQueue(): TransferQueue {
     return { jobs: [] };
 }
 
+export function recoverTransferQueue(raw: unknown, now: number): TransferQueue {
+    if (raw == null || typeof raw !== "object" || !Array.isArray((raw as TransferQueue).jobs)) {
+        return createTransferQueue();
+    }
+    const jobs = (raw as TransferQueue).jobs
+        .filter(
+            (job) =>
+                job != null &&
+                typeof job.id === "string" &&
+                typeof job.source === "string" &&
+                typeof job.destination === "string" &&
+                typeof job.label === "string" &&
+                (job.operation === "download" || job.operation === "upload") &&
+                TransferStatuses.includes(job.status)
+        )
+        .slice(-200)
+        .map((job) => {
+            if (job.status !== "queued" && job.status !== "running") {
+                return job;
+            }
+            const error: TransferError = {
+                code: "transfer_interrupted",
+                message: "Transfer was interrupted when GenieTerm closed.",
+                retryable: job.operation === "download",
+            };
+            return {
+                ...job,
+                status: "failed" as const,
+                failedAt: now,
+                updatedAt: now,
+                lastError: error,
+                failureHistory: [
+                    ...(Array.isArray(job.failureHistory) ? job.failureHistory : []),
+                    { attempt: job.attempt, failedAt: now, error },
+                ],
+            };
+        });
+    return { jobs };
+}
+
 export function getTransferJob(queue: TransferQueue, jobId: string): TransferJob {
     const job = queue.jobs.find((candidate) => candidate.id === jobId);
     if (!job) {

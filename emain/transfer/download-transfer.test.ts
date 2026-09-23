@@ -1,13 +1,64 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
     NativeDownloadDestination,
     buildFileDownloadTransferJobInput,
     createDownloadTransferTracker,
     mapNativeDownloadState,
+    makeTransferQueuePersistence,
+    readTransferQueueSnapshot,
+    writeTransferQueueSnapshot,
 } from "./download-transfer";
 
 describe("download-transfer helpers", () => {
+    it("coalesces burst updates and flushes the final queue on quit", () => {
+        vi.useFakeTimers();
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "genieterm-transfer-burst-"));
+        try {
+            const snapshotPath = path.join(dir, "transfers.json");
+            const persistence = makeTransferQueuePersistence(snapshotPath, 100);
+            const tracker = createDownloadTransferTracker(() => 1000);
+            for (let index = 0; index < 100; index++) {
+                tracker.enqueue(buildFileDownloadTransferJobInput("wsh://host/~/out.txt", `job-${index}`));
+                persistence.update(tracker.getQueue());
+            }
+            expect(fs.existsSync(snapshotPath)).toBe(false);
+            vi.advanceTimersByTime(100);
+            expect(readTransferQueueSnapshot(snapshotPath, 2000).jobs).toHaveLength(100);
+            tracker.start("job-0");
+            tracker.complete("job-0");
+            persistence.update(tracker.getQueue());
+            persistence.flush();
+            expect(readTransferQueueSnapshot(snapshotPath, 2000).jobs[0].status).toBe("completed");
+        } finally {
+            vi.useRealTimers();
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("persists a transfer queue and recovers a running job after restart", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "genieterm-transfer-test-"));
+        try {
+            const tracker = createDownloadTransferTracker(() => 1000);
+            tracker.enqueue(buildFileDownloadTransferJobInput("wsh://host/~/out.txt", "job-1"));
+            tracker.start("job-1");
+            const snapshotPath = path.join(dir, "transfers.json");
+            writeTransferQueueSnapshot(snapshotPath, tracker.getQueue());
+            const recovered = readTransferQueueSnapshot(snapshotPath, 2000);
+            expect(recovered.jobs[0]).toMatchObject({
+                id: "job-1",
+                status: "failed",
+                lastError: { code: "transfer_interrupted", retryable: true },
+            });
+            expect(fs.statSync(snapshotPath).mode & 0o777).toBe(0o600);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it("builds file download jobs for the native Electron download flow", () => {
         expect(buildFileDownloadTransferJobInput("wsh://paw-5090-ws/~/projects/out.txt", "file-job-1")).toEqual({
             id: "file-job-1",

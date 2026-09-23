@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/ijson"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/google/uuid"
 )
 
 func initDb(t *testing.T) {
@@ -138,6 +138,33 @@ func TestCreate(t *testing.T) {
 	}
 	if len(zoneIds) != 0 {
 		t.Fatalf("zone id count mismatch")
+	}
+}
+
+func TestAppendDataWithOffset(t *testing.T) {
+	initDb(t)
+	defer cleanupDb(t)
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFn()
+	zoneId := uuid.NewString()
+	if err := WFS.MakeFile(ctx, zoneId, "term", nil, wshrpc.FileOpts{}); err != nil {
+		t.Fatalf("create term file: %v", err)
+	}
+	firstOffset, err := WFS.AppendDataWithOffset(ctx, zoneId, "term", []byte("first"))
+	if err != nil {
+		t.Fatalf("append first: %v", err)
+	}
+	secondOffset, err := WFS.AppendDataWithOffset(ctx, zoneId, "term", []byte("second"))
+	if err != nil {
+		t.Fatalf("append second: %v", err)
+	}
+	if firstOffset != 0 || secondOffset != 5 {
+		t.Fatalf("unexpected offsets: first=%d second=%d", firstOffset, secondOffset)
+	}
+	_, data, err := WFS.ReadAt(ctx, zoneId, "term", 0, 11)
+	if err != nil || string(data) != "firstsecond" {
+		t.Fatalf("unexpected term content: %q, %v", data, err)
 	}
 }
 

@@ -244,7 +244,7 @@ export const ConnStatusOverlay = React.memo(
                                     {showWshError ? (
                                         <div>
                                             GenieTerm helper (`genie`) is unavailable: {connStatus.wsherror}. File
-                                            transfer and durable sessions need it on this host.
+                                            Durable sessions need it on this host. Files use SFTP when the host supports it.
                                         </div>
                                     ) : null}
                                 </OverlayScrollbarsComponent>

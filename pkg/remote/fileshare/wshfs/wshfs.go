@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	pathpkg "path"
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
@@ -48,6 +49,9 @@ func Read(ctx context.Context, data wshrpc.FileData) (*wshrpc.FileData, error) {
 	conn, err := parseConnection(ctx, data.Info.Path)
 	if err != nil {
 		return nil, err
+	}
+	if shouldUseSFTP(conn) {
+		return sftpRead(ctx, conn, data.At)
 	}
 	broker := RpcClient.StreamBroker
 	if broker == nil {
@@ -108,6 +112,9 @@ func FileStream(ctx context.Context, data wshrpc.CommandFileStreamData) (*wshrpc
 	if err != nil {
 		return nil, err
 	}
+	if shouldUseSFTP(conn) {
+		return sftpFileStream(conn, data)
+	}
 	remoteData := wshrpc.CommandRemoteFileStreamData{
 		Path:       conn.Path,
 		ByteRange:  data.ByteRange,
@@ -123,7 +130,12 @@ func ListEntries(ctx context.Context, path string, opts *wshrpc.FileListOpts) ([
 		return nil, err
 	}
 	var entries []*wshrpc.FileInfo
-	rtnCh := listEntriesStream(conn, opts)
+	var rtnCh <-chan wshrpc.RespOrErrorUnion[wshrpc.CommandRemoteListEntriesRtnData]
+	if shouldUseSFTP(conn) {
+		rtnCh = sftpListEntriesStream(ctx, conn, opts)
+	} else {
+		rtnCh = listEntriesStream(conn, opts)
+	}
 	for respUnion := range rtnCh {
 		if respUnion.Error != nil {
 			return nil, respUnion.Error
@@ -140,6 +152,9 @@ func ListEntriesStream(ctx context.Context, path string, opts *wshrpc.FileListOp
 	if err != nil {
 		return wshutil.SendErrCh[wshrpc.CommandRemoteListEntriesRtnData](err)
 	}
+	if shouldUseSFTP(conn) {
+		return sftpListEntriesStream(ctx, conn, opts)
+	}
 	return listEntriesStream(conn, opts)
 }
 
@@ -153,6 +168,9 @@ func Stat(ctx context.Context, path string) (*wshrpc.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	if shouldUseSFTP(conn) {
+		return sftpStat(conn)
+	}
 	return stat(conn)
 }
 
@@ -165,6 +183,9 @@ func PutFile(ctx context.Context, data wshrpc.FileData) error {
 	conn, err := parseConnection(ctx, data.Info.Path)
 	if err != nil {
 		return err
+	}
+	if shouldUseSFTP(conn) {
+		return sftpWrite(conn, data)
 	}
 	dataSize := base64.StdEncoding.DecodedLen(len(data.Data64))
 	if dataSize > RemoteFileTransferSizeLimit {
@@ -188,6 +209,13 @@ func Append(ctx context.Context, data wshrpc.FileData) error {
 	if err != nil {
 		return err
 	}
+	if shouldUseSFTP(conn) {
+		if data.Info.Opts == nil {
+			data.Info.Opts = &wshrpc.FileOpts{}
+		}
+		data.Info.Opts.Append = true
+		return sftpWrite(conn, data)
+	}
 	dataSize := base64.StdEncoding.DecodedLen(len(data.Data64))
 	if dataSize > RemoteFileTransferSizeLimit {
 		return fmt.Errorf("file data size %d exceeds transfer limit of %d bytes", dataSize, RemoteFileTransferSizeLimit)
@@ -210,6 +238,9 @@ func Mkdir(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
+	if shouldUseSFTP(conn) {
+		return sftpMkdir(conn)
+	}
 	return wshclient.RemoteMkdirCommand(RpcClient, conn.Path, &wshrpc.RpcOpts{Route: wshutil.MakeConnectionRouteId(conn.Host)})
 }
 
@@ -226,6 +257,16 @@ func Move(ctx context.Context, data wshrpc.CommandFileCopyData) error {
 	destConn, err := parseConnection(ctx, data.DestUri)
 	if err != nil {
 		return fmt.Errorf("error parsing destination connection: %w", err)
+	}
+	if shouldUseSFTP(srcConn) || shouldUseSFTP(destConn) {
+		if srcConn.Host == destConn.Host && shouldUseSFTP(srcConn) {
+			return sftpMove(srcConn, destConn, opts.Overwrite)
+		}
+		_, err := sftpCopy(ctx, srcConn, destConn, opts)
+		if err != nil {
+			return err
+		}
+		return delete_(srcConn, opts.Recursive)
 	}
 	if srcConn.Host != destConn.Host {
 		isDir, err := copyInternal(srcConn, destConn, opts)
@@ -251,6 +292,10 @@ func Copy(ctx context.Context, data wshrpc.CommandFileCopyData) error {
 	if err != nil {
 		return fmt.Errorf("error parsing destination connection: %w", err)
 	}
+	if shouldUseSFTP(srcConn) || shouldUseSFTP(destConn) {
+		_, err = sftpCopy(ctx, srcConn, destConn, opts)
+		return err
+	}
 	_, err = copyInternal(srcConn, destConn, opts)
 	return err
 }
@@ -265,6 +310,9 @@ func Delete(ctx context.Context, data wshrpc.CommandDeleteFileData) error {
 }
 
 func delete_(conn *connparse.Connection, recursive bool) error {
+	if shouldUseSFTP(conn) {
+		return sftpDelete(conn, recursive)
+	}
 	return wshclient.RemoteFileDeleteCommand(RpcClient, wshrpc.CommandDeleteFileData{Path: conn.Path, Recursive: recursive}, &wshrpc.RpcOpts{Route: wshutil.MakeConnectionRouteId(conn.Host)})
 }
 
@@ -273,6 +321,11 @@ func Join(ctx context.Context, path string, parts ...string) (*wshrpc.FileInfo, 
 	conn, err := parseConnection(ctx, path)
 	if err != nil {
 		return nil, err
+	}
+	if shouldUseSFTP(conn) {
+		joined := *conn
+		joined.Path = pathpkg.Join(append([]string{conn.Path}, parts...)...)
+		return sftpStat(&joined)
 	}
 	return wshclient.RemoteFileJoinCommand(RpcClient, append([]string{conn.Path}, parts...), &wshrpc.RpcOpts{Route: wshutil.MakeConnectionRouteId(conn.Host)})
 }

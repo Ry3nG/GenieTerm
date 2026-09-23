@@ -9,7 +9,11 @@ import {
     blockEndLine,
     blockHasCommand,
     findCmdBlockAtLine,
+    getBlockOutputText,
+    hashTerminalSnapshot,
+    makeCmdBlockIndexSnapshot,
     makeCmdBlockDecorationSpecs,
+    parseCmdBlockIndexSnapshot,
 } from "./cmdblocks";
 
 function marker(line: number): TermTypes.IMarker {
@@ -41,6 +45,49 @@ function buffer(overrides: Partial<TermTypes.IBuffer> = {}): TermTypes.IBuffer {
 }
 
 describe("cmdblocks", () => {
+    it("binds checkpoint hashes to the raw offset and command index", async () => {
+        const size = { rows: 24, cols: 80 };
+        const first = await hashTerminalSnapshot("terminal", 100, size, "[]", 2, 1000);
+        expect(await hashTerminalSnapshot("terminal", 100, size, "[]", 2, 1000)).toBe(first);
+        expect(await hashTerminalSnapshot("terminal", 101, size, "[]", 2, 1000)).not.toBe(first);
+        expect(await hashTerminalSnapshot("terminal", 100, size, "[1]", 2, 1000)).not.toBe(first);
+    });
+
+    it("copies output after a multiline shell prompt without including the command", () => {
+        const values = ["~", "❯ echo hello", "hello", "world", "~"];
+        const terminal = {
+            buffer: {
+                active: {
+                    baseY: 0,
+                    cursorY: 4,
+                    length: values.length,
+                    getLine: (index: number) => ({ translateToString: () => values[index], isWrapped: false }),
+                },
+            },
+        } as unknown as TermTypes.Terminal;
+        expect(
+            getBlockOutputText(
+                block({ startMarker: marker(0), outputMarker: marker(2), endMarker: marker(4) }),
+                terminal
+            )
+        ).toBe("hello\nworld");
+    });
+
+    it("restores only a command index paired with the same terminal checkpoint", () => {
+        const snapshot = makeCmdBlockIndexSnapshot(
+            [block({ id: 3, startMarker: marker(2), endMarker: marker(5) }), block({ id: 4, startMarker: marker(-1) })],
+            512,
+            90
+        );
+
+        expect(snapshot.blocks).toHaveLength(1);
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 90)).toEqual(snapshot);
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 513, 90)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 80)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot('{', 512, 90)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot({ ...snapshot, blocks: [{ ...snapshot.blocks[0], startline: -1 }] }, 512, 90)).toBeNull();
+    });
+
     it("treats a missing block as having no command", () => {
         expect(blockHasCommand(undefined)).toBe(false);
         expect(blockHasCommand(null)).toBe(false);

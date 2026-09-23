@@ -8,7 +8,7 @@ import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { checkKeyPressed, isCharacterKeyEvent } from "@/util/keyutil";
 import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { addOpenMenuItems } from "@/util/previewutil";
-import type { TransferError, TransferItemType } from "@/util/transferqueue";
+import type { TransferError, TransferItemType, TransferJob } from "@/util/transferqueue";
 import {
     buildLocalUploadTransferPlans,
     createUploadTransferGroupId,
@@ -30,6 +30,7 @@ import {
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
 import { PrimitiveAtom, atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
@@ -298,6 +299,7 @@ function DirectoryTable({
     }, [table.getState().columnSizingInfo]);
 
     const osRef = useRef<OverlayScrollbarsComponentRef>(null);
+    const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
     const [scrollHeight, setScrollHeight] = useState(0);
 
@@ -313,7 +315,7 @@ function DirectoryTable({
     return (
         <OverlayScrollbarsComponent
             options={{ scrollbars: { autoHide: "leave" } }}
-            events={{ scroll: onScroll }}
+            events={{ scroll: onScroll, initialized: (instance) => setScrollElement(instance.elements().viewport) }}
             className="dir-table"
             style={{ ...columnSizeVars }}
             ref={osRef}
@@ -340,6 +342,7 @@ function DirectoryTable({
                 setSelectedPath={setSelectedPath}
                 setRefreshVersion={setRefreshVersion}
                 osRef={osRef.current}
+                scrollElement={scrollElement}
             />
         </OverlayScrollbarsComponent>
     );
@@ -357,6 +360,7 @@ interface TableBodyProps {
     setSelectedPath: (_: string) => void;
     setRefreshVersion: React.Dispatch<React.SetStateAction<number>>;
     osRef: OverlayScrollbarsComponentRef;
+    scrollElement: HTMLElement | null;
 }
 
 function TableBody({
@@ -369,18 +373,30 @@ function TableBody({
     setSearch,
     setRefreshVersion,
     osRef,
+    scrollElement,
 }: TableBodyProps) {
     const searchActive = useAtomValue(model.directorySearchActive);
     const dummyLineRef = useRef<HTMLDivElement>(null);
     const warningBoxRef = useRef<HTMLDivElement>(null);
     const conn = useAtomValue(model.connection);
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
+    const allRows = table.getRowModel().flatRows;
+    const dotdotRow = allRows.find((row) => row.getValue("name") === "..");
+    const rows = dotdotRow ? [dotdotRow, ...allRows.filter((row) => row !== dotdotRow)] : allRows;
+    const rowVirtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => scrollElement,
+        estimateSize: () => 28,
+        getItemKey: (index) => rows[index]?.original.path ?? index,
+        overscan: 12,
+    });
 
     useEffect(() => {
         if (focusIndex === null || !bodyRef.current || !osRef) {
             return;
         }
 
+        rowVirtualizer.scrollToIndex(focusIndex, { align: "auto" });
         const rowElement = bodyRef.current.querySelector(`[data-rowindex="${focusIndex}"]`) as HTMLDivElement;
         if (!rowElement) {
             return;
@@ -477,10 +493,6 @@ function TableBody({
         [setRefreshVersion, conn]
     );
 
-    const allRows = table.getRowModel().flatRows;
-    const dotdotRow = allRows.find((row) => row.getValue("name") === "..");
-    const otherRows = allRows.filter((row) => row.getValue("name") !== "..");
-
     return (
         <div className="dir-table-body" ref={bodyRef}>
             {(searchActive || search !== "") && (
@@ -503,34 +515,31 @@ function TableBody({
                     </div>
                 </div>
             )}
-            <div className="dir-table-body-scroll-box">
+            <div className="dir-table-body-scroll-box" style={{ height: rowVirtualizer.getTotalSize() }}>
                 <div className="dummy dir-table-body-row" ref={dummyLineRef}>
                     <div className="dir-table-body-cell">dummy-data</div>
                 </div>
-                {dotdotRow && (
-                    <TableRow
-                        model={model}
-                        row={dotdotRow}
-                        focusIndex={focusIndex}
-                        setFocusIndex={setFocusIndex}
-                        setSearch={setSearch}
-                        idx={0}
-                        handleFileContextMenu={handleFileContextMenu}
-                        key="dotdot"
-                    />
-                )}
-                {otherRows.map((row, idx) => (
-                    <TableRow
-                        model={model}
-                        row={row}
-                        focusIndex={focusIndex}
-                        setFocusIndex={setFocusIndex}
-                        setSearch={setSearch}
-                        idx={dotdotRow ? idx + 1 : idx}
-                        handleFileContextMenu={handleFileContextMenu}
-                        key={idx}
-                    />
-                ))}
+                {rowVirtualizer.getVirtualItems().map((item) => {
+                    const row = rows[item.index];
+                    return (
+                        <div
+                            key={row.original.path}
+                            data-index={item.index}
+                            ref={rowVirtualizer.measureElement}
+                            style={{ position: "absolute", top: 0, width: "100%", transform: `translateY(${item.start}px)` }}
+                        >
+                            <TableRow
+                                model={model}
+                                row={row}
+                                focusIndex={focusIndex}
+                                setFocusIndex={setFocusIndex}
+                                setSearch={setSearch}
+                                idx={item.index}
+                                handleFileContextMenu={handleFileContextMenu}
+                            />
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -550,13 +559,16 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
     const dirPath = useAtomValue(model.statFilePath);
     const connection = useAtomValue(model.connection);
 
-    const dragItem: DraggedFile = {
-        relName: row.getValue("name") as string,
-        absParent: dirPath,
-        path: row.getValue("path") as string,
-        uri: formatRemoteUri(row.getValue("path") as string, connection),
-        isDir: row.original.isdir,
-    };
+    const dragItem = useMemo<DraggedFile>(
+        () => ({
+            relName: row.getValue("name") as string,
+            absParent: dirPath,
+            path: row.getValue("path") as string,
+            uri: formatRemoteUri(row.getValue("path") as string, connection),
+            isDir: row.original.isdir,
+        }),
+        [row.original.path, row.original.isdir, dirPath, connection]
+    );
     const [_, drag] = useDrag(
         () => ({
             type: "FILE_ITEM",
@@ -641,14 +653,26 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
 
     useEffect(() => {
         let cancelled = false;
+        setUnfilteredData([]);
         fireAndForget(async () => {
             const entries: FileInfo[] = [];
+            let lastPublishedCount = 0;
+            let lastPublishedAt = Date.now();
             try {
                 const remotePath = await model.formatRemoteUri(dirPath, globalStore.get);
                 const stream = env.rpc.FileListStreamCommand(TabRpcClient, { path: remotePath }, null);
                 for await (const chunk of stream) {
+                    if (cancelled) {
+                        break;
+                    }
                     if (chunk?.fileinfo) {
                         entries.push(...chunk.fileinfo);
+                    }
+                    const now = Date.now();
+                    if (entries.length - lastPublishedCount >= 500 || now - lastPublishedAt >= 100) {
+                        setUnfilteredData([...entries]);
+                        lastPublishedCount = entries.length;
+                        lastPublishedAt = now;
                     }
                 }
                 if (finfo?.dir && finfo?.path !== finfo?.dir) {
@@ -688,7 +712,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 if (!showHiddenFiles && fileInfo.name.startsWith(".") && fileInfo.name != "..") {
                     return false;
                 }
-                return fileInfo.name.toLowerCase().includes(searchText);
+                return fileInfo.name.toLowerCase().includes(searchText.toLowerCase());
             }) ?? [],
         [unfilteredData, showHiddenFiles, searchText]
     );
@@ -783,6 +807,24 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             });
         },
         [env.rpc, model.refreshCallback, setErrorMsg]
+    );
+
+    const retryUpload = useCallback(
+        (job: TransferJob): Promise<FileCopyResult> => {
+            const lastSeparator = job.destination.lastIndexOf("/");
+            if (lastSeparator < job.destination.indexOf("://") + 3) {
+                return Promise.resolve({ ok: false, errorText: "Invalid remote destination.", retryable: false });
+            }
+            return handleDropCopy(
+                {
+                    srcuri: job.source,
+                    desturi: job.destination.slice(0, lastSeparator + 1),
+                    opts: { timeout: CopyTimeoutYear },
+                },
+                job.itemType
+            );
+        },
+        [handleDropCopy]
     );
 
     const buildLocalUploadItems = useCallback(
@@ -1032,7 +1074,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 onDrop={treeViewMode ? undefined : handleLocalDrop}
             >
                 {!treeViewMode && isLocalDragOver && <DirectoryUploadDropOverlay />}
-                <DirectoryTransferQueueStatus />
+                <DirectoryTransferQueueStatus onRetryUpload={retryUpload} />
                 {treeViewMode ? (
                     <DirectoryTreeView
                         model={model}

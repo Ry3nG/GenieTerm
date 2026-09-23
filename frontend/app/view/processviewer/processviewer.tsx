@@ -102,6 +102,8 @@ export class ProcessViewerViewModel implements ViewModel {
     disposed = false;
     cancelPoll: (() => void) | null = null;
     fetchEpoch = 0;
+    scrollRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    visibilityHandler: (() => void) | null = null;
 
     constructor({ blockId, waveEnv }: ViewModelInitType) {
         this.viewType = "processviewer";
@@ -138,6 +140,14 @@ export class ProcessViewerViewModel implements ViewModel {
         });
 
         this.startPolling();
+        if (typeof document !== "undefined") {
+            this.visibilityHandler = () => {
+                if (!document.hidden) {
+                    this.triggerRefresh();
+                }
+            };
+            document.addEventListener("visibilitychange", this.visibilityHandler);
+        }
     }
 
     get viewComponent(): ViewComponent {
@@ -145,7 +155,7 @@ export class ProcessViewerViewModel implements ViewModel {
     }
 
     async doOneFetch(lastPidOrder: boolean, cancelledFn?: () => boolean) {
-        if (this.disposed) return;
+        if (this.disposed || (typeof document !== "undefined" && document.hidden)) return;
         const epoch = ++this.fetchEpoch;
         const sortBy = globalStore.get(this.sortByAtom);
         const sortDesc = globalStore.get(this.sortDescAtom);
@@ -373,6 +383,14 @@ export class ProcessViewerViewModel implements ViewModel {
         globalStore.set(this.scrollTopAtom, scrollTop);
         if (globalStore.get(this.pausedAtom)) {
             this.doOneFetch(true);
+        } else {
+            if (this.scrollRefreshTimer != null) {
+                clearTimeout(this.scrollRefreshTimer);
+            }
+            this.scrollRefreshTimer = setTimeout(() => {
+                this.scrollRefreshTimer = null;
+                this.triggerRefresh();
+            }, 120);
         }
     }
 
@@ -452,6 +470,14 @@ export class ProcessViewerViewModel implements ViewModel {
 
     dispose() {
         this.disposed = true;
+        if (this.scrollRefreshTimer != null) {
+            clearTimeout(this.scrollRefreshTimer);
+            this.scrollRefreshTimer = null;
+        }
+        if (this.visibilityHandler != null) {
+            document.removeEventListener("visibilitychange", this.visibilityHandler);
+            this.visibilityHandler = null;
+        }
         if (this.cancelPoll) {
             this.cancelPoll();
             this.cancelPoll = null;

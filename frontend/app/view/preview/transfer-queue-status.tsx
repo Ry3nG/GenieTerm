@@ -1,6 +1,6 @@
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { summarizeTransferQueue } from "@/util/transferdisplay";
-import { createTransferQueue, type TransferQueue } from "@/util/transferqueue";
+import { createTransferQueue, type TransferJob, type TransferQueue } from "@/util/transferqueue";
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PreviewEnv } from "./previewenv";
@@ -17,7 +17,9 @@ type TransferQueueStatusProps = {
     onRetry?: (jobId: string) => void;
 };
 
-function DirectoryTransferQueueStatus() {
+type UploadRetryResult = { ok: true } | { ok: false; errorText: string; retryable: boolean; canceled?: boolean };
+
+function DirectoryTransferQueueStatus({ onRetryUpload }: { onRetryUpload?: (job: TransferJob) => Promise<UploadRetryResult> }) {
     const env = useWaveEnv<PreviewEnv>();
     const [queue, setQueue] = useState<TransferQueue>(() => createTransferQueue());
     const [bridgeError, setBridgeError] = useState<string>(null);
@@ -84,15 +86,47 @@ function DirectoryTransferQueueStatus() {
         (jobId: string) => {
             env.electron
                 .retryTransferJob(jobId)
-                .then((nextQueue) => {
+                .then(async (nextQueue) => {
                     setQueue(nextQueue ?? createTransferQueue());
                     setBridgeError(null);
+                    const retriedJob = nextQueue?.jobs.find((job) => job.id === jobId);
+                    if (retriedJob?.operation !== "upload" || retriedJob.status !== "running") {
+                        return;
+                    }
+                    if (!onRetryUpload) {
+                        await env.electron.finishTransferJob(jobId, {
+                            status: "failed",
+                            error: { code: "upload_retry_unavailable", message: "Open Files to retry this upload.", retryable: true },
+                        });
+                        return;
+                    }
+                    let result: UploadRetryResult;
+                    try {
+                        result = await onRetryUpload(retriedJob);
+                    } catch (error) {
+                        result = { ok: false, errorText: String(error), retryable: true };
+                    }
+                    if (result.ok === true) {
+                        await env.electron.finishTransferJob(jobId, { status: "completed" });
+                    } else if (result.canceled) {
+                        await env.electron.finishTransferJob(jobId, { status: "canceled" });
+                    } else {
+                        await env.electron.finishTransferJob(jobId, {
+                            status: "failed",
+                            error: {
+                                code: "upload_failed",
+                                message: "Upload failed.",
+                                detail: result.errorText,
+                                retryable: result.retryable,
+                            },
+                        });
+                    }
                 })
                 .catch((err) => {
                     setBridgeError(`Could not retry transfer: ${err}`);
                 });
         },
-        [env.electron]
+        [env.electron, onRetryUpload]
     );
 
     return (

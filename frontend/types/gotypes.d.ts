@@ -1884,6 +1884,8 @@ declare global {
         filename: string;
         fileop: string;
         data64: string;
+        offset: number;
+        fileepoch: number;
     };
 
     // webcmd.WSRpcCommand

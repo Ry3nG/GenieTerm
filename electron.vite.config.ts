@@ -103,7 +103,7 @@ export default defineConfig({
         root: ".",
         build: {
             target: NODE,
-            sourcemap: true,
+            sourcemap: process.env.GENIETERM_SOURCEMAP === "1",
             rollupOptions: {
                 input: {
                     index: "emain/preload.ts",
@@ -125,7 +125,7 @@ export default defineConfig({
         root: ".",
         build: {
             target: CHROME,
-            sourcemap: true,
+            sourcemap: process.env.GENIETERM_SOURCEMAP === "1",
             outDir: "dist/frontend",
             rollupOptions: {
                 input: {

@@ -282,9 +282,25 @@ export function handleOsc7Command(data: string, blockId: string, loaded: boolean
     return true;
 }
 
+function registerCommandPromptMarker(termWrap: TermWrap): void {
+    const marker = termWrap.terminal.registerMarker(0);
+    if (marker == null) {
+        return;
+    }
+    termWrap.promptMarkers.push(marker);
+    marker.onDispose(() => {
+        const idx = termWrap.promptMarkers.indexOf(marker);
+        if (idx !== -1) {
+            termWrap.promptMarkers.splice(idx, 1);
+        }
+        termWrap.handleCmdBlockMarkerDisposed(marker);
+    });
+    termWrap.onPromptStart(marker);
+}
+
 export function handleOsc16162Command(data: string, blockId: string, loaded: boolean, termWrap: TermWrap): boolean {
     const terminal = termWrap.terminal;
-    if (!loaded) {
+    if (!loaded && !termWrap.replayingTerminalData) {
         return true;
     }
     if (!data || data.length === 0) {
@@ -304,24 +320,24 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
     }
 
     const cmd: Osc16162Command = { command: commandStr, data: parsedData } as Osc16162Command;
+    if (!loaded) {
+        if (cmd.command === "A") {
+            registerCommandPromptMarker(termWrap);
+        } else if (cmd.command === "C") {
+            const command = cmd.data.cmd64 ? base64ToString(cmd.data.cmd64) : null;
+            termWrap.onCommandStart(command, true);
+        } else if (cmd.command === "D") {
+            termWrap.onCommandDone(cmd.data.exitcode ?? null, true);
+        }
+        return true;
+    }
     const rtInfo: ObjRTInfo = {};
     switch (cmd.command) {
         case "A": {
             rtInfo["shell:state"] = "ready";
             globalStore.set(termWrap.shellIntegrationStatusAtom, "ready");
             globalStore.set(termWrap.claudeCodeActiveAtom, false);
-            const marker = terminal.registerMarker(0);
-            if (marker) {
-                termWrap.promptMarkers.push(marker);
-                marker.onDispose(() => {
-                    const idx = termWrap.promptMarkers.indexOf(marker);
-                    if (idx !== -1) {
-                        termWrap.promptMarkers.splice(idx, 1);
-                    }
-                    termWrap.handleCmdBlockMarkerDisposed(marker);
-                });
-                termWrap.onPromptStart(marker);
-            }
+            registerCommandPromptMarker(termWrap);
             break;
         }
         case "C":
