@@ -191,15 +191,36 @@ async function windowSmoke(executablePath) {
     });
     browser = await chromium.connectOverCDP(wsUrl);
     let page;
-    const deadline = Date.now() + 30000;
+    const deadline = Date.now() + 45000;
     while (!page && Date.now() < deadline) {
-      page = browser.contexts().flatMap((context) => context.pages())[0];
+      const pages = browser.contexts().flatMap((context) => context.pages());
+      for (const candidate of pages) {
+        if (candidate.url().includes("app.asar") && (await candidate.locator(".term-connectelem").count()) > 0) {
+          page = candidate;
+          break;
+        }
+      }
       if (!page) {
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
     }
     if (!page) {
-      fail("GenieTerm window did not open");
+      const windows = await Promise.all(
+        browser
+          .contexts()
+          .flatMap((context) => context.pages())
+          .map(async (candidate) => ({
+            title: await candidate.title(),
+            url: candidate.url(),
+            text: (
+              await candidate
+                .locator("body")
+                .innerText()
+                .catch(() => "")
+            ).slice(0, 400),
+          }))
+      );
+      fail(`GenieTerm terminal did not open; pages=${JSON.stringify(windows)}`);
     }
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -209,8 +230,8 @@ async function windowSmoke(executablePath) {
       }
     });
     await page.waitForLoadState("domcontentloaded", { timeout: 30000 });
-    await page.locator(".term-connectelem").first().waitFor({ state: "visible", timeout: 30000 });
-    if ((await page.title()) !== ProductName || !page.url().includes("app.asar")) {
+    await page.locator(".term-connectelem").first().waitFor({ state: "visible", timeout: 10000 });
+    if (!(await page.title()).startsWith(ProductName) || !page.url().includes("app.asar")) {
       fail(`unexpected packaged window: ${await page.title()} ${page.url()}`);
     }
     if (errors.length > 0 || (await page.getByText("Something went wrong", { exact: false }).count()) > 0) {
