@@ -27,3 +27,5 @@ task v1:gate:package
 ## Scope
 
 This verifies the package artifact before install. It does not replace the installed-app gate, which still verifies `/Applications/GenieTerm.app` and must be extended with launch and workflow smoke tests before v1.0.0.
+
+For Windows x64, the native Windows CI job runs `scripts/verify-windows-package.mjs` against the package output, including a packaged-window smoke. The installer and update path must also pass `docs/windows-release-gate.md` before tagging a public stable release.

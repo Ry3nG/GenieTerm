@@ -125,11 +125,20 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
+            - name: Windows Vitest suite
+              run: npm test -- --run
+
+            - name: Windows Go test suite
+              run: go test ./...
+
             - name: Build Windows x64 packages
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+            - name: Verify Windows package and launch
+              run: node scripts/verify-windows-package.mjs make --window-smoke
 
             - uses: actions/upload-artifact@v4
               with:
@@ -137,6 +146,5 @@ jobs:
                   if-no-files-found: error
                   path: |
                       make/*.exe
-                      make/*.msi
                       make/*.zip
                       make/*.yml

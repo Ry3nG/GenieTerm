@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
     cancelTransferJob,
     clearInactiveTransferJobs,
@@ -6,16 +9,14 @@ import {
     enqueueTransferJob,
     failTransferJob,
     getTransferJob,
-    retryTransferJob,
     recoverTransferQueue,
+    retryTransferJob,
     startTransferJob,
     type TransferError,
     type TransferJob,
     type TransferJobInput,
     type TransferQueue,
 } from "../../frontend/util/transferqueue";
-import fs from "node:fs";
-import path from "node:path";
 import { getRemotePathBaseName, parseTransferPath } from "../../frontend/util/transferutil";
 
 export const NativeDownloadDestination = "electron://native-download";
@@ -51,7 +52,7 @@ export function createDownloadTransferJobId(prefix = "download"): string {
 }
 
 export function buildLocalFileUri(localPath: string): string {
-    return encodeURI(`file://${localPath}`);
+    return pathToFileURL(localPath).href;
 }
 
 export function buildFileDownloadTransferJobInput(source: string, id: string): TransferJobInput {

@@ -46,13 +46,13 @@ The release gate must pass:
 - TypeScript typecheck, ESLint, Vitest, Go tests
 - Production frontend/electron build
 - Preview build + visual QA + interaction QA
-- macOS package + artifact identity + installed-app smoke
+- macOS and Windows x64 packages + artifact identity + packaged-app smoke on their native runners
 
 Details: `docs/visual-qa/preview-screenshot-gate.md`, `docs/visual-qa/preview-interaction-gate.md`, `docs/packaging-artifact-gate.md`, `docs/installed-app-gate.md`.
 
 ## Interaction gate (installed app)
 
-- Launch the installed app and restore a workspace.
+- Install and launch each platform's package, then restore a workspace.
 - Run a command and inspect block status, copy, and re-run.
 - Open a durable SSH session, disconnect, reconnect.
 - Browse remote files; download a folder; upload a file; cancel or retry a transfer.
@@ -62,6 +62,7 @@ Details: `docs/visual-qa/preview-screenshot-gate.md`, `docs/visual-qa/preview-in
 Tag `1.0.0` only when:
 
 - `task v1:gate:package` passes on a real Mac.
+- The Windows x64 release gate in `docs/windows-release-gate.md` passes on a native Windows runner and a clean Windows desktop.
 - The 1.0 feature matrix is all pass or explicitly deferred in this file.
 - CI is green on `main`.
-- The installed app version is `1.0.0`.
+- The installed macOS and Windows app versions are `1.0.0`.

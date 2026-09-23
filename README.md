@@ -6,6 +6,14 @@
 
 GenieTerm is a semantic, remote-native terminal for command blocks, durable sessions, and file workflows.
 
+## Downloads
+
+Official installers and update packages are published on the [GitHub Releases page](https://github.com/Ry3nG/GenieTerm/releases). macOS packages include Apple Silicon and Intel builds. Windows x64 packages will appear there after the Windows release gate passes; use the NSIS `.exe` installer for normal installation or the ZIP for a portable unpacked copy. Windows ARM64 is outside the first Windows release.
+
+Release files should be downloaded from that repository's Release page. The Windows release criteria and installation checks are in [`docs/windows-release-gate.md`](docs/windows-release-gate.md).
+
+Windows folder downloads use the Windows [OpenSSH Client](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse). If `scp.exe` is unavailable, enable that optional Windows feature before downloading remote folders.
+
 It is built on the Wave Terminal codebase and keeps Wave's runtime: durable remote sessions, inline previews, built-in editing, the `genie`/`wsh` helper, and cross-platform Electron/Go packaging. The product is narrower: the terminal understands command boundaries, status, output, duration, and remote file identity on that same session path.
 
 ## Current Focus

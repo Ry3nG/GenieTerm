@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.4.35 to build and publish a macOS GitHub Release.
+# Push a version-matching tag to build and publish macOS and Windows packages.
 # Code-signing and notarization are OPTIONAL: they activate only when the matching
 # repo secrets are present, so the pipeline produces unsigned builds until you add them.
 on:
@@ -110,6 +110,8 @@ jobs:
                 include:
                     - platform: macos
                       runner: macos-latest
+                    - platform: windows
+                      runner: windows-latest
         steps:
             - uses: actions/checkout@v6
 
@@ -155,7 +157,8 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Build and package
+            - name: Build and package macOS
+              if: matrix.platform == 'macos'
               # `task package` builds wavesrv + wsh/genie + tsunamiscaffold + frontend, then runs
               # electron-builder. Publishing happens in a separate job after every platform has built.
               run: task package -- --publish never
@@ -171,11 +174,22 @@ jobs:
                   # are ad-hoc signed (unsigned). To ship signed later, add a step that exports
                   # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* only when those secrets are non-empty.
 
+            - name: Build and package Windows x64
+              if: matrix.platform == 'windows'
+              run: task package -- --win --x64
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
             - name: Verify macOS package artifact
               if: matrix.platform == 'macos'
               run: task package:verify -- make
               env:
                   GENIETERM_ALLOW_UNSIGNED_MAC: "1"
+
+            - name: Verify Windows package artifact
+              if: matrix.platform == 'windows'
+              run: node scripts/verify-windows-package.mjs make --window-smoke
 
             - name: Upload package artifacts
               uses: actions/upload-artifact@v4
@@ -188,10 +202,9 @@ jobs:
                       make/*.deb
                       make/*.dmg
                       make/*.exe
-                      make/*.msi
                       make/*.pacman
                       make/*.rpm
-                      make/*-mac.yml
+                      make/*.yml
                       make/*.zip
 
     publish:

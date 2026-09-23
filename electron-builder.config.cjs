@@ -113,7 +113,7 @@ const config = {
         afterInstall: "build/deb-postinstall.tpl",
     },
     win: {
-        target: ["nsis", "msi", "zip"],
+        target: ["nsis", "zip"],
         signtoolOptions: windowsShouldSign && {
             signingHashAlgorithms: ["sha256"],
             publisherName: "GenieTerm",
