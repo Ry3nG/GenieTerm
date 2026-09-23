@@ -23,6 +23,7 @@ import YAML from "yaml";
 const Scope = "verify-windows-package";
 const OutputDir = path.resolve(process.argv[2] || process.env.GENIETERM_BUILD_OUTPUT || "make");
 const WindowSmoke = process.argv.includes("--window-smoke");
+const RequireSignature = process.argv.includes("--require-signature");
 const { productName: ProductName, version: Version } = JSON.parse(readFileSync("package.json", "utf8"));
 
 function fail(message) {
@@ -58,6 +59,19 @@ function requireX64Pe(filePath) {
   } finally {
     closeSync(file);
   }
+}
+
+function signatureStatus(filePath) {
+  const escapedPath = filePath.replaceAll("'", "''");
+  const result = spawnSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", `(Get-AuthenticodeSignature -LiteralPath '${escapedPath}').Status`],
+    { encoding: "utf8", windowsHide: true }
+  );
+  if (result.status !== 0) {
+    fail(`cannot inspect code signature: ${filePath}`);
+  }
+  return result.stdout.trim();
 }
 
 function findArtifact(names, extension) {
@@ -178,6 +192,32 @@ async function windowSmoke(executablePath) {
     if (errors.length > 0 || (await page.getByText("Something went wrong", { exact: false }).count()) > 0) {
       fail(`packaged window error: ${errors.join("; ")}`);
     }
+    await page.locator(".xterm").first().click();
+    await page.keyboard.type("Write-Output ('GENIETERM_' + 'WINDOWS_OK')");
+    await page.keyboard.press("Enter");
+    let commandOutputSeen = false;
+    const commandDeadline = Date.now() + 20000;
+    while (!commandOutputSeen && Date.now() < commandDeadline) {
+      commandOutputSeen = await page.evaluate(() => {
+        const terminal = window.term?.terminal;
+        const buffer = terminal?.buffer?.active;
+        if (!buffer) {
+          return false;
+        }
+        for (let lineIndex = 0; lineIndex < buffer.length; lineIndex += 1) {
+          if (buffer.getLine(lineIndex)?.translateToString().includes("GENIETERM_WINDOWS_OK")) {
+            return true;
+          }
+        }
+        return false;
+      });
+      if (!commandOutputSeen) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+    if (!commandOutputSeen) {
+      fail("local PowerShell command produced no terminal output");
+    }
   } finally {
     await browser?.close().catch(() => {});
     if (appProcess.pid) {
@@ -205,8 +245,11 @@ async function main() {
   requireX64Pe(executablePath);
   requireFile(path.join(unpackedDir, "resources", "app.asar"), 1024);
   const helperDir = path.join(unpackedDir, "resources", "app.asar.unpacked", "dist", "bin");
+  const executables = [executablePath];
   for (const name of ["wavesrv.x64.exe", `genie-${Version}-windows.x64.exe`, `wsh-${Version}-windows.x64.exe`]) {
-    requireX64Pe(path.join(helperDir, name));
+    const helperPath = path.join(helperDir, name);
+    requireX64Pe(helperPath);
+    executables.push(helperPath);
   }
   for (const name of readdirSync(helperDir)) {
     if (/^(genie|wsh)-.*-windows\.x64\.exe$/.test(name) && !name.includes(`-${Version}-`)) {
@@ -214,9 +257,18 @@ async function main() {
     }
   }
   // An NSIS bootstrapper may be x86 even when its installed app is x64.
-  findArtifact(names, ".exe");
+  const installerPath = findArtifact(names, ".exe");
+  executables.push(installerPath);
   findArtifact(names, ".zip");
   await verifyUpdateMetadata(names);
+  const signatures = executables.map((filePath) => ({
+    name: path.basename(filePath),
+    status: signatureStatus(filePath),
+  }));
+  console.log(`[${Scope}] signatures: ${signatures.map(({ name, status }) => `${name}=${status}`).join(", ")}`);
+  if (RequireSignature && signatures.some(({ status }) => status !== "Valid")) {
+    fail("Windows package contains an invalid or missing code signature");
+  }
   if (WindowSmoke) {
     await windowSmoke(executablePath);
   }

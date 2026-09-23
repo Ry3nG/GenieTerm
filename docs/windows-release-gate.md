@@ -11,6 +11,8 @@ The Windows package is ready for a public stable release when every check below 
 - `latest.yml` names the published Windows x64 update package with matching size and SHA-512; every referenced asset is present in the GitHub Release and downloads successfully.
 - The published installer and executables have a verifiable signature from the intended publisher. Unsigned artifacts can be used for internal testing but do not satisfy this public-release gate.
 
+The stable release workflow reads `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` from GitHub Actions secrets. Keep signing material out of the repository and chat. An unsigned preview uses a prerelease tag and does not update the stable channel.
+
 ## Installed app
 
 - Install the NSIS package as a normal user, launch GenieTerm from the installed location, then uninstall it. Record the installed version and publisher shown by Windows.

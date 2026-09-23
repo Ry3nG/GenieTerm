@@ -2,7 +2,7 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Last aligned with `package.json` **0.4.91** on 2026-09-23.
+Living tracker. Release scope last reviewed against `package.json` **0.4.93** on 2026-09-23.
 
 If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/`, this file wins.
 
@@ -50,6 +50,7 @@ See `docs/v1-release-gate.md`.
 
 - Process viewer still polls on its own interval
 - macOS installed-app smoke remains a release-machine gate, not a substitute for daily use
+- Windows x64 package, installed-app, remote-session, file-transfer, update, and signing checks remain release gates
 
 ## Next work (in this order)
 
@@ -67,7 +68,7 @@ Done in 0.4.82: WaveAI chat, Tsunami/builder, launcher, and aifilediff are gone.
 
 ### P4 — 1.0
 
-Only after P1 + P2. Tag `1.0.0` when `docs/v1-release-gate.md` passes on a real Mac.
+Only after P1 + P2. Tag `1.0.0` when `docs/v1-release-gate.md` passes on a real Mac and `docs/windows-release-gate.md` passes for a signed Windows x64 package.
 
 ### P5 — After 1.0
 

@@ -8,7 +8,7 @@ GenieTerm is a semantic, remote-native terminal for command blocks, durable sess
 
 ## Downloads
 
-Official installers and update packages are published on the [GitHub Releases page](https://github.com/Ry3nG/GenieTerm/releases). macOS packages include Apple Silicon and Intel builds. Windows x64 packages will appear there after the Windows release gate passes; use the NSIS `.exe` installer for normal installation or the ZIP for a portable unpacked copy. Windows ARM64 is outside the first Windows release.
+Official installers and update packages are published on the [GitHub Releases page](https://github.com/Ry3nG/GenieTerm/releases). macOS packages include Apple Silicon and Intel builds. Windows x64 preview packages may appear as prereleases; stable Windows packages appear after the Windows release gate passes. Use the NSIS `.exe` installer for normal installation or the ZIP for a portable unpacked copy. Windows ARM64 is outside the first Windows release.
 
 Release files should be downloaded from that repository's Release page. The Windows release criteria and installation checks are in [`docs/windows-release-gate.md`](docs/windows-release-gate.md).
 
@@ -66,6 +66,13 @@ Build a local macOS package outside File Provider-managed folders:
 
 ```sh
 GENIETERM_BUILD_OUTPUT=/private/tmp/genieterm-make task package
+```
+
+On Windows x64, build and check an unpacked app and release packages on a native machine with Node 22, Go, Task, and Zig installed:
+
+```powershell
+task package -- --win --x64
+node scripts/verify-windows-package.mjs make --window-smoke
 ```
 
 Install the arm64 app locally:

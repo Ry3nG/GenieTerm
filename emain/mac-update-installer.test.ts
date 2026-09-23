@@ -10,7 +10,7 @@ import {
 } from "./mac-update-installer";
 
 describe("mac-update-installer", () => {
-    it("resolves the application bundle from its executable", () => {
+    it.skipIf(process.platform === "win32")("resolves the application bundle from its executable", () => {
         expect(getMacAppBundlePath("/Applications/GenieTerm.app/Contents/MacOS/GenieTerm")).toBe(
             "/Applications/GenieTerm.app"
         );

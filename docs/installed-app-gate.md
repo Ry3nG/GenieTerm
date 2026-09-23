@@ -1,5 +1,7 @@
 # Installed App Gate
 
+This page covers macOS. The Windows x64 packaged-app and installer workflow criteria are in [`windows-release-gate.md`](windows-release-gate.md).
+
 Date: 2026-06-27
 
 Run:

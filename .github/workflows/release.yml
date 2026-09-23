@@ -174,12 +174,31 @@ jobs:
                   # are ad-hoc signed (unsigned). To ship signed later, add a step that exports
                   # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* only when those secrets are non-empty.
 
-            - name: Build and package Windows x64
-              if: matrix.platform == 'windows'
+            - name: Build unsigned Windows x64 preview
+              if: matrix.platform == 'windows' && (contains(github.ref_name, '-') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish != 'true'))
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+            - name: Require Windows signing credentials
+              if: matrix.platform == 'windows' && !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'true')
+              shell: pwsh
+              env:
+                  WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+                  WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+              run: |
+                  if (!$env:WIN_CSC_LINK -or !$env:WIN_CSC_KEY_PASSWORD) {
+                      throw "Stable Windows releases require WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD secrets."
+                  }
+
+            - name: Build signed Windows x64 release
+              if: matrix.platform == 'windows' && !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'true')
+              run: task package -- --win --x64
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+                  WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+                  WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
             - name: Verify macOS package artifact
               if: matrix.platform == 'macos'
@@ -190,6 +209,10 @@ jobs:
             - name: Verify Windows package artifact
               if: matrix.platform == 'windows'
               run: node scripts/verify-windows-package.mjs make --window-smoke
+
+            - name: Verify Windows release signatures
+              if: matrix.platform == 'windows' && !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'true')
+              run: node scripts/verify-windows-package.mjs make --require-signature
 
             - name: Upload package artifacts
               uses: actions/upload-artifact@v4
@@ -246,9 +269,14 @@ jobs:
                   if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
                     gh release upload "${TAG_NAME}" "${ASSETS[@]}" --clobber
                   else
+                    RELEASE_FLAGS=()
+                    if [[ "${TAG_NAME}" == *-* ]]; then
+                      RELEASE_FLAGS+=(--prerelease)
+                    fi
                     gh release create "${TAG_NAME}" "${ASSETS[@]}" \
                       --target "${GITHUB_SHA}" \
                       --title "${TAG_NAME}" \
+                      "${RELEASE_FLAGS[@]}" \
                       --generate-notes
                   fi
               env:
