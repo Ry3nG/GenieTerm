@@ -57,7 +57,7 @@ func (c *Connection) GetPathWithHost() string {
 }
 
 func (c *Connection) GetFullURI() string {
-	if c.Scheme == "file" {
+	if c.Scheme == "file" && c.Host == "" {
 		filePath := c.Path
 		if windowsDriveRegex.MatchString(filePath) {
 			filePath = "/" + filePath

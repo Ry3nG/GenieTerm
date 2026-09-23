@@ -391,6 +391,18 @@ func TestParseURI_WindowsFileURI(t *testing.T) {
 	}
 }
 
+func TestParseURI_FileURIWithHost(t *testing.T) {
+	t.Parallel()
+	cstr := "file://localhost/shared/out.txt"
+	c, err := connparse.ParseURI(cstr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Host != "localhost" || c.GetFullURI() != cstr {
+		t.Fatalf("file URI host was not preserved: host=%q uri=%q", c.Host, c.GetFullURI())
+	}
+}
+
 func TestParseURI_WSHWSL(t *testing.T) {
 	t.Parallel()
 	cstr := "wsh://wsl://Ubuntu/path/to/file"
