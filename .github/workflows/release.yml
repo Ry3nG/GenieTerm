@@ -263,11 +263,16 @@ jobs:
                     if [[ "${TAG_NAME}" == *-* ]]; then
                       RELEASE_FLAGS+=(--prerelease)
                     fi
+                    RELEASE_NOTES="docs/releases/${TAG_NAME}.md"
+                    if [ -f "${RELEASE_NOTES}" ]; then
+                      RELEASE_FLAGS+=(--notes-file "${RELEASE_NOTES}")
+                    else
+                      RELEASE_FLAGS+=(--generate-notes)
+                    fi
                     gh release create "${TAG_NAME}" "${ASSETS[@]}" \
                       --target "${GITHUB_SHA}" \
                       --title "${TAG_NAME}" \
-                      "${RELEASE_FLAGS[@]}" \
-                      --generate-notes
+                      "${RELEASE_FLAGS[@]}"
                   fi
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
