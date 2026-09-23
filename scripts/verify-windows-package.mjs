@@ -191,11 +191,29 @@ async function windowSmoke(executablePath) {
     });
     browser = await chromium.connectOverCDP(wsUrl);
     let page;
+    const onboardingCompleted = new Set();
     const deadline = Date.now() + 45000;
     while (!page && Date.now() < deadline) {
       const pages = browser.contexts().flatMap((context) => context.pages());
       for (const candidate of pages) {
-        if (candidate.url().includes("app.asar") && (await candidate.locator(".term-connectelem").count()) > 0) {
+        if (!candidate.url().includes("app.asar")) {
+          continue;
+        }
+        if (
+          !onboardingCompleted.has(candidate) &&
+          (await candidate
+            .getByText("Welcome to GenieTerm", { exact: true })
+            .isVisible()
+            .catch(() => false))
+        ) {
+          await candidate.getByRole("button", { name: "Continue", exact: true }).click();
+          const skipTour = candidate.getByRole("button", { name: /Skip Feature Tour/ });
+          await skipTour.waitFor({ state: "visible", timeout: 15000 });
+          await skipTour.click();
+          onboardingCompleted.add(candidate);
+          console.log(`[${Scope}] completed isolated first-run onboarding`);
+        }
+        if ((await candidate.locator(".term-connectelem").count()) > 0) {
           page = candidate;
           break;
         }
