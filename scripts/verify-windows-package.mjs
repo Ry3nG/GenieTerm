@@ -63,13 +63,16 @@ function requireX64Pe(filePath) {
 
 function signatureStatus(filePath) {
   const escapedPath = filePath.replaceAll("'", "''");
+  const command = `(Get-AuthenticodeSignature -LiteralPath '${escapedPath}').Status`;
   const result = spawnSync(
     "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", `(Get-AuthenticodeSignature -LiteralPath '${escapedPath}').Status`],
+    ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(command, "utf16le").toString("base64")],
     { encoding: "utf8", windowsHide: true }
   );
   if (result.status !== 0) {
-    fail(`cannot inspect code signature: ${filePath}`);
+    fail(
+      `cannot inspect code signature: ${filePath}: ${result.error?.message || result.stderr?.trim() || result.status}`
+    );
   }
   return result.stdout.trim();
 }
