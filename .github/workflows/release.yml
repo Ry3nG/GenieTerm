@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.4.35 to build and publish a macOS GitHub Release.
+# Push a version-matching tag to build and publish macOS and Windows packages.
 # Code-signing and notarization are OPTIONAL: they activate only when the matching
 # repo secrets are present, so the pipeline produces unsigned builds until you add them.
 on:
@@ -8,11 +8,6 @@ on:
         tags:
             - "v*"
     workflow_dispatch:
-        inputs:
-            publish:
-                description: "Publish artifacts to a GitHub Release (otherwise dry build)"
-                type: boolean
-                default: false
 
 permissions:
     contents: write
@@ -110,6 +105,8 @@ jobs:
                 include:
                     - platform: macos
                       runner: macos-latest
+                    - platform: windows
+                      runner: windows-latest
         steps:
             - uses: actions/checkout@v6
 
@@ -155,7 +152,8 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Build and package
+            - name: Build and package macOS
+              if: matrix.platform == 'macos'
               # `task package` builds wavesrv + wsh/genie + tsunamiscaffold + frontend, then runs
               # electron-builder. Publishing happens in a separate job after every platform has built.
               run: task package -- --publish never
@@ -171,11 +169,46 @@ jobs:
                   # are ad-hoc signed (unsigned). To ship signed later, add a step that exports
                   # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* only when those secrets are non-empty.
 
+            - name: Build unsigned Windows x64 preview
+              if: matrix.platform == 'windows' && (github.event_name == 'workflow_dispatch' || contains(github.ref_name, '-'))
+              run: task package -- --win --x64
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+            - name: Require Windows signing credentials
+              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
+              shell: pwsh
+              env:
+                  WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+                  WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+              run: |
+                  if (!$env:WIN_CSC_LINK -or !$env:WIN_CSC_KEY_PASSWORD) {
+                      throw "Stable Windows releases require WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD secrets."
+                  }
+
+            - name: Build signed Windows x64 release
+              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
+              run: task package -- --win --x64
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+                  GENIETERM_REQUIRE_WINDOWS_SIGNATURE: "1"
+                  WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+                  WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
             - name: Verify macOS package artifact
               if: matrix.platform == 'macos'
               run: task package:verify -- make
               env:
                   GENIETERM_ALLOW_UNSIGNED_MAC: "1"
+
+            - name: Verify Windows package artifact
+              if: matrix.platform == 'windows'
+              run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
+
+            - name: Verify Windows release signatures
+              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
+              run: node scripts/verify-windows-package.mjs make --require-signature
 
             - name: Upload package artifacts
               uses: actions/upload-artifact@v4
@@ -188,16 +221,15 @@ jobs:
                       make/*.deb
                       make/*.dmg
                       make/*.exe
-                      make/*.msi
                       make/*.pacman
                       make/*.rpm
-                      make/*-mac.yml
+                      make/*.yml
                       make/*.zip
 
     publish:
         name: Publish GitHub Release
         needs: build
-        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event.inputs.publish == 'true'
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
@@ -210,12 +242,7 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  if [ "${GITHUB_EVENT_NAME}" = "push" ] && [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-                    TAG_NAME="${GITHUB_REF_NAME}"
-                  else
-                    VERSION="$(node -p "require('./package.json').version")"
-                    TAG_NAME="v${VERSION}"
-                  fi
+                  TAG_NAME="${GITHUB_REF_NAME}"
 
                   DUPLICATE_NAMES="$(find release-artifacts -type f -exec basename {} \; | sort | uniq -d)"
                   if [ -n "${DUPLICATE_NAMES}" ]; then
@@ -233,10 +260,20 @@ jobs:
                   if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
                     gh release upload "${TAG_NAME}" "${ASSETS[@]}" --clobber
                   else
+                    RELEASE_FLAGS=()
+                    if [[ "${TAG_NAME}" == *-* ]]; then
+                      RELEASE_FLAGS+=(--prerelease)
+                    fi
+                    RELEASE_NOTES="docs/releases/${TAG_NAME}.md"
+                    if [ -f "${RELEASE_NOTES}" ]; then
+                      RELEASE_FLAGS+=(--notes-file "${RELEASE_NOTES}")
+                    else
+                      RELEASE_FLAGS+=(--generate-notes)
+                    fi
                     gh release create "${TAG_NAME}" "${ASSETS[@]}" \
                       --target "${GITHUB_SHA}" \
                       --title "${TAG_NAME}" \
-                      --generate-notes
+                      "${RELEASE_FLAGS[@]}"
                   fi
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

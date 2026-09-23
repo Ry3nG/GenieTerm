@@ -58,6 +58,7 @@ func TestResolveWaveCachesDirUsesGenieTermBundle(t *testing.T) {
 func TestRemoteRuntimePathsUseGenieTerm(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
 
 	if RemoteFullDomainSocketPath != "~/.genieterm/genie-remote.sock" {
 		t.Fatalf("unexpected remote domain socket path: %q", RemoteFullDomainSocketPath)

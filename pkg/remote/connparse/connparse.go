@@ -6,7 +6,9 @@ package connparse
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
@@ -55,6 +57,13 @@ func (c *Connection) GetPathWithHost() string {
 }
 
 func (c *Connection) GetFullURI() string {
+	if c.Scheme == "file" && c.Host == "" {
+		filePath := c.Path
+		if windowsDriveRegex.MatchString(filePath) {
+			filePath = "/" + filePath
+		}
+		return (&url.URL{Scheme: "file", Path: filePath}).String()
+	}
 	return c.Scheme + "://" + c.GetPathWithHost()
 }
 
@@ -151,9 +160,17 @@ func ParseURI(uri string) (*Connection, error) {
 		parseWshPath()
 	} else {
 		parseGenericPath()
-		if host == "" && strings.HasPrefix(rest, "/") && !strings.HasPrefix(remotePath, "/") {
+		if host == "" && strings.HasPrefix(rest, "/") && !strings.HasPrefix(remotePath, "/") &&
+			!(scheme == "file" && runtime.GOOS == "windows" && windowsDriveRegex.MatchString(remotePath)) {
 			remotePath = "/" + remotePath
 		}
+	}
+	if scheme == "file" {
+		decodedPath, err := url.PathUnescape(remotePath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid file URI path: %w", err)
+		}
+		remotePath = decodedPath
 	}
 
 	if scheme == ConnectionTypeWsh {

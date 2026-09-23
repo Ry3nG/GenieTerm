@@ -11,7 +11,9 @@ type ExistsFn = (candidate: string) => boolean;
 
 export type FolderDownloadPlan = {
     folderName: string;
-    rsyncArgs: string[];
+    transport: "rsync" | "scp";
+    args: string[];
+    cwd?: string;
 };
 
 export type FolderDownloadFailureKind = "parse" | "destination" | "start" | "exit" | "canceled";
@@ -29,25 +31,44 @@ export function getRsyncPath(existsFn: ExistsFn = fs.existsSync): string {
     return "rsync";
 }
 
-export function buildFolderDownloadPlan(remoteUri: string, destinationPath: string): FolderDownloadPlan {
+export function buildFolderDownloadPlan(
+    remoteUri: string,
+    destinationPath: string,
+    platform = process.platform
+): FolderDownloadPlan {
     const parsed = parseWshRemoteUri(remoteUri);
+    if (platform === "win32") {
+        const destination = path.win32.parse(destinationPath);
+        const remotePath = parsed.remotePath.replace(/\/+$/, "") + "/.";
+        const portMatch = parsed.connection.match(/^(.+):(\d+)$/);
+        const scpConnection = portMatch ? portMatch[1] : parsed.connection;
+        const portArgs = portMatch ? ["-P", portMatch[2]] : [];
+        return {
+            folderName: getRemotePathBaseName(parsed.remotePath),
+            transport: "scp",
+            args: [...portArgs, "-r", `${scpConnection}:${remotePath}`, destination.base],
+            cwd: destination.dir,
+        };
+    }
     return {
         folderName: getRemotePathBaseName(parsed.remotePath),
-        rsyncArgs: buildRsyncFolderArgs(remoteUri, destinationPath),
+        transport: "rsync",
+        args: buildRsyncFolderArgs(remoteUri, destinationPath),
     };
 }
 
 export function buildFolderDownloadTransferJobInput(
     remoteUri: string,
     destinationPath: string,
-    id: string
+    id: string,
+    platform = process.platform
 ): TransferJobInput {
-    const plan = buildFolderDownloadPlan(remoteUri, destinationPath);
+    const plan = buildFolderDownloadPlan(remoteUri, destinationPath, platform);
     return {
         id,
         operation: "download",
         itemType: "folder",
-        transport: "rsync",
+        transport: plan.transport,
         source: remoteUri,
         destination: buildLocalFileUri(destinationPath),
         label: plan.folderName,
@@ -147,8 +168,8 @@ export function registerDownloadFolderHandler() {
 export function startTrackedFolderDownload(jobId: string, remoteUri: string, destinationPath: string) {
     const plan = buildFolderDownloadPlan(remoteUri, destinationPath);
     downloadTransferTracker.start(jobId);
-    const rsyncPath = getRsyncPath();
-    const child = child_process.spawn(rsyncPath, plan.rsyncArgs, { windowsHide: true });
+    const command = plan.transport === "rsync" ? getRsyncPath() : "scp";
+    const child = child_process.spawn(command, plan.args, { cwd: plan.cwd, windowsHide: true });
     let stderr = "";
     let settled = false;
     registerTransferCancelHandle(jobId, () => {
@@ -170,6 +191,10 @@ export function startTrackedFolderDownload(jobId: string, remoteUri: string, des
         stderr += chunk.toString();
     });
     child.on("error", (err) => {
+        if (plan.transport === "scp" && (err as NodeJS.ErrnoException).code === "ENOENT") {
+            failTransfer("start", new Error("Windows OpenSSH Client (scp.exe) is required for folder downloads."));
+            return;
+        }
         failTransfer("start", err);
     });
     child.on("close", (code, signal) => {
@@ -190,7 +215,7 @@ export function startTrackedFolderDownload(jobId: string, remoteUri: string, des
             }).show();
             return;
         }
-        const detail = stderr.trim() || `rsync exited with code ${code}.`;
+        const detail = stderr.trim() || `${plan.transport} exited with code ${code}.`;
         const error = mapFolderDownloadError("exit", new Error(detail));
         downloadTransferTracker.fail(jobId, error);
         showFolderDownloadError(error);

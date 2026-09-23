@@ -10,8 +10,10 @@ import (
 	"encoding/base64"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -118,6 +120,18 @@ func makeSFTPTestConnection(t *testing.T) string {
 	return host
 }
 
+func sftpTestRemoteURI(host, filePath string) string {
+	return "wsh://" + host + "/" + filepath.ToSlash(filePath)
+}
+
+func sftpTestFileURI(filePath string) string {
+	uriPath := filepath.ToSlash(filePath)
+	if runtime.GOOS == "windows" {
+		uriPath = "/" + uriPath
+	}
+	return (&url.URL{Scheme: "file", Path: uriPath}).String()
+}
+
 func TestSFTPFallbackFiles(t *testing.T) {
 	host := makeSFTPTestConnection(t)
 	dir := t.TempDir()
@@ -129,7 +143,7 @@ func TestSFTPFallbackFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	uri := "wsh://" + host + filePath
+	uri := sftpTestRemoteURI(host, filePath)
 	parsed, err := parseConnection(ctx, uri)
 	if err != nil {
 		t.Fatal(err)
@@ -146,11 +160,11 @@ func TestSFTPFallbackFiles(t *testing.T) {
 	if err != nil || info.Name != "sample.txt" || info.Size != 5 {
 		t.Fatalf("SFTP stat: %#v, %v", info, err)
 	}
-	noextInfo, err := Stat(ctx, "wsh://"+host+filepath.Join(dir, "noext"))
+	noextInfo, err := Stat(ctx, sftpTestRemoteURI(host, filepath.Join(dir, "noext")))
 	if err != nil || noextInfo.MimeType != "text/plain; charset=utf-8" {
 		t.Fatalf("SFTP extensionless text preview: %#v, %v", noextInfo, err)
 	}
-	entries, err := ListEntries(ctx, "wsh://"+host+dir, nil)
+	entries, err := ListEntries(ctx, sftpTestRemoteURI(host, dir), nil)
 	if err != nil || len(entries) != 2 {
 		t.Fatalf("SFTP list: %#v, %v", entries, err)
 	}
@@ -168,7 +182,7 @@ func TestSFTPFallbackFiles(t *testing.T) {
 	if err := Append(ctx, wshrpc.FileData{Info: &wshrpc.FileInfo{Path: uri}, Data64: base64.StdEncoding.EncodeToString([]byte("er"))}); err != nil {
 		t.Fatal(err)
 	}
-	copyURI := "wsh://" + host + filepath.Join(dir, "copy.txt")
+	copyURI := sftpTestRemoteURI(host, filepath.Join(dir, "copy.txt"))
 	if err := Copy(ctx, wshrpc.CommandFileCopyData{SrcUri: uri, DestUri: copyURI}); err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +190,7 @@ func TestSFTPFallbackFiles(t *testing.T) {
 	if err != nil || string(copyContent) != "newer" {
 		t.Fatalf("SFTP copy: %q, %v", copyContent, err)
 	}
-	movedURI := "wsh://" + host + filepath.Join(dir, "moved.txt")
+	movedURI := sftpTestRemoteURI(host, filepath.Join(dir, "moved.txt"))
 	if err := Move(ctx, wshrpc.CommandFileCopyData{SrcUri: copyURI, DestUri: movedURI}); err != nil {
 		t.Fatal(err)
 	}
@@ -184,8 +198,8 @@ func TestSFTPFallbackFiles(t *testing.T) {
 	if err := os.WriteFile(localUploadPath, []byte("local upload"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	remoteUploadURI := "wsh://" + host + filepath.Join(dir, "remote-upload.txt")
-	if err := Copy(ctx, wshrpc.CommandFileCopyData{SrcUri: "file://" + localUploadPath, DestUri: remoteUploadURI}); err != nil {
+	remoteUploadURI := sftpTestRemoteURI(host, filepath.Join(dir, "remote-upload.txt"))
+	if err := Copy(ctx, wshrpc.CommandFileCopyData{SrcUri: sftpTestFileURI(localUploadPath), DestUri: remoteUploadURI}); err != nil {
 		t.Fatalf("SFTP upload: %v", err)
 	}
 	uploadContent, err := os.ReadFile(filepath.Join(dir, "remote-upload.txt"))
@@ -193,7 +207,7 @@ func TestSFTPFallbackFiles(t *testing.T) {
 		t.Fatalf("SFTP upload content: %q, %v", uploadContent, err)
 	}
 	localDownloadPath := filepath.Join(dir, "local-download.txt")
-	if err := Copy(ctx, wshrpc.CommandFileCopyData{SrcUri: remoteUploadURI, DestUri: "file://" + localDownloadPath}); err != nil {
+	if err := Copy(ctx, wshrpc.CommandFileCopyData{SrcUri: remoteUploadURI, DestUri: sftpTestFileURI(localDownloadPath)}); err != nil {
 		t.Fatalf("SFTP download: %v", err)
 	}
 	downloadContent, err := os.ReadFile(localDownloadPath)
@@ -232,7 +246,7 @@ func TestSFTPFallbackStreamsLargeFile(t *testing.T) {
 	t.Cleanup(func() { RpcClient = previousClient })
 	reader, streamMeta := rpc.broker.CreateStreamReader("test-reader", "test-writer", 256*1024)
 	defer reader.Close()
-	uri := "wsh://" + host + filePath
+	uri := sftpTestRemoteURI(host, filePath)
 	info, err := FileStream(context.Background(), wshrpc.CommandFileStreamData{
 		Info: &wshrpc.FileInfo{Path: uri}, StreamMeta: *streamMeta,
 	})

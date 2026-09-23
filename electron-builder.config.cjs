@@ -113,13 +113,18 @@ const config = {
         afterInstall: "build/deb-postinstall.tpl",
     },
     win: {
-        target: ["nsis", "msi", "zip"],
-        signtoolOptions: windowsShouldSign && {
-            signingHashAlgorithms: ["sha256"],
-            publisherName: "GenieTerm",
-            certificateSubjectName: "GenieTerm",
-            certificateSha1: process.env.SM_CODE_SIGNING_CERT_SHA1_HASH,
-        },
+        target: ["nsis", "zip"],
+        forceCodeSigning: process.env.GENIETERM_REQUIRE_WINDOWS_SIGNATURE === "1",
+        ...(windowsShouldSign
+            ? {
+                  signtoolOptions: {
+                      signingHashAlgorithms: ["sha256"],
+                      publisherName: "GenieTerm",
+                      certificateSubjectName: "GenieTerm",
+                      certificateSha1: process.env.SM_CODE_SIGNING_CERT_SHA1_HASH,
+                  },
+              }
+            : {}),
     },
     appImage: {
         license: "LICENSE",

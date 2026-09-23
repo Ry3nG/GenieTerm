@@ -5,6 +5,7 @@ import * as electron from "electron";
 import { FastAverageColor } from "fast-average-color";
 import fs from "fs";
 import * as child_process from "node:child_process";
+import { fileURLToPath } from "node:url";
 import * as path from "path";
 import { PNG } from "pngjs";
 import { Readable } from "stream";
@@ -303,8 +304,11 @@ function registerTransferQueueBridge() {
     electron.ipcMain.handle(TransferQueueRetryChannel, (event, jobId: string) => {
         try {
             const retried = downloadTransferTracker.retry(jobId);
-            if (retried.transport === "rsync" && retried.destination.startsWith("file://")) {
-                const destPath = decodeURI(retried.destination.replace(/^file:\/\//, ""));
+            if (
+                (retried.transport === "rsync" || retried.transport === "scp") &&
+                retried.destination.startsWith("file://")
+            ) {
+                const destPath = fileURLToPath(retried.destination);
                 startTrackedFolderDownload(retried.id, retried.source, destPath);
             } else if (
                 retried.operation === "download" &&
