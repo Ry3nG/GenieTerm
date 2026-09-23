@@ -192,6 +192,22 @@ async function windowSmoke(executablePath) {
     if (errors.length > 0 || (await page.getByText("Something went wrong", { exact: false }).count()) > 0) {
       fail(`packaged window error: ${errors.join("; ")}`);
     }
+    await page.waitForFunction(
+      () => {
+        const buffer = window.term?.terminal?.buffer?.active;
+        if (!buffer) {
+          return false;
+        }
+        for (let lineIndex = 0; lineIndex < buffer.length; lineIndex += 1) {
+          if (buffer.getLine(lineIndex)?.translateToString().trim().endsWith(">")) {
+            return true;
+          }
+        }
+        return false;
+      },
+      null,
+      { timeout: 30000 }
+    );
     await page.locator(".xterm").first().click();
     await page.keyboard.type("Write-Output ('GENIETERM_' + 'WINDOWS_OK')");
     await page.keyboard.press("Enter");
