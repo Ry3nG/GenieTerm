@@ -37,6 +37,12 @@ describe("download-folder helpers", () => {
         });
     });
 
+    it("passes an explicit SSH port to Windows scp", () => {
+        expect(
+            buildFolderDownloadPlan("genie://zrgong@server.example:2222/~/out", "C:\\Downloads\\out", "win32").args
+        ).toEqual(["-P", "2222", "-r", "zrgong@server.example:~/out/.", "out"]);
+    });
+
     it("selects the first existing rsync candidate", () => {
         const selected = getRsyncPath((candidate) => candidate === "/usr/local/bin/rsync");
         expect(selected).toBe("/usr/local/bin/rsync");

@@ -40,10 +40,13 @@ export function buildFolderDownloadPlan(
     if (platform === "win32") {
         const destination = path.win32.parse(destinationPath);
         const remotePath = parsed.remotePath.replace(/\/+$/, "") + "/.";
+        const portMatch = parsed.connection.match(/^(.+):(\d+)$/);
+        const scpConnection = portMatch ? portMatch[1] : parsed.connection;
+        const portArgs = portMatch ? ["-P", portMatch[2]] : [];
         return {
             folderName: getRemotePathBaseName(parsed.remotePath),
             transport: "scp",
-            args: ["-r", `${parsed.connection}:${remotePath}`, destination.base],
+            args: [...portArgs, "-r", `${scpConnection}:${remotePath}`, destination.base],
             cwd: destination.dir,
         };
     }
