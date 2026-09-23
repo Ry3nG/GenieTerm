@@ -192,6 +192,7 @@ jobs:
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
+                  GENIETERM_REQUIRE_WINDOWS_SIGNATURE: "1"
                   WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
                   WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 

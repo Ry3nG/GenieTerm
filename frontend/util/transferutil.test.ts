@@ -126,6 +126,18 @@ describe("transferutil", () => {
             path: "/tmp/output dir/",
             basename: "output dir",
         });
+        expect(parseTransferPath("C:\\Users\\me\\My Files\\out", "win32")).toEqual({
+            kind: "local",
+            uri: "file:///C:/Users/me/My%20Files/out",
+            path: "C:\\Users\\me\\My Files\\out",
+            basename: "out",
+        });
+        expect(parseTransferPath("file:///C:/Users/me/My%20Files/out", "win32")).toEqual({
+            kind: "local",
+            uri: "file:///C:/Users/me/My%20Files/out",
+            path: "C:\\Users\\me\\My Files\\out",
+            basename: "out",
+        });
     });
 
     it("converts compatible remote URIs to public genie aliases", () => {

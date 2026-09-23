@@ -114,12 +114,17 @@ const config = {
     },
     win: {
         target: ["nsis", "zip"],
-        signtoolOptions: windowsShouldSign && {
-            signingHashAlgorithms: ["sha256"],
-            publisherName: "GenieTerm",
-            certificateSubjectName: "GenieTerm",
-            certificateSha1: process.env.SM_CODE_SIGNING_CERT_SHA1_HASH,
-        },
+        forceCodeSigning: process.env.GENIETERM_REQUIRE_WINDOWS_SIGNATURE === "1",
+        ...(windowsShouldSign
+            ? {
+                  signtoolOptions: {
+                      signingHashAlgorithms: ["sha256"],
+                      publisherName: "GenieTerm",
+                      certificateSubjectName: "GenieTerm",
+                      certificateSha1: process.env.SM_CODE_SIGNING_CERT_SHA1_HASH,
+                  },
+              }
+            : {}),
     },
     appImage: {
         license: "LICENSE",

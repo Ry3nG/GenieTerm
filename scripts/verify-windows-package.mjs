@@ -61,20 +61,39 @@ function requireX64Pe(filePath) {
   }
 }
 
-function signatureStatus(filePath) {
-  const escapedPath = filePath.replaceAll("'", "''");
-  const command = `(Get-AuthenticodeSignature -LiteralPath '${escapedPath}').Status`;
-  const result = spawnSync(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(command, "utf16le").toString("base64")],
-    { encoding: "utf8", windowsHide: true }
-  );
-  if (result.status !== 0) {
-    fail(
-      `cannot inspect code signature: ${filePath}: ${result.error?.message || result.stderr?.trim() || result.status}`
-    );
+function findSignTool() {
+  const sdkBin = path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Windows Kits", "10", "bin");
+  if (existsSync(sdkBin)) {
+    const versions = readdirSync(sdkBin, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+    for (const version of versions) {
+      const candidate = path.join(sdkBin, version, "x64", "signtool.exe");
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
   }
-  return result.stdout.trim();
+  const lookup = spawnSync("where.exe", ["signtool.exe"], { encoding: "utf8", windowsHide: true });
+  if (lookup.status === 0) {
+    return lookup.stdout.trim().split(/\r?\n/, 1)[0];
+  }
+  fail("Windows SDK SignTool was not found");
+}
+
+function signatureStatus(signTool, filePath) {
+  const result = spawnSync(signTool, ["verify", "/pa", "/all", filePath], { encoding: "utf8", windowsHide: true });
+  if (result.error) {
+    fail(`cannot run SignTool: ${result.error.message}`);
+  }
+  if (result.status === 0) {
+    return "Valid";
+  }
+  if (/no signature found/i.test(`${result.stdout}\n${result.stderr}`)) {
+    return "NotSigned";
+  }
+  return `Invalid (SignTool exit ${result.status})`;
 }
 
 function findArtifact(names, extension) {
@@ -280,9 +299,10 @@ async function main() {
   executables.push(installerPath);
   findArtifact(names, ".zip");
   await verifyUpdateMetadata(names);
+  const signTool = findSignTool();
   const signatures = executables.map((filePath) => ({
     name: path.basename(filePath),
-    status: signatureStatus(filePath),
+    status: signatureStatus(signTool, filePath),
   }));
   console.log(`[${Scope}] signatures: ${signatures.map(({ name, status }) => `${name}=${status}`).join(", ")}`);
   if (RequireSignature && signatures.some(({ status }) => status !== "Valid")) {

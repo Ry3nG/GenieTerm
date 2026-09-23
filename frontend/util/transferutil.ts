@@ -1,3 +1,5 @@
+import { PLATFORM, PlatformWindows } from "./platformutil";
+
 export type RemoteUriScheme = "genie" | "wsh";
 
 export type ParsedWshRemoteUri = {
@@ -113,11 +115,16 @@ export function toPublicRemoteUri(remoteUri: string): string {
     return buildRemoteUri("genie", parsed.connection, parsed.remotePath);
 }
 
-function localPathToFileUri(localPath: string): string {
+function localPathToFileUri(localPath: string, platform: NodeJS.Platform): string {
+    if (platform === PlatformWindows && /^[A-Za-z]:[\\/]/.test(localPath)) {
+        const slashPath = localPath.replace(/\\/g, "/");
+        const [drive, ...segments] = slashPath.split("/");
+        return `file:///${drive}/${segments.map(encodeURIComponent).join("/")}`;
+    }
     return encodeURI(`file://${localPath}`);
 }
 
-export function parseTransferPath(value: string): ParsedTransferPath {
+export function parseTransferPath(value: string, platform = PLATFORM): ParsedTransferPath {
     if (typeof value !== "string" || value.length === 0) {
         throw new Error("Transfer path must be a non-empty string");
     }
@@ -133,18 +140,21 @@ export function parseTransferPath(value: string): ParsedTransferPath {
     }
     if (value.startsWith("file://")) {
         const url = new URL(value);
-        const localPath = safeDecodeURIComponent(url.pathname);
+        let localPath = safeDecodeURIComponent(url.pathname);
+        if (platform === PlatformWindows && /^\/[A-Za-z]:\//.test(localPath)) {
+            localPath = localPath.slice(1).replace(/\//g, "\\");
+        }
         return {
             kind: "local",
             uri: value,
             path: localPath,
-            basename: getRemotePathBaseName(localPath),
+            basename: getRemotePathBaseName(localPath.replace(/\\/g, "/")),
         };
     }
     return {
         kind: "local",
-        uri: localPathToFileUri(value),
+        uri: localPathToFileUri(value, platform),
         path: value,
-        basename: getRemotePathBaseName(value),
+        basename: getRemotePathBaseName(value.replace(/\\/g, "/")),
     };
 }
