@@ -10,9 +10,6 @@ import { ClientModel } from "@/app/store/client-model";
 import { useSettingsKeyAtom } from "@/app/store/global";
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
-import * as WOS from "@/app/store/wos";
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
 import * as services from "@/store/services";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -20,11 +17,7 @@ import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useEffect, useRef, useState } from "react";
 import { debounce } from "throttle-debounce";
 
-// Page flow:
-//   init -> (telemetry enabled) -> features
-//   init -> (telemetry disabled) -> notelemetrystar -> features
-
-type PageName = "init" | "notelemetrystar" | "features";
+type PageName = "init" | "features";
 
 const pageNameAtom: PrimitiveAtom<PageName> = atom<PageName>("init");
 
@@ -40,27 +33,11 @@ const InitPage = ({
     const [telemetryEnabled, setTelemetryEnabled] = useState<boolean>(!!telemetrySetting);
     const setPageName = useSetAtom(pageNameAtom);
 
-    const handleStarClick = async () => {
-        RpcApi.RecordTEventCommand(
-            TabRpcClient,
-            {
-                event: "onboarding:githubstar",
-                props: { "onboarding:githubstar": "star", "onboarding:page": "init" },
-            },
-            { noresponse: true }
-        );
-        const clientId = ClientModel.getInstance().clientId;
-        await RpcApi.SetMetaCommand(TabRpcClient, {
-            oref: WOS.makeORef("client", clientId),
-            meta: { "onboarding:githubstar": true },
-        });
-    };
-
     const acceptTos = () => {
         if (!clientData?.tosagreed) {
             fireAndForget(() => services.ClientService.AgreeTos());
         }
-        setPageName(telemetryEnabled ? "features" : "notelemetrystar");
+        setPageName("features");
     };
 
     const setTelemetry = (value: boolean) => {
@@ -90,70 +67,11 @@ const InitPage = ({
                 <div className="flex flex-col items-start gap-8 w-full mb-5 unselectable">
                     <div className="flex w-full items-center gap-[18px]">
                         <div>
-                            <a
-                                target="_blank"
-                                href="https://github.com/Ry3nG/GenieTerm"
-                                rel="noopener"
-                                className="text-accent"
-                                onClick={handleStarClick}
-                            >
-                                <i className="text-[32px] text-white/50 fa-brands fa-github"></i>
-                            </a>
-                        </div>
-                        <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-foreground text-base leading-[18px]">Private GenieTerm Workspace</div>
-                            <div className="text-secondary leading-5">
-                                GenieTerm is a private fork focused on remote file workflows and daily terminal UX.
-                                Track product work in{" "}
-                                <a
-                                    target="_blank"
-                                    href="https://github.com/Ry3nG/GenieTerm"
-                                    rel="noopener"
-                                    className="text-accent"
-                                    onClick={handleStarClick}
-                                >
-                                    Github&nbsp;(Ry3nG/GenieTerm)
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex w-full items-center gap-[18px]">
-                        <div>
-                            <i className="text-[25px] text-white/50 fa-solid fa-people-group"></i>
-                        </div>
-                        <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-foreground text-base leading-[18px]">Upstream Project</div>
-                            <div className="text-secondary leading-5">
-                                GenieTerm is built from Wave Terminal and keeps the upstream Apache-2.0 license and
-                                acknowledgements.
-                                <br />
-                                <a
-                                    target="_blank"
-                                    href="https://github.com/wavetermdev/waveterm"
-                                    rel="noopener"
-                                    className="text-accent"
-                                >
-                                    View the Wave&nbsp;Terminal&nbsp;repository
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex w-full items-center gap-[18px]">
-                        <div>
                             <i className="text-[32px] text-white/50 fa-solid fa-chart-line"></i>
                         </div>
                         <div className="flex flex-col items-start gap-1 flex-1">
                             <div className="text-secondary leading-5">
                                 Anonymous usage data helps us improve features you use.
-                                <br />
-                                <a
-                                    className="text-secondary! hover:underline!"
-                                    target="_blank"
-                                    href="https://github.com/Ry3nG/GenieTerm"
-                                    rel="noopener"
-                                >
-                                    Repository
-                                </a>
                             </div>
                             <label className="flex items-center gap-2 cursor-pointer text-secondary">
                                 <input
@@ -172,80 +90,6 @@ const InitPage = ({
                 <div className="flex flex-row items-center justify-center [&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm [&>button:not(:first-child)]:ml-2.5">
                     <Button className="font-[600]" onClick={acceptTos}>
                         Continue
-                    </Button>
-                </div>
-            </footer>
-        </div>
-    );
-};
-
-const NoTelemetryStarPage = ({ isCompact }: { isCompact: boolean }) => {
-    const setPageName = useSetAtom(pageNameAtom);
-
-    const handleStarClick = async () => {
-        RpcApi.RecordTEventCommand(
-            TabRpcClient,
-            {
-                event: "onboarding:githubstar",
-                props: { "onboarding:githubstar": "star", "onboarding:page": "notelemetry" },
-            },
-            { noresponse: true }
-        );
-        const clientId = ClientModel.getInstance().clientId;
-        await RpcApi.SetMetaCommand(TabRpcClient, {
-            oref: WOS.makeORef("client", clientId),
-            meta: { "onboarding:githubstar": true },
-        });
-        window.open("https://github.com/Ry3nG/GenieTerm", "_blank");
-        setPageName("features");
-    };
-
-    const handleMaybeLater = async () => {
-        RpcApi.RecordTEventCommand(
-            TabRpcClient,
-            {
-                event: "onboarding:githubstar",
-                props: { "onboarding:githubstar": "later", "onboarding:page": "notelemetry" },
-            },
-            { noresponse: true }
-        );
-        const clientId = ClientModel.getInstance().clientId;
-        await RpcApi.SetMetaCommand(TabRpcClient, {
-            oref: WOS.makeORef("client", clientId),
-            meta: { "onboarding:githubstar": false },
-        });
-        setPageName("features");
-    };
-
-    return (
-        <div className="flex flex-col h-full">
-            <header className={`flex flex-col gap-2 border-b-0 p-0 mt-1 mb-4 w-full unselectable flex-shrink-0`}>
-                <div className={`flex justify-center`}>
-                    <Logo />
-                </div>
-                <div className="text-center text-[25px] font-normal text-foreground">Telemetry Disabled ✓</div>
-            </header>
-            <OverlayScrollbarsComponent
-                className="flex-1 overflow-y-auto min-h-0"
-                options={{ scrollbars: { autoHide: "never" } }}
-            >
-                <div className="flex flex-col items-center gap-6 w-full mb-2 unselectable">
-                    <div className="text-center text-secondary leading-relaxed max-w-md">
-                        <p className="mb-4">No problem, we respect your privacy.</p>
-                        <p className="mb-4">
-                            But, without usage data, we're flying blind. A GitHub star helps us know GenieTerm is useful and
-                            worth maintaining.
-                        </p>
-                    </div>
-                </div>
-            </OverlayScrollbarsComponent>
-            <footer className={`unselectable flex-shrink-0 mt-2`}>
-                <div className="flex flex-row items-center justify-center gap-2.5 [&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm [&>button]:!h-[37px]">
-                    <Button className="outlined green font-[600]" onClick={handleStarClick}>
-                        ⭐ Star on GitHub
-                    </Button>
-                    <Button className="outlined grey font-[600]" onClick={handleMaybeLater}>
-                        Maybe Later
                     </Button>
                 </div>
             </footer>
@@ -314,10 +158,12 @@ const NewInstallOnboardingModal = () => {
     let pageComp: React.JSX.Element = null;
     switch (pageName) {
         case "init":
-            pageComp = <InitPage isCompact={isCompact} telemetryUpdateFn={(value) => services.ClientService.TelemetryUpdate(value)} />;
-            break;
-        case "notelemetrystar":
-            pageComp = <NoTelemetryStarPage isCompact={isCompact} />;
+            pageComp = (
+                <InitPage
+                    isCompact={isCompact}
+                    telemetryUpdateFn={(value) => services.ClientService.TelemetryUpdate(value)}
+                />
+            );
             break;
         case "features":
             pageComp = <FeaturesPage />;
@@ -340,4 +186,4 @@ const NewInstallOnboardingModal = () => {
 
 NewInstallOnboardingModal.displayName = "NewInstallOnboardingModal";
 
-export { InitPage, NewInstallOnboardingModal, NoTelemetryStarPage };
+export { InitPage, NewInstallOnboardingModal };

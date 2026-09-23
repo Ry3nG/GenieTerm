@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atoms } from "@/app/store/global";
-import { RpcApi } from "@/app/store/wshclientapi";
 import { modalsModel } from "@/app/store/modalmodel";
+import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type SettingControl =
     | { kind: "toggle" }
@@ -91,7 +91,7 @@ const SETTING_GROUPS: SettingGroup[] = [
             {
                 key: "telemetry:enabled",
                 label: "Telemetry",
-                hint: "Off by default — GenieTerm never phones home to Wave",
+                hint: "Off by default",
                 control: { kind: "toggle" },
             },
             { key: "autoupdate:enabled", label: "Automatic updates", control: { kind: "toggle" } },

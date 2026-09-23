@@ -9,7 +9,6 @@ import {
     isOnboardingCurrent,
     OnboardingGradientBg,
 } from "@/app/onboarding/onboarding-common";
-import { StarAskPage } from "@/app/onboarding/onboarding-starask";
 import { ClientModel } from "@/app/store/client-model";
 import { globalStore } from "@/app/store/global";
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
@@ -18,14 +17,11 @@ import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 function UpgradeNotes() {
     return (
         <div className="flex flex-col gap-4 text-secondary leading-6">
-            <p className="text-foreground">
-                GenieTerm is a semantic terminal for remote work, not a Wave upgrade tour.
-            </p>
             <div className="flex items-start gap-3">
                 <i className="fa-solid fa-layer-group text-accent mt-1" />
                 <p>
@@ -51,8 +47,6 @@ function UpgradeNotes() {
 const UpgradeOnboardingModal = () => {
     const clientData = useAtomValue(ClientModel.getInstance().clientAtom);
     const initialVersionRef = useRef<string | null>(null);
-    const [showStarAsk, setShowStarAsk] = useState(false);
-    const alreadyStarred = clientData?.meta?.["onboarding:githubstar"] === true;
 
     if (initialVersionRef.current == null) {
         initialVersionRef.current = clientData.meta?.["onboarding:lastversion"] ?? "v0.0.0";
@@ -90,23 +84,8 @@ const UpgradeOnboardingModal = () => {
             oref: WOS.makeORef("client", clientId),
             meta: { "onboarding:lastversion": CurrentOnboardingVersion },
         });
-        if (alreadyStarred) {
-            doClose();
-        } else {
-            setShowStarAsk(true);
-        }
+        doClose();
     };
-
-    if (showStarAsk) {
-        return (
-            <FlexiModal className="w-[500px] rounded-[10px] !p-[30px] relative overflow-hidden bg-panel">
-                <OnboardingGradientBg />
-                <div className="relative z-10 flex flex-col w-full h-full">
-                    <StarAskPage onClose={doClose} page="upgrade" />
-                </div>
-            </FlexiModal>
-        );
-    }
 
     return (
         <FlexiModal className="w-[560px] rounded-[10px] !p-[30px] relative overflow-hidden bg-panel">
