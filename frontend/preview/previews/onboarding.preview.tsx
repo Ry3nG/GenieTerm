@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Logo from "@/app/asset/logo";
-import { InitPage, NoTelemetryStarPage } from "@/app/onboarding/onboarding";
+import { InitPage } from "@/app/onboarding/onboarding";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { DurableSessionPage } from "@/app/onboarding/onboarding-durable";
 import { CommandBlocksPage, FilesPage } from "@/app/onboarding/onboarding-features";
-import { StarAskPage } from "@/app/onboarding/onboarding-starask";
 import { UpgradeNotes } from "@/app/onboarding/onboarding-upgrade";
 
 function OnboardingModalWrapper({ width, children }: { width: string; children: React.ReactNode }) {
@@ -24,9 +23,6 @@ function OnboardingFeaturesV() {
         <div className="flex flex-col w-full gap-8">
             <OnboardingModalWrapper width="w-[560px]">
                 <InitPage isCompact={false} telemetryUpdateFn={async () => {}} />
-            </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[560px]">
-                <NoTelemetryStarPage isCompact={false} />
             </OnboardingModalWrapper>
             <OnboardingModalWrapper width="w-[800px]">
                 <DurableSessionPage onNext={noop} onSkip={noop} onPrev={noop} />
@@ -53,15 +49,6 @@ function UpgradeNotesV() {
     );
 }
 
-function StarAskV() {
-    const noop = () => {};
-    return (
-        <OnboardingModalWrapper width="w-[500px]">
-            <StarAskPage onClose={noop} />
-        </OnboardingModalWrapper>
-    );
-}
-
 export function OnboardingPreview() {
     return (
         <div className="w-full max-w-[1300px] py-10 px-4 flex flex-col gap-8">
@@ -69,8 +56,6 @@ export function OnboardingPreview() {
             <OnboardingFeaturesV />
             <div className="text-sm font-mono text-muted mt-6">Upgrade notes</div>
             <UpgradeNotesV />
-            <div className="text-sm font-mono text-muted mt-6">Onboarding star ask</div>
-            <StarAskV />
         </div>
     );
 }
