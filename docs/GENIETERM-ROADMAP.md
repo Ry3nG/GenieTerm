@@ -2,7 +2,7 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Release scope last reviewed against `package.json` **0.4.93** on 2026-09-23.
+Living tracker. Release scope last reviewed against `package.json` **0.4.94-beta.1** on 2026-09-24.
 
 If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/`, this file wins.
 

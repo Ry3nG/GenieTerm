@@ -25,6 +25,7 @@ const OutputDir = path.resolve(process.argv[2] || process.env.GENIETERM_BUILD_OU
 const WindowSmoke = process.argv.includes("--window-smoke");
 const RequireSignature = process.argv.includes("--require-signature");
 const { productName: ProductName, version: Version } = JSON.parse(readFileSync("package.json", "utf8"));
+const UpdateChannel = Version.match(/^\d+\.\d+\.\d+-([A-Za-z0-9-]+)/)?.[1] || "latest";
 
 function fail(message) {
   throw new Error(`[${Scope}] ${message}`);
@@ -119,20 +120,21 @@ async function sha512(filePath) {
 }
 
 async function verifyUpdateMetadata(names) {
-  const metadataPath = requireFile(path.join(OutputDir, "latest.yml"));
+  const metadataName = `${UpdateChannel}.yml`;
+  const metadataPath = requireFile(path.join(OutputDir, metadataName));
   const metadata = YAML.parse(readFileSync(metadataPath, "utf8"));
   if (metadata?.version !== Version || !Array.isArray(metadata.files) || metadata.files.length === 0) {
-    fail(`latest.yml does not describe version ${Version}`);
+    fail(`${metadataName} does not describe version ${Version}`);
   }
   const updateNames = new Set();
   for (const file of metadata.files) {
     const name = file?.url;
     if (typeof name !== "string" || path.basename(name) !== name || !names.includes(name)) {
-      fail(`latest.yml references an unpublished file: ${String(name)}`);
+      fail(`${metadataName} references an unpublished file: ${String(name)}`);
     }
     const artifactPath = requireFile(path.join(OutputDir, name), 1024 * 1024);
     if (file.size !== statSync(artifactPath).size || file.sha512 !== (await sha512(artifactPath))) {
-      fail(`latest.yml size or SHA-512 mismatch: ${name}`);
+      fail(`${metadataName} size or SHA-512 mismatch: ${name}`);
     }
     updateNames.add(name);
   }
@@ -140,10 +142,10 @@ async function verifyUpdateMetadata(names) {
     !updateNames.has(metadata.path) ||
     metadata.sha512 !== metadata.files.find((file) => file.url === metadata.path).sha512
   ) {
-    fail("latest.yml primary update does not match its files list");
+    fail(`${metadataName} primary update does not match its files list`);
   }
   if (![...updateNames].some((name) => name.endsWith(".exe"))) {
-    fail("latest.yml has no Windows installer update");
+    fail(`${metadataName} has no Windows installer update`);
   }
 }
 

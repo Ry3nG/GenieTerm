@@ -8,7 +8,7 @@ The Windows package is ready for a public stable release when every check below 
 
 - The Windows x64 CI job builds the current version's NSIS installer and ZIP, and the package verifier passes.
 - The unpacked app contains `GenieTerm.exe`, `app.asar`, `wavesrv.x64.exe`, and the matching version's Windows x64 `genie` and `wsh` helpers.
-- `latest.yml` names the published Windows x64 update package with matching size and SHA-512; every referenced asset is present in the GitHub Release and downloads successfully.
+- The Windows update manifest (`latest.yml` for stable, `beta.yml` for a beta preview) names the published Windows x64 update package with matching size and SHA-512; every referenced asset is present in the GitHub Release and downloads successfully.
 - The published installer and executables have a verifiable signature from the intended publisher. Unsigned artifacts can be used for internal testing but do not satisfy this public-release gate.
 
 The stable release workflow reads `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` from GitHub Actions secrets. Keep signing material out of the repository and chat. An unsigned preview uses a prerelease tag and does not update the stable channel.
@@ -24,4 +24,4 @@ The stable release workflow reads `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` from
 
 ## Release decision
 
-Tagging needs a clean worktree, matching package version, green macOS and Windows gates, independent review of the release diff, and a documented disposition for every failed check. After publication, read back the tag, workflow result, public Release, installer, ZIP, `latest.yml`, and the installed app version independently.
+Tagging needs a clean worktree, matching package version, green macOS and Windows gates, independent review of the release diff, and a documented disposition for every failed check. After publication, read back the tag, workflow result, public Release, installer, ZIP, channel-matched update manifest, and the installed app version independently.
