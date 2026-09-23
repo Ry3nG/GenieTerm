@@ -1,6 +1,7 @@
 package connparse_test
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
@@ -359,6 +360,34 @@ func TestParseURI_FileURIWithAbsolutePath(t *testing.T) {
 	}
 	if c.GetFullURI() != cstr {
 		t.Fatalf("expected full URI to be %q, got %q", cstr, c.GetFullURI())
+	}
+}
+
+func TestParseURI_FileURIWithEncodedPath(t *testing.T) {
+	t.Parallel()
+	cstr := "file:///Users/me/My%20Files/out.txt"
+	c, err := connparse.ParseURI(cstr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Path != "/Users/me/My Files/out.txt" || c.GetFullURI() != cstr {
+		t.Fatalf("file URI did not round trip: path=%q uri=%q", c.Path, c.GetFullURI())
+	}
+}
+
+func TestParseURI_WindowsFileURI(t *testing.T) {
+	t.Parallel()
+	cstr := "file:///C:/Users/me/My%20Files/out.txt"
+	c, err := connparse.ParseURI(cstr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPath := "/C:/Users/me/My Files/out.txt"
+	if runtime.GOOS == "windows" {
+		wantPath = "C:/Users/me/My Files/out.txt"
+	}
+	if c.Path != wantPath || c.GetFullURI() != cstr {
+		t.Fatalf("Windows file URI did not round trip: path=%q uri=%q", c.Path, c.GetFullURI())
 	}
 }
 

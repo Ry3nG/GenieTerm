@@ -6,6 +6,7 @@ package iochan_test
 import (
 	"context"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,21 +27,27 @@ func TestIochan_Basic(t *testing.T) {
 	}()
 
 	// Initialize the reader channel
-	readerChanCallbackCalled := false
+	readerDone := make(chan struct{})
+	var readerOnce sync.Once
 	readerChanCallback := func() {
-		srcPipeReader.Close()
-		readerChanCallbackCalled = true
+		readerOnce.Do(func() {
+			srcPipeReader.Close()
+			close(readerDone)
+		})
 	}
 	defer readerChanCallback() // Ensure the callback is called
 	ioch := iochan.ReaderChan(context.TODO(), srcPipeReader, buflen, readerChanCallback)
 
 	// Initialize the destination pipe and the writer channel
 	destPipeReader, destPipeWriter := io.Pipe()
-	writerChanCallbackCalled := false
+	writerDone := make(chan struct{})
+	var writerOnce sync.Once
 	writerChanCallback := func() {
-		destPipeReader.Close()
-		destPipeWriter.Close()
-		writerChanCallbackCalled = true
+		writerOnce.Do(func() {
+			destPipeReader.Close()
+			destPipeWriter.Close()
+			close(writerDone)
+		})
 	}
 	defer writerChanCallback() // Ensure the callback is called
 	iochan.WriterChan(context.TODO(), destPipeWriter, ioch, writerChanCallback, func(err error) {})
@@ -59,11 +66,14 @@ func TestIochan_Basic(t *testing.T) {
 	}
 
 	// Give the callbacks a chance to run before checking if they were called
-	time.Sleep(10 * time.Millisecond)
-	if !readerChanCallbackCalled {
-		t.Fatalf("ReaderChan callback not called")
-	}
-	if !writerChanCallbackCalled {
-		t.Fatalf("WriterChan callback not called")
+	for _, done := range []struct {
+		name string
+		ch   <-chan struct{}
+	}{{"ReaderChan", readerDone}, {"WriterChan", writerDone}} {
+		select {
+		case <-done.ch:
+		case <-time.After(time.Second):
+			t.Fatalf("%s callback not called", done.name)
+		}
 	}
 }

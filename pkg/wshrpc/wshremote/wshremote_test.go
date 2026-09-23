@@ -17,6 +17,7 @@ import (
 func TestConnServerInitCreatesPersistentClientSymlinkDir(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
 
 	sockName := filepath.Join(homeDir, wavebase.RemoteGenieHomeDirName, wavebase.RemoteDomainSocketBaseName)
 	impl := MakeRemoteRpcServerImpl(io.Discard, nil, nil, false, nil, sockName)
