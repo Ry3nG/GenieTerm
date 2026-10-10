@@ -69,7 +69,12 @@ export class TermCompletionService {
                 provider.provideCompletions(ctx),
                 new Promise<never>((_, reject) => {
                     timeoutId = setTimeout(
-                        () => reject(new Error(`completion provider ${provider.id} timed out after ${this.providerTimeoutMs}ms`)),
+                        () =>
+                            reject(
+                                new Error(
+                                    `completion provider ${provider.id} timed out after ${this.providerTimeoutMs}ms`
+                                )
+                            ),
                         this.providerTimeoutMs
                     );
                 }),

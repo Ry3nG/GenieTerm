@@ -5,6 +5,7 @@ import type { TermInputBuffer } from "./types";
 
 const BracketedPasteStart = "\x1b[200~";
 const BracketedPasteEnd = "\x1b[201~";
+const NonTypeaheadChars = new Set(["\x03", "\x04", "\x1a", "\x1c", "\r", "\n"]);
 
 function previousCodePointIndex(text: string, index: number): number {
     if (index <= 0) {
@@ -83,6 +84,17 @@ function deleteRange(buffer: TermInputBuffer, start: number, end: number): TermI
         text: buffer.text.slice(0, start) + buffer.text.slice(end),
         cursorIndex: start,
     };
+}
+
+// Input typed while a command runs is either consumed by that program or queued as
+// typeahead for the next prompt; signals and a bare Enter never reach the next line editor.
+export function isTypeaheadInput(data: string): boolean {
+    for (const char of data ?? "") {
+        if (!NonTypeaheadChars.has(char)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 export function emptyPromptInputBuffer(): TermInputBuffer {
@@ -211,9 +223,14 @@ export function applyPromptInputData(buffer: TermInputBuffer, data: string): Ter
         if (char === "\x1b") {
             return null;
         }
-        if (char < " ") {
+        if (char === "\x0c") {
             idx++;
             continue;
+        }
+        if (char < " ") {
+            // Shells bind most other control keys (transpose, yank, quoted-insert,
+            // delete-char, undo, ...) to edits this mirror can't reproduce faithfully.
+            return null;
         }
         const [codePoint] = Array.from(data.slice(idx));
         next = insertText(next, codePoint);

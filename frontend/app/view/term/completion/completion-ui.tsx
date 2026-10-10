@@ -16,10 +16,10 @@ import { makeAICompletionProvider } from "./ai-provider";
 import { TermCompletionService } from "./completion-service";
 import { figSpecExists, makeFigStaticCompletionProvider } from "./fig-static-provider";
 import { makeFileCompletionProvider, type ListDirectoryForCompletion } from "./file-provider";
-import { makeHelpFallbackCompletionProvider } from "./help-provider";
-import { makePathCommandCompletionProvider } from "./path-provider";
 import { makeCompletionGhostText } from "./ghost";
+import { makeHelpFallbackCompletionProvider } from "./help-provider";
 import { makeHistoryCompletionProvider } from "./history-provider";
+import { makePathCommandCompletionProvider } from "./path-provider";
 import { buildCompletionContext } from "./tokenizer";
 import type { CompletionItem, ShellType, TermInputBuffer } from "./types";
 
@@ -219,12 +219,17 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
     React.useEffect(() => {
         const manualRequest = manualRequestVersion !== lastManualRequestVersion.current;
         lastManualRequestVersion.current = manualRequestVersion;
-        if (termWrap == null || inputBuffer == null || shellIntegrationStatus === "running-command" || altScreenActive) {
-            completionModel.dismiss();
+        // anything shown or in flight was computed for the previous input
+        completionModel.invalidate();
+        if (
+            termWrap == null ||
+            inputBuffer == null ||
+            shellIntegrationStatus === "running-command" ||
+            altScreenActive
+        ) {
             return;
         }
         if (!manualRequest && inputBuffer.text.trim() === "") {
-            completionModel.dismiss();
             return;
         }
         const connection = (blockData?.meta?.connection as string) || "";

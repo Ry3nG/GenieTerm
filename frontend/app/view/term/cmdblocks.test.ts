@@ -11,8 +11,10 @@ import {
     findCmdBlockAtLine,
     getBlockOutputText,
     hashTerminalSnapshot,
-    makeCmdBlockIndexSnapshot,
+    isCmdBlockCommandPlaceholder,
+    makeCmdBlockCommandTooLargePlaceholder,
     makeCmdBlockDecorationSpecs,
+    makeCmdBlockIndexSnapshot,
     parseCmdBlockIndexSnapshot,
 } from "./cmdblocks";
 
@@ -77,15 +79,57 @@ describe("cmdblocks", () => {
         const snapshot = makeCmdBlockIndexSnapshot(
             [block({ id: 3, startMarker: marker(2), endMarker: marker(5) }), block({ id: 4, startMarker: marker(-1) })],
             512,
-            90
+            90,
+            2000,
+            40
         );
 
         expect(snapshot.blocks).toHaveLength(1);
-        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 90)).toEqual(snapshot);
-        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 513, 90)).toBeNull();
-        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 80)).toBeNull();
-        expect(parseCmdBlockIndexSnapshot('{', 512, 90)).toBeNull();
-        expect(parseCmdBlockIndexSnapshot({ ...snapshot, blocks: [{ ...snapshot.blocks[0], startline: -1 }] }, 512, 90)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 90, 2000)).toEqual(snapshot);
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 513, 90, 2000)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 80, 2000)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot("{", 512, 90, 2000)).toBeNull();
+        expect(
+            parseCmdBlockIndexSnapshot(
+                { ...snapshot, blocks: [{ ...snapshot.blocks[0], startline: -1 }] },
+                512,
+                90,
+                2000
+            )
+        ).toBeNull();
+    });
+
+    it("rejects a command index recorded with a different scrollback or buffer length", () => {
+        const snapshot = makeCmdBlockIndexSnapshot(
+            [block({ id: 3, startMarker: marker(2), endMarker: marker(5) })],
+            512,
+            90,
+            2000,
+            40
+        );
+
+        expect(snapshot).toMatchObject({ scrollback: 2000, bufferlength: 40 });
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 90, 1000)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot({ ...snapshot, bufferlength: 4 }, 512, 90, 2000)).toBeNull();
+        expect(parseCmdBlockIndexSnapshot({ ...snapshot, version: 1 }, 512, 90, 2000)).toBeNull();
+        const { scrollback: _scrollback, ...legacy } = snapshot;
+        expect(parseCmdBlockIndexSnapshot(legacy, 512, 90, 2000)).toBeNull();
+    });
+
+    it("round-trips interrupted blocks and recognizes oversized command placeholders", () => {
+        const snapshot = makeCmdBlockIndexSnapshot(
+            [block({ id: 3, exitCode: null, interrupted: true, startTs: 0, doneTs: null })],
+            512,
+            90,
+            2000,
+            40
+        );
+
+        expect(parseCmdBlockIndexSnapshot(JSON.stringify(snapshot), 512, 90, 2000).blocks[0].interrupted).toBe(true);
+        expect(isCmdBlockCommandPlaceholder(makeCmdBlockCommandTooLargePlaceholder(9000))).toBe(true);
+        expect(isCmdBlockCommandPlaceholder("# command too large")).toBe(false);
+        expect(isCmdBlockCommandPlaceholder("npm test")).toBe(false);
+        expect(isCmdBlockCommandPlaceholder(null)).toBe(false);
     });
 
     it("treats a missing block as having no command", () => {

@@ -12,11 +12,17 @@ vi.mock("@/app/view/vdom/vdom-model", () => ({
     VDomModel: class {},
 }));
 
-import { globalStore } from "@/store/global";
 import { RpcApi } from "@/app/store/wshclientapi";
+import { globalStore } from "@/store/global";
 import * as jotai from "jotai";
+import type { CmdBlock } from "./cmdblocks";
+import {
+    UnknownCommandAIProviderStatus,
+    type CommandComposerBackend,
+    type CommandComposerResult,
+} from "./command-composer";
 import { TermCompletionModel } from "./completion/completion-model";
-import type { CompletionContext, CompletionItem } from "./completion/types";
+import type { CompletionContext, CompletionItem, TermInputBuffer } from "./completion/types";
 import { TermViewModel } from "./term-model";
 
 function makeContext(overrides: Partial<CompletionContext> = {}): CompletionContext {
@@ -62,25 +68,59 @@ function makeKeydownEvent(key: string): KeyboardEvent {
     } as unknown as KeyboardEvent;
 }
 
-function makeTermModel(): TermViewModel {
+function makeTermModel(input: TermInputBuffer = { text: "cd GenieTerm/", cursorIndex: 13 }): TermViewModel {
     const model = Object.create(TermViewModel.prototype) as TermViewModel;
     model.blockId = "block-1";
-    model.termRef = { current: null };
+    model.termRef = {
+        current: { currentInputBufferAtom: jotai.atom(input), scheduleCmdDecorationSync: vi.fn() } as any,
+    };
     model.completionModel = new TermCompletionModel();
     model.shellProcStatus = jotai.atom("running");
     model.keyDownHandler = vi.fn(() => false);
     model.shouldHandleCtrlVPaste = vi.fn(() => false);
-    model.acceptCompletionSelected = vi.fn();
+    model.acceptCompletionSelected = vi.fn(() => true);
     model.inputQueue = Promise.resolve();
+    model.commandComposerRequestCounter = 0;
+    model.inlineCommandAIRequestCounter = 0;
+    model.commandComposerOpenAtom = jotai.atom(false);
+    model.commandComposerProposalsAtom = jotai.atom([]);
+    model.commandComposerStatusAtom = jotai.atom("idle");
+    model.commandComposerErrorAtom = jotai.atom("");
+    model.commandComposerConfirmProposalIdAtom = jotai.atom("");
+    model.commandComposerProviderStatusAtom = jotai.atom(UnknownCommandAIProviderStatus);
+    model.inlineCommandAIStatesAtom = jotai.atom({});
+    model.isCommandComposerEnabled = () => true;
+    model.getCommandComposerContextInputForBlock = () => ({});
     return model;
+}
+
+function deferredCompose() {
+    const calls: Array<(result: CommandComposerResult) => void> = [];
+    const backend: CommandComposerBackend = {
+        compose: () => new Promise<CommandComposerResult>((resolve) => calls.push(resolve)),
+    };
+    const result = (command: string): CommandComposerResult => ({
+        proposals: [
+            {
+                id: command,
+                command,
+                explanation: "",
+                target: "local:~",
+                risk: { label: "low", reasons: [], requiresConfirmation: false },
+                source: "model",
+            },
+        ],
+        providerStatus: UnknownCommandAIProviderStatus,
+    });
+    return { backend, calls, result };
 }
 
 describe("TermViewModel completion key handling", () => {
     it("delivers rapid terminal input to the controller in keystroke order", async () => {
         const pending: Array<() => void> = [];
-        const send = vi.spyOn(RpcApi, "ControllerInputCommand").mockImplementation(
-            () => new Promise<void>((resolve) => pending.push(resolve))
-        );
+        const send = vi
+            .spyOn(RpcApi, "ControllerInputCommand")
+            .mockImplementation(() => new Promise<void>((resolve) => pending.push(resolve)));
         try {
             const model = makeTermModel();
             model.sendDataToController("a");
@@ -163,5 +203,86 @@ describe("TermViewModel completion key handling", () => {
         expect(model.acceptCompletionSelected).toHaveBeenCalledOnce();
         expect(event.preventDefault).toHaveBeenCalledOnce();
         expect(event.stopPropagation).toHaveBeenCalledOnce();
+    });
+
+    it("passes ArrowRight through as cursor movement when the cursor is mid-line", () => {
+        const model = makeTermModel({ text: "cd GenieTerm/", cursorIndex: 5 });
+        globalStore.set(model.completionModel.itemsAtom, [
+            makeItem({ label: "lsblk", insertText: "lsblk", kind: "history" }),
+        ]);
+        globalStore.set(
+            model.completionModel.contextAtom,
+            makeContext({ requestKind: "auto", cursorIndex: 5, inputText: "cd GenieTerm/" })
+        );
+        globalStore.set(model.completionModel.openAtom, true);
+        const event = makeKeydownEvent("ArrowRight");
+
+        const handled = model.handleTerminalKeydown(event);
+
+        expect(handled).toBe(true);
+        expect(model.acceptCompletionSelected).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(globalStore.get(model.completionModel.openAtom)).toBe(false);
+    });
+
+    it("passes the key through when the popup is stale relative to the current input", () => {
+        const model = makeTermModel({ text: "cd GenieTerm/M", cursorIndex: 14 });
+        globalStore.set(model.completionModel.itemsAtom, [makeItem()]);
+        globalStore.set(model.completionModel.contextAtom, makeContext({ requestKind: "auto" }));
+        globalStore.set(model.completionModel.openAtom, true);
+        const event = makeKeydownEvent("ArrowRight");
+
+        expect(model.handleTerminalKeydown(event)).toBe(true);
+        expect(model.acceptCompletionSelected).not.toHaveBeenCalled();
+    });
+});
+
+describe("TermViewModel AI requests", () => {
+    const block = { id: 7, command: "show disk usage", state: "done", exitCode: 127 } as CmdBlock;
+
+    it("drops an inline AI result that arrives after the suggestion was dismissed", async () => {
+        const model = makeTermModel();
+        const { backend, calls, result } = deferredCompose();
+        model.commandComposerBackend = backend;
+
+        const pending = model.generateInlineCommandAI("show disk usage", block);
+        model.dismissInlineCommandAI();
+        calls[0](result("df -h"));
+        await pending;
+
+        expect(globalStore.get(model.inlineCommandAIStatesAtom)).toEqual({});
+    });
+
+    it("keeps only the newest inline AI result for a block", async () => {
+        const model = makeTermModel();
+        const { backend, calls, result } = deferredCompose();
+        model.commandComposerBackend = backend;
+
+        const first = model.generateInlineCommandAI("show disk usage", block);
+        const second = model.generateInlineCommandAI("show disk usage please", block);
+        calls[1](result("df -h"));
+        calls[0](result("echo stale"));
+        await Promise.all([first, second]);
+
+        expect(model.getInlineCommandAIState(block)).toMatchObject({
+            status: "ready",
+            proposal: { command: "df -h" },
+        });
+    });
+
+    it("drops composer proposals that arrive after the composer was closed", async () => {
+        const model = makeTermModel();
+        model.giveFocus = vi.fn(() => true);
+        const { backend, calls, result } = deferredCompose();
+        model.commandComposerBackend = backend;
+        globalStore.set(model.commandComposerOpenAtom, true);
+
+        const pending = model.generateCommandProposals("show disk usage", {});
+        model.closeCommandComposer();
+        calls[0](result("df -h"));
+        await pending;
+
+        expect(globalStore.get(model.commandComposerProposalsAtom)).toEqual([]);
+        expect(globalStore.get(model.commandComposerStatusAtom)).toBe("loading");
     });
 });

@@ -3,7 +3,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { formatCmdBlockDuration, getCmdBlockStatus, getCmdBlockTitle } from "./cmdblockdisplay";
+import {
+    formatCmdBlockDuration,
+    getCmdBlockStatus,
+    getCmdBlockTitle,
+    getCommandRunBlockedReason,
+} from "./cmdblockdisplay";
 import type { CmdBlock } from "./cmdblocks";
 
 function makeBlock(overrides: Partial<CmdBlock>): CmdBlock {
@@ -43,6 +48,32 @@ describe("cmdblockdisplay", () => {
             tone: "error",
             iconClass: "fa-solid fa-xmark",
         });
+    });
+
+    it("shows blocks that ended without an exit code as interrupted/unknown, not as an error", () => {
+        expect(getCmdBlockStatus(makeBlock({ state: "done", exitCode: null, interrupted: true }))).toMatchObject({
+            label: "Interrupted",
+            tone: "unknown",
+        });
+        expect(getCmdBlockStatus(makeBlock({ state: "done", exitCode: null }))).toMatchObject({ tone: "unknown" });
+        expect(getCmdBlockStatus(makeBlock({ state: "done", exitCode: null })).label).not.toContain("?");
+    });
+
+    it("hides the duration of a finished block whose end time is unknown", () => {
+        expect(formatCmdBlockDuration(makeBlock({ state: "done", startTs: 1_000, doneTs: null }), 90_000)).toBe("");
+        expect(formatCmdBlockDuration(makeBlock({ state: "running", startTs: 0 }), 90_000)).toBe("");
+    });
+
+    it("only allows re-running a recorded command at an idle prompt", () => {
+        const ready = { shellIntegrationStatus: "ready" as const, altScreenActive: false };
+        expect(getCommandRunBlockedReason("npm test", ready)).toBeNull();
+        expect(
+            getCommandRunBlockedReason("npm test", { ...ready, shellIntegrationStatus: "running-command" })
+        ).not.toBeNull();
+        expect(getCommandRunBlockedReason("npm test", { ...ready, shellIntegrationStatus: null })).not.toBeNull();
+        expect(getCommandRunBlockedReason("npm test", { ...ready, altScreenActive: true })).not.toBeNull();
+        expect(getCommandRunBlockedReason("# command too large (9000 bytes)", ready)).not.toBeNull();
+        expect(getCommandRunBlockedReason("  ", ready)).not.toBeNull();
     });
 
     it("builds concise titles with command, status, duration, and cwd", () => {

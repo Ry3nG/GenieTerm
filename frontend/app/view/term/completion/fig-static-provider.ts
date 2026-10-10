@@ -376,12 +376,11 @@ export function makeFigStaticCompletionProvider(options: FigProviderOptions = {}
             if (rootSpec == null) {
                 return [];
             }
-            const { node: activeNode, spec, isCommandArg } = await resolveActiveContext(
-                rootSpec,
-                ctx.tokens,
-                ctx.tokenIndex,
-                loadSpec
-            );
+            const {
+                node: activeNode,
+                spec,
+                isCommandArg,
+            } = await resolveActiveContext(rootSpec, ctx.tokens, ctx.tokenIndex, loadSpec);
             const prevTokenText = ctx.tokens[ctx.tokenIndex - 1]?.text;
             if (prevTokenText?.startsWith("-")) {
                 const optionArgs = optionArgsForToken(activeNode, prevTokenText);
@@ -396,7 +395,9 @@ export function makeFigStaticCompletionProvider(options: FigProviderOptions = {}
             if (ctx.tokenType === "option" || ctx.searchTerm.startsWith("-")) {
                 // don't re-suggest options already present on the line
                 const used = usedOptionNames(ctx.tokens, ctx.tokenIndex);
-                return figItems(activeNode.options, "flag", ctx.searchTerm).filter((item) => !used.has(item.insertText));
+                return figItems(activeNode.options, "flag", ctx.searchTerm).filter(
+                    (item) => !used.has(item.insertText)
+                );
             }
             // command-wrapper arg (e.g. `sudo <cmd>`): suggest command names for the value
             if (isCommandArg) {

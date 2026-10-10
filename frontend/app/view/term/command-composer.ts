@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CmdBlock, blockHasCommand } from "./cmdblocks";
+import { type CmdBlock, blockHasCommand, isCmdBlockCommandPlaceholder } from "./cmdblocks";
 import type { ShellIntegrationStatus } from "./osc-handlers";
 
 export const CommandComposerActionId = "term:command-composer";
@@ -36,12 +36,7 @@ export type CommandProposal = {
 };
 
 export type CommandComposerProviderState = "unknown" | "codex" | "fallback" | "error";
-export type CommandComposerProviderReason =
-    | "ready"
-    | "loginrequired"
-    | "expired"
-    | "requestfailed"
-    | "emptyresponse";
+export type CommandComposerProviderReason = "ready" | "loginrequired" | "expired" | "requestfailed" | "emptyresponse";
 
 export type CommandComposerProviderStatus = {
     state: CommandComposerProviderState;
@@ -69,6 +64,7 @@ export type CommandInlineAIState = {
     providerStatus?: CommandComposerProviderStatus;
     error?: string;
     confirmAction?: CommandInlineAIAction;
+    requestId?: number;
 };
 
 export type CommandInlineAIRequestOptions = {
@@ -426,6 +422,9 @@ export function getInlineAICommandPrompt(block: CmdBlock): string {
     if (block?.state !== "done" || !blockHasCommand(block) || block.exitCode == null || block.exitCode === 0) {
         return "";
     }
+    if (isCmdBlockCommandPlaceholder(block.command)) {
+        return "";
+    }
     return block.command.trim();
 }
 
@@ -471,45 +470,6 @@ export function shouldAutoComposeInlineAI(block: CmdBlock): boolean {
         return false;
     }
     return isLikelyNaturalLanguageCommand(prompt);
-}
-
-export function shouldInterceptNaturalLanguagePrompt(
-    prompt: string,
-    opts: {
-        shellIntegrationStatus?: ShellIntegrationStatus | null;
-        altScreenActive?: boolean;
-        commandComposerEnabled?: boolean;
-    }
-): boolean {
-    if (opts.commandComposerEnabled === false || opts.altScreenActive || opts.shellIntegrationStatus !== "ready") {
-        return false;
-    }
-    return isLikelyNaturalLanguageCommand(prompt);
-}
-
-export function updateNaturalLanguagePromptInput(current: string, data: string): string {
-    if (!data) {
-        return current;
-    }
-    if (data.includes("\x1b")) {
-        return "";
-    }
-    let next = current;
-    for (const char of data) {
-        if (char === "\r" || char === "\n" || char === "\x03" || char === "\x15") {
-            next = "";
-            continue;
-        }
-        if (char === "\x7f" || char === "\b") {
-            next = next.slice(0, -1);
-            continue;
-        }
-        if (char < " ") {
-            continue;
-        }
-        next += char;
-    }
-    return next;
 }
 
 export function getCommandProposalApplyMode(

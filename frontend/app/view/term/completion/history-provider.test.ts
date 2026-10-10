@@ -94,4 +94,46 @@ describe("makeHistoryCompletionProvider", () => {
 
         expect(items.map((item) => item.insertText)).toEqual(["status --short", "checkout main"]);
     });
+
+    it("matches every token before the cursor, not just the command name", async () => {
+        const provider = makeHistoryCompletionProvider();
+        const items = await provider.provideCompletions(
+            makeContext({
+                inputText: "git log ch",
+                cursorIndex: 10,
+                tokens: [
+                    { text: "git", start: 0, end: 3 },
+                    { text: "log", start: 4, end: 7 },
+                    { text: "ch", start: 8, end: 10 },
+                ],
+                searchTerm: "ch",
+                tokenIndex: 2,
+                tokenType: "argument",
+                recentCommands: ["git checkout main", "git log changes.md", "git log --oneline"],
+            })
+        );
+
+        expect(items.map((item) => [item.label, item.insertText])).toEqual([["git log changes.md", "changes.md"]]);
+    });
+
+    it("tolerates repeated spaces between earlier tokens", async () => {
+        const provider = makeHistoryCompletionProvider();
+        const items = await provider.provideCompletions(
+            makeContext({
+                inputText: "git  log --o",
+                cursorIndex: 12,
+                tokens: [
+                    { text: "git", start: 0, end: 3 },
+                    { text: "log", start: 5, end: 8 },
+                    { text: "--o", start: 9, end: 12 },
+                ],
+                searchTerm: "--o",
+                tokenIndex: 2,
+                tokenType: "option",
+                recentCommands: ["git log --oneline -5"],
+            })
+        );
+
+        expect(items.map((item) => item.insertText)).toEqual(["--oneline -5"]);
+    });
 });
