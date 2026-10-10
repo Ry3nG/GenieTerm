@@ -6,6 +6,7 @@ import { InitPage } from "@/app/onboarding/onboarding";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { DurableSessionPage } from "@/app/onboarding/onboarding-durable";
 import { CommandBlocksPage, FilesPage } from "@/app/onboarding/onboarding-features";
+import { HostPage } from "@/app/onboarding/onboarding-host";
 import { UpgradeNotes } from "@/app/onboarding/onboarding-upgrade";
 
 function OnboardingModalWrapper({ width, children }: { width: string; children: React.ReactNode }) {
@@ -31,7 +32,10 @@ function OnboardingFeaturesV() {
                 <CommandBlocksPage onNext={noop} onSkip={noop} onPrev={noop} />
             </OnboardingModalWrapper>
             <OnboardingModalWrapper width="w-[820px]">
-                <FilesPage onFinish={noop} onPrev={noop} />
+                <FilesPage onNext={noop} onSkip={noop} onPrev={noop} />
+            </OnboardingModalWrapper>
+            <OnboardingModalWrapper width="w-[820px]">
+                <HostPage onFinish={noop} onPrev={noop} />
             </OnboardingModalWrapper>
         </div>
     );

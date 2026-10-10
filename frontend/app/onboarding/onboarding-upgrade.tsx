@@ -24,24 +24,29 @@ const ReleaseNotesUrl = "https://github.com/Ry3nG/GenieTerm/releases/tag/v1.0.0"
 
 const UpgradeHighlights: FeatureItem[] = [
     {
-        icon: "fa-feather",
-        title: "Much lighter",
-        description: "Tabs share one renderer per window. Five tabs use under 700 MB instead of 1.2 GB.",
+        icon: "fa-server",
+        title: "Host: GPUs, processes and ports",
+        description: "One view per machine, from this Mac to a GPU box over SSH. Find it on the widget rail.",
+    },
+    {
+        icon: "fa-arrow-right-to-bracket",
+        title: "Port forwarding without ssh -L",
+        description: "Forward & open puts Jupyter, TensorBoard or a dev server on localhost in one click.",
+    },
+    {
+        icon: "fa-bell",
+        title: "Know when it's done",
+        description: "Long commands notify you when they finish while you're looking elsewhere.",
     },
     {
         icon: "fa-location-dot",
         title: "Knows where you are",
-        description: "Terminal headers show the working directory, and tabs name themselves after it.",
+        description: "Headers show the folder and git branch; click the folder to open it in Files.",
     },
     {
-        icon: "fa-magnifying-glass",
-        title: "A command palette worth opening",
-        description: "Search by name, keyword or initials. Recent commands come first; saved hosts are one Enter away.",
-    },
-    {
-        icon: "fa-arrow-down-up-across-line",
-        title: "Clearer transfers",
-        description: "Every upload and download is one row with progress, status, and the reason if it fails.",
+        icon: "fa-feather",
+        title: "Much lighter",
+        description: "Tabs share one renderer per window. Five tabs use under 700 MB instead of 1.2 GB.",
     },
 ];
 

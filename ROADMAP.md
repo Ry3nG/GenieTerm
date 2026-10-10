@@ -16,6 +16,7 @@ The living tracker is [`docs/GENIETERM-ROADMAP.md`](docs/GENIETERM-ROADMAP.md). 
 
 - Signed Windows x64 builds on the stable channel.
 - Multi-select remote file transfers.
+- Offer to forward a port when a remote terminal prints a localhost URL.
 
 ## Later
 

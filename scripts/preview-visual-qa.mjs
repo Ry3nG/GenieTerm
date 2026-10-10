@@ -73,6 +73,7 @@ const PreviewCases = [
       "Sessions that outlive the connection",
       "Every command, kept together",
       "Remote files, next to your shell",
+      "The machine, not just the shell",
       "GenieTerm 1.0",
     ],
     viewports: [{ name: "desktop", width: 1300, height: 900 }],

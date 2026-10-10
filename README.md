@@ -6,11 +6,14 @@
 
 <p align="center">The terminal for people who live in SSH.</p>
 
-GenieTerm is a macOS terminal built around three things that usually live in separate tools:
+GenieTerm is a macOS terminal built around four things that usually live in separate tools:
 
 - **Command blocks.** GenieTerm follows your shell's prompts, so every command keeps its status, duration and output together. Copy a command or its output, re-run it, or jump between commands with ⇧⌘↑ / ⇧⌘↓. Underneath it is an ordinary xterm session; switch to the classic grid in Settings whenever you like.
 - **Durable SSH.** A durable session keeps running on the host through sleep, network changes and app restarts, then reattaches and streams back whatever it printed while you were away.
 - **Remote files.** Browse folders on this Mac or any connected host, preview Markdown, images and code, edit with atomic saves, drag files in, and download whole folders, all next to the shell that's using them.
+- **Host.** See what a machine is doing: CPU, memory, every NVIDIA GPU and the processes holding it, the process list, and the ports its servers listen on. On an SSH host, Forward & open puts Jupyter, TensorBoard or a dev server on `localhost` in one click.
+
+Long commands notify you when they finish while you're looking elsewhere, and every terminal header shows the folder and git branch it's in.
 
 It runs on your machine. There is no account and no usage data. The one AI feature is optional: press ⇧⌘Space, describe what you want, and GenieTerm proposes a command for you to review. It never runs one on its own.
 

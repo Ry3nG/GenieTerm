@@ -70,7 +70,7 @@ export const DurableSessionPage = ({
             lede="Close the lid, change networks, or quit GenieTerm. A durable session keeps running on the host and picks up exactly where you left it."
             features={DurableFeatures}
             illustration={<DurableIllustration />}
-            footer={<TourFooter step={1} total={3} onNext={onNext} onPrev={onPrev} onSkip={onSkip} />}
+            footer={<TourFooter step={1} total={4} onNext={onNext} onPrev={onPrev} onSkip={onSkip} />}
         />
     );
 };

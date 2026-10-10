@@ -200,6 +200,36 @@ async function runTransferQueueInteractions(browser, baseUrl) {
   log("transfer queue interaction smoke passed");
 }
 
+async function runHostInteractions(browser, baseUrl) {
+  const { page, assertClean } = await newCheckedPage(browser, baseUrl, "host", { width: 1300, height: 1900 });
+  await assertVisible(page.getByText("NVIDIA H100 80GB HBM3", { exact: false }).first(), "GPU cards");
+  const portsBlockId = await page
+    .locator("[data-blockid]")
+    .filter({ has: page.getByRole("tab", { name: /Ports/, selected: true }) })
+    .first()
+    .getAttribute("data-blockid");
+  const portsBlock = page.locator(`[data-blockid="${portsBlockId}"]`).first();
+  await assertVisible(portsBlock.getByText("TensorBoard", { exact: true }), "named service row");
+  await assertCount(portsBlock.getByText("Owner not visible"), 0, "system listeners folded away");
+  await portsBlock.getByRole("button", { name: /Other listeners/ }).click();
+  await assertCount(portsBlock.getByText("Owner not visible"), 2, "system listeners after expanding");
+  const jupyterRow = portsBlock.locator("div.group").filter({ hasText: "Jupyter" });
+  await jupyterRow.getByRole("button", { name: "Forward & open" }).click();
+  await assertVisible(jupyterRow.getByRole("button", { name: "Open" }), "open button after forwarding");
+  await assertVisible(jupyterRow.getByText("localhost:8888"), "local address after forwarding");
+  await portsBlock.getByRole("button", { name: "Forward a port" }).click();
+  const forwardForm = portsBlock.locator("form");
+  await forwardForm.getByLabel("Remote port").fill("99999");
+  await forwardForm.getByRole("button", { name: "Forward", exact: true }).click();
+  await assertVisible(forwardForm.getByText("Ports are numbers from 1 to 65535."), "port validation");
+  await forwardForm.getByRole("button", { name: "Cancel" }).click();
+  await portsBlock.getByRole("tab", { name: "Processes" }).click();
+  await assertVisible(portsBlock.getByText("tensorboard").first(), "processes tab");
+  await assertClean();
+  await page.close();
+  log("host interactions passed");
+}
+
 async function runFilesUploadDropInteractions(browser, baseUrl) {
   const { page, assertClean } = await newCheckedPage(browser, baseUrl, "files-upload-drop", {
     width: 760,
@@ -231,6 +261,7 @@ async function main() {
     browser = await chromium.launch({ executablePath });
     await runPreviewIndexInteraction(browser, baseUrl);
     await runTransferQueueInteractions(browser, baseUrl);
+    await runHostInteractions(browser, baseUrl);
     await runFilesUploadDropInteractions(browser, baseUrl);
     log("all preview interaction QA checks passed");
   } catch (error) {

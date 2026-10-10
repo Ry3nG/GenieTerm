@@ -12,10 +12,14 @@ Screenshots are written to `artifacts/visual-qa`.
 
 ## Covered Previews
 
+- `commandpalette`: grouped commands, keycaps, search and the narrow layout.
 - `transfer-queue`: full and compact transfer queue states across running, queued, failed, canceled, and completed jobs.
-- `processviewer`: process table, status strip, sort state, process summary, and narrow viewport sizing.
-- `sysinfo`: CPU and memory charts with mock WPS updates.
+- `processviewer`: process table, status strip, sort state and narrow viewport sizing (it opens as the Host view's Processes tab).
+- `host`: Host overview for an 8-GPU SSH host with live mock sysinfo events, and the Ports tab with named services, forwards and folded system listeners.
 - `web`: Electron webview fallback with URL chrome and placeholder content.
+- `onboarding`: welcome card, the four tour pages and the 1.0 upgrade card.
+- `settings`: Settings → General at desktop and narrow widths.
+- `files-directory`: the Files table with kinds, sizes and dates, and narrow-width column dropping.
 - `files-upload-drop`: file table with active upload drop affordance.
 
 ## Automated Checks

@@ -31,9 +31,9 @@ const WelcomePillars: FeatureItem[] = [
         description: "Remote sessions survive sleep, network drops and restarts, and reconnect on their own.",
     },
     {
-        icon: "fa-folder-open",
-        title: "Remote files",
-        description: "Browse, edit and move files on any host from the same workspace as your shell.",
+        icon: "fa-server",
+        title: "Remote files and hosts",
+        description: "Browse and edit files, watch GPUs and processes, and forward ports on any host.",
     },
 ];
 

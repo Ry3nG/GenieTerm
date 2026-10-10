@@ -10,9 +10,10 @@ import { cn } from "@/util/util";
 import { useEffect, useState } from "react";
 import { CurrentOnboardingVersion } from "./onboarding-common";
 import { DurableSessionPage } from "./onboarding-durable";
+import { HostPage } from "./onboarding-host";
 import { FeatureItem, Keys, TourFooter, TourPage, TourWindow } from "./onboarding-tour";
 
-type FeaturePageName = "durable" | "blocks" | "files";
+type FeaturePageName = "durable" | "blocks" | "files" | "host";
 
 type DemoBlockTone = "ok" | "error" | "interrupted";
 
@@ -113,7 +114,7 @@ export const CommandBlocksPage = ({
             lede="GenieTerm follows your shell's prompts, so each command keeps its status, duration and output in one block. Underneath it is the same terminal you already use."
             features={features}
             illustration={<CommandBlocksIllustration />}
-            footer={<TourFooter step={2} total={3} onNext={onNext} onPrev={onPrev} onSkip={onSkip} />}
+            footer={<TourFooter step={2} total={4} onNext={onNext} onPrev={onPrev} onSkip={onSkip} />}
         />
     );
 };
@@ -186,7 +187,15 @@ const FilesFeatures: FeatureItem[] = [
     },
 ];
 
-export const FilesPage = ({ onFinish, onPrev }: { onFinish: () => void; onPrev?: () => void }) => {
+export const FilesPage = ({
+    onNext,
+    onSkip,
+    onPrev,
+}: {
+    onNext: () => void;
+    onSkip?: () => void;
+    onPrev?: () => void;
+}) => {
     return (
         <TourPage
             eyebrow="Files"
@@ -194,7 +203,7 @@ export const FilesPage = ({ onFinish, onPrev }: { onFinish: () => void; onPrev?:
             lede="Browse folders on this Mac or any host you're connected to. Preview them, edit them, and move files between them without leaving the workspace."
             features={FilesFeatures}
             illustration={<FilesIllustration />}
-            footer={<TourFooter step={3} total={3} onNext={onFinish} onPrev={onPrev} />}
+            footer={<TourFooter step={3} total={4} onNext={onNext} onPrev={onPrev} onSkip={onSkip} />}
         />
     );
 };
@@ -215,6 +224,8 @@ export const OnboardingFeatures = ({ onComplete }: { onComplete: () => void }) =
             setCurrentPage("blocks");
         } else if (currentPage === "blocks") {
             setCurrentPage("files");
+        } else if (currentPage === "files") {
+            setCurrentPage("host");
         }
     };
 
@@ -223,6 +234,8 @@ export const OnboardingFeatures = ({ onComplete }: { onComplete: () => void }) =
             setCurrentPage("durable");
         } else if (currentPage === "files") {
             setCurrentPage("blocks");
+        } else if (currentPage === "host") {
+            setCurrentPage("files");
         }
     };
 
@@ -235,7 +248,10 @@ export const OnboardingFeatures = ({ onComplete }: { onComplete: () => void }) =
             pageComp = <CommandBlocksPage onNext={handleNext} onSkip={onComplete} onPrev={handlePrev} />;
             break;
         case "files":
-            pageComp = <FilesPage onFinish={onComplete} onPrev={handlePrev} />;
+            pageComp = <FilesPage onNext={handleNext} onSkip={onComplete} onPrev={handlePrev} />;
+            break;
+        case "host":
+            pageComp = <HostPage onFinish={onComplete} onPrev={handlePrev} />;
             break;
     }
 

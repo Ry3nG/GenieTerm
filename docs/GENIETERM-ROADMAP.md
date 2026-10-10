@@ -24,7 +24,7 @@ It is not Ghostty (speed), not Warp (closed + login), not VS Code Remote (an IDE
 
 ## What 1.0 actually is
 
-1.0 is **terminal + durable remote + files**. Git, Web, Sysinfo, and Processes may exist; they are not release-blocking.
+1.0 is **terminal + durable remote + files + host**. Every machine you work on, local or over SSH, is a first-class object: its shell, its files, and what it is doing (GPUs, processes, ports). Web may exist; it is not release-blocking.
 
 See `docs/v1-release-gate.md`.
 
@@ -61,6 +61,10 @@ See `docs/v1-release-gate.md`.
 
 ## 1.0.0
 
+- Host view (replaces Sysinfo and Processes): overview with per-GPU cards from nvidia-smi, processes, listening ports with owners; SSH local port forwarding (`pkg/remote/portforward`); see `docs/releases/v1.0.0.md`
+- Long-command notifications (`term:notifyafter`), click-through to the block
+- Terminal header: clickable working directory (opens Files there) and git branch / ahead-behind / dirty; widget rail shown by default with Terminal, Files, Host, each opening on the focused connection
+- Removed: Git panel and `GitRunCommand`; Web from the rail
 - One renderer per window with an LRU of mounted tab panes; hidden panes stop drawing and release WebGL (five tabs 1.2 GB → 0.7 GB, ~26 MB per extra tab). See `docs/performance/single-renderer.md`
 - Terminal header shows the working directory; default-named tabs follow the first block's folder
 - Command palette: groups, keyword/initials search, recent-first, saved connections
@@ -71,6 +75,8 @@ See `docs/v1-release-gate.md`.
 
 - PowerShell integration and the Windows preview need a smoke test on real Windows hardware
 - Multi-select remote file transfers (#17) are not implemented
+- Host on Windows: listening ports are not implemented; GPUs only for NVIDIA (no Apple Silicon or AMD)
+- Port forwards are in memory and end when GenieTerm quits; the "open a forwarded URL when a terminal prints localhost:PORT" prompt is not built
 - rsync folder downloads show no percentage (openrsync and rsync 3 share no progress format)
 - Copying from an SFTP-only host to a wsh host still buffers files and refuses folders/large files with a clear error
 - Re-run clears the typed line with Ctrl-E Ctrl-U; shells in vi mode may not honor that
@@ -95,7 +101,7 @@ Shipped 2026-10-11 after `docs/v1-release-gate.md` passed on a real Mac. Stable 
 
 ### P5 — After 1.0
 
-Workflows in the palette. Then an IDE input editor. Not a custom renderer. Not a multi-agent product.
+Offer to forward when a remote terminal prints `http://localhost:PORT`. Durable sessions list per host. Workflows in the palette. Then an IDE input editor. Not a custom renderer. Not a multi-agent product.
 
 ## Fork policy
 
