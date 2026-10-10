@@ -124,7 +124,6 @@ declare global {
         openNativePath(filePath: string): void; // open-native-path
         setKeyboardChordMode: () => void; // set-keyboard-chord-mode
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
-        incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => void; // increment-term-commands
         nativePaste: () => void; // native-paste
         doRefresh: () => void; // do-refresh
         toggleDevTools: () => void; // app-toggle-devtools

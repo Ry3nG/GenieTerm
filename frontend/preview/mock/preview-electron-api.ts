@@ -59,7 +59,6 @@ const previewElectronApi: ElectronApi = {
     openNativePath: (_filePath: string) => {},
     setKeyboardChordMode: () => {},
     clearWebviewStorage: (_webContentsId: number) => Promise.resolve(),
-    incrementTermCommands: (_opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => {},
     nativePaste: () => {},
     doRefresh: () => {},
     toggleDevTools: () => {},

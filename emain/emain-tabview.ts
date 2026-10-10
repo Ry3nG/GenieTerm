@@ -9,7 +9,6 @@ import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import os from "os";
 import path from "path";
 import { configureAuthKeyRequestInjection } from "./authkey";
-import { setWasActive } from "./emain-activity";
 import { getElectronAppBasePath, isDevVite, unamePlatform } from "./emain-platform";
 import {
     decreaseZoomLevel,
@@ -347,7 +346,6 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
         const waveEvent = adaptFromElectronKeyEvent(input);
         // console.log("WIN bie", tabView.waveTabId.substring(0, 8), waveEvent.type, waveEvent.code);
         handleCtrlShiftState(tabView.webContents, waveEvent);
-        setWasActive(true);
         if (input.type == "keyDown" && tabView.keyboardChordMode) {
             e.preventDefault();
             tabView.setKeyboardChordMode(false);

@@ -199,7 +199,7 @@ function switchBlockByBlockNum(index: number) {
 
 function switchBlockInDirection(direction: NavigateDirection) {
     const layoutModel = getLayoutModelForStaticTab();
-    const navResult = layoutModel.switchNodeFocusInDirection(direction, false);
+    const navResult = layoutModel.switchNodeFocusInDirection(direction);
     if (navResult.atLeft) {
         return;
     }

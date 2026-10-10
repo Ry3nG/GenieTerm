@@ -690,11 +690,6 @@ type CommandTermGetScrollbackLinesRtnData struct {
 	LastUpdated int64    `json:"lastupdated"`
 }
 
-type CommandTermUpdateAttachedJobData struct {
-	BlockId string `json:"blockid"`
-	JobId   string `json:"jobid,omitempty"`
-}
-
 type CommandElectronEncryptData struct {
 	PlainText string `json:"plaintext"`
 }

@@ -166,19 +166,6 @@ func NotifySystemResume() int {
 	return notified
 }
 
-func GetNumSSHHasConnected() int {
-	globalLock.Lock()
-	defer globalLock.Unlock()
-
-	var numConnected int
-	for _, conn := range clientControllerMap {
-		if conn.LastConnectTime > 0 {
-			numConnected++
-		}
-	}
-	return numConnected
-}
-
 func (conn *SSHConn) DeriveConnStatus() wshrpc.ConnStatus {
 	conn.lock.Lock()
 	defer conn.lock.Unlock()

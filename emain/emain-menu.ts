@@ -311,16 +311,19 @@ function makeViewMenu(
                     const oref = `workspace:${workspaceId}`;
                     const meta = await RpcApi.GetMetaCommand(ElectronWshClient, { oref });
                     const current = meta?.["layout:widgetsvisible"] ?? true;
-                    await RpcApi.SetMetaCommand(ElectronWshClient, { oref, meta: { "layout:widgetsvisible": !current } });
+                    await RpcApi.SetMetaCommand(ElectronWshClient, {
+                        oref,
+                        meta: { "layout:widgetsvisible": !current },
+                    });
                 });
             },
         },
     ];
 }
 
-async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId?: string): Promise<Electron.Menu> {
+async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceId?: string): Promise<Electron.Menu> {
     const numWaveWindows = getAllWaveWindows().length;
-    const webContents = workspaceOrBuilderId && getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId);
+    const webContents = workspaceId && getWebContentsByWorkspaceId(workspaceId);
     const appMenuItems = makeAppMenuItems(webContents);
 
     let fullscreenOnLaunch = false;
@@ -366,13 +369,13 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
     return electron.Menu.buildFromTemplate(menuTemplate);
 }
 
-export function instantiateAppMenu(workspaceOrBuilderId?: string): Promise<electron.Menu> {
+export function instantiateAppMenu(workspaceId?: string): Promise<electron.Menu> {
     return makeFullAppMenu(
         {
             createNewWaveWindow,
             relaunchBrowserWindows,
         },
-        workspaceOrBuilderId
+        workspaceId
     );
 }
 
@@ -394,8 +397,8 @@ function initMenuEventSubscriptions() {
     });
 }
 
-function getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId: string): electron.WebContents {
-    const ww = getWaveWindowByWorkspaceId(workspaceOrBuilderId);
+function getWebContentsByWorkspaceId(workspaceId: string): electron.WebContents {
+    const ww = getWaveWindowByWorkspaceId(workspaceId);
     if (ww) {
         return ww.activeTabView?.webContents;
     }
@@ -433,10 +436,10 @@ function convertMenuDefArrToMenu(
 
 electron.ipcMain.on(
     "contextmenu-show",
-    (event, workspaceOrBuilderId: string, menuId: string, menuDefArr: ElectronContextMenuItem[]) => {
-        const webContents = getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId);
+    (event, workspaceId: string, menuId: string, menuDefArr: ElectronContextMenuItem[]) => {
+        const webContents = getWebContentsByWorkspaceId(workspaceId);
         if (!webContents) {
-            console.error("invalid window for context menu:", workspaceOrBuilderId);
+            console.error("invalid window for context menu:", workspaceId);
             event.returnValue = true;
             return;
         }
@@ -464,7 +467,7 @@ electron.ipcMain.on(
 
 electron.ipcMain.on("workspace-appmenu-show", (event, workspaceId: string) => {
     fireAndForget(async () => {
-        const webContents = getWebContentsByWorkspaceOrBuilderId(workspaceId);
+        const webContents = getWebContentsByWorkspaceId(workspaceId);
         if (!webContents) {
             console.error("invalid window for workspace app menu:", workspaceId);
             return;

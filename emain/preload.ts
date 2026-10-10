@@ -74,8 +74,6 @@ contextBridge.exposeInMainWorld("api", {
     openNativePath: (filePath: string) => ipcRenderer.send("open-native-path", filePath),
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),
     clearWebviewStorage: (webContentsId: number) => ipcRenderer.invoke("clear-webview-storage", webContentsId),
-    incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) =>
-        ipcRenderer.send("increment-term-commands", opts),
     nativePaste: () => ipcRenderer.send("native-paste"),
     doRefresh: () => ipcRenderer.send("do-refresh"),
     toggleDevTools: () => ipcRenderer.send("app-toggle-devtools"),

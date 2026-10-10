@@ -3,16 +3,8 @@
 
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import {
-    getApi,
-    getBlockMetaKeyAtom,
-    getBlockTermDurableAtom,
-    getOverrideConfigAtom,
-    globalStore,
-    recordTEvent,
-    WOS,
-} from "@/store/global";
-import { base64ToString, fireAndForget, isSshConnName, isWslConnName } from "@/util/util";
+import { getOverrideConfigAtom, globalStore, recordTEvent, WOS } from "@/store/global";
+import { base64ToString, fireAndForget } from "@/util/util";
 import debug from "debug";
 import { isCmdBlockCommandPlaceholder, makeCmdBlockCommandTooLargePlaceholder } from "./cmdblocks";
 import { normalizeShellType } from "./completion/types";
@@ -106,11 +98,6 @@ function handleShellIntegrationCommandStart(
 ): void {
     rtInfo["shell:state"] = "running-command";
     globalStore.set(termWrap.shellIntegrationStatusAtom, "running-command");
-    const connName = globalStore.get(getBlockMetaKeyAtom(blockId, "connection")) ?? "";
-    const isRemote = isSshConnName(connName);
-    const isWsl = isWslConnName(connName);
-    const isDurable = globalStore.get(getBlockTermDurableAtom(blockId)) ?? false;
-    getApi().incrementTermCommands({ isRemote, isWsl, isDurable });
     if (cmd.data.cmd64) {
         const decodedCmd = decodeOsc16162CommandText(cmd.data.cmd64);
         rtInfo["shell:lastcmd"] = decodedCmd;

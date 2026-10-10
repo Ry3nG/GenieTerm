@@ -20,13 +20,7 @@ import {
 } from "../frontend/util/transferqueue";
 import { fireAndForget, parseDataUrl } from "../frontend/util/util";
 import { applyDockIconVariant, getAppIconPath, normalizeAppIconVariant, type AppIconVariant } from "./app-icon";
-import {
-    incrementTermCommandsDurable,
-    incrementTermCommandsRemote,
-    incrementTermCommandsRun,
-    incrementTermCommandsWsl,
-    setWasActive,
-} from "./emain-activity";
+import {} from "./emain-activity";
 import { callWithOriginalXdgCurrentDesktopAsync, getWaveDataDir, unamePlatform } from "./emain-platform";
 import { clearTabCache, getWaveTabViewByWebContentsId } from "./emain-tabview";
 import { decreaseZoomLevel, handleCtrlShiftState, increaseZoomLevel, resetZoomLevel } from "./emain-util";
@@ -543,16 +537,6 @@ export function initIpcHandlers() {
         event.returnValue = retVal;
     });
 
-    electron.ipcMain.handle("capture-screenshot", async (event, rect) => {
-        const tabView = getWaveTabViewByWebContentsId(event.sender.id);
-        if (!tabView) {
-            throw new Error("No tab view found for the given webContents id");
-        }
-        const image = await tabView.webContents.capturePage(rect);
-        const base64String = image.toPNG().toString("base64");
-        return `data:image/png;base64,${base64String}`;
-    });
-
     electron.ipcMain.on("get-env", (event, varName) => {
         event.returnValue = process.env[varName] ?? null;
     });
@@ -615,9 +599,7 @@ export function initIpcHandlers() {
         tabView?.setKeyboardChordMode(true);
     });
 
-    electron.ipcMain.handle("set-is-active", () => {
-        setWasActive(true);
-    });
+    electron.ipcMain.handle("set-is-active", () => {});
 
     const fac = new FastAverageColor();
     electron.ipcMain.on("update-window-controls-overlay", async (event, rect: Dimensions) => {
@@ -709,22 +691,6 @@ export function initIpcHandlers() {
     electron.ipcMain.on("fe-log", (event, logStr: string) => {
         console.log("fe-log", logStr);
     });
-
-    electron.ipcMain.on(
-        "increment-term-commands",
-        (event, opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => {
-            incrementTermCommandsRun();
-            if (opts?.isRemote) {
-                incrementTermCommandsRemote();
-            }
-            if (opts?.isWsl) {
-                incrementTermCommandsWsl();
-            }
-            if (opts?.isDurable) {
-                incrementTermCommandsDurable();
-            }
-        }
-    );
 
     electron.ipcMain.on("native-paste", (event) => {
         event.sender.paste();

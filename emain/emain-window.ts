@@ -17,13 +17,7 @@ import {
 import { globalEvents } from "emain/emain-events";
 import { debounce } from "throttle-debounce";
 import { getAppIconPath } from "./app-icon";
-import {
-    getGlobalIsQuitting,
-    getGlobalIsRelaunching,
-    setGlobalIsRelaunching,
-    setWasActive,
-    setWasInFg,
-} from "./emain-activity";
+import { getGlobalIsQuitting, getGlobalIsRelaunching, setGlobalIsRelaunching } from "./emain-activity";
 import { log } from "./emain-log";
 import { isDev, unamePlatform } from "./emain-platform";
 import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
@@ -306,8 +300,6 @@ export class WaveBrowserWindow extends BaseWindow {
             focusedWaveWindow = this; // eslint-disable-line @typescript-eslint/no-this-alias
             console.log("focus win", this.waveWindowId);
             fireAndForget(() => ClientService.FocusWindow(this.waveWindowId));
-            setWasInFg(true);
-            setWasActive(true);
             setTimeout(() => globalEvents.emit("windows-updated"), 50);
         });
         this.on("blur", () => {
