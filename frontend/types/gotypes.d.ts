@@ -266,6 +266,12 @@ declare global {
         recursive: boolean;
     };
 
+    // wshrpc.CommandDurableJobCountData
+    type CommandDurableJobCountData = {
+        workspaceid?: string;
+        blockids?: string[];
+    };
+
     // wshrpc.CommandElectronDecryptData
     type CommandElectronDecryptData = {
         ciphertext: string;
@@ -689,6 +695,9 @@ declare global {
         "ssh:proxyjump"?: string[];
         "ssh:userknownhostsfile"?: string[];
         "ssh:globalknownhostsfile"?: string[];
+        "ssh:connecttimeout"?: number;
+        "ssh:serveraliveinterval"?: number;
+        "ssh:serveralivecountmax"?: number;
     };
 
     // wshrpc.ConnRequest
@@ -713,6 +722,9 @@ declare global {
         wshversion?: string;
         lastactivitybeforestalledtime?: number;
         keepalivesenttime?: number;
+        reconnecting?: boolean;
+        reconnectattempt?: number;
+        nextreconnectts?: number;
     };
 
     // wshrpc.DiskUsageData

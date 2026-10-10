@@ -268,8 +268,11 @@ func (impl *ServerImpl) RemoteStartJobCommand(ctx context.Context, data wshrpc.C
 		cmd.Wait()
 	}()
 
+	// from here on the job manager is a running daemon; every failure path must kill it or
+	// it is orphaned (the main server marks the job done and never learns its pid)
 	jobRouteId, cleanup, err := impl.connectToJobManager(ctx, data.JobId, data.MainServerJwtToken)
 	if err != nil {
+		killOrphanedJobManager(cmd, data.JobId, err)
 		return nil, err
 	}
 
@@ -290,10 +293,30 @@ func (impl *ServerImpl) RemoteStartJobCommand(ctx context.Context, data wshrpc.C
 	rtnData, err := wshclient.StartJobCommand(impl.RpcClient, startJobData, &wshrpc.RpcOpts{Route: jobRouteId})
 	if err != nil {
 		cleanup()
+		killOrphanedJobManager(cmd, data.JobId, err)
 		return nil, fmt.Errorf("failed to start job: %w", err)
+	}
+	if ctx.Err() != nil {
+		// the main server's RPC already timed out, so it recorded a startup failure and
+		// will never track (or terminate) this job manager
+		cleanup()
+		killOrphanedJobManager(cmd, data.JobId, ctx.Err())
+		return nil, fmt.Errorf("job started after the caller gave up: %w", ctx.Err())
 	}
 
 	return rtnData, nil
+}
+
+func killOrphanedJobManager(cmd *exec.Cmd, jobId string, reason error) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	log.Printf("RemoteStartJobCommand: killing job manager for jobid=%s after startup failure: %v\n", jobId, reason)
+	killErr := cmd.Process.Kill()
+	if killErr != nil {
+		log.Printf("RemoteStartJobCommand: error killing job manager pid=%d: %v\n", cmd.Process.Pid, killErr)
+	}
+	os.Remove(wavebase.GetRemoteJobSocketPath(jobId))
 }
 
 func (impl *ServerImpl) RemoteReconnectToJobManagerCommand(ctx context.Context, data wshrpc.CommandRemoteReconnectToJobManagerData) (*wshrpc.CommandRemoteReconnectToJobManagerRtnData, error) {

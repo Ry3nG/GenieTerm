@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -17,10 +16,12 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/kevinburke/ssh_config"
@@ -41,6 +42,9 @@ import (
 )
 
 const SshProxyJumpMaxDepth = 10
+const DefaultSshConnectTimeout = 30 * time.Second
+const DefaultSshDialKeepAlive = 30 * time.Second
+const DefaultSshServerAliveCountMax = 3
 
 const (
 	ConnErrCode_ConfigParse    = "config-parse"
@@ -59,6 +63,8 @@ const (
 	ConnErrCode_UserCancelled  = "user-cancelled"
 	ConnErrCode_UserTimeout    = "user-timeout"
 	ConnErrCode_AuthFailed     = "auth-failed"
+	ConnErrCode_UserInputReq   = "userinput-required"
+	ConnErrCode_ProxyCommand   = "proxycommand-unsupported"
 	ConnErrCode_Unknown        = "unknown"
 )
 
@@ -83,6 +89,8 @@ const (
 	AuthSubCode_HandshakeFailed = "handshake-failed"
 )
 
+type noUserInputCtxKey struct{}
+
 var waveSshConfigUserSettingsInternal *ssh_config.UserSettings
 var configUserSettingsOnce = &sync.Once{}
 
@@ -92,6 +100,25 @@ func WaveSshConfigUserSettings() *ssh_config.UserSettings {
 		waveSshConfigUserSettingsInternal.IgnoreMatchDirective = true
 	})
 	return waveSshConfigUserSettingsInternal
+}
+
+// ContextWithNoUserInput marks a connect attempt as unattended (e.g. an automatic
+// reconnect). Any step that would prompt the user fails with ConnErrCode_UserInputReq
+// instead, so background retries never pop password/passphrase/host-key dialogs.
+func ContextWithNoUserInput(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noUserInputCtxKey{}, true)
+}
+
+func IsNoUserInputContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	val, _ := ctx.Value(noUserInputCtxKey{}).(bool)
+	return val
+}
+
+func makeUserInputRequiredError(what string) error {
+	return utilds.Errorf(ConnErrCode_UserInputReq, "%s requires user input; reconnect manually to continue", what)
 }
 
 type UserInputCancelError struct {
@@ -344,7 +371,7 @@ func createPublicKeyCallback(connCtx context.Context, sshKeywords *wconfig.ConnK
 		}
 
 		// batch mode deactivates user input
-		if utilfn.SafeDeref(sshKeywords.SshBatchMode) {
+		if utilfn.SafeDeref(sshKeywords.SshBatchMode) || IsNoUserInputContext(connCtx) {
 			// skip this key and try with the next
 			return createDummySigner()
 		}
@@ -396,6 +423,9 @@ func createPasswordCallbackPrompt(connCtx context.Context, remoteDisplayName str
 			blocklogger.Infof(connCtx, "[conndebug] using password from secret store, sending to ssh\n")
 			return *password, nil
 		}
+		if IsNoUserInputContext(connCtx) {
+			return "", ConnectionError{ConnectionDebugInfo: debugInfo, Err: makeUserInputRequiredError("password authentication")}
+		}
 
 		ctx, cancelFn := context.WithTimeout(connCtx, 60*time.Second)
 		defer cancelFn()
@@ -429,6 +459,9 @@ func createInteractiveKbdInteractiveChallenge(connCtx context.Context, remoteNam
 		}()
 		if len(questions) != len(echos) {
 			return nil, fmt.Errorf("bad response from server: questions has len %d, echos has len %d", len(questions), len(echos))
+		}
+		if len(questions) > 0 && IsNoUserInputContext(connCtx) {
+			return nil, ConnectionError{ConnectionDebugInfo: debugInfo, Err: makeUserInputRequiredError("keyboard-interactive authentication")}
 		}
 		for i, question := range questions {
 			echo := echos[i]
@@ -515,15 +548,15 @@ func writeToKnownHosts(knownHostsFile string, newLine string, getUserVerificatio
 }
 
 func createUnknownKeyVerifier(ctx context.Context, knownHostsFile string, hostname string, remote string, key ssh.PublicKey) func() (*userinput.UserInputResponse, error) {
-	base64Key := base64.StdEncoding.EncodeToString(key.Marshal())
+	fingerprint := ssh.FingerprintSHA256(key)
 	queryText := fmt.Sprintf(
 		"The authenticity of host '%s (%s)' can't be established "+
 			"as it **does not exist in any checked known_hosts files**. "+
-			"The host you are attempting to connect to provides this %s key:  \n"+
-			"%s.\n\n"+
+			"The host you are attempting to connect to provides this %s key fingerprint:  \n"+
+			"`%s`\n\n"+
 			"**Would you like to continue connecting?** If so, the key will be permanently "+
 			"added to the file %s "+
-			"to protect from future man-in-the-middle attacks.", hostname, remote, key.Type(), base64Key, knownHostsFile)
+			"to protect from future man-in-the-middle attacks.", hostname, remote, key.Type(), fingerprint, knownHostsFile)
 	request := &userinput.UserInputRequest{
 		ResponseType: "confirm",
 		QueryText:    queryText,
@@ -545,16 +578,16 @@ func createUnknownKeyVerifier(ctx context.Context, knownHostsFile string, hostna
 }
 
 func createMissingKnownHostsVerifier(knownHostsFile string, hostname string, remote string, key ssh.PublicKey) func() (*userinput.UserInputResponse, error) {
-	base64Key := base64.StdEncoding.EncodeToString(key.Marshal())
+	fingerprint := ssh.FingerprintSHA256(key)
 	queryText := fmt.Sprintf(
 		"The authenticity of host '%s (%s)' can't be established "+
 			"as **no known_hosts files could be found**. "+
-			"The host you are attempting to connect to provides this %s key:  \n"+
-			"%s.\n\n"+
+			"The host you are attempting to connect to provides this %s key fingerprint:  \n"+
+			"`%s`\n\n"+
 			"**Would you like to continue connecting?** If so:  \n"+
 			"- %s will be created  \n"+
 			"- the key will be added to %s\n\n"+
-			"This will protect from future man-in-the-middle attacks.", hostname, remote, key.Type(), base64Key, knownHostsFile, knownHostsFile)
+			"This will protect from future man-in-the-middle attacks.", hostname, remote, key.Type(), fingerprint, knownHostsFile, knownHostsFile)
 	request := &userinput.UserInputRequest{
 		ResponseType: "confirm",
 		QueryText:    queryText,
@@ -672,6 +705,9 @@ func createHostKeyCallback(ctx context.Context, sshKeywords *wconfig.ConnKeyword
 			return err
 		}
 		serr, _ := err.(*xknownhosts.KeyError)
+		if len(serr.Want) == 0 && IsNoUserInputContext(ctx) {
+			return makeUserInputRequiredError(fmt.Sprintf("verifying the unknown host key %s for %s", ssh.FingerprintSHA256(key), hostname))
+		}
 		if len(serr.Want) == 0 {
 			// the key was not found
 
@@ -710,37 +746,9 @@ func createHostKeyCallback(ctx context.Context, sshKeywords *wconfig.ConnKeyword
 			}
 		} else {
 			// the key changed
-			correctKeyFingerprint := base64.StdEncoding.EncodeToString(key.Marshal())
-			var bulletListKnownHosts []string
-			for _, knownHostName := range knownHostsFiles {
-				withBulletPoint := "- " + knownHostName
-				bulletListKnownHosts = append(bulletListKnownHosts, withBulletPoint)
-			}
-			var offendingKeysFmt []string
-			for _, badKey := range serr.Want {
-				formattedKey := "- " + base64.StdEncoding.EncodeToString(badKey.Key.Marshal())
-				offendingKeysFmt = append(offendingKeysFmt, formattedKey)
-			}
-			// todo
-			errorMsg := fmt.Sprintf("**WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!**\n\n"+
-				"If this is not expected, it is possible that someone could be trying to "+
-				"eavesdrop on you via a man-in-the-middle attack. "+
-				"Alternatively, the host you are connecting to may have changed its key. "+
-				"The %s key sent by the remote hist has the fingerprint:  \n"+
-				"%s\n\n"+
-				"If you are sure this is correct, please update your known_hosts files to "+
-				"remove the lines with the offending before trying to connect again.  \n"+
-				"**Known Hosts Files**  \n"+
-				"%s\n\n"+
-				"**Offending Keys**  \n"+
-				"%s", key.Type(), correctKeyFingerprint, strings.Join(bulletListKnownHosts, "  \n"), strings.Join(offendingKeysFmt, "  \n"))
-
-			log.Print(errorMsg)
-			//update := scbus.MakeUpdatePacket()
-			// create update into alert message
-
-			//send update via bus?
-			return utilds.Errorf(ConnErrCode_HostKeyChanged, "remote host identification has changed")
+			changedErr := makeHostKeyChangedError(hostname, key, serr.Want)
+			log.Printf("[sshclient] %v", changedErr)
+			return changedErr
 		}
 
 		updatedCallback, err := xknownhosts.New(knownHostsFiles...)
@@ -754,7 +762,9 @@ func createHostKeyCallback(ctx context.Context, sshKeywords *wconfig.ConnKeyword
 	return waveHostKeyCallback, hostKeyAlgorithms, nil
 }
 
-func createClientConfig(connCtx context.Context, sshKeywords *wconfig.ConnKeywords, debugInfo *ConnectionDebugInfo) (*ssh.ClientConfig, error) {
+// returns (clientConfig, cleanupFn, error). cleanupFn is never nil and must be called once the
+// handshake has finished (it closes the identity agent connection used during auth).
+func createClientConfig(connCtx context.Context, sshKeywords *wconfig.ConnKeywords, debugInfo *ConnectionDebugInfo) (*ssh.ClientConfig, func(), error) {
 	chosenUser := utilfn.SafeDeref(sshKeywords.SshUser)
 	chosenHostName := utilfn.SafeDeref(sshKeywords.SshHostName)
 	chosenPort := utilfn.SafeDeref(sshKeywords.SshPort)
@@ -765,6 +775,7 @@ func createClientConfig(connCtx context.Context, sshKeywords *wconfig.ConnKeywor
 
 	var authSockSigners []ssh.Signer
 	var agentClient agent.ExtendedAgent
+	cleanupFn := func() {}
 
 	// IdentitiesOnly indicates that only the keys listed in the identity and certificate files or passed as arguments should be used, even if there are matches in the SSH Agent, PKCS11Provider, or SecurityKeyProvider. See https://man.openbsd.org/ssh_config#IdentitiesOnly
 	// TODO: Update if we decide to support PKCS11Provider and SecurityKeyProvider
@@ -776,6 +787,9 @@ func createClientConfig(connCtx context.Context, sshKeywords *wconfig.ConnKeywor
 		} else {
 			agentClient = agent.NewClient(conn)
 			authSockSigners, _ = agentClient.Signers()
+			cleanupFn = func() {
+				conn.Close()
+			}
 		}
 	}
 
@@ -784,10 +798,12 @@ func createClientConfig(connCtx context.Context, sshKeywords *wconfig.ConnKeywor
 		secretName := *sshKeywords.SshPasswordSecretName
 		password, exists, err := secretstore.GetSecret(secretName)
 		if err != nil {
-			return nil, utilds.Errorf(ConnErrCode_SecretStore, "error retrieving ssh:passwordsecretname %q: %w", secretName, err)
+			cleanupFn()
+			return nil, func() {}, utilds.Errorf(ConnErrCode_SecretStore, "error retrieving ssh:passwordsecretname %q: %w", secretName, err)
 		}
 		if !exists {
-			return nil, utilds.Errorf(ConnErrCode_SecretNotFound, "ssh:passwordsecretname %q not found in secret store", secretName)
+			cleanupFn()
+			return nil, func() {}, utilds.Errorf(ConnErrCode_SecretNotFound, "ssh:passwordsecretname %q not found in secret store", secretName)
 		}
 		blocklogger.Infof(connCtx, "[conndebug] successfully retrieved ssh:passwordsecretname %q from secret store\n", secretName)
 		sshPassword = &password
@@ -826,7 +842,8 @@ func createClientConfig(connCtx context.Context, sshKeywords *wconfig.ConnKeywor
 
 	hostKeyCallback, hostKeyAlgorithms, err := createHostKeyCallback(connCtx, sshKeywords)
 	if err != nil {
-		return nil, err
+		cleanupFn()
+		return nil, func() {}, err
 	}
 
 	networkAddr := chosenHostName + ":" + chosenPort
@@ -835,14 +852,19 @@ func createClientConfig(connCtx context.Context, sshKeywords *wconfig.ConnKeywor
 		Auth:              authMethods,
 		HostKeyCallback:   hostKeyCallback,
 		HostKeyAlgorithms: hostKeyAlgorithms(networkAddr),
-	}, nil
+		Timeout:           resolveConnectTimeout(sshKeywords),
+	}, cleanupFn, nil
 }
 
 func connectInternal(ctx context.Context, networkAddr string, clientConfig *ssh.ClientConfig, currentClient *ssh.Client) (*ssh.Client, error) {
+	connectTimeout := clientConfig.Timeout
+	if connectTimeout <= 0 {
+		connectTimeout = DefaultSshConnectTimeout
+	}
 	var clientConn net.Conn
 	var err error
 	if currentClient == nil {
-		d := net.Dialer{Timeout: clientConfig.Timeout}
+		d := net.Dialer{Timeout: connectTimeout, KeepAlive: DefaultSshDialKeepAlive}
 		blocklogger.Infof(ctx, "[conndebug] ssh dial %s\n", networkAddr)
 		clientConn, err = d.DialContext(ctx, "tcp", networkAddr)
 		if err != nil {
@@ -852,20 +874,68 @@ func connectInternal(ctx context.Context, networkAddr string, clientConfig *ssh.
 		}
 	} else {
 		blocklogger.Infof(ctx, "[conndebug] ssh dial (from client) %s\n", networkAddr)
-		clientConn, err = currentClient.DialContext(ctx, "tcp", networkAddr)
+		dialCtx, dialCancel := context.WithTimeout(ctx, connectTimeout)
+		clientConn, err = currentClient.DialContext(dialCtx, "tcp", networkAddr)
+		dialCancel()
 		if err != nil {
 			subCode := ClassifyDialErrorSubCode(err)
 			blocklogger.Infof(ctx, "[conndebug] ERROR dial error [%s]: %v\n", subCode, err)
 			return nil, utilds.MakeSubCodedError(ConnErrCode_ProxyJumpDial, subCode, err)
 		}
 	}
-	c, chans, reqs, err := ssh.NewClientConn(clientConn, networkAddr, clientConfig)
+	c, chans, reqs, err := handshakeWithContext(ctx, clientConn, networkAddr, clientConfig, connectTimeout)
 	if err != nil {
 		blocklogger.Infof(ctx, "[conndebug] ERROR ssh auth/negotiation: %s\n", SimpleMessageFromPossibleConnectionError(err))
 		return nil, err
 	}
 	blocklogger.Infof(ctx, "[conndebug] successful ssh connection to %s\n", networkAddr)
 	return ssh.NewClient(c, chans, reqs), nil
+}
+
+// handshakeWithContext runs ssh.NewClientConn, which has no context support of its own.
+// The transport is closed (aborting the handshake) when ctx is done, or when key exchange
+// hasn't reached host key verification within kexTimeout (a server that accepts TCP but
+// never speaks SSH). Closing the net.Conn works for direct TCP and for ProxyJump channels
+// alike, unlike SetDeadline. The kex timer is disarmed once the host key callback runs, so
+// time the user spends answering host-key/password prompts is bounded only by ctx and by
+// the prompts' own timeouts.
+func handshakeWithContext(ctx context.Context, rawConn net.Conn, networkAddr string, clientConfig *ssh.ClientConfig, kexTimeout time.Duration) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	var kexTimedOut atomic.Bool
+	kexTimer := time.AfterFunc(kexTimeout, func() {
+		kexTimedOut.Store(true)
+		rawConn.Close()
+	})
+	defer kexTimer.Stop()
+	stopCtxWatch := context.AfterFunc(ctx, func() {
+		rawConn.Close()
+	})
+	configCopy := *clientConfig
+	origHostKeyCallback := clientConfig.HostKeyCallback
+	configCopy.HostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		kexTimer.Stop()
+		if origHostKeyCallback == nil {
+			return fmt.Errorf("no host key callback configured")
+		}
+		return origHostKeyCallback(hostname, remote, key)
+	}
+	c, chans, reqs, err := ssh.NewClientConn(rawConn, networkAddr, &configCopy)
+	ctxStillActive := stopCtxWatch()
+	if err == nil && !ctxStillActive {
+		c.Close()
+		err = fmt.Errorf("ssh handshake with %s aborted: %w", networkAddr, ctx.Err())
+		return nil, nil, nil, utilds.MakeSubCodedError(ConnErrCode_Dial, DialSubCode_ContextCanceled, err)
+	}
+	if err == nil {
+		return c, chans, reqs, nil
+	}
+	rawConn.Close()
+	if !ctxStillActive {
+		return nil, nil, nil, utilds.MakeSubCodedError(ConnErrCode_Dial, DialSubCode_ContextCanceled, fmt.Errorf("ssh handshake with %s aborted: %w", networkAddr, ctx.Err()))
+	}
+	if kexTimedOut.Load() {
+		return nil, nil, nil, utilds.MakeSubCodedError(ConnErrCode_Dial, DialSubCode_Timeout, fmt.Errorf("ssh handshake with %s timed out after %v (server accepted the connection but did not complete key exchange)", networkAddr, kexTimeout))
+	}
+	return nil, nil, nil, err
 }
 
 func ConnectToClient(connCtx context.Context, opts *SSHOpts, currentClient *ssh.Client, jumpNum int32, connFlags *wconfig.ConnKeywords) (*ssh.Client, int32, error) {
@@ -927,6 +997,24 @@ func ConnectToClient(connCtx context.Context, opts *SSHOpts, currentClient *ssh.
 	sshKeywords.SshIdentityFile = append(sshKeywords.SshIdentityFile, internalSshConfigKeywords.SshIdentityFile...)
 	sshKeywords.SshIdentityFile = append(sshKeywords.SshIdentityFile, sshConfigKeywords.SshIdentityFile...)
 
+	if len(sshKeywords.SshProxyJump) == 0 && !utilfn.SafeDeref(internalSshConfigKeywords.ConnIgnoreSshConfig) {
+		proxyCommand := findSshProxyCommand(opts.SSHHost)
+		if proxyCommand != "" {
+			err := utilds.Errorf(ConnErrCode_ProxyCommand, "ssh_config ProxyCommand (%q) isn't supported for %s; use ProxyJump instead", proxyCommand, opts.SSHHost)
+			return nil, debugInfo.JumpNum, ConnectionError{ConnectionDebugInfo: debugInfo, Err: err}
+		}
+	}
+
+	// jump clients created at this level are owned by the final client (closed with it via
+	// CloseClientChain), or closed here if any later hop fails
+	var jumpClients []*ssh.Client
+	chainOwned := false
+	defer func() {
+		if chainOwned {
+			return
+		}
+		closeClientsReverse(jumpClients)
+	}()
 	for _, proxyName := range sshKeywords.SshProxyJump {
 		proxyOpts, err := ParseOpts(proxyName)
 		if err != nil {
@@ -939,22 +1027,28 @@ func ConnectToClient(connCtx context.Context, opts *SSHOpts, currentClient *ssh.
 		}
 
 		// do not apply supplied keywords to proxies - ssh config must be used for that
-		debugInfo.CurrentClient, jumpNum, err = ConnectToClient(connCtx, proxyOpts, debugInfo.CurrentClient, jumpNum, &wconfig.ConnKeywords{})
+		var jumpClient *ssh.Client
+		jumpClient, jumpNum, err = ConnectToClient(connCtx, proxyOpts, debugInfo.CurrentClient, jumpNum, &wconfig.ConnKeywords{})
 		if err != nil {
 			// do not add a context on a recursive call
 			// (this can cause a recursive nested context that's arbitrarily deep)
 			return nil, jumpNum, err
 		}
+		jumpClients = append(jumpClients, jumpClient)
+		debugInfo.CurrentClient = jumpClient
 	}
-	clientConfig, err := createClientConfig(connCtx, sshKeywords, debugInfo)
+	clientConfig, cleanupConfig, err := createClientConfig(connCtx, sshKeywords, debugInfo)
 	if err != nil {
 		return nil, debugInfo.JumpNum, ConnectionError{ConnectionDebugInfo: debugInfo, Err: err}
 	}
 	networkAddr := utilfn.SafeDeref(sshKeywords.SshHostName) + ":" + utilfn.SafeDeref(sshKeywords.SshPort)
 	client, err := connectInternal(connCtx, networkAddr, clientConfig, debugInfo.CurrentClient)
+	cleanupConfig()
 	if err != nil {
-		return client, debugInfo.JumpNum, ConnectionError{ConnectionDebugInfo: debugInfo, Err: err}
+		return nil, debugInfo.JumpNum, ConnectionError{ConnectionDebugInfo: debugInfo, Err: err}
 	}
+	registerClientChain(client, jumpClients, resolveKeepAliveSettings(sshKeywords))
+	chainOwned = true
 	return client, debugInfo.JumpNum, nil
 }
 
@@ -995,7 +1089,7 @@ func findSshConfigKeywords(hostPattern string) (connKeywords *wconfig.ConnKeywor
 	if hostNameProcessed == "" {
 		sshKeywords.SshHostName = &hostPattern
 	} else {
-		sshKeywords.SshHostName = &hostNameRaw
+		sshKeywords.SshHostName = &hostNameProcessed
 	}
 
 	portRaw, err := WaveSshConfigUserSettings().GetStrict(hostPattern, "Port")
@@ -1105,7 +1199,67 @@ func findSshConfigKeywords(hostPattern string) (connKeywords *wconfig.ConnKeywor
 	rawGlobalKnownHostsFile, _ := WaveSshConfigUserSettings().GetStrict(hostPattern, "GlobalKnownHostsFile")
 	sshKeywords.SshGlobalKnownHostsFile = strings.Fields(rawGlobalKnownHostsFile) // TODO - smarter splitting escaped spaces and quotes
 
+	sshKeywords.SshConnectTimeout = parseSshConfigSeconds(hostPattern, "ConnectTimeout")
+	sshKeywords.SshServerAliveInterval = parseSshConfigSeconds(hostPattern, "ServerAliveInterval")
+	sshKeywords.SshServerAliveCountMax = parseSshConfigSeconds(hostPattern, "ServerAliveCountMax")
+
 	return sshKeywords, nil
+}
+
+// returns nil when the keyword is unset or not a non-negative integer
+func parseSshConfigSeconds(hostPattern string, keyword string) *int {
+	raw, err := WaveSshConfigUserSettings().GetStrict(hostPattern, keyword)
+	if err != nil {
+		return nil
+	}
+	return parseNonNegativeInt(trimquotes.TryTrimQuotes(raw))
+}
+
+func parseNonNegativeInt(raw string) *int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	val, err := strconv.Atoi(raw)
+	if err != nil || val < 0 {
+		return nil
+	}
+	return &val
+}
+
+// returns "" when no ProxyCommand applies (unset or "none")
+func findSshProxyCommand(hostPattern string) string {
+	raw, err := WaveSshConfigUserSettings().GetStrict(hostPattern, "ProxyCommand")
+	if err != nil {
+		return ""
+	}
+	proxyCommand := strings.TrimSpace(trimquotes.TryTrimQuotes(raw))
+	if proxyCommand == "" || strings.EqualFold(proxyCommand, "none") {
+		return ""
+	}
+	return proxyCommand
+}
+
+func resolveConnectTimeout(sshKeywords *wconfig.ConnKeywords) time.Duration {
+	if sshKeywords == nil || sshKeywords.SshConnectTimeout == nil || *sshKeywords.SshConnectTimeout <= 0 {
+		return DefaultSshConnectTimeout
+	}
+	return time.Duration(*sshKeywords.SshConnectTimeout) * time.Second
+}
+
+func resolveKeepAliveSettings(sshKeywords *wconfig.ConnKeywords) KeepAliveSettings {
+	var settings KeepAliveSettings
+	if sshKeywords == nil {
+		return settings
+	}
+	if sshKeywords.SshServerAliveInterval != nil && *sshKeywords.SshServerAliveInterval > 0 {
+		settings.Interval = time.Duration(*sshKeywords.SshServerAliveInterval) * time.Second
+	}
+	settings.CountMax = DefaultSshServerAliveCountMax
+	if sshKeywords.SshServerAliveCountMax != nil && *sshKeywords.SshServerAliveCountMax > 0 {
+		settings.CountMax = *sshKeywords.SshServerAliveCountMax
+	}
+	return settings
 }
 
 func findSshDefaults(hostPattern string) (connKeywords *wconfig.ConnKeywords, outErr error) {
@@ -1205,6 +1359,15 @@ func mergeKeywords(oldKeywords *wconfig.ConnKeywords, newKeywords *wconfig.ConnK
 	}
 	if newKeywords.SshPasswordSecretName != nil {
 		outKeywords.SshPasswordSecretName = newKeywords.SshPasswordSecretName
+	}
+	if newKeywords.SshConnectTimeout != nil {
+		outKeywords.SshConnectTimeout = newKeywords.SshConnectTimeout
+	}
+	if newKeywords.SshServerAliveInterval != nil {
+		outKeywords.SshServerAliveInterval = newKeywords.SshServerAliveInterval
+	}
+	if newKeywords.SshServerAliveCountMax != nil {
+		outKeywords.SshServerAliveCountMax = newKeywords.SshServerAliveCountMax
 	}
 
 	return &outKeywords

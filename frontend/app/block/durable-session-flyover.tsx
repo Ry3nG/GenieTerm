@@ -115,8 +115,9 @@ function DurableDetachedContent({ onClose }: DurableDetachedContentProps) {
                 Durable Session (Detached)
             </div>
             <div className="text-xs text-secondary leading-relaxed">
-                Connection lost, but your session is still running on the remote server. GenieTerm will automatically
-                reconnect when the connection is restored.
+                Connection lost, but your session is still running on the remote server. GenieTerm keeps retrying the
+                connection and reattaches when it's back. If the host needs a password or passphrase, reconnect
+                manually.
             </div>
         </div>
     );

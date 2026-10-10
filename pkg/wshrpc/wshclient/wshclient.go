@@ -202,6 +202,12 @@ func DisposeSuggestionsCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcO
 	return err
 }
 
+// command "durablejobcount", wshserver.DurableJobCountCommand
+func DurableJobCountCommand(w *wshutil.WshRpc, data wshrpc.CommandDurableJobCountData, opts *wshrpc.RpcOpts) (int, error) {
+	resp, err := sendRpcRequestCallHelper[int](w, "durablejobcount", data, opts)
+	return resp, err
+}
+
 // command "electrondecrypt", wshserver.ElectronDecryptCommand
 func ElectronDecryptCommand(w *wshutil.WshRpc, data wshrpc.CommandElectronDecryptData, opts *wshrpc.RpcOpts) (*wshrpc.CommandElectronDecryptRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandElectronDecryptRtnData](w, "electrondecrypt", data, opts)

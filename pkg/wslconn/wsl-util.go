@@ -129,7 +129,10 @@ func makeCancellableCommand(ctx context.Context, client *wsl.Distro, cmdTemplate
 	return &CancellableCmd{cmd, cmdCancel}, nil
 }
 
-func CpWshToRemote(ctx context.Context, client *wsl.Distro, clientOs string, clientArch string) error {
+// remotePath must be the same path the connserver is launched from (conn:wshpath or the
+// default helper path); "" means the default. The legacy wsh copy is only written for the
+// default layout.
+func CpWshToRemote(ctx context.Context, client *wsl.Distro, clientOs string, clientArch string, remotePath string) error {
 	genieLocalPath, err := shellutil.GetLocalGenieBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
 	if err != nil {
 		return err
@@ -141,12 +144,13 @@ func CpWshToRemote(ctx context.Context, client *wsl.Distro, clientOs string, cli
 	if _, err := os.Stat(wshLocalPath); err != nil {
 		wshLocalPath = genieLocalPath
 	}
-	helpers := []struct {
+	type helperCopy struct {
 		localPath  string
 		remotePath string
-	}{
-		{localPath: genieLocalPath, remotePath: wavebase.RemoteFullGenieBinPath},
-		{localPath: wshLocalPath, remotePath: wavebase.RemoteFullWshBinPath},
+	}
+	helpers := []helperCopy{{localPath: genieLocalPath, remotePath: wavebase.RemoteFullGenieBinPath}, {localPath: wshLocalPath, remotePath: wavebase.RemoteFullWshBinPath}}
+	if remotePath != "" && remotePath != wavebase.RemoteFullGenieBinPath {
+		helpers = []helperCopy{{localPath: genieLocalPath, remotePath: remotePath}}
 	}
 	for _, helper := range helpers {
 		err = cpHelperToRemote(ctx, client, helper.localPath, helper.remotePath)

@@ -43,6 +43,29 @@ function formatElapsedTime(elapsedMs: number): string {
     return "more than a day";
 }
 
+function formatReconnectStatus(connName: string, connStatus: ConnStatus, now: number): string {
+    const attempt = connStatus.reconnectattempt ?? 0;
+    const attemptText = attempt > 1 ? ` (attempt ${attempt})` : "";
+    if (connStatus.status == "connecting" || !connStatus.nextreconnectts) {
+        return `Reconnecting to "${connName}"${attemptText}...`;
+    }
+    const secondsLeft = Math.max(0, Math.ceil((connStatus.nextreconnectts - now) / 1000));
+    return `Connection to "${connName}" lost, reconnecting in ${secondsLeft}s${attemptText}`;
+}
+
+function useNowWhile(active: boolean): number {
+    const [now, setNow] = React.useState(() => Date.now());
+    React.useEffect(() => {
+        if (!active) {
+            return;
+        }
+        setNow(Date.now());
+        const interval = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, [active]);
+    return now;
+}
+
 const StalledOverlay = React.memo(
     ({
         connName,
@@ -127,9 +150,10 @@ export const ConnStatusOverlay = React.memo(
         const [overlayRefCallback, _, domRect] = useDimensionsWithCallbackRef(30);
         const width = domRect?.width;
         const [showError, setShowError] = React.useState(false);
-        const wshConfigEnabled =
-            jotai.useAtomValue(waveEnv.getConnConfigKeyAtom(connName, "conn:wshenabled")) ?? true;
+        const wshConfigEnabled = jotai.useAtomValue(waveEnv.getConnConfigKeyAtom(connName, "conn:wshenabled")) ?? true;
         const [showWshError, setShowWshError] = React.useState(false);
+        const isReconnecting = Boolean(connStatus.reconnecting) && connStatus.status != "connected";
+        const now = useNowWhile(isReconnecting && connStatus.nextreconnectts != null);
 
         React.useEffect(() => {
             if (width) {
@@ -147,6 +171,11 @@ export const ConnStatusOverlay = React.memo(
             );
             prtn.catch((e) => console.log("error reconnecting", connName, e));
         }, [connName, nodeModel.blockId, waveEnv]);
+
+        const handleCancelReconnect = React.useCallback(() => {
+            const prtn = waveEnv.rpc.ConnDisconnectCommand(TabRpcClient, connName, { timeout: 5000 });
+            prtn.catch((e) => console.log("error cancelling reconnect", connName, e));
+        }, [connName, waveEnv]);
 
         const handleDisableWsh = React.useCallback(async () => {
             const metamaptype: unknown = {
@@ -179,6 +208,9 @@ export const ConnStatusOverlay = React.memo(
         }
         if (connStatus.status == "connected") {
             showReconnect = false;
+        }
+        if (isReconnecting) {
+            statusText = formatReconnectStatus(connName, connStatus, now);
         }
         let reconDisplay = null;
         let reconClassName = "outlined grey";
@@ -243,8 +275,8 @@ export const ConnStatusOverlay = React.memo(
                                     {showError ? <div>error: {connStatus.error}</div> : null}
                                     {showWshError ? (
                                         <div>
-                                            GenieTerm helper (`genie`) is unavailable: {connStatus.wsherror}. File
-                                            Durable sessions need it on this host. Files use SFTP when the host supports it.
+                                            GenieTerm helper (`genie`) is unavailable: {connStatus.wsherror}. Durable
+                                            sessions need it on this host; files use SFTP when the host supports it.
                                         </div>
                                     ) : null}
                                 </OverlayScrollbarsComponent>
@@ -260,6 +292,17 @@ export const ConnStatusOverlay = React.memo(
                         <div className="connstatus-actions">
                             <Button className={reconClassName} onClick={handleTryReconnect}>
                                 {reconDisplay}
+                            </Button>
+                        </div>
+                    ) : null}
+                    {isReconnecting ? (
+                        <div className="connstatus-actions">
+                            <Button
+                                className={reconClassName}
+                                onClick={handleCancelReconnect}
+                                title="Stop reconnecting"
+                            >
+                                Cancel
                             </Button>
                         </div>
                     ) : null}

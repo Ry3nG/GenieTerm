@@ -14,7 +14,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { TermViewModel } from "@/app/view/term/term-model";
 import { atoms, getApi, getOverrideConfigAtom, getSettingsKeyAtom, WOS } from "@/store/global";
-import { fireAndForget, useAtomValueSafe } from "@/util/util";
+import { fireAndForget, isSshConnName, useAtomValueSafe } from "@/util/util";
 import { computeBgStyleFromMeta } from "@/util/waveutil";
 import { ISearchOptions } from "@xterm/addon-search";
 import clsx from "clsx";
@@ -596,7 +596,7 @@ const TermDurablePromptBanner = React.memo(
     ({ blockId, model, connection }: { blockId: string; model: TermViewModel; connection?: string }) => {
         const [blockData] = WOS.useWaveObjectValue<Block>(WOS.makeORef("block", blockId));
         const isDurable = jotai.useAtomValue(model.termConfigedDurable);
-        const isRemote = connection != null && connection !== "" && connection !== "local";
+        const isRemote = isSshConnName(connection);
         const alreadyAsked = Boolean(blockData?.meta?.["term:durableprompted"]);
 
         if (!isRemote || isDurable || alreadyAsked) {

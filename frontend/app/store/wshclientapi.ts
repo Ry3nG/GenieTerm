@@ -204,6 +204,12 @@ export class RpcApiType {
         return client.wshRpcCall("disposesuggestions", data, opts);
     }
 
+    // command "durablejobcount" [call]
+    DurableJobCountCommand(client: WshClient, data: CommandDurableJobCountData, opts?: RpcOpts): Promise<number> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "durablejobcount", data, opts);
+        return client.wshRpcCall("durablejobcount", data, opts);
+    }
+
     // command "electrondecrypt" [call]
     ElectronDecryptCommand(client: WshClient, data: CommandElectronDecryptData, opts?: RpcOpts): Promise<CommandElectronDecryptRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "electrondecrypt", data, opts);

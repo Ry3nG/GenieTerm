@@ -1333,3 +1333,7 @@ func (ws *WshServer) JobControllerDetachJobCommand(ctx context.Context, jobId st
 func (ws *WshServer) BlockJobStatusCommand(ctx context.Context, blockId string) (*wshrpc.BlockJobStatusData, error) {
 	return jobcontroller.GetBlockJobStatus(ctx, blockId)
 }
+
+func (ws *WshServer) DurableJobCountCommand(ctx context.Context, data wshrpc.CommandDurableJobCountData) (int, error) {
+	return jobcontroller.CountRunningDurableJobs(ctx, data.WorkspaceId, data.BlockIds)
+}
