@@ -10,6 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -74,11 +78,72 @@ func TestMakeConnServerCommandPrefersGenieWithWshFallback(t *testing.T) {
 	if !strings.Contains(cmd, "mkdir -p ~/.genieterm ~/.genieterm/client || exit 1;") {
 		t.Fatalf("command should create genie runtime directories before helper startup: %s", cmd)
 	}
-	if !strings.Contains(cmd, "version --protocol 2> /dev/null || \"$_genieterm_helper\" version 2> /dev/null ||") {
+	if !strings.Contains(cmd, "version --protocol || \"$_genieterm_helper\" version ) 2> /dev/null )") {
 		t.Fatalf("command should ask for the helper protocol and fall back for older helpers: %s", cmd)
 	}
 	if !strings.Contains(cmd, "connserver --conn prod-east --dev --router-domainsocket") {
 		t.Fatalf("command does not preserve connserver arguments: %s", cmd)
+	}
+}
+
+// runs the real connect script with fake helpers; the connserver step is replaced so the
+// script stops right after the version handshake
+func runConnScript(t *testing.T, genie string, wsh string) string {
+	t.Helper()
+	home := t.TempDir()
+	write := func(name string, body string) string {
+		if body == "" {
+			return filepath.Join(home, "missing-"+name)
+		}
+		path := filepath.Join(home, name)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	cmd := MakeConnServerCommand(write("genie", genie), write("wsh", wsh), "test-conn")
+	cmd = strings.Replace(cmd, "exec \"$_genieterm_helper\" connserver", "echo CONNSERVER; exit 0; :", 1)
+	sh := exec.Command("sh", "-c", cmd)
+	sh.Env = append(os.Environ(), "HOME="+home)
+	out, err := sh.CombinedOutput()
+	if err != nil {
+		t.Fatalf("connect script failed: %v\n%s", err, out)
+	}
+	return string(out)
+}
+
+func TestConnScriptVersionHandshake(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the connect script runs on the remote unix host")
+	}
+	firstLine := func(out string) string { return strings.SplitN(out, "\n", 2)[0] }
+
+	out := runConnScript(t, `[ "$2" = "--protocol" ] && echo "genie v1.0.0+p2" || echo "genie v1.0.0"`, "")
+	if firstLine(out) != "genie v1.0.0+p2" || !strings.Contains(out, "CONNSERVER") {
+		t.Fatalf("current helper: %q", out)
+	}
+
+	out = runConnScript(t, `[ "$2" = "--protocol" ] && exit 1; echo "genie v0.5.0"`, "")
+	if firstLine(out) != "genie v0.5.0" {
+		t.Fatalf("pre-protocol helper should fall back to plain version: %q", out)
+	}
+
+	out = runConnScript(t, "", `kill -SEGV $$`)
+	if !strings.HasPrefix(firstLine(out), "not-installed ") || strings.Contains(out, "CONNSERVER") {
+		t.Fatalf("a crashing leftover helper must read as not installed: %q", out)
+	}
+
+	out = runConnScript(t, `echo "Welcome to the cluster!"`, "")
+	if !strings.HasPrefix(firstLine(out), "not-installed ") {
+		t.Fatalf("garbage output must read as not installed: %q", out)
+	}
+
+	out = runConnScript(t, "", "")
+	if !strings.HasPrefix(firstLine(out), "not-installed ") {
+		t.Fatalf("no helper: %q", out)
+	}
+	if _, _, _, err := IsWshVersionUpToDate(context.Background(), firstLine(out)); err != nil {
+		t.Fatalf("not-installed line should parse: %v", err)
 	}
 }
 

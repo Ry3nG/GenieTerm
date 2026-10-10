@@ -27,7 +27,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var userHostRe = regexp.MustCompile(`^([a-zA-Z0-9][a-zA-Z0-9._@\\-]*@)?([a-zA-Z0-9][a-zA-Z0-9.-]*)(?::([0-9]+))?$`)
+// ssh config Host aliases often contain underscores (e.g. "lab_gpu"), so the host part allows them.
+var userHostRe = regexp.MustCompile(`^([a-zA-Z0-9][a-zA-Z0-9._@\\-]*@)?([a-zA-Z0-9][a-zA-Z0-9._-]*)(?::([0-9]+))?$`)
 
 func ParseOpts(input string) (*SSHOpts, error) {
 	m := userHostRe.FindStringSubmatch(input)
@@ -138,7 +139,7 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 		// a lingering earlier attempt's write and leave a corrupt binary.
 		"tempPath":    shellutil.SoftQuote(fmt.Sprintf("%s.temp.%d", remotePath, time.Now().UnixNano())),
 		"installPath": shellutil.SoftQuote(remotePath),
-		"tempGlob":    shellutil.HardQuote(filepath.Base(remotePath) + ".temp.*"),
+		"tempGlob":    shellutil.HardQuote(filepath.Base(remotePath) + ".temp*"),
 	}
 	var installCmd bytes.Buffer
 	if err := installTemplate.Execute(&installCmd, installWords); err != nil {

@@ -25,7 +25,7 @@ func renderInstallScript(t *testing.T, dir string) (string, string) {
 		"installDir":  shellutil.HardQuote(dir),
 		"tempPath":    shellutil.HardQuote(installPath + ".temp.123"),
 		"installPath": shellutil.HardQuote(installPath),
-		"tempGlob":    shellutil.HardQuote("genie.temp.*"),
+		"tempGlob":    shellutil.HardQuote("genie.temp*"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -55,11 +55,14 @@ func TestInstallScriptInstallsAndPrunesStaleTempFiles(t *testing.T) {
 	}
 	dir := t.TempDir()
 	stale := filepath.Join(dir, "genie.temp.1")
+	legacy := filepath.Join(dir, "genie.temp")
 	fresh := filepath.Join(dir, "genie.temp.2")
 	os.WriteFile(stale, []byte("old"), 0o644)
+	os.WriteFile(legacy, []byte("old"), 0o644)
 	os.WriteFile(fresh, []byte("in progress"), 0o644)
 	old := time.Now().Add(-2 * time.Hour)
 	os.Chtimes(stale, old, old)
+	os.Chtimes(legacy, old, old)
 
 	script, installPath := renderInstallScript(t, dir)
 	if err := runInstallScript(t, script, gzipBytes(t, "helper-binary")); err != nil {
@@ -72,8 +75,10 @@ func TestInstallScriptInstallsAndPrunesStaleTempFiles(t *testing.T) {
 	if info, _ := os.Stat(installPath); info.Mode()&0o111 == 0 {
 		t.Fatal("helper is not executable")
 	}
-	if _, err := os.Stat(stale); !os.IsNotExist(err) {
-		t.Fatal("stale temp file was not pruned")
+	for _, f := range []string{stale, legacy} {
+		if _, err := os.Stat(f); !os.IsNotExist(err) {
+			t.Fatalf("stale temp file %s was not pruned", filepath.Base(f))
+		}
 	}
 	if _, err := os.Stat(fresh); err != nil {
 		t.Fatal("a concurrent install's fresh temp file was removed")

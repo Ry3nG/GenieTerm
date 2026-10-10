@@ -117,7 +117,10 @@ func MakeConnServerCommand(primaryPath string, fallbackPath string, connName str
 		fmt.Sprintf("mkdir -p %s %s || exit 1;", shellutil.SoftQuote(wavebase.RemoteFullGenieHomePath), shellutil.SoftQuote(wavebase.RemoteFullGenieHomePath+"/client")),
 		fmt.Sprintf("_genieterm_helper=%s;", shellutil.SoftQuote(primaryPath)),
 		fmt.Sprintf("if [ ! -x \"$_genieterm_helper\" ] && [ -x %s ]; then _genieterm_helper=%s; fi;", shellutil.SoftQuote(fallbackPath), shellutil.SoftQuote(fallbackPath)),
-		"\"$_genieterm_helper\" version --protocol 2> /dev/null || \"$_genieterm_helper\" version 2> /dev/null || (echo -n \"not-installed \"; uname -sm; exit 0);",
+		// a truncated or foreign binary can crash here, and the shell's own crash report would
+		// otherwise reach the version parser; anything that isn't a version line means reinstall
+		"_genieterm_version=$( ( \"$_genieterm_helper\" version --protocol || \"$_genieterm_helper\" version ) 2> /dev/null ) 2> /dev/null;",
+		"case \"$_genieterm_version\" in \"genie v\"*|\"wsh v\"*) echo \"$_genieterm_version\";; *) printf \"not-installed %s\\n\" \"$(uname -sm)\"; exit 0;; esac;",
 		fmt.Sprintf("exec \"$_genieterm_helper\" connserver --conn %s%s", shellutil.HardQuote(connName), flagStr),
 	}, "\n"))
 }
@@ -375,9 +378,13 @@ func (conn *SSHConn) GetName() string {
 }
 
 func (conn *SSHConn) OpenDomainSocketListener(ctx context.Context) error {
+	return conn.openDomainSocketListener(ctx, Status_Connecting)
+}
+
+func (conn *SSHConn) openDomainSocketListener(ctx context.Context, requiredStatus string) error {
 	conn.Infof(ctx, "running OpenDomainSocketListener...\n")
 	allowed := WithLockRtn(conn, func() bool {
-		return conn.Status == Status_Connecting
+		return conn.Status == requiredStatus
 	})
 	if !allowed {
 		return fmt.Errorf("cannot open domain socket for %q when status is %q", conn.GetName(), conn.GetStatus())
@@ -868,6 +875,13 @@ func (conn *SSHConn) UpgradeWsh(ctx context.Context) error {
 	})
 	if !live {
 		return nil
+	}
+	// A connection that came up without the helper (install declined or turned off) never opened
+	// the domain socket the helper reports back on.
+	if conn.GetDomainSocketName() == "" {
+		if err := conn.openDomainSocketListener(ctx, Status_Connected); err != nil {
+			return err
+		}
 	}
 	needsInstall, clientVersion, _, err := conn.StartConnServer(ctx, true, true)
 	if err != nil {

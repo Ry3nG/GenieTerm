@@ -207,6 +207,7 @@ export const ConnStatusOverlay = React.memo(
             showReconnect = false;
         }
         if (connStatus.status == "connected") {
+            statusText = `Connected to "${connName}" without the GenieTerm helper`;
             showReconnect = false;
         }
         if (isReconnecting) {
@@ -283,7 +284,7 @@ export const ConnStatusOverlay = React.memo(
                             )}
                             {showWshError && (
                                 <Button className={reconClassName} onClick={handleDisableWsh}>
-                                    don't use helper on this host
+                                    Don't use the helper on this host
                                 </Button>
                             )}
                         </div>
