@@ -82,6 +82,54 @@ describe("transferdisplay", () => {
         });
     });
 
+    it("offers retry for failed or canceled jobs of every transport unless marked non-retryable", () => {
+        expect(summarizeTransferJob(job({ status: "canceled" })).canRetry).toBe(true);
+        expect(summarizeTransferJob(job({ status: "failed", operation: "upload", transport: "wsh" })).canRetry).toBe(
+            true
+        );
+        expect(summarizeTransferJob(job({ status: "failed", transport: "scp" })).canRetry).toBe(true);
+        expect(
+            summarizeTransferJob(
+                job({ status: "failed", lastError: { code: "invalid_source", message: "Bad", retryable: false } })
+            ).canRetry
+        ).toBe(false);
+        expect(summarizeTransferJob(job({ status: "completed" })).canRetry).toBe(false);
+    });
+
+    it("shows a cancel request honestly and stops offering cancel again", () => {
+        const display = summarizeTransferJob(
+            job({ status: "running", operation: "upload", transport: "wsh", cancelRequestedAt: 1500 })
+        );
+        expect(display).toMatchObject({
+            detail: "Canceling - waiting for the current copy to finish",
+            canCancel: false,
+            canRetry: false,
+        });
+        expect(
+            summarizeTransferJob(
+                job({
+                    status: "completed",
+                    progress: {
+                        bytesTransferred: 10,
+                        message: "Finished before the cancel request could take effect.",
+                    },
+                })
+            ).subdetail
+        ).toBe("Finished before the cancel request could take effect.");
+    });
+
+    it("shows byte progress for running native downloads", () => {
+        expect(
+            summarizeTransferJob(
+                job({
+                    status: "running",
+                    progress: { bytesTransferred: 1536, totalBytes: 3 * 1024 * 1024, percent: 0 },
+                })
+            ).subdetail
+        ).toBe("1.5 KB of 3.0 MB");
+        expect(summarizeTransferJob(job({ status: "running" })).subdetail).toBeUndefined();
+    });
+
     it("orders active transfers before recent terminal transfers and reports hidden rows", () => {
         const queue: TransferQueue = {
             jobs: [

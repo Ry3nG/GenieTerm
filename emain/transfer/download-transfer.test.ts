@@ -1,15 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
 
 import {
     NativeDownloadDestination,
     buildFileDownloadTransferJobInput,
     createDownloadTransferTracker,
-    mapNativeDownloadState,
     makeTransferQueuePersistence,
+    mapNativeDownloadState,
     readTransferQueueSnapshot,
+    runTransferUpdate,
     writeTransferQueueSnapshot,
 } from "./download-transfer";
 
@@ -148,6 +149,87 @@ describe("download-transfer helpers", () => {
 
         expect(tracker.getQueue().jobs.map((job) => `${job.id}:${job.status}`)).toEqual(["active:running"]);
         expect(snapshots[snapshots.length - 1]).toEqual(["active:running"]);
+    });
+
+    it("ignores late cancel/fail/complete events after a job is already terminal", () => {
+        const tracker = createDownloadTransferTracker(() => 1000);
+        tracker.enqueue(buildFileDownloadTransferJobInput("wsh://host/~/out.txt", "job-1"));
+        tracker.start("job-1");
+        tracker.cancel("job-1");
+
+        expect(() => tracker.cancel("job-1")).not.toThrow();
+        expect(() => tracker.fail("job-1", { code: "exit", message: "rsync exited" })).not.toThrow();
+        expect(() => tracker.complete("job-1")).not.toThrow();
+        expect(tracker.getJob("job-1").status).toBe("canceled");
+        expect(tracker.updateProgress("job-1", { bytesTransferred: 5 })?.status).toBe("canceled");
+        expect(tracker.updateProgress("missing", { bytesTransferred: 5 })).toBeUndefined();
+    });
+
+    it("guards transitions run from event listeners so they never throw", () => {
+        const tracker = createDownloadTransferTracker(() => 1000);
+        const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            expect(runTransferUpdate("late close", () => tracker.complete("cleared-job"))).toBeUndefined();
+            expect(errorSpy).toHaveBeenCalled();
+        } finally {
+            errorSpy.mockRestore();
+        }
+    });
+
+    it("keeps notifying other listeners when one listener throws", () => {
+        const tracker = createDownloadTransferTracker(() => 1000);
+        const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const seen: number[] = [];
+        try {
+            tracker.subscribe(() => {
+                throw new Error("renderer gone");
+            });
+            tracker.subscribe((queue) => seen.push(queue.jobs.length));
+            tracker.enqueue(buildFileDownloadTransferJobInput("wsh://host/~/out.txt", "job-1"));
+            expect(seen).toEqual([0, 1]);
+        } finally {
+            errorSpy.mockRestore();
+        }
+    });
+
+    it("throttles progress notifications while state transitions notify immediately", () => {
+        vi.useFakeTimers();
+        try {
+            let now = 1000;
+            const tracker = createDownloadTransferTracker(() => now, 250);
+            const notified: number[] = [];
+            tracker.enqueue(buildFileDownloadTransferJobInput("wsh://host/~/big.bin", "job-1"));
+            tracker.start("job-1");
+            tracker.subscribe((queue) => notified.push(queue.jobs[0].progress.bytesTransferred));
+            notified.length = 0;
+
+            for (let index = 1; index <= 10; index++) {
+                now += 10;
+                tracker.updateProgress("job-1", { bytesTransferred: index * 100, totalBytes: 1000 });
+            }
+            expect(notified).toEqual([]);
+            expect(tracker.getJob("job-1").progress).toMatchObject({ bytesTransferred: 1000, percent: 100 });
+
+            now += 250;
+            vi.advanceTimersByTime(250);
+            expect(notified).toEqual([1000]);
+
+            tracker.updateProgress("job-1", { bytesTransferred: 1000 });
+            tracker.complete("job-1");
+            expect(notified).toHaveLength(2);
+            vi.advanceTimersByTime(1000);
+            expect(notified).toHaveLength(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("records cancel requests for running renderer-driven jobs", () => {
+        const tracker = createDownloadTransferTracker(() => 1000);
+        tracker.enqueue({ ...buildFileDownloadTransferJobInput("wsh://host/~/up.txt", "up-1"), operation: "upload" });
+        tracker.start("up-1");
+        expect(tracker.requestCancel("up-1")).toMatchObject({ status: "running", cancelRequestedAt: 1000 });
+        expect(tracker.complete("up-1").status).toBe("completed");
     });
 
     it("maps native Electron download completion states to transfer outcomes", () => {

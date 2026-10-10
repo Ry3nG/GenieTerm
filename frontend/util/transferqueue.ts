@@ -45,6 +45,7 @@ export type TransferJob = TransferJobInput & {
     completedAt?: number;
     failedAt?: number;
     canceledAt?: number;
+    cancelRequestedAt?: number;
     lastError?: TransferError;
 };
 
@@ -66,6 +67,8 @@ export type TransferGroupSummary = {
 };
 
 const TransferStatuses: TransferJobStatus[] = ["queued", "running", "completed", "failed", "canceled"];
+export const MaxTransferJobs = 200;
+export const CompletedAfterCancelMessage = "Finished before the cancel request could take effect.";
 
 export function createTransferQueue(): TransferQueue {
     return { jobs: [] };
@@ -75,7 +78,7 @@ export function recoverTransferQueue(raw: unknown, now: number): TransferQueue {
     if (raw == null || typeof raw !== "object" || !Array.isArray((raw as TransferQueue).jobs)) {
         return createTransferQueue();
     }
-    const jobs = (raw as TransferQueue).jobs
+    const recoveredJobs = (raw as TransferQueue).jobs
         .filter(
             (job) =>
                 job != null &&
@@ -86,7 +89,6 @@ export function recoverTransferQueue(raw: unknown, now: number): TransferQueue {
                 (job.operation === "download" || job.operation === "upload") &&
                 TransferStatuses.includes(job.status)
         )
-        .slice(-200)
         .map((job) => {
             if (job.status !== "queued" && job.status !== "running") {
                 return job;
@@ -94,7 +96,7 @@ export function recoverTransferQueue(raw: unknown, now: number): TransferQueue {
             const error: TransferError = {
                 code: "transfer_interrupted",
                 message: "Transfer was interrupted when GenieTerm closed.",
-                retryable: job.operation === "download",
+                retryable: true,
             };
             return {
                 ...job,
@@ -108,7 +110,11 @@ export function recoverTransferQueue(raw: unknown, now: number): TransferQueue {
                 ],
             };
         });
-    return { jobs };
+    return pruneTransferQueue({ jobs: recoveredJobs });
+}
+
+export function findTransferJob(queue: TransferQueue, jobId: string): TransferJob | undefined {
+    return queue.jobs.find((candidate) => candidate.id === jobId);
 }
 
 export function getTransferJob(queue: TransferQueue, jobId: string): TransferJob {
@@ -132,10 +138,29 @@ export function enqueueTransferJob(queue: TransferQueue, input: TransferJobInput
         progress: { bytesTransferred: 0 },
         failureHistory: [],
     };
-    return {
+    return pruneTransferQueue({
         ...queue,
         jobs: [...queue.jobs, job],
-    };
+    });
+}
+
+// Only terminal jobs are pruned so active work is never dropped, even if that leaves the queue above the cap.
+export function pruneTransferQueue(queue: TransferQueue, maxJobs = MaxTransferJobs): TransferQueue {
+    let excess = queue.jobs.length - maxJobs;
+    if (excess <= 0) {
+        return queue;
+    }
+    const jobs = queue.jobs.filter((job) => {
+        if (excess > 0 && isInactiveTransferStatus(job.status)) {
+            excess -= 1;
+            return false;
+        }
+        return true;
+    });
+    if (jobs.length === queue.jobs.length) {
+        return queue;
+    }
+    return { ...queue, jobs };
 }
 
 export function enqueueTransferJobGroup(
@@ -150,10 +175,7 @@ export function enqueueTransferJobGroup(
     if (inputs.length === 0) {
         throw new Error(`Transfer group ${groupId} must include at least one job`);
     }
-    return inputs.reduce(
-        (nextQueue, input) => enqueueTransferJob(nextQueue, { ...input, groupId }, now),
-        queue
-    );
+    return inputs.reduce((nextQueue, input) => enqueueTransferJob(nextQueue, { ...input, groupId }, now), queue);
 }
 
 export function getTransferGroupJobs(queue: TransferQueue, groupId: string): TransferJob[] {
@@ -212,7 +234,9 @@ export function updateTransferProgress(
     now: number
 ): TransferQueue {
     return updateJob(queue, jobId, (job) => {
-        assertStatus(job, ["running"], "update progress for");
+        if (job.status !== "running") {
+            return job;
+        }
         const nextProgress = clampProgress({
             ...job.progress,
             ...progress,
@@ -227,11 +251,15 @@ export function updateTransferProgress(
 
 export function completeTransferJob(queue: TransferQueue, jobId: string, now: number): TransferQueue {
     return updateJob(queue, jobId, (job) => {
+        if (isInactiveTransferStatus(job.status)) {
+            return job;
+        }
         assertStatus(job, ["running"], "complete");
         const completedProgress = clampProgress({
             ...job.progress,
             bytesTransferred: job.progress.totalBytes ?? job.progress.bytesTransferred,
             percent: 100,
+            ...(job.cancelRequestedAt != null ? { message: CompletedAfterCancelMessage } : {}),
         });
         return {
             ...job,
@@ -245,7 +273,9 @@ export function completeTransferJob(queue: TransferQueue, jobId: string, now: nu
 
 export function failTransferJob(queue: TransferQueue, jobId: string, error: TransferError, now: number): TransferQueue {
     return updateJob(queue, jobId, (job) => {
-        assertStatus(job, ["running"], "fail");
+        if (isInactiveTransferStatus(job.status)) {
+            return job;
+        }
         const failureRecord: TransferFailureRecord = {
             attempt: job.attempt,
             failedAt: now,
@@ -264,7 +294,7 @@ export function failTransferJob(queue: TransferQueue, jobId: string, error: Tran
 
 export function retryTransferJob(queue: TransferQueue, jobId: string, now: number): TransferQueue {
     return updateJob(queue, jobId, (job) => {
-        assertStatus(job, ["failed"], "retry");
+        assertStatus(job, ["failed", "canceled"], "retry");
         if (job.lastError?.retryable === false) {
             throw new Error(`Cannot retry non-retryable transfer job: ${jobId}`);
         }
@@ -273,6 +303,7 @@ export function retryTransferJob(queue: TransferQueue, jobId: string, now: numbe
             completedAt: _completedAt,
             failedAt: _failedAt,
             canceledAt: _canceledAt,
+            cancelRequestedAt: _cancelRequestedAt,
             lastError: _lastError,
             ...rest
         } = job;
@@ -288,7 +319,9 @@ export function retryTransferJob(queue: TransferQueue, jobId: string, now: numbe
 
 export function cancelTransferJob(queue: TransferQueue, jobId: string, now: number): TransferQueue {
     return updateJob(queue, jobId, (job) => {
-        assertStatus(job, ["queued", "running"], "cancel");
+        if (isInactiveTransferStatus(job.status)) {
+            return job;
+        }
         return {
             ...job,
             status: "canceled",
@@ -296,6 +329,23 @@ export function cancelTransferJob(queue: TransferQueue, jobId: string, now: numb
             updatedAt: now,
         };
     });
+}
+
+// For running work that cannot be interrupted (e.g. an in-flight RPC copy): the job stays running and records the
+// request so the final outcome can be reported honestly. Queued jobs are canceled outright.
+export function requestTransferJobCancel(queue: TransferQueue, jobId: string, now: number): TransferQueue {
+    const job = getTransferJob(queue, jobId);
+    if (job.status === "queued") {
+        return cancelTransferJob(queue, jobId, now);
+    }
+    if (job.status !== "running" || job.cancelRequestedAt != null) {
+        return queue;
+    }
+    return updateJob(queue, jobId, (current) => ({
+        ...current,
+        cancelRequestedAt: now,
+        updatedAt: now,
+    }));
 }
 
 export function clearInactiveTransferJobs(queue: TransferQueue): TransferQueue {
