@@ -572,6 +572,12 @@ function getFocusedBlockMenuCommands(): CommandPaletteCommand[] {
     if (vm == null) {
         return [];
     }
+    const terminalCommands: CommandPaletteCommand[] = [];
+    if (vm.viewType === "term") {
+        terminalCommands.push(
+            makePaletteCommand("term:clear", "Clear Terminal", () => vm.termRef.current?.clearTerminal(), "Cmd:k")
+        );
+    }
     let menuItems: ContextMenuItem[] = null;
     if (typeof vm.getCommandPaletteItems === "function") {
         menuItems = vm.getCommandPaletteItems();
@@ -581,10 +587,13 @@ function getFocusedBlockMenuCommands(): CommandPaletteCommand[] {
         menuItems = vm.getSettingsMenuItems();
     }
     if (!menuItems?.length) {
-        return [];
+        return terminalCommands;
     }
     const viewLabel = vm.viewType === "term" ? "Terminal" : "Block";
-    return menuItemsToCommandPaletteCommands(`block:${blockId}`, menuItems, { prefix: viewLabel });
+    return [
+        ...terminalCommands,
+        ...menuItemsToCommandPaletteCommands(`block:${blockId}`, menuItems, { prefix: viewLabel }),
+    ];
 }
 
 function getCurrentTabCommands(): CommandPaletteCommand[] {

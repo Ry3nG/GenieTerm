@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 describe("keymodel command palette commands", () => {
-    async function loadKeymodel() {
+    async function loadKeymodel(viewModel?: unknown) {
         const api = {
             checkForUpdates: vi.fn(),
             clearTabCache: vi.fn(),
@@ -40,12 +40,15 @@ describe("keymodel command palette commands", () => {
             createTab: vi.fn(),
             getAllBlockComponentModels: vi.fn(() => []),
             getApi: vi.fn(() => api),
-            getBlockComponentModel: vi.fn(),
+            getBlockComponentModel: vi.fn(() => ({ viewModel })),
             getFocusedBlockId: vi.fn(),
             getOrefMetaKeyAtom: vi.fn((_oref: string, key: string) => `oref:${key}`),
             getSettingsKeyAtom: vi.fn((key: string) => `settings:${key}`),
             globalStore: {
                 get: vi.fn((atom: string) => {
+                    if (atom === "focusedNode" && viewModel != null) {
+                        return { data: { blockId: "focused-block" } };
+                    }
                     if (atom === "settings:app:keybindings") {
                         return {};
                     }
@@ -136,6 +139,20 @@ describe("keymodel command palette commands", () => {
 
         expect(api.doRefresh).toHaveBeenCalledTimes(1);
         expect(api.registerGlobalWebviewKeys).toHaveBeenCalledWith(expect.arrayContaining(["Shift:Cmd:r"]));
+    });
+
+    it("clears the focused terminal through its existing controller", async () => {
+        const clearTerminal = vi.fn();
+        const { commands } = await loadKeymodel({ viewType: "term", termRef: { current: { clearTerminal } } });
+        const clear = commands.find((cmd) => cmd.id === "term:clear");
+        expect(clear).toMatchObject({ label: "Clear Terminal", binding: "Cmd:k" });
+        clear.run();
+        expect(clearTerminal).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not offer terminal clearing when a different view is focused", async () => {
+        const { commands } = await loadKeymodel({ viewType: "web" });
+        expect(commands.some((cmd) => cmd.id === "term:clear")).toBe(false);
     });
 
     it("surfaces app commands and routes them to Electron APIs or app config", async () => {
