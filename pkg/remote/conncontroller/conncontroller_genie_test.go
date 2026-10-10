@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -27,12 +28,20 @@ func TestIsWshVersionUpToDateRequiresGeniePrimaryHelper(t *testing.T) {
 	})
 	wavebase.WaveVersion = "0.4.0"
 
-	ok, version, osArch, err := IsWshVersionUpToDate(context.Background(), "genie v0.4.0")
+	ok, version, osArch, err := IsWshVersionUpToDate(context.Background(), fmt.Sprintf("genie v0.4.0+p%d", wavebase.HelperProtocol))
 	if err != nil {
 		t.Fatalf("genie version check returned error: %v", err)
 	}
 	if !ok || version != "v0.4.0" || osArch != "" {
 		t.Fatalf("genie current version returned ok=%v version=%q osArch=%q", ok, version, osArch)
+	}
+
+	// Same version number but built before the helper protocol existed (or an older protocol).
+	for _, line := range []string{"genie v0.4.0", fmt.Sprintf("genie v0.4.0+p%d", wavebase.HelperProtocol-1), "genie v0.4.0+build7"} {
+		ok, version, _, err = IsWshVersionUpToDate(context.Background(), line)
+		if err != nil || ok || version != "v0.4.0" {
+			t.Fatalf("%q should require an update, got ok=%v version=%q err=%v", line, ok, version, err)
+		}
 	}
 
 	ok, version, osArch, err = IsWshVersionUpToDate(context.Background(), "wsh v0.4.0")
@@ -64,6 +73,9 @@ func TestMakeConnServerCommandPrefersGenieWithWshFallback(t *testing.T) {
 	}
 	if !strings.Contains(cmd, "mkdir -p ~/.genieterm ~/.genieterm/client || exit 1;") {
 		t.Fatalf("command should create genie runtime directories before helper startup: %s", cmd)
+	}
+	if !strings.Contains(cmd, "version --protocol 2> /dev/null || \"$_genieterm_helper\" version 2> /dev/null ||") {
+		t.Fatalf("command should ask for the helper protocol and fall back for older helpers: %s", cmd)
 	}
 	if !strings.Contains(cmd, "connserver --conn prod-east --dev --router-domainsocket") {
 		t.Fatalf("command does not preserve connserver arguments: %s", cmd)

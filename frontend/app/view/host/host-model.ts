@@ -29,6 +29,7 @@ export type HostEnv = WaveEnvSubset<{
         PortForwardStartCommand: WaveEnv["rpc"]["PortForwardStartCommand"];
         PortForwardStopCommand: WaveEnv["rpc"]["PortForwardStopCommand"];
         PortForwardListCommand: WaveEnv["rpc"]["PortForwardListCommand"];
+        ConnReinstallWshCommand: WaveEnv["rpc"]["ConnReinstallWshCommand"];
         SetMetaCommand: WaveEnv["rpc"]["SetMetaCommand"];
     };
     electron: {
@@ -57,6 +58,12 @@ export type PortsState = {
 };
 
 export type ForwardAction = { port: number; error: string; busy: boolean };
+
+export type HelperUpdateState = { busy: boolean; error: string };
+
+function emptyPortsState(): PortsState {
+    return { data: null, error: "", outdated: false, loading: false, updatedTs: 0 };
+}
 
 // must stay well under the helper's 15 s watcher expiry
 const SysInfoWatchRenewMs = 5000;
@@ -113,13 +120,13 @@ export class HostViewModel implements ViewModel {
     samplesAtom = jotai.atom(emptySamples()) as jotai.PrimitiveAtom<HostSamples>;
     hostInfoAtom = jotai.atom(null) as jotai.PrimitiveAtom<HostInfo>;
     hostInfoErrorAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
-    portsAtom = jotai.atom<PortsState>({
-        data: null,
+    portsAtom = jotai.atom<PortsState>(emptyPortsState()) as jotai.PrimitiveAtom<PortsState>;
+    // "this host's genie helper predates the Host view" (it answers sysinfo but not host info or ports)
+    helperOutdatedAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
+    helperUpdateAtom = jotai.atom<HelperUpdateState>({
+        busy: false,
         error: "",
-        outdated: false,
-        loading: false,
-        updatedTs: 0,
-    }) as jotai.PrimitiveAtom<PortsState>;
+    }) as jotai.PrimitiveAtom<HelperUpdateState>;
     forwardsAtom = jotai.atom<PortForwardInfo[]>([]) as jotai.PrimitiveAtom<PortForwardInfo[]>;
     forwardActionAtom = jotai.atom(null) as jotai.PrimitiveAtom<ForwardAction>;
     processModelAtom = jotai.atom(null) as jotai.PrimitiveAtom<ProcessViewerViewModel>;
@@ -132,7 +139,7 @@ export class HostViewModel implements ViewModel {
     disposed = false;
     unsubs: Array<() => void> = [];
     sampling = { conn: "", active: false, renewTimer: null as ReturnType<typeof setInterval>, unsub: null };
-    portsPoll = { conn: "", timer: null as ReturnType<typeof setTimeout>, epoch: 0 };
+    portsPoll = { conn: "", dataConn: "", timer: null as ReturnType<typeof setTimeout>, epoch: 0 };
     forwardsSub = { conn: "", unsub: null as () => void, epoch: 0 };
     hostInfoConn = "";
 
@@ -334,6 +341,8 @@ export class HostViewModel implements ViewModel {
         this.hostInfoConn = conn;
         globalStore.set(this.hostInfoAtom, null);
         globalStore.set(this.hostInfoErrorAtom, "");
+        globalStore.set(this.helperOutdatedAtom, false);
+        globalStore.set(this.helperUpdateAtom, { busy: false, error: "" });
         globalStore.set(this.latestAtom, null);
         globalStore.set(this.samplesAtom, emptySamples());
         fireAndForget(async () => {
@@ -344,7 +353,11 @@ export class HostViewModel implements ViewModel {
                 }
             } catch (e) {
                 if (this.hostInfoConn === conn) {
-                    globalStore.set(this.hostInfoErrorAtom, errorText(e));
+                    const error = errorText(e);
+                    globalStore.set(this.hostInfoErrorAtom, error);
+                    if (isOutdatedHelperError(error)) {
+                        globalStore.set(this.helperOutdatedAtom, true);
+                    }
                 }
             }
         });
@@ -363,7 +376,14 @@ export class HostViewModel implements ViewModel {
             return;
         }
         const epoch = p.epoch;
-        globalStore.set(this.portsAtom, (prev) => ({ ...prev, loading: prev.data == null }));
+        // Coming back to the same host keeps the last list on screen; another host must not show it.
+        if (p.dataConn !== conn) {
+            p.dataConn = conn;
+            globalStore.set(this.portsAtom, { ...emptyPortsState(), loading: true });
+            globalStore.set(this.forwardActionAtom, null);
+        } else {
+            globalStore.set(this.portsAtom, (prev) => ({ ...prev, loading: prev.data == null }));
+        }
         const tick = async () => {
             await this.fetchPorts(conn, epoch);
             if (this.portsPoll.epoch !== epoch) {
@@ -403,10 +423,14 @@ export class HostViewModel implements ViewModel {
                 return;
             }
             const error = errorText(e);
+            const outdated = isOutdatedHelperError(error);
+            if (outdated) {
+                globalStore.set(this.helperOutdatedAtom, true);
+            }
             globalStore.set(this.portsAtom, (prev) => ({
                 ...prev,
                 error,
-                outdated: isOutdatedHelperError(error),
+                outdated,
                 loading: false,
             }));
         }
@@ -480,6 +504,25 @@ export class HostViewModel implements ViewModel {
                 busy: false,
             });
         }
+    }
+
+    // Installs the current genie helper and restarts it on the live SSH connection; shells stay up.
+    async updateHelper() {
+        const conn = globalStore.get(this.connection);
+        globalStore.set(this.helperUpdateAtom, { busy: true, error: "" });
+        try {
+            await this.env.rpc.ConnReinstallWshCommand(TabRpcClient, { connname: conn }, { timeout: 120000 });
+        } catch (e) {
+            globalStore.set(this.helperUpdateAtom, { busy: false, error: errorText(e) });
+            return;
+        }
+        globalStore.set(this.helperUpdateAtom, { busy: false, error: "" });
+        globalStore.set(this.helperOutdatedAtom, false);
+        this.hostInfoConn = "";
+        this.portsPoll.conn = "";
+        this.portsPoll.dataConn = "";
+        this.stopSampling();
+        this.syncAll();
     }
 
     openLocalPort(port: number) {

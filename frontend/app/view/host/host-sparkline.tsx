@@ -19,17 +19,18 @@ type SparklineProps = {
     label?: string;
 };
 
-// Points are laid out right-aligned on a fixed time axis so a short history grows in from the right
-// instead of stretching across the whole width.
+// A full history fills a fixed time axis; a shorter one (just opened) is spread across the width so
+// the card never shows a sliver of line pinned to the right edge.
 function makePaths(values: number[], max: number, length: number): { line: string; area: string } {
-    const offset = length - values.length;
+    const step = values.length > 1 ? (length - 1) / (values.length - 1) : 0;
+    const offset = values.length > 1 ? 0 : length - 1;
     let line = "";
     let area = "";
     let segStart = -1;
     let prevX = 0;
     for (let i = 0; i < values.length; i++) {
         const v = values[i];
-        const x = offset + i;
+        const x = offset + i * step;
         if (!Number.isFinite(v)) {
             if (segStart >= 0) {
                 area += `L${prevX},100L${segStart},100Z`;

@@ -371,7 +371,7 @@ export function isOutdatedHelperError(error: string): boolean {
     if (!error) {
         return false;
     }
-    return /command not found|unknown command|no such command|not implemented/i.test(error);
+    return /command not found|command "[^"]+" not found|unknown command|no such command|not implemented/i.test(error);
 }
 
 export function summarizeGpus(gpus: GpuData[]): string {

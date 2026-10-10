@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -116,7 +117,7 @@ func MakeConnServerCommand(primaryPath string, fallbackPath string, connName str
 		fmt.Sprintf("mkdir -p %s %s || exit 1;", shellutil.SoftQuote(wavebase.RemoteFullGenieHomePath), shellutil.SoftQuote(wavebase.RemoteFullGenieHomePath+"/client")),
 		fmt.Sprintf("_genieterm_helper=%s;", shellutil.SoftQuote(primaryPath)),
 		fmt.Sprintf("if [ ! -x \"$_genieterm_helper\" ] && [ -x %s ]; then _genieterm_helper=%s; fi;", shellutil.SoftQuote(fallbackPath), shellutil.SoftQuote(fallbackPath)),
-		"\"$_genieterm_helper\" version 2> /dev/null || (echo -n \"not-installed \"; uname -sm; exit 0);",
+		"\"$_genieterm_helper\" version --protocol 2> /dev/null || \"$_genieterm_helper\" version 2> /dev/null || (echo -n \"not-installed \"; uname -sm; exit 0);",
 		fmt.Sprintf("exec \"$_genieterm_helper\" connserver --conn %s%s", shellutil.HardQuote(connName), flagStr),
 	}, "\n"))
 }
@@ -426,6 +427,20 @@ func clearDomainSocketIfCurrent(conn *SSHConn, listener net.Listener) {
 	conn.DomainSockName = ""
 }
 
+// splitHelperProtocol reads the "+p<N>" build suffix printed by `genie version --protocol`;
+// helpers older than the flag print a bare version, which is protocol 0.
+func splitHelperProtocol(version string) (string, int) {
+	base, build, found := strings.Cut(version, "+")
+	if !found || !strings.HasPrefix(build, "p") {
+		return base, 0
+	}
+	protocol, err := strconv.Atoi(strings.TrimPrefix(build, "p"))
+	if err != nil {
+		return base, 0
+	}
+	return base, protocol
+}
+
 // expects the output of `wsh version` which looks like `wsh v0.10.4` or "not-installed [os] [arch]"
 // returns (up-to-date, semver, osArchStr, error)
 // if not up to date, or error, version might be ""
@@ -439,9 +454,12 @@ func IsWshVersionUpToDate(logCtx context.Context, wshVersionLine string) (bool, 
 		return false, "", "", fmt.Errorf("unexpected version format: %s", wshVersionLine)
 	}
 	helperName := parts[0]
-	clientVersion := parts[1]
+	clientVersion, protocol := splitHelperProtocol(parts[1])
 	expectedVersion := fmt.Sprintf("v%s", wavebase.WaveVersion)
 	if helperName != "genie" {
+		return false, clientVersion, "", nil
+	}
+	if protocol < wavebase.HelperProtocol {
 		return false, clientVersion, "", nil
 	}
 	// Reinstall whenever the remote wsh version differs from ours, not just when it
@@ -835,6 +853,31 @@ func (conn *SSHConn) InstallWsh(ctx context.Context, osArchStr string) error {
 		return fmt.Errorf("error copying wsh binary to remote: %w", err)
 	}
 	conn.Infof(ctx, "successfully installed wsh\n")
+	return nil
+}
+
+// UpgradeWsh installs the current helper and, when the connection is up, starts a new connserver
+// on the same SSH client (as the background install does), so the new RPCs work without
+// dropping the connection or the shells on it.
+func (conn *SSHConn) UpgradeWsh(ctx context.Context) error {
+	if err := conn.InstallWsh(ctx, ""); err != nil {
+		return err
+	}
+	live := WithLockRtn(conn, func() bool {
+		return conn.Status == Status_Connected && conn.Client != nil
+	})
+	if !live {
+		return nil
+	}
+	needsInstall, clientVersion, _, err := conn.StartConnServer(ctx, true, true)
+	if err != nil {
+		return fmt.Errorf("restarting the genie helper: %w", err)
+	}
+	if needsInstall {
+		return fmt.Errorf("the genie helper on %s is still out of date after updating", conn.GetName())
+	}
+	conn.persistWshInstalled(ctx, WshCheckResult{WshEnabled: true, ClientVersion: clientVersion})
+	conn.FireConnChangeEvent()
 	return nil
 }
 

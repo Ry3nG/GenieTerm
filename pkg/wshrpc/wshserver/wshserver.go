@@ -786,7 +786,7 @@ func (ws *WshServer) ConnReinstallWshCommand(ctx context.Context, data wshrpc.Co
 	if conn == nil {
 		return fmt.Errorf("connection not found: %s", connName)
 	}
-	return conn.InstallWsh(ctx, "")
+	return conn.UpgradeWsh(ctx)
 }
 
 func (ws *WshServer) ConnListCommand(ctx context.Context) ([]string, error) {

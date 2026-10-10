@@ -19,6 +19,7 @@ import (
 
 var versionVerbose bool
 var versionJSON bool
+var versionProtocol bool
 
 func publicCLINameFromExecutable(executablePath string) string {
 	baseName := strings.ToLower(filepath.Base(executablePath))
@@ -38,10 +39,17 @@ var versionCmd = &cobra.Command{
 func init() {
 	versionCmd.Flags().BoolVarP(&versionVerbose, "verbose", "v", false, "Display full version information")
 	versionCmd.Flags().BoolVar(&versionJSON, "json", false, "Output version information in JSON format")
+	// used by the app's connect script; helpers without the flag fail it and fall back to plain `version`
+	versionCmd.Flags().BoolVar(&versionProtocol, "protocol", false, "Append the helper protocol to the version")
+	versionCmd.Flags().MarkHidden("protocol")
 	rootCmd.AddCommand(versionCmd)
 }
 
 func runVersionCmd(cmd *cobra.Command, args []string) error {
+	if versionProtocol {
+		WriteStdout("%s v%s+p%d\n", publicCLINameFromExecutable(os.Args[0]), wavebase.WaveVersion, wavebase.HelperProtocol)
+		return nil
+	}
 	if !versionVerbose && !versionJSON {
 		WriteStdout("%s v%s\n", publicCLINameFromExecutable(os.Args[0]), wavebase.WaveVersion)
 		return nil

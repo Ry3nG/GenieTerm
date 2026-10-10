@@ -240,11 +240,11 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
     if (state.outdated) {
         return (
             <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
-                <i className="fa-solid fa-arrows-rotate mb-1 text-[18px] text-muted" aria-hidden="true" />
-                <div className="text-[13px] font-medium text-primary">The genie helper on this host is out of date</div>
-                <div className="max-w-sm text-[12px] text-muted">
-                    Reconnect to update it, then listening ports will show here.
+                <i className="fa-solid fa-plug mb-1 text-[18px] text-muted" aria-hidden="true" />
+                <div className="text-[13px] font-medium text-primary">
+                    Listening ports need the current genie helper
                 </div>
+                <div className="max-w-sm text-[12px] text-muted">Use Update helper above; it takes a few seconds.</div>
             </div>
         );
     }

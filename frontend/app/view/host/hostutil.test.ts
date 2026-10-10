@@ -193,6 +193,7 @@ describe("ports", () => {
 
     it("spots an outdated remote helper", () => {
         expect(isOutdatedHelperError("rpc error: command not found: remotelisteningports")).toBe(true);
+        expect(isOutdatedHelperError('command "remotelisteningports" not found')).toBe(true);
         expect(isOutdatedHelperError("permission denied")).toBe(false);
     });
 });

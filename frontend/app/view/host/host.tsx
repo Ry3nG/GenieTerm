@@ -67,7 +67,7 @@ const HostHeader = memo(({ model }: { model: HostViewModel }) => {
                         aria-selected={tab === key}
                         onClick={() => fireAndForget(() => model.setTab(key))}
                         className={cn(
-                            "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition-colors",
+                            "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent",
                             tab === key ? "bg-hoverbg text-primary" : "text-secondary hover:bg-hover hover:text-primary"
                         )}
                     >
@@ -84,6 +84,36 @@ const HostHeader = memo(({ model }: { model: HostViewModel }) => {
     );
 });
 HostHeader.displayName = "HostHeader";
+
+const HelperUpdateBanner = memo(({ model }: { model: HostViewModel }) => {
+    const outdated = useAtomValue(model.helperOutdatedAtom);
+    const update = useAtomValue(model.helperUpdateAtom);
+    const conn = useAtomValue(model.connection);
+    if (!outdated || isLocalConnName(conn)) {
+        return null;
+    }
+    return (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-accent/8 px-4 py-2.5">
+            <i className="fa-solid fa-circle-arrow-up text-[14px] text-accent" aria-hidden="true" />
+            <div className="min-w-0 flex-1 text-[12px] leading-5">
+                <span className="font-medium text-primary">This host's genie helper is out of date.</span>{" "}
+                <span className="text-secondary">
+                    Update it to see GPUs, host details and listening ports. Your terminals stay connected.
+                </span>
+                {update.error && <div className="text-error">{update.error}</div>}
+            </div>
+            <button
+                className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-accent/80 px-3 text-[12px] font-medium text-primary transition-colors hover:bg-accent disabled:opacity-60"
+                disabled={update.busy}
+                onClick={() => fireAndForget(() => model.updateHelper())}
+            >
+                {update.busy && <i className="fa-solid fa-circle-notch fa-spin text-[11px]" aria-hidden="true" />}
+                {update.busy ? "Updating…" : "Update helper"}
+            </button>
+        </div>
+    );
+});
+HelperUpdateBanner.displayName = "HelperUpdateBanner";
 
 function NotConnected({ model }: { model: HostViewModel }) {
     const conn = useAtomValue(model.connection);
@@ -133,6 +163,7 @@ export function HostView(props: ViewComponentProps<HostViewModel>) {
     return (
         <div className="flex h-full w-full min-w-0 flex-col">
             <HostHeader model={model} />
+            {connected && <HelperUpdateBanner model={model} />}
             <div className="min-h-0 flex-1">{content}</div>
         </div>
     );
