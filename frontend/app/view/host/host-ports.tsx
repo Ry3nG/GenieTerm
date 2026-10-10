@@ -331,7 +331,9 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
                             aria-hidden="true"
                         />
                         Other listeners · {otherRows.length}
-                        <span className="text-muted/70">GenieTerm, system services and ephemeral ports</span>
+                        <span className="text-muted/70">
+                            GenieTerm, system services, other users and ephemeral ports
+                        </span>
                     </button>
                     {showOther &&
                         otherRows.map((row) => (

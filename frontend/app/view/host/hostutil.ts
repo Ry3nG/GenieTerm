@@ -204,12 +204,19 @@ const ServiceByPort: Record<number, string> = {
 const NonHttpServices = new Set(["SSH", "DNS", "rpcbind", "PostgreSQL", "MySQL", "Redis", "MongoDB", "Printing"]);
 const SystemServices = new Set(["SSH", "DNS", "rpcbind", "Printing"]);
 
+// A port number only hints at the service when the owner is unknown or a general-purpose runtime;
+// "searxng-run" on 8888 is not Jupyter.
+const GenericRuntime = /^(python[0-9.]*|node|nodejs|deno|bun|java|ruby|perl|php|uvicorn|gunicorn|docker-proxy)$/i;
+
 export function serviceName(port: number, command: string): string {
     const cmd = (command ?? "").trim();
     for (const [pattern, name] of ServiceByCommand) {
         if (cmd && pattern.test(cmd)) {
             return name;
         }
+    }
+    if (cmd && !GenericRuntime.test(cmd)) {
+        return "";
     }
     return ServiceByPort[port] ?? "";
 }
@@ -258,6 +265,10 @@ const EphemeralPortStart = 49152;
 export function isBackgroundListener(row: PortRow): boolean {
     if (row.forward != null) {
         return false;
+    }
+    // Sockets owned by other users show no process; on a shared server they are someone else's work.
+    if (!row.command) {
+        return true;
     }
     if (OwnServerCommand.test(row.command) || SystemDaemons.has(row.command)) {
         return true;
@@ -372,6 +383,27 @@ export function isOutdatedHelperError(error: string): boolean {
         return false;
     }
     return /command not found|command "[^"]+" not found|unknown command|no such command|not implemented/i.test(error);
+}
+
+export type HelperMissing = { kind: "installing" | "off" | "failed"; reason: string; turnedOff: boolean };
+
+// Host data comes from the genie helper; a connection can be up without it.
+export function getHelperMissing(status: ConnStatus): HelperMissing {
+    if (status == null || status.status !== "connected" || status.wshenabled) {
+        return null;
+    }
+    if (isLocalConnName(status.connection)) {
+        return null;
+    }
+    const reason = status.nowshreason ?? "";
+    if (reason === "installing wsh in background" && !status.wsherror) {
+        return { kind: "installing", reason: "", turnedOff: false };
+    }
+    const turnedOff = reason === "conn:wshenabled set to false";
+    if (turnedOff || reason === "user selected not to install wsh extensions") {
+        return { kind: "off", reason: "", turnedOff };
+    }
+    return { kind: "failed", reason: status.wsherror || reason || "the helper is not running", turnedOff: false };
 }
 
 export function summarizeGpus(gpus: GpuData[]): string {

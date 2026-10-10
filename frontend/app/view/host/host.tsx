@@ -8,7 +8,14 @@ import { memo, useEffect, useState } from "react";
 import { HostOverviewPane } from "./host-detail";
 import type { HostViewModel } from "./host-model";
 import { HostPorts } from "./host-ports";
-import { formatHostSubtitle, HostTab, isLocalConnName, isWslConnName } from "./hostutil";
+import {
+    formatHostSubtitle,
+    getHelperMissing,
+    HelperMissing,
+    HostTab,
+    isLocalConnName,
+    isWslConnName,
+} from "./hostutil";
 
 const TabLabels: Record<HostTab, string> = {
     overview: "Overview",
@@ -126,6 +133,46 @@ function NotConnected({ model }: { model: HostViewModel }) {
     );
 }
 
+function HelperMissingPane({ model, missing }: { model: HostViewModel; missing: HelperMissing }) {
+    const update = useAtomValue(model.helperUpdateAtom);
+    const conn = useAtomValue(model.connection);
+    if (missing.kind === "installing") {
+        return (
+            <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
+                <i className="fa-solid fa-circle-notch fa-spin mb-1 text-[16px] text-muted" aria-hidden="true" />
+                <div className="text-[13px] font-medium text-primary">Installing the genie helper on {conn}</div>
+                <div className="max-w-sm text-[12px] text-muted">
+                    This host's details appear here as soon as it finishes. Your terminals already work.
+                </div>
+            </div>
+        );
+    }
+    const title =
+        missing.kind === "off" ? "The genie helper is off for this connection" : "The genie helper isn't running";
+    const busyLabel = missing.kind === "off" ? "Installing…" : "Retrying…";
+    const label = missing.kind === "off" ? "Install helper" : "Retry";
+    return (
+        <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
+            <i className="fa-solid fa-plug mb-1 text-[18px] text-muted" aria-hidden="true" />
+            <div className="text-[13px] font-medium text-primary">{title}</div>
+            <div className="max-w-sm text-[12px] text-muted">
+                {missing.kind === "failed" && <span className="text-secondary">{missing.reason}. </span>}
+                GenieTerm reads CPU, memory, GPUs, processes and ports through a small helper in ~/.genieterm on the
+                host. Installing it keeps your terminals connected.
+            </div>
+            {update.error && <div className="max-w-sm text-[12px] text-error">{update.error}</div>}
+            <button
+                className="mt-2 inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md bg-accent/80 px-3 text-[12px] font-medium text-primary transition-colors hover:bg-accent disabled:opacity-60"
+                disabled={update.busy}
+                onClick={() => fireAndForget(() => model.updateHelper(missing.turnedOff))}
+            >
+                {update.busy && <i className="fa-solid fa-circle-notch fa-spin text-[11px]" aria-hidden="true" />}
+                {update.busy ? busyLabel : label}
+            </button>
+        </div>
+    );
+}
+
 const ProcessesTab = memo(({ model, props }: { model: HostViewModel; props: ViewComponentProps<HostViewModel> }) => {
     const processModel = useAtomValue(model.processModelAtom);
     if (processModel == null) {
@@ -148,9 +195,12 @@ export function HostView(props: ViewComponentProps<HostViewModel>) {
     const tab = useAtomValue(model.tabAtom);
     const connStatus = useAtomValue(model.connStatus);
     const connected = connStatus?.status === "connected" || model.env.isMock;
+    const helperMissing = model.env.isMock ? null : getHelperMissing(connStatus);
     let content: React.ReactNode;
     if (!connected) {
         content = <NotConnected model={model} />;
+    } else if (helperMissing != null) {
+        content = <HelperMissingPane model={model} missing={helperMissing} />;
     } else if (tab === "processes") {
         content = <ProcessesTab model={model} props={props} />;
     } else if (tab === "ports") {

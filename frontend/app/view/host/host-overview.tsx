@@ -146,28 +146,41 @@ const GpuCard = memo(({ model, gpu, history }: { model: HostViewModel; gpu: GpuD
                     <div className="py-1 text-[12px] text-muted">No processes</div>
                 ) : (
                     <ul className="flex flex-col">
-                        {shown.map((p) => (
-                            <li key={p.pid}>
-                                <span
-                                    role="link"
-                                    tabIndex={-1}
-                                    className="-mx-1.5 flex w-[calc(100%+12px)] cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:bg-hoverbg"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        model.showProcess(p.pid);
-                                    }}
-                                    title={`Show ${p.command || p.pid} in Processes`}
+                        {shown.map((p) =>
+                            !p.command ? (
+                                <li
+                                    key={p.pid}
+                                    className="flex items-center gap-2 py-1 text-[12px]"
+                                    title="Owned by another container or user"
                                 >
-                                    <span className="min-w-0 flex-1 truncate text-secondary">
-                                        {p.command || `pid ${p.pid}`}
+                                    <span className="min-w-0 flex-1 truncate text-muted">
+                                        Not visible from here · pid {p.pid}
                                     </span>
-                                    {p.user && <span className="shrink-0 text-muted">{p.user}</span>}
                                     <span className="w-16 shrink-0 text-right tabular-nums text-secondary">
                                         {formatBytesAsGiB(p.memused)}
                                     </span>
-                                </span>
-                            </li>
-                        ))}
+                                </li>
+                            ) : (
+                                <li key={p.pid}>
+                                    <span
+                                        role="link"
+                                        tabIndex={-1}
+                                        className="-mx-1.5 flex w-[calc(100%+12px)] cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:bg-hoverbg"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            model.showProcess(p.pid);
+                                        }}
+                                        title={`Show ${p.command} in Processes`}
+                                    >
+                                        <span className="min-w-0 flex-1 truncate text-secondary">{p.command}</span>
+                                        {p.user && <span className="shrink-0 text-muted">{p.user}</span>}
+                                        <span className="w-16 shrink-0 text-right tabular-nums text-secondary">
+                                            {formatBytesAsGiB(p.memused)}
+                                        </span>
+                                    </span>
+                                </li>
+                            )
+                        )}
                     </ul>
                 )}
                 {processes.length > MaxGpuProcesses && (

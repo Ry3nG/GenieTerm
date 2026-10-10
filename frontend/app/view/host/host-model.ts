@@ -31,6 +31,7 @@ export type HostEnv = WaveEnvSubset<{
         PortForwardStopCommand: WaveEnv["rpc"]["PortForwardStopCommand"];
         PortForwardListCommand: WaveEnv["rpc"]["PortForwardListCommand"];
         ConnReinstallWshCommand: WaveEnv["rpc"]["ConnReinstallWshCommand"];
+        SetConnectionsConfigCommand: WaveEnv["rpc"]["SetConnectionsConfigCommand"];
         SetMetaCommand: WaveEnv["rpc"]["SetMetaCommand"];
     };
     electron: {
@@ -577,10 +578,14 @@ export class HostViewModel implements ViewModel {
     }
 
     // Installs the current genie helper and restarts it on the live SSH connection; shells stay up.
-    async updateHelper() {
+    async updateHelper(turnOn = false) {
         const conn = globalStore.get(this.connection);
         globalStore.set(this.helperUpdateAtom, { busy: true, error: "" });
         try {
+            if (turnOn) {
+                const metamaptype: unknown = { "conn:wshenabled": true };
+                await this.env.rpc.SetConnectionsConfigCommand(TabRpcClient, { host: conn, metamaptype });
+            }
             await this.env.rpc.ConnReinstallWshCommand(TabRpcClient, { connname: conn }, { timeout: 120000 });
         } catch (e) {
             globalStore.set(this.helperUpdateAtom, { busy: false, error: errorText(e) });

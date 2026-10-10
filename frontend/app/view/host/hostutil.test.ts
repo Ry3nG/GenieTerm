@@ -11,6 +11,7 @@ import {
     formatUptime,
     forwardStatusText,
     forwardsWithoutListener,
+    getHelperMissing,
     isBackgroundListener,
     isLikelyHttp,
     isOutdatedHelperError,
@@ -136,6 +137,9 @@ describe("ports", () => {
         expect(serviceName(9999, "tensorboard")).toBe("TensorBoard");
         expect(serviceName(8888, "python3")).toBe("Jupyter");
         expect(serviceName(4321, "node")).toBe("");
+        expect(serviceName(8888, "searxng-run")).toBe("");
+        expect(serviceName(8888, "")).toBe("Jupyter");
+        expect(serviceName(6006, "python3.11")).toBe("TensorBoard");
         expect(isLikelyHttp(5432, "postgres")).toBe(false);
         expect(isLikelyHttp(3000, "node")).toBe(true);
     });
@@ -166,11 +170,12 @@ describe("ports", () => {
                 { port: 7000, address: "0.0.0.0", pid: 3, command: "ControlCenter" },
                 { port: 22, address: "0.0.0.0" },
                 { port: 61000, address: "127.0.0.1", pid: 4, command: "node" },
+                { port: 8080, address: "0.0.0.0" },
             ],
             [forward({ remoteport: 61000 })]
         );
         const background = rows.filter(isBackgroundListener).map((r) => r.port);
-        expect(background).toEqual([7000, 53688, 22]);
+        expect(background).toEqual([7000, 53688, 22, 8080]);
     });
 
     it("lists forwards whose remote port is no longer listening", () => {
@@ -209,5 +214,27 @@ describe("ports", () => {
         expect(isOutdatedHelperError("rpc error: command not found: remotelisteningports")).toBe(true);
         expect(isOutdatedHelperError('command "remotelisteningports" not found')).toBe(true);
         expect(isOutdatedHelperError("permission denied")).toBe(false);
+    });
+
+    it("explains why host data is missing on a connection without the helper", () => {
+        const base = { status: "connected", connection: "me@gpu_box", connected: true } as ConnStatus;
+        expect(getHelperMissing({ ...base, wshenabled: true })).toBeNull();
+        expect(getHelperMissing({ ...base, status: "connecting", wshenabled: false })).toBeNull();
+        expect(getHelperMissing({ ...base, connection: "local", wshenabled: false })).toBeNull();
+        expect(getHelperMissing({ ...base, wshenabled: false, nowshreason: "installing wsh in background" }).kind).toBe(
+            "installing"
+        );
+        expect(getHelperMissing({ ...base, wshenabled: false, nowshreason: "conn:wshenabled set to false" })).toEqual({
+            kind: "off",
+            reason: "",
+            turnedOff: true,
+        });
+        expect(
+            getHelperMissing({ ...base, wshenabled: false, nowshreason: "user selected not to install wsh extensions" })
+                .turnedOff
+        ).toBe(false);
+        expect(
+            getHelperMissing({ ...base, wshenabled: false, nowshreason: "error starting connserver", wsherror: "boom" })
+        ).toEqual({ kind: "failed", reason: "boom", turnedOff: false });
     });
 });

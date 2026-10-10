@@ -438,15 +438,8 @@ const GpuDetail = memo(({ model, index }: { model: HostViewModel; index: number 
                     )}
                     {processes.map((p) => {
                         const share = gpu.memtotal > 0 && p.memused >= 0 ? (p.memused / gpu.memtotal) * 100 : NaN;
-                        return (
-                            <button
-                                key={p.pid}
-                                className="flex w-full cursor-pointer items-center gap-3 border-b border-border/60 px-3 py-1.5 text-left text-[12px] transition-colors last:border-b-0 hover:bg-hover"
-                                onClick={() => model.showProcess(p.pid)}
-                                title={
-                                    p.command ? `Show ${p.command} in Processes` : "Owned by another container or user"
-                                }
-                            >
+                        const cells = (
+                            <>
                                 <span className="w-16 shrink-0 tabular-nums text-muted">{p.pid}</span>
                                 <span className="min-w-0 flex-1 truncate text-primary">
                                     {p.command || <span className="text-muted">Not visible from here</span>}
@@ -458,6 +451,25 @@ const GpuDetail = memo(({ model, index }: { model: HostViewModel; index: number 
                                 <span className="w-20 shrink-0 text-right tabular-nums text-secondary">
                                     {formatBytesAsGiB(p.memused)}
                                 </span>
+                            </>
+                        );
+                        const rowClass =
+                            "flex w-full items-center gap-3 border-b border-border/60 px-3 py-1.5 text-left text-[12px] last:border-b-0";
+                        if (!p.command) {
+                            return (
+                                <div key={p.pid} className={rowClass} title="Owned by another container or user">
+                                    {cells}
+                                </div>
+                            );
+                        }
+                        return (
+                            <button
+                                key={p.pid}
+                                className={cn(rowClass, "cursor-pointer transition-colors hover:bg-hover")}
+                                onClick={() => model.showProcess(p.pid)}
+                                title={`Show ${p.command} in Processes`}
+                            >
+                                {cells}
                             </button>
                         );
                     })}
