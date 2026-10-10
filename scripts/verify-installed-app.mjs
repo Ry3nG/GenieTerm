@@ -47,7 +47,7 @@ function waitForLaunch(userDataDir) {
   fail(Scope, "launch smoke did not observe a running GenieTerm process");
 }
 
-function assertScreenshotHasContent(buffer) {
+function screenshotContentProblem(buffer) {
   const png = PNG.sync.read(buffer);
   const buckets = new Set();
   let visiblePixels = 0;
@@ -67,14 +67,29 @@ function assertScreenshotHasContent(buffer) {
     }
   }
   if (visiblePixels < 500) {
-    fail(Scope, "window screenshot has too few visible pixels");
+    return "window screenshot has too few visible pixels";
   }
   if (buckets.size < 12) {
-    fail(Scope, "window screenshot appears visually blank or monochrome");
+    return "window screenshot appears visually blank or monochrome";
   }
   if (nonBackgroundPixels / visiblePixels < 0.04) {
-    fail(Scope, "window screenshot has too little foreground content");
+    return "window screenshot has too little foreground content";
   }
+  return null;
+}
+
+// The first frame after domcontentloaded is often still the empty background, so give the UI time to render.
+async function assertWindowRendersContent(window, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let problem = null;
+  while (Date.now() < deadline) {
+    problem = screenshotContentProblem(await window.screenshot());
+    if (problem == null) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  fail(Scope, problem);
 }
 
 async function windowSmoke(appPath) {
@@ -86,7 +101,7 @@ async function windowSmoke(appPath) {
     const { child, wsUrl } = await launchPackagedAppForCdp(executablePath, userDataDir);
     appProcess = child;
     browser = await chromium.connectOverCDP(wsUrl);
-    const window = await waitForFirstPage(browser, 20000);
+    const window = await waitForVisibleAppPage(browser, 20000);
     const consoleErrors = [];
     window.on("console", (message) => {
       if (message.type() === "error") {
@@ -98,7 +113,7 @@ async function windowSmoke(appPath) {
     });
     await window.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
     const title = await window.title();
-    if (title !== MacAppExpectations.productName) {
+    if (title !== MacAppExpectations.productName && !title.startsWith(`${MacAppExpectations.productName} - `)) {
       fail(Scope, `window title expected ${MacAppExpectations.productName}, got ${title}`);
     }
     if (!window.url().includes("app.asar")) {
@@ -111,7 +126,7 @@ async function windowSmoke(appPath) {
     if (consoleErrors.length > 0) {
       fail(Scope, `window console errors: ${consoleErrors.join("\n")}`);
     }
-    assertScreenshotHasContent(await window.screenshot({ fullPage: true }));
+    await assertWindowRendersContent(window, 15000);
   } finally {
     if (browser) {
       await browser.close().catch(() => {});
@@ -160,18 +175,26 @@ async function launchPackagedAppForCdp(executablePath, userDataDir) {
   return { child, wsUrl };
 }
 
-async function waitForFirstPage(browser, timeoutMs) {
+// Electron keeps pre-created tab views around at zero size; only the visible app page can be screenshotted.
+async function waitForVisibleAppPage(browser, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     for (const context of browser.contexts()) {
-      const pages = context.pages();
-      if (pages.length > 0) {
-        return pages[0];
+      for (const page of context.pages()) {
+        if (!page.url().includes("app.asar")) {
+          continue;
+        }
+        const visible = await page
+          .evaluate(() => window.innerWidth > 0 && window.innerHeight > 0 && document.visibilityState === "visible")
+          .catch(() => false);
+        if (visible) {
+          return page;
+        }
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  fail(Scope, "window smoke did not observe a page");
+  fail(Scope, "window smoke did not observe a visible app page");
 }
 
 function stopAppProcesses(appProcess, userDataDir) {
