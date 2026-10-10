@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package main
@@ -20,6 +20,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/jobcontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/wshfs"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/portforward"
 	"github.com/Ry3nG/GenieTerm/pkg/service"
 	"github.com/Ry3nG/GenieTerm/pkg/telemetry"
 	"github.com/Ry3nG/GenieTerm/pkg/util/envutil"
@@ -63,6 +64,7 @@ func doShutdown(reason string) {
 		ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancelFn()
 		go blockcontroller.StopAllBlockControllersForShutdown()
+		portforward.CloseAll()
 		// TODO deal with flush in progress
 		clearTempFiles()
 		filestore.WFS.FlushCache(ctx)

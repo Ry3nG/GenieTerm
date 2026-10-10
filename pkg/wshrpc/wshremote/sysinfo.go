@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wshremote
@@ -20,6 +20,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
 	gopsnet "github.com/shirou/gopsutil/v4/net"
 )
@@ -97,6 +98,22 @@ func getMemData(values map[string]float64) {
 	values["mem:available"] = float64(memData.Available) / BYTES_PER_GB
 	values["mem:used"] = float64(memData.Used) / BYTES_PER_GB
 	values["mem:free"] = float64(memData.Free) / BYTES_PER_GB
+}
+
+func getSwapLoadData(values map[string]float64) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if swap, err := mem.SwapMemoryWithContext(ctx); err == nil {
+		values["swap:total"] = float64(swap.Total) / BYTES_PER_GB
+		values["swap:used"] = float64(swap.Used) / BYTES_PER_GB
+	}
+	if runtime.GOOS != "windows" {
+		if avg, err := load.AvgWithContext(ctx); err == nil {
+			values["load:1"] = avg.Load1
+			values["load:5"] = avg.Load5
+			values["load:15"] = avg.Load15
+		}
+	}
 }
 
 // diskRoot returns the mountpoint to report disk usage for, per the OS this
@@ -217,9 +234,10 @@ func generateSingleServerData(client *wshutil.WshRpc, connName string, netState 
 	values := make(map[string]float64)
 	getCpuData(values)
 	getMemData(values)
+	getSwapLoadData(values)
 	disks := getDiskData(values)
 	netState.getNetData(values, now)
-	tsData := wshrpc.TimeSeriesData{Ts: now.UnixMilli(), Values: values, Disks: disks}
+	tsData := wshrpc.TimeSeriesData{Ts: now.UnixMilli(), Values: values, Disks: disks, Gpus: gpuCache.latest(time.Now())}
 	event := wps.WaveEvent{
 		Event:   wps.Event_SysInfo,
 		Scopes:  []string{connName},
@@ -230,12 +248,15 @@ func generateSingleServerData(client *wshutil.WshRpc, connName string, netState 
 }
 
 func RunSysInfoLoop(client *wshutil.WshRpc, connName string) {
+	defer gpuCache.setActive(false)
 	defer func() {
 		log.Printf("sysinfo loop ended conn:%s\n", connName)
 	}()
 	netState := &netSampler{}
 	for {
-		if sysInfoHasWatchers() {
+		active := sysInfoHasWatchers()
+		gpuCache.setActive(active)
+		if active {
 			generateSingleServerData(client, connName, netState)
 			time.Sleep(SysInfoSampleInterval)
 			continue

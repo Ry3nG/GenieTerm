@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wshserver
@@ -32,6 +32,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/remote"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/conncontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/wshfs"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/portforward"
 	"github.com/Ry3nG/GenieTerm/pkg/secretstore"
 	"github.com/Ry3nG/GenieTerm/pkg/suggestion"
 	"github.com/Ry3nG/GenieTerm/pkg/telemetry"
@@ -62,6 +63,18 @@ func (*WshServer) WshServerImpl() {}
 
 var WshServerImpl = WshServer{}
 var localRemoteFileServer = &wshremote.ServerImpl{}
+
+func (ws *WshServer) PortForwardStartCommand(ctx context.Context, data wshrpc.CommandPortForwardStartData) (*wshrpc.PortForwardInfo, error) {
+	return portforward.GetManager().Start(ctx, data)
+}
+
+func (ws *WshServer) PortForwardStopCommand(ctx context.Context, data wshrpc.CommandPortForwardStopData) error {
+	return portforward.GetManager().Stop(data.Id)
+}
+
+func (ws *WshServer) PortForwardListCommand(ctx context.Context, data wshrpc.CommandPortForwardListData) ([]wshrpc.PortForwardInfo, error) {
+	return portforward.GetManager().List(data.ConnName), nil
+}
 
 func (ws *WshServer) GetJwtPublicKeyCommand(ctx context.Context) (string, error) {
 	return wavejwt.GetPublicKeyBase64(), nil
