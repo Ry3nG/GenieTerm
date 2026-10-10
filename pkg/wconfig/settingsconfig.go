@@ -430,6 +430,9 @@ type ConnKeywords struct {
 	SshProxyJump                    []string `json:"ssh:proxyjump,omitempty"`
 	SshUserKnownHostsFile           []string `json:"ssh:userknownhostsfile,omitempty"`
 	SshGlobalKnownHostsFile         []string `json:"ssh:globalknownhostsfile,omitempty"`
+	SshConnectTimeout               *int     `json:"ssh:connecttimeout,omitempty"`
+	SshServerAliveInterval          *int     `json:"ssh:serveraliveinterval,omitempty"`
+	SshServerAliveCountMax          *int     `json:"ssh:serveralivecountmax,omitempty"`
 }
 
 func DefaultBoolPtr(arg *bool, def bool) bool {
