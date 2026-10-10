@@ -58,6 +58,7 @@ import {
 import { LLMCommandComposerBackend } from "./command-composer-llm";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
+import { makeGitChip } from "./gitchip";
 import { getBlockingCommand } from "./shellblocking";
 import {
     computeTheme,
@@ -124,6 +125,11 @@ export class TermViewModel implements ViewModel {
     >;
     commandComposerBackend: CommandComposerBackend = new LLMCommandComposerBackend();
     completionModel = new TermCompletionModel();
+    gitStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<GitStatusResponse>;
+    gitRefreshEpoch = 0;
+    gitRefreshTimer: ReturnType<typeof setTimeout> = null;
+    gitCwdUnsubFn: () => void;
+    lastDoneBlockCount = 0;
     commandComposerRequestCounter = 0;
     inlineCommandAIRequestCounter = 0;
 
@@ -199,7 +205,24 @@ export class TermViewModel implements ViewModel {
                 const cwd = blockMeta?.["cmd:cwd"] as string;
                 const cwdLabel = formatCwdLabel(cwd, isLocalConnName(blockMeta?.connection) ? getLocalHomeDir() : null);
                 if (cwdLabel) {
-                    rtn.push({ elemtype: "text", text: cwdLabel, noGrow: true });
+                    rtn.push({
+                        elemtype: "text",
+                        text: cwdLabel,
+                        noGrow: true,
+                        className: "term-cwd-link",
+                        title: "Open this folder in Files",
+                        onClick: () => this.openCwdInFiles(),
+                    });
+                }
+                const gitChip = makeGitChip(get(this.gitStatusAtom));
+                if (cwdLabel && gitChip) {
+                    rtn.push({
+                        elemtype: "text",
+                        text: gitChip.label,
+                        noGrow: true,
+                        className: gitChip.dirty ? "term-git-chip is-dirty" : "term-git-chip",
+                        title: gitChip.title,
+                    });
                 }
             }
             if (isCmd) {
@@ -447,6 +470,8 @@ export class TermViewModel implements ViewModel {
                 this.termRef.current.setCursorBlink(globalStore.get(termCursorBlinkAtom) ?? false);
             }
         });
+        this.gitCwdUnsubFn = globalStore.sub(getBlockMetaKeyAtom(blockId, "cmd:cwd"), () => this.scheduleGitRefresh());
+        this.scheduleGitRefresh();
     }
 
     getShellIntegrationIconButton(get: jotai.Getter): IconButtonDecl | null {
@@ -1006,7 +1031,63 @@ export class TermViewModel implements ViewModel {
         return bcm.viewModel as VDomModel;
     }
 
+    openCwdInFiles() {
+        const meta = globalStore.get(this.blockAtom)?.meta;
+        const cwd = meta?.["cmd:cwd"] as string;
+        if (!cwd) {
+            return;
+        }
+        const blockMeta: MetaType = { view: "preview", file: cwd };
+        if (!isLocalConnName(meta?.connection)) {
+            blockMeta.connection = meta.connection;
+        }
+        fireAndForget(() => createBlock({ meta: blockMeta }));
+    }
+
+    scheduleGitRefresh(delayMs = 300) {
+        clearTimeout(this.gitRefreshTimer);
+        this.gitRefreshTimer = setTimeout(() => fireAndForget(() => this.refreshGitStatus()), delayMs);
+    }
+
+    async refreshGitStatus() {
+        const meta = globalStore.get(this.blockAtom)?.meta;
+        const epoch = ++this.gitRefreshEpoch;
+        const cwd = meta?.["cmd:cwd"] as string;
+        if (!cwd || meta?.controller === "cmd") {
+            globalStore.set(this.gitStatusAtom, null);
+            return;
+        }
+        try {
+            const status = await RpcApi.GitStatusCommand(TabRpcClient, {
+                connname: meta?.connection || "local",
+                cwd,
+                timeoutms: 3000,
+            });
+            if (epoch !== this.gitRefreshEpoch) {
+                return;
+            }
+            globalStore.set(this.gitStatusAtom, status?.exitcode === 0 ? status : null);
+        } catch {
+            if (epoch === this.gitRefreshEpoch) {
+                globalStore.set(this.gitStatusAtom, null);
+            }
+        }
+    }
+
+    // Branch and dirty state change when a command finishes (git checkout, commit, edits), not on a timer.
+    noteCmdBlocks(blocks: CmdBlock[]) {
+        const done = blocks.filter((b) => b.state === "done").length;
+        if (done === this.lastDoneBlockCount) {
+            return;
+        }
+        this.lastDoneBlockCount = done;
+        this.scheduleGitRefresh();
+    }
+
     dispose() {
+        clearTimeout(this.gitRefreshTimer);
+        this.gitRefreshEpoch++;
+        this.gitCwdUnsubFn?.();
         DefaultRouter.unregisterRoute(makeFeBlockRouteId(this.blockId));
         this.shellProcStatusUnsubFn?.();
         this.blockJobStatusUnsubFn?.();

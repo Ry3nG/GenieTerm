@@ -125,6 +125,35 @@
                         flex-grow: 0;
                     }
 
+                    &.term-cwd-link:hover {
+                        opacity: 1;
+                        text-decoration: underline;
+                        text-underline-offset: 2px;
+                    }
+
+                    &.term-git-chip {
+                        flex-shrink: 0;
+
+                        &::before {
+                            content: "\f126";
+                            font-family: "Font Awesome 6 Pro";
+                            font-weight: 900;
+                            font-size: 9px;
+                            margin-right: 4px;
+                        }
+
+                        &.is-dirty::after {
+                            content: "";
+                            display: inline-block;
+                            width: 5px;
+                            height: 5px;
+                            margin-left: 5px;
+                            border-radius: 50%;
+                            background: var(--warning-color);
+                            vertical-align: 1px;
+                        }
+                    }
+
                     &.preview-filename {
                         direction: rtl;
                         text-align: left;

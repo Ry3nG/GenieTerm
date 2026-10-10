@@ -210,8 +210,14 @@ export const HeaderTextElem = React.memo(({ elem, preview }: { elem: HeaderElem;
         return <Input decl={elem} className={clsx("block-frame-input", elem.className)} preview={preview} />;
     } else if (elem.elemtype == "text") {
         return (
-            <div className={clsx("block-frame-text ellipsis", elem.className, { "flex-nogrow": elem.noGrow })}>
-                <span ref={preview ? null : elem.ref} onClick={(e) => elem?.onClick(e)}>
+            <div
+                className={clsx("block-frame-text ellipsis", elem.className, {
+                    "flex-nogrow": elem.noGrow,
+                    "cursor-pointer": elem.onClick != null,
+                })}
+                title={elem.title}
+            >
+                <span ref={preview ? null : elem.ref} onClick={(e) => elem.onClick?.(e)}>
                     &lrm;{elem.text}
                 </span>
             </div>

@@ -41,7 +41,7 @@ func (ws *WshServer) GitStatusCommand(ctx context.Context, data wshrpc.CommandGi
 
 func gitStatusArgs() []string {
 	// --no-optional-locks keeps a background refresh from taking index.lock while the user runs git in a terminal.
-	return []string{"--no-optional-locks", "-c", "color.status=false", "status", "--porcelain=v1", "-z", "-b", "--untracked-files=all"}
+	return []string{"--no-optional-locks", "-c", "color.status=false", "status", "--porcelain=v1", "-z", "-b", "--untracked-files=normal"}
 }
 
 func runGitCommand(ctx context.Context, connName string, cwd string, args []string) (string, string, int, bool) {

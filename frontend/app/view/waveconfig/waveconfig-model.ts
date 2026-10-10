@@ -28,6 +28,8 @@ export type ConfigFile = {
     path: string;
     language?: string;
     deprecated?: boolean;
+    // reachable by path (e.g. "Edit widgets.json" on the widget rail) but not listed in the sidebar
+    hidden?: boolean;
     description?: string;
     docsUrl?: string;
     validator?: ConfigValidator;
@@ -58,11 +60,12 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             visualComponent: ConnectionsContent,
         },
         {
-            name: "Sidebar Widgets",
+            name: "Widgets",
             path: "widgets.json",
             language: "json",
             docsUrl: "https://github.com/Ry3nG/GenieTerm",
             hasJsonView: true,
+            hidden: true,
         },
         {
             name: "Tab Backgrounds",
@@ -70,6 +73,7 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             language: "json",
             docsUrl: "https://github.com/Ry3nG/GenieTerm",
             hasJsonView: true,
+            hidden: true,
         },
         {
             name: "Secrets",

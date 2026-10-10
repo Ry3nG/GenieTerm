@@ -794,6 +794,9 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             globalStore.set(searchProps.resultsIndex, results.resultIndex);
             globalStore.set(searchProps.resultsCount, results.resultCount);
         };
+        const unsubCmdBlocks = globalStore.sub(termWrap.cmdBlocksAtom, () =>
+            model.noteCmdBlocks(globalStore.get(termWrap.cmdBlocksAtom))
+        );
         fireAndForget(termWrap.initTerminal.bind(termWrap));
         if (wasFocused) {
             setTimeout(() => {
@@ -801,6 +804,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             }, 10);
         }
         return () => {
+            unsubCmdBlocks();
             termWrap.dispose();
             rszObs.disconnect();
             setTermWrapInst(null);

@@ -21,7 +21,7 @@ interface ConfigSidebarProps {
 const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
     const selectedFile = useAtomValue(model.selectedFileAtom);
     const setIsMenuOpen = useSetAtom(model.isMenuOpenAtom);
-    const configFiles = model.getConfigFiles();
+    const configFiles = model.getConfigFiles().filter((file) => !file.hidden || file.path === selectedFile?.path);
     const configErrorFiles = useAtomValue(model.configErrorFilesAtom);
 
     const handleFileSelect = (file: ConfigFile) => {
