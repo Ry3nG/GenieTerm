@@ -61,7 +61,7 @@ See `docs/v1-release-gate.md`.
 
 ## 1.0.0
 
-- Host view (replaces Sysinfo and Processes): overview with per-GPU cards from nvidia-smi, processes, listening ports with owners; SSH local port forwarding (`pkg/remote/portforward`); see `docs/releases/v1.0.0.md`
+- Host view (replaces Sysinfo and Processes): a summary plus per-resource detail (CPU, memory, each GPU from nvidia-smi, network, disks), processes, listening ports with owners; the genie helper carries a protocol stamp and updates in place; SSH local port forwarding (`pkg/remote/portforward`); see `docs/releases/v1.0.0.md`
 - Long-command notifications (`term:notifyafter`), click-through to the block
 - Terminal header: clickable working directory (opens Files there) and git branch / ahead-behind / dirty; widget rail shown by default with Terminal, Files, Host, each opening on the focused connection
 - Removed: Git panel and `GitRunCommand`; Web from the rail

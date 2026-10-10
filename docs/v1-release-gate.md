@@ -62,8 +62,12 @@ Details: `docs/visual-qa/preview-screenshot-gate.md`, `docs/visual-qa/preview-in
 - Browse remote files; download a folder; upload a file; cancel or retry a transfer.
 - Open five tabs, visit each, and switch with Cmd+1–5: each window keeps one renderer and the selected terminal takes the first keystroke.
 - Open Host on an SSH host with an NVIDIA GPU: GPU cards update; start `python3 -m http.server 8000` there, then Forward & open serves it on localhost.
+- Open Host on a container or pod over SSH (PID 1 in another namespace): disks list the container's volumes, and GPU processes from other containers read "Not visible from here".
+- Connect to a host whose helper is missing, outdated or turned off: the Host view offers Install or Update helper, and the terminals stay connected.
 - Run `sleep 15` and switch to another tab: a notification arrives when it finishes, and clicking it returns to that block.
 - Update from the previous stable release through the in-app updater and confirm the relaunched version.
+
+Real-host record for 1.0.0 (2026-10-11): an Ubuntu 24.04 workstation with an RTX 5090 and a Kubernetes pod with an A800, both over SSH from the packaged macOS arm64 build. Covered: GPU data, disks (NFS, CIFS, FUSE and bind volumes), listening ports, a forward served through each host (HTTP 200), helper update from a same-version build, install from `conn:wshenabled: false`, and replacing a crashing leftover helper.
 
 ## Release decision
 
