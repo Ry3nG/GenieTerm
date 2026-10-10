@@ -430,29 +430,34 @@ func (m *Manager) serve(ctx, dialCtx context.Context, dialCancel context.CancelF
 		remoteConn.Close()
 		return
 	}
-	copyDone := make(chan struct{}, 2)
-	copyOne := func(dst, src net.Conn) {
+	toRemoteDone := make(chan struct{})
+	toLocalDone := make(chan struct{})
+	copyOne := func(dst, src net.Conn, done chan struct{}) {
 		io.Copy(dst, src)
 		if cw, ok := dst.(interface{ CloseWrite() error }); ok {
 			cw.CloseWrite()
 		}
-		copyDone <- struct{}{}
+		close(done)
 	}
-	go copyOne(remoteConn, s.local)
-	go copyOne(s.local, remoteConn)
-	finished := 0
+	go copyOne(remoteConn, s.local, toRemoteDone)
+	go copyOne(s.local, remoteConn, toLocalDone)
+	// When the remote side finishes, the exchange is over. When the local side finishes first it
+	// may only have half-closed after sending a request (nc, HTTP/1.0, database dumps), so keep
+	// relaying until the response is complete, as ssh -L does.
 	select {
 	case <-ctx.Done():
-	case <-copyDone:
-		finished++
+	case <-toLocalDone:
+	case <-toRemoteDone:
+		select {
+		case <-ctx.Done():
+		case <-toLocalDone:
+		}
 	}
 	m.deactivate(f, s)
 	s.local.Close()
 	remoteConn.Close()
-	for finished < 2 {
-		<-copyDone
-		finished++
-	}
+	<-toRemoteDone
+	<-toLocalDone
 }
 
 func (m *Manager) changedLocked(connName string, urgent bool) {

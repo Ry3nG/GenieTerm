@@ -40,7 +40,8 @@ type halfCloseConn struct {
 	halfCloses *atomic.Int32
 }
 
-func (c *halfCloseConn) CloseWrite() error { c.halfCloses.Add(1); return nil }
+// net.Pipe cannot half-close; closing stands in for an echo server that hangs up once its input ends.
+func (c *halfCloseConn) CloseWrite() error { c.halfCloses.Add(1); return c.Conn.Close() }
 
 func makeMemoryManager(t *testing.T, state *clientState, publish func(string, []wshrpc.PortForwardInfo)) *Manager {
 	t.Helper()
