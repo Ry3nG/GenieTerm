@@ -473,6 +473,37 @@
         background: var(--hover-bg-color);
     }
 
+    .term-command-composer-examples {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 12px;
+    }
+
+    .term-command-composer-examples-label {
+        color: var(--secondary-text-color);
+        font-size: 12px;
+        margin-right: 2px;
+    }
+
+    .term-command-composer-example {
+        padding: 3px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--main-text-color);
+        font-size: 12px;
+        transition:
+            background-color 120ms ease,
+            border-color 120ms ease;
+
+        &:hover {
+            background: var(--hover-bg-color, rgba(255, 255, 255, 0.06));
+            border-color: var(--accent-color);
+        }
+    }
+
     .term-command-composer-empty,
     .term-command-composer-error {
         padding: 9px 12px;

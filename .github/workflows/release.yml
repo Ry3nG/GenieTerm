@@ -151,7 +151,7 @@ jobs:
                       make/*-mac.yml
 
     build-windows:
-        name: Build Windows x64 (${{ github.event_name == 'push' && !contains(github.ref_name, '-') && 'signed' || 'unsigned preview' }})
+        name: Build Windows x64
         needs: preflight
         # Windows stays off the stable channel until signing is configured; prerelease tags and manual runs
         # build an unsigned preview.

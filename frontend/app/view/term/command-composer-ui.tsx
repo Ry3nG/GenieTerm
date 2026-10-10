@@ -25,6 +25,13 @@ function riskLabel(proposal: CommandProposal): string {
         : proposal.risk.label;
 }
 
+const ComposerExamplePrompts = [
+    "find files larger than 100 MB here",
+    "what is listening on port 3000",
+    "compress this folder into a tar.gz",
+    "show my git commits from last week",
+];
+
 const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap }: TermCommandComposerProps) => {
     const isOpen = jotai.useAtomValue(model.commandComposerOpenAtom);
     const [input, setInput] = jotai.useAtom(model.commandComposerInputAtom);
@@ -169,8 +176,28 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
                     </div>
                 </div>
             )}
-            {status !== "loading" && proposals.length === 0 && status !== "error" && !showProviderGuidance && (
-                <div className="term-command-composer-empty">No proposals</div>
+            {status === "idle" && proposals.length === 0 && !showProviderGuidance && (
+                <div className="term-command-composer-examples">
+                    <span className="term-command-composer-examples-label">Try</span>
+                    {ComposerExamplePrompts.map((example) => (
+                        <button
+                            key={example}
+                            type="button"
+                            className="term-command-composer-example cursor-pointer"
+                            onClick={() => {
+                                setInput(example);
+                                inputRef.current?.focus();
+                            }}
+                        >
+                            {example}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {status === "ready" && proposals.length === 0 && !showProviderGuidance && (
+                <div className="term-command-composer-empty">
+                    No command proposed. Try describing the result you want, like a file, port, or process.
+                </div>
             )}
             {proposals.length > 0 && (
                 <div className="term-command-composer-results">
