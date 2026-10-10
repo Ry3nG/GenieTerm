@@ -1067,6 +1067,7 @@ declare global {
         "term:conndebug"?: string;
         "term:bellsound"?: boolean;
         "term:bellindicator"?: boolean;
+        "term:notifyafter"?: number;
         "term:osc52"?: string;
         "term:durable"?: boolean;
         "term:durableprompted"?: boolean;
@@ -1268,6 +1269,7 @@ declare global {
         "term:cursorblink"?: boolean;
         "term:bellsound"?: boolean;
         "term:bellindicator"?: boolean;
+        "term:notifyafter"?: number;
         "term:osc52"?: string;
         "term:durable"?: boolean;
         "term:showsplitbuttons"?: boolean;
@@ -1837,6 +1839,8 @@ declare global {
         title?: string;
         body?: string;
         silent?: boolean;
+        tabid?: string;
+        blockid?: string;
     };
 
     // waveobj.WaveObj

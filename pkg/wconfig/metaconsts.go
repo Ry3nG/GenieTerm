@@ -44,6 +44,7 @@ const (
 	ConfigKey_TermCursorBlink            = "term:cursorblink"
 	ConfigKey_TermBellSound              = "term:bellsound"
 	ConfigKey_TermBellIndicator          = "term:bellindicator"
+	ConfigKey_TermNotifyAfter            = "term:notifyafter"
 	ConfigKey_TermOsc52                  = "term:osc52"
 	ConfigKey_TermDurable                = "term:durable"
 	ConfigKey_TermShowSplitButtons       = "term:showsplitbuttons"

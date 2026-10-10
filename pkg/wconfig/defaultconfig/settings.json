@@ -31,6 +31,7 @@
     "window:savelastwindow": true,
     "term:bellsound": false,
     "term:bellindicator": true,
+    "term:notifyafter": 10,
     "term:osc52": "always",
     "term:presentation": "semantic",
     "term:commandcomposer": true,

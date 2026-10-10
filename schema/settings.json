@@ -141,6 +141,9 @@
         "term:bellindicator": {
           "type": "boolean"
         },
+        "term:notifyafter": {
+          "type": "number"
+        },
         "term:osc52": {
           "type": "string",
           "enum": [

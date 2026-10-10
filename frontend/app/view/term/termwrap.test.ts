@@ -1,11 +1,14 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { activeTabIdAtom } from "@/app/store/activetab";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { globalStore } from "@/store/global";
 import { stringToBase64 } from "@/util/util";
 import type * as TermTypes from "@xterm/xterm";
 import * as jotai from "jotai";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CmdBlock } from "./cmdblocks";
 import { emptyPromptInputBuffer } from "./completion/input-mirror";
 import type { TermInputBuffer } from "./completion/types";
@@ -20,6 +23,8 @@ vi.mock("@xterm/addon-search", () => ({
         onDidChangeResults = vi.fn(() => ({ dispose: vi.fn() }));
     },
 }));
+
+vi.mock("@/app/store/localhome", () => ({ getLocalHomeDir: () => "/Users/me" }));
 
 vi.mock("@xterm/addon-serialize", () => ({
     SerializeAddon: class {
@@ -123,6 +128,7 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
         multiInputCallback: vi.fn(),
         onInlineAIRequest: vi.fn(),
         onInlineAIDismiss: vi.fn(),
+        notifyCommandDone: vi.fn(),
     });
     return { termWrap, terminal, sent: termWrap.sendDataHandler as ReturnType<typeof vi.fn> };
 }
@@ -348,6 +354,23 @@ describe("TermWrap runCommand", () => {
 });
 
 describe("TermWrap command blocks", () => {
+    it.each([
+        ["live", false, false, true],
+        ["replayed", true, false, false],
+        ["already interrupted", false, true, false],
+    ])("only evaluates notifications for live completions: %s", (_name, replaying, interrupted, expected) => {
+        const { termWrap } = makeTermWrap();
+        startPrompt(termWrap);
+        termWrap.onCommandStart("make test");
+        if (interrupted) {
+            termWrap.finalizeInterruptedCmdBlock(termWrap.pendingCmdBlock);
+        }
+        termWrap.onCommandDone(0, replaying);
+        expect(termWrap.notifyCommandDone).toHaveBeenCalledTimes(expected ? 1 : 0);
+        termWrap.onCommandDone(0, replaying);
+        expect(termWrap.notifyCommandDone).toHaveBeenCalledTimes(expected ? 1 : 0);
+    });
+
     it("finalizes a block with no D as interrupted when the next prompt starts", () => {
         const { termWrap } = makeTermWrap();
         startPrompt(termWrap);
@@ -403,6 +426,91 @@ describe("TermWrap command blocks", () => {
         termWrap.onCommandStart("git status");
         termWrap.onCommandDone(0);
         expect(pending).toMatchObject({ command: "git status", state: "done", exitCode: 0 });
+    });
+});
+
+describe("TermWrap command notification delivery", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        globalStore.set(activeTabIdAtom, null);
+    });
+
+    function makeNotifyingTerm(blockId = "block-1") {
+        const { termWrap } = makeTermWrap();
+        Object.assign(termWrap, {
+            tabId: "tab-1",
+            blockId,
+            nodeModel: { isFocused: jotai.atom(true) },
+            notifyAfterAtom: jotai.atom(10),
+            notifyCommandDone: TermWrap.prototype.notifyCommandDone,
+        });
+        globalStore.set(activeTabIdAtom, "tab-1");
+        return termWrap;
+    }
+
+    function finishLongCommand(termWrap: TermWrap) {
+        startPrompt(termWrap);
+        termWrap.onCommandStart("make test");
+        termWrap.pendingCmdBlock.startTs = Date.now() - 10000;
+        termWrap.pendingCmdBlock.cwd = "/Users/me/project";
+        termWrap.onCommandDone(0);
+    }
+
+    it.each([
+        ["watched", true, true, true, 10, 0],
+        ["other app", false, true, true, 10, 1],
+        ["other tab", true, false, true, 10, 1],
+        ["other block", true, true, false, 10, 1],
+        ["override off", false, true, true, 0, 0],
+        ["override above duration", false, true, true, 30, 0],
+    ])(
+        "uses the owning tab and override when %s",
+        (_name, windowFocused, tabActive, blockFocused, threshold, count) => {
+            vi.stubGlobal("document", { hasFocus: () => windowFocused });
+            const notify = vi.spyOn(RpcApi, "NotifyCommand").mockResolvedValue();
+            const termWrap = makeNotifyingTerm();
+            termWrap.notifyAfterAtom = jotai.atom(threshold);
+            globalStore.set(activeTabIdAtom, tabActive ? "tab-1" : "tab-2");
+            termWrap.nodeModel.isFocused = jotai.atom(blockFocused);
+            finishLongCommand(termWrap);
+            expect(notify).toHaveBeenCalledTimes(count);
+            if (count) {
+                expect(notify).toHaveBeenCalledWith(
+                    TabRpcClient,
+                    {
+                        title: "make test",
+                        body: "Finished in 10s · ~/project",
+                        silent: false,
+                        tabid: "tab-1",
+                        blockid: "block-1",
+                    },
+                    { route: "electron", timeout: 5000 }
+                );
+            }
+        }
+    );
+
+    it("coalesces synchronously while RPC delivery is pending and keeps blocks independent", async () => {
+        vi.stubGlobal("document", { hasFocus: () => false });
+        const clock = vi.spyOn(performance, "now").mockReturnValue(10000);
+        let deliver: () => void;
+        const pending = new Promise<void>((resolve) => (deliver = resolve));
+        const notify = vi.spyOn(RpcApi, "NotifyCommand").mockReturnValue(pending);
+        const termWrap = makeNotifyingTerm();
+        finishLongCommand(termWrap);
+        finishLongCommand(termWrap);
+        expect(notify).toHaveBeenCalledTimes(1);
+        finishLongCommand(makeNotifyingTerm("block-2"));
+        expect(notify).toHaveBeenCalledTimes(2);
+        clock.mockReturnValue(12999);
+        finishLongCommand(termWrap);
+        expect(notify).toHaveBeenCalledTimes(2);
+        clock.mockReturnValue(13000);
+        finishLongCommand(termWrap);
+        expect(notify).toHaveBeenCalledTimes(3);
+        deliver();
+        await pending;
     });
 });
 

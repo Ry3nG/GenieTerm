@@ -3,6 +3,8 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { setBadge } from "@/app/store/badge";
+import { getLocalHomeDir } from "@/app/store/localhome";
+import { getTabModelByTabId } from "@/app/store/tab-model";
 import { getFileSubject } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -41,6 +43,7 @@ import {
     type CmdBlock,
     type CmdBlockIndexSnapshot,
 } from "./cmdblocks";
+import { formatCommandNotification, shouldNotifyCommandDone } from "./cmdnotify";
 import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
@@ -178,6 +181,8 @@ export class TermWrap {
     currentInputBufferAtom: jotai.PrimitiveAtom<TermInputBuffer | null>;
     pendingCmdBlock: CmdBlock | null = null;
     cmdBlockIdCounter = 0;
+    lastCommandNotificationMs: number = null;
+    notifyAfterAtom: jotai.Atom<number>;
     publishCmdBlocks: () => void;
     // Warp-style command-block chrome: one xterm decoration per finished command,
     // drawn behind the live text (no extraction, no double-render).
@@ -223,6 +228,7 @@ export class TermWrap {
         this.loaded = false;
         this.tabId = tabId;
         this.blockId = blockId;
+        this.notifyAfterAtom = getOverrideConfigAtom(blockId, "term:notifyafter");
         this.sendDataHandler = waveOptions.sendDataHandler;
         this.onInlineAIRequest = waveOptions.onInlineAIRequest;
         this.onInlineAIDismiss = waveOptions.onInlineAIDismiss;
@@ -1364,6 +1370,7 @@ export class TermWrap {
             return;
         }
         const block = this.pendingCmdBlock;
+        const canNotify = block.state === "running" && !block.interrupted;
         block.exitCode = exitCode;
         block.state = "done";
         block.interrupted = false;
@@ -1375,6 +1382,9 @@ export class TermWrap {
         }
         if (!replaying) {
             this.cmdBlocksCacheDirty = true;
+            if (canNotify) {
+                this.notifyCommandDone(block);
+            }
         }
         const inlineAIPrompt = getInlineAICommandPrompt(block);
         const commandComposerEnabled = globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
@@ -1383,6 +1393,31 @@ export class TermWrap {
         }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
+    }
+
+    notifyCommandDone(block: CmdBlock) {
+        const nowMs = performance.now();
+        if (
+            !shouldNotifyCommandDone({
+                block,
+                thresholdSeconds: globalStore.get(this.notifyAfterAtom) ?? 10,
+                windowFocused: document.hasFocus(),
+                tabActive: globalStore.get(getTabModelByTabId(this.tabId).isActiveAtom),
+                blockFocused: this.nodeModel != null && globalStore.get(this.nodeModel.isFocused),
+                nowMs,
+                lastNotificationMs: this.lastCommandNotificationMs,
+            })
+        ) {
+            return;
+        }
+        this.lastCommandNotificationMs = nowMs;
+        const connection = globalStore.get(getBlockMetaKeyAtom(this.blockId, "connection"));
+        const opts = {
+            ...formatCommandNotification(block, connection, getLocalHomeDir()),
+            tabid: this.tabId,
+            blockid: this.blockId,
+        };
+        fireAndForget(() => RpcApi.NotifyCommand(TabRpcClient, opts, { route: "electron", timeout: 5000 }));
     }
 
     // A block whose command never reported D (shell killed, exec'd, or restarted) must

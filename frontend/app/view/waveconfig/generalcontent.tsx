@@ -9,6 +9,7 @@ import iconDefaultUrl from "@/app/asset/genieterm-logo.png";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { useAtomValue } from "jotai";
 import { memo, useId, useState } from "react";
+import { getNotifyAfterOption, NotifyAfterOptions } from "./notifyafter";
 import {
     SettingsNumber,
     SettingsRow,
@@ -96,6 +97,7 @@ type SettingDefinition = {
     | { kind: "number"; min: number; max: number; step?: number; fallback: number }
     | { kind: "text"; placeholder: string }
     | { kind: "segmented"; options: SettingsOption[]; fallback: string }
+    | { kind: "notifyafter" }
 );
 
 const AppearanceSettings: SettingDefinition[] = [
@@ -158,6 +160,12 @@ const TerminalSettings: SettingDefinition[] = [
             { value: "semantic", label: "Semantic" },
             { value: "classic", label: "Classic" },
         ],
+    },
+    {
+        key: "term:notifyafter",
+        label: "Notify when long commands finish",
+        description: "When a command runs longer than this and you are not looking at it.",
+        kind: "notifyafter",
     },
     {
         key: "term:copyonselect",
@@ -285,6 +293,17 @@ function GeneralSettingRow({ model, setting }: { model: WaveConfigViewModel; set
     const { busy, onCommit } = useSettingCommit(model, setting.key);
     let control;
     switch (setting.kind) {
+        case "notifyafter":
+            control = (
+                <SettingsSegmented
+                    id={id}
+                    busy={busy}
+                    value={getNotifyAfterOption(value)}
+                    onCommit={(option) => onCommit(Number(option))}
+                    options={NotifyAfterOptions}
+                />
+            );
+            break;
         case "toggle":
             control = <SettingsToggle id={id} value={Boolean(value)} onCommit={onCommit} busy={busy} />;
             break;

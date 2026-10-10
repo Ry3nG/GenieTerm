@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // types and methods for wsh rpc calls
@@ -492,9 +492,11 @@ type BlockInfoData struct {
 }
 
 type WaveNotificationOptions struct {
-	Title  string `json:"title,omitempty"`
-	Body   string `json:"body,omitempty"`
-	Silent bool   `json:"silent,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Body    string `json:"body,omitempty"`
+	Silent  bool   `json:"silent,omitempty"`
+	TabId   string `json:"tabid,omitempty"`
+	BlockId string `json:"blockid,omitempty"`
 }
 
 type VDomUrlRequestData struct {

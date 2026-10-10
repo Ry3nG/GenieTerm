@@ -15,6 +15,7 @@ export type GeneralSettingKey =
     | "app:rightclickpaste"
     | "term:bellindicator"
     | "term:bellsound"
+    | "term:notifyafter"
     | "term:scrollback"
     | "term:commandcomposer"
     | "term:durable"
