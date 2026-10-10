@@ -95,7 +95,7 @@ export class WaveConfigViewModel implements ViewModel {
     blockId: string;
     viewType = "waveconfig";
     viewIcon = atom("gear");
-    viewName = atom("GenieTerm Config");
+    viewName = atom("Settings");
     viewComponent = LazyWaveConfigView;
     noPadding = atom(true);
     nodeModel: BlockNodeModel;
