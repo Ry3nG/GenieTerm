@@ -5,7 +5,7 @@ These notes cover local development and packaging for GenieTerm.
 ## Prerequisites
 
 - Node.js 22
-- Go 1.25 or newer
+- Go 1.27 or newer
 - Task: https://taskfile.dev/installation/
 - npm
 

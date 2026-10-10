@@ -4,7 +4,6 @@
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
 import { globalEvents } from "emain/emain-events";
-import { sprintf } from "sprintf-js";
 import * as services from "../frontend/app/store/services";
 import { initElectronWshrpc, shutdownWshrpc } from "../frontend/app/store/wshrpcutil-base";
 import { fireAndForget, sleep } from "../frontend/util/util";
@@ -69,16 +68,7 @@ electron.nativeTheme.themeSource = "dark";
 
 console.log = log;
 console.log(
-    sprintf(
-        "genieterm-app starting, data_dir=%s, config_dir=%s electronpath=%s gopath=%s arch=%s/%s electron=%s",
-        waveDataDir,
-        waveConfigDir,
-        getElectronAppBasePath(),
-        getElectronAppUnpackedBasePath(),
-        unamePlatform,
-        unameArch,
-        process.versions.electron
-    )
+    `genieterm-app starting, data_dir=${waveDataDir}, config_dir=${waveConfigDir} electronpath=${getElectronAppBasePath()} gopath=${getElectronAppUnpackedBasePath()} arch=${unamePlatform}/${unameArch} electron=${process.versions.electron}`
 );
 if (isDev) {
     console.log("genieterm-app WAVETERM_DEV set");

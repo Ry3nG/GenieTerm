@@ -63,6 +63,7 @@ run("ESLint", "npm", ["run", "lint"]);
 run("Format check", "npm", ["run", "format:check"]);
 run("Vitest suite", "npm", ["test", "--", "--run"]);
 run("Go test suite", "go", ["test", "./..."]);
+run("Go vulnerability scan", "go", ["run", "golang.org/x/vuln/cmd/govulncheck@v1.8.0", "./..."]);
 run("Production build", "npm", ["run", "build:prod"]);
 run("Preview build", "npx", ["vite", "build"], { cwd: "frontend/preview" });
 run("Preview visual QA", "npm", ["run", "visual:preview"]);
