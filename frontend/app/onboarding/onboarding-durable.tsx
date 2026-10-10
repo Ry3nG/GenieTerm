@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Logo from "@/app/asset/logo";
-import { EmojiButton } from "@/app/element/emojibutton";
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { useState } from "react";
-import { CurrentOnboardingVersion } from "./onboarding-common";
 import { OnboardingFooter } from "./onboarding-features-footer";
 import { TailDeployLogCommand } from "./onboarding-layout-term";
 
@@ -19,21 +14,6 @@ export const DurableSessionPage = ({
     onSkip: () => void;
     onPrev?: () => void;
 }) => {
-    const [fireClicked, setFireClicked] = useState(false);
-
-    const handleFireClick = () => {
-        setFireClicked(!fireClicked);
-        if (!fireClicked) {
-            RpcApi.RecordTEventCommand(TabRpcClient, {
-                event: "onboarding:fire",
-                props: {
-                    "onboarding:feature": "durable",
-                    "onboarding:version": CurrentOnboardingVersion,
-                },
-            });
-        }
-    };
-
     return (
         <div className="flex flex-col h-full">
             <header className="flex items-center gap-4 mb-6 w-full unselectable flex-shrink-0">
@@ -75,8 +55,6 @@ export const DurableSessionPage = ({
                                 All the persistence of tmux, built into your terminal. Look for the shield icon to
                                 enable durability on any SSH session.
                             </p>
-
-                            <EmojiButton emoji="🔥" isClicked={fireClicked} onClick={handleFireClick} />
                         </div>
                     </div>
                 </div>

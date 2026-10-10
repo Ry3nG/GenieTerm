@@ -18,6 +18,24 @@ import { debounce } from "throttle-debounce";
 
 type PageName = "init" | "features";
 
+const WelcomePillars = [
+    {
+        icon: "fa-layer-group",
+        title: "Command blocks",
+        description: "Every command keeps its status, duration and output together, one click from copy or re-run.",
+    },
+    {
+        icon: "fa-shield-halved",
+        title: "Durable SSH",
+        description: "Remote sessions survive sleep, network drops and restarts, and reconnect on their own.",
+    },
+    {
+        icon: "fa-folder-open",
+        title: "Remote files",
+        description: "Browse, edit and move files on any host from the same workspace as your shell.",
+    },
+];
+
 const pageNameAtom: PrimitiveAtom<PageName> = atom<PageName>("init");
 
 const InitPage = ({ isCompact }: { isCompact: boolean }) => {
@@ -40,20 +58,24 @@ const InitPage = ({ isCompact }: { isCompact: boolean }) => {
                     <Logo />
                 </div>
                 <div className="text-center text-[25px] font-normal text-foreground">Welcome to GenieTerm</div>
+                <div className="text-center text-[14px] text-secondary">The terminal for people who live in SSH.</div>
             </header>
             <OverlayScrollbarsComponent
                 className="flex-1 overflow-y-auto min-h-0"
                 options={{ scrollbars: { autoHide: "never" } }}
             >
-                <div className="flex flex-col items-start gap-8 w-full mb-5 unselectable">
-                    <div className="flex w-full items-center gap-[18px]">
-                        <div>
-                            <i className="text-[32px] text-white/50 fa-solid fa-lock"></i>
+                <div className="flex flex-col gap-5 w-full mb-5 unselectable">
+                    {WelcomePillars.map((pillar) => (
+                        <div key={pillar.title} className="flex w-full items-start gap-4">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                                <i className={`fa-solid ${pillar.icon} text-[15px]`} aria-hidden="true" />
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                                <div className="text-[14px] font-semibold text-foreground">{pillar.title}</div>
+                                <div className="text-[13px] leading-5 text-secondary">{pillar.description}</div>
+                            </div>
                         </div>
-                        <div className="text-secondary leading-5 flex-1">
-                            GenieTerm runs on your machine and sends no usage data.
-                        </div>
-                    </div>
+                    ))}
                 </div>
             </OverlayScrollbarsComponent>
             <footer className={`unselectable flex-shrink-0 ${isCompact ? "mt-2" : "mt-5"}`}>
@@ -61,6 +83,10 @@ const InitPage = ({ isCompact }: { isCompact: boolean }) => {
                     <Button className="font-[600]" onClick={acceptTos}>
                         Continue
                     </Button>
+                </div>
+                <div className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-muted">
+                    <i className="fa-solid fa-lock text-[10px]" aria-hidden="true" />
+                    <span>Runs on your machine. No account, no usage data.</span>
                 </div>
             </footer>
         </div>

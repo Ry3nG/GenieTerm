@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Logo from "@/app/asset/logo";
-import { EmojiButton } from "@/app/element/emojibutton";
 import { ClientModel } from "@/app/store/client-model";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -28,20 +27,6 @@ export const CommandBlocksPage = ({
 }) => {
     const isMac = isMacOS();
     const jumpShortcut = isMac ? "⌘⇧↑ / ⌘⇧↓" : "Ctrl-Shift-↑ / Ctrl-Shift-↓";
-    const [fireClicked, setFireClicked] = useState(false);
-
-    const handleFireClick = () => {
-        setFireClicked(!fireClicked);
-        if (!fireClicked) {
-            RpcApi.RecordTEventCommand(TabRpcClient, {
-                event: "onboarding:fire",
-                props: {
-                    "onboarding:feature": "blocks",
-                    "onboarding:version": CurrentOnboardingVersion,
-                },
-            });
-        }
-    };
 
     return (
         <div className="flex flex-col h-full">
@@ -71,7 +56,6 @@ export const CommandBlocksPage = ({
                             </p>
                         </div>
                         <p>Classic xterm is still in Settings → Command presentation if you want the raw grid.</p>
-                        <EmojiButton emoji="🔥" isClicked={fireClicked} onClick={handleFireClick} />
                     </div>
                 </div>
                 <div className="w-[2px] bg-border flex-shrink-0"></div>
@@ -96,22 +80,8 @@ export const CommandBlocksPage = ({
 };
 
 export const FilesPage = ({ onFinish, onPrev }: { onFinish: () => void; onPrev?: () => void }) => {
-    const [fireClicked, setFireClicked] = useState(false);
     const isMac = isMacOS();
     const [commandIndex, setCommandIndex] = useState(0);
-
-    const handleFireClick = () => {
-        setFireClicked(!fireClicked);
-        if (!fireClicked) {
-            RpcApi.RecordTEventCommand(TabRpcClient, {
-                event: "onboarding:fire",
-                props: {
-                    "onboarding:feature": "files",
-                    "onboarding:version": CurrentOnboardingVersion,
-                },
-            });
-        }
-    };
 
     const commands = [
         (onComplete: () => void) => <EditBashrcCommand onComplete={onComplete} />,
@@ -172,8 +142,6 @@ export const FilesPage = ({ onFinish, onPrev }: { onFinish: () => void; onPrev?:
                                 These commands work seamlessly on both local and remote machines, making it easy to view
                                 and edit files wherever they are.
                             </p>
-
-                            <EmojiButton emoji="🔥" isClicked={fireClicked} onClick={handleFireClick} />
                         </div>
                     </div>
                 </div>
@@ -196,12 +164,6 @@ export const OnboardingFeatures = ({ onComplete }: { onComplete: () => void }) =
             oref: WOS.makeORef("client", clientId),
             meta: { "onboarding:lastversion": CurrentOnboardingVersion },
         });
-        RpcApi.RecordTEventCommand(TabRpcClient, {
-            event: "onboarding:start",
-            props: {
-                "onboarding:version": CurrentOnboardingVersion,
-            },
-        });
     }, []);
 
     const handleNext = () => {
@@ -221,10 +183,6 @@ export const OnboardingFeatures = ({ onComplete }: { onComplete: () => void }) =
     };
 
     const handleSkip = () => {
-        RpcApi.RecordTEventCommand(TabRpcClient, {
-            event: "onboarding:skip",
-            props: {},
-        });
         onComplete();
     };
 
