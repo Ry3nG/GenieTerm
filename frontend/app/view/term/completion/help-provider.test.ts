@@ -65,7 +65,7 @@ describe("makeHelpFallbackCompletionProvider", () => {
 
     it("stays out of the way for commands that already have a Fig spec", async () => {
         const runGenerator = vi.fn(async () => ({ stdout: SAMPLE_HELP, supported: true }));
-        const provider = makeHelpFallbackCompletionProvider(runGenerator, () => true);
+        const provider = makeHelpFallbackCompletionProvider(runGenerator, async () => true);
 
         const items = await provider.provideCompletions(
             makeContext({

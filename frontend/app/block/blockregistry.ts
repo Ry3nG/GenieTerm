@@ -3,25 +3,36 @@
 
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import type { TabModel } from "@/app/store/tab-model";
-import { PreviewModel } from "@/app/view/preview/preview-model";
-import { ProcessViewerViewModel } from "@/app/view/processviewer/processviewer";
-import { SysinfoViewModel } from "@/app/view/sysinfo/sysinfo";
-import { VDomModel } from "@/app/view/vdom/vdom-model";
 import { WaveEnv } from "@/app/waveenv/waveenv";
-import { atom } from "jotai";
-import { WaveConfigViewModel } from "../view/waveconfig/waveconfig-model";
-import { blockViewToIcon, blockViewToName } from "./blockutil";
 import { TermViewModel } from "@/view/term/term-model";
-import { WebViewModel } from "@/view/webview/webview";
+import { atom } from "jotai";
+import { blockViewToIcon, blockViewToName } from "./blockutil";
 
 const BlockRegistry: Map<string, ViewModelClass> = new Map();
 BlockRegistry.set("term", TermViewModel);
-BlockRegistry.set("preview", PreviewModel);
-BlockRegistry.set("web", WebViewModel);
-BlockRegistry.set("sysinfo", SysinfoViewModel);
-BlockRegistry.set("vdom", VDomModel);
-BlockRegistry.set("waveconfig", WaveConfigViewModel);
-BlockRegistry.set("processviewer", ProcessViewerViewModel);
+const ViewModelLoaders: Record<string, () => Promise<ViewModelClass>> = {
+    preview: () => import("@/app/view/preview/preview-model").then((m) => m.PreviewModel),
+    web: () => import("@/app/view/webview/webview").then((m) => m.WebViewModel),
+    sysinfo: () => import("@/app/view/sysinfo/sysinfo").then((m) => m.SysinfoViewModel),
+    vdom: () => import("@/app/view/vdom/vdom-model").then((m) => m.VDomModel),
+    waveconfig: () => import("@/app/view/waveconfig/waveconfig-model").then((m) => m.WaveConfigViewModel),
+    processviewer: () => import("@/app/view/processviewer/processviewer").then((m) => m.ProcessViewerViewModel),
+};
+const ViewModelLoads = new Map<string, Promise<void>>();
+
+export function loadViewModel(viewType: string): Promise<void> {
+    if (BlockRegistry.has(viewType) || !Object.hasOwn(ViewModelLoaders, viewType)) {
+        return null;
+    }
+    let pending = ViewModelLoads.get(viewType);
+    if (pending == null) {
+        pending = ViewModelLoaders[viewType]().then((ctor) => {
+            BlockRegistry.set(viewType, ctor);
+        });
+        ViewModelLoads.set(viewType, pending);
+    }
+    return pending;
+}
 
 function makeDefaultViewModel(viewType: string): ViewModel {
     const viewModel: ViewModel = {

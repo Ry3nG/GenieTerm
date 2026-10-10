@@ -21,8 +21,8 @@ import * as services from "@/store/services";
 import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { base64ToArray, base64ToString, fireAndForget } from "@/util/util";
 import { FitAddon } from "@xterm/addon-fit";
-import { SearchAddon } from "@xterm/addon-search";
-import { SerializeAddon } from "@xterm/addon-serialize";
+import type { ISearchOptions, SearchAddon } from "@xterm/addon-search";
+import type { SerializeAddon } from "@xterm/addon-serialize";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import * as TermTypes from "@xterm/xterm";
@@ -126,6 +126,9 @@ export class TermWrap {
     fitAddon: FitAddon;
     searchAddon: SearchAddon;
     serializeAddon: SerializeAddon;
+    searchAddonLoad: Promise<SearchAddon>;
+    serializeAddonLoad: Promise<void>;
+    searchRequest = 0;
     mainFileSubject: SubjectWithRef<WSFileEventData> | null;
     loaded: boolean;
     heldData: { data: Uint8Array; offset: number; fileEpoch: number }[];
@@ -235,11 +238,7 @@ export class TermWrap {
         this.webglEnabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.terminal = new Terminal(options);
         this.fitAddon = new FitAddon();
-        this.serializeAddon = new SerializeAddon();
-        this.searchAddon = new SearchAddon();
-        this.terminal.loadAddon(this.searchAddon);
         this.terminal.loadAddon(this.fitAddon);
-        this.terminal.loadAddon(this.serializeAddon);
         this.terminal.loadAddon(
             new WebLinksAddon(
                 (e, uri) => {
@@ -533,9 +532,6 @@ export class TermWrap {
                 })
             )
         );
-        if (this.onSearchResultsDidChange != null) {
-            this.toDispose.push(this.searchAddon.onDidChangeResults(this.onSearchResultsDidChange.bind(this)));
-        }
 
         this.mainFileSubject = getFileSubject(this.getZoneId(), TermFileName);
         this.mainFileSubject.subscribe(this.handleNewFileSubjectData.bind(this));
@@ -1069,6 +1065,41 @@ export class TermWrap {
         this.scheduleCmdDecorationSync();
     }
 
+    clearSearch() {
+        this.searchRequest++;
+        this.searchAddon?.clearDecorations();
+    }
+
+    async search(text: string, direction: "next" | "previous", options: ISearchOptions) {
+        const request = ++this.searchRequest;
+        if (text === "") {
+            this.searchAddon?.clearDecorations();
+            return;
+        }
+        if (this.searchAddon == null) {
+            this.searchAddonLoad ??= import("@xterm/addon-search")
+                .then(({ SearchAddon }) => {
+                    if (this.disposed) {
+                        return null;
+                    }
+                    const addon = new SearchAddon();
+                    this.terminal.loadAddon(addon);
+                    this.toDispose.push(addon.onDidChangeResults((result) => this.onSearchResultsDidChange?.(result)));
+                    this.searchAddon = addon;
+                    return addon;
+                })
+                .catch((error) => {
+                    this.searchAddonLoad = null;
+                    throw error;
+                });
+            await this.searchAddonLoad;
+        }
+        if (this.disposed || request !== this.searchRequest) {
+            return;
+        }
+        this.searchAddon[direction === "next" ? "findNext" : "findPrevious"](text, options);
+    }
+
     processAndCacheData() {
         if (
             this.disposed ||
@@ -1077,6 +1108,23 @@ export class TermWrap {
             !this.streamBoundary.isSafe ||
             (this.dataBytesProcessed < MinDataProcessedForCache && !this.cmdBlocksCacheDirty)
         ) {
+            return;
+        }
+        if (this.serializeAddon == null) {
+            this.serializeAddonLoad ??= import("@xterm/addon-serialize")
+                .then(({ SerializeAddon }) => {
+                    if (this.disposed) {
+                        return;
+                    }
+                    this.serializeAddon = new SerializeAddon();
+                    this.terminal.loadAddon(this.serializeAddon);
+                    // Recheck stream safety after the import before taking an atomic snapshot.
+                    this.processAndCacheData();
+                })
+                .catch((error) => {
+                    this.serializeAddonLoad = null;
+                    console.error("Terminal serializer load failed", error);
+                });
             return;
         }
         const serializedOutput = this.serializeAddon.serialize();

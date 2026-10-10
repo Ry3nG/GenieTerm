@@ -711,18 +711,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     }, []);
     const executeSearch = React.useCallback(
         (searchText: string, direction: "next" | "previous") => {
-            if (searchText === "") {
-                model.termRef.current?.searchAddon.clearDecorations();
-                return;
-            }
-            try {
-                model.termRef.current?.searchAddon[direction === "next" ? "findNext" : "findPrevious"](
-                    searchText,
-                    searchOpts
-                );
-            } catch (e) {
-                handleSearchError(e);
-            }
+            model.termRef.current?.search(searchText, direction, searchOpts).catch(handleSearchError);
         },
         [searchOpts, handleSearchError]
     );
@@ -735,12 +724,13 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     // Return input focus to the terminal when the search is closed
     React.useEffect(() => {
         if (!searchIsOpen) {
+            model.termRef.current?.clearSearch();
             model.giveFocus();
         }
     }, [searchIsOpen]);
     // rerun search when the searchOpts change
     React.useEffect(() => {
-        model.termRef.current?.searchAddon.clearDecorations();
+        model.termRef.current?.clearSearch();
         searchProps.onSearch(searchVal);
     }, [searchOpts]);
     // end search

@@ -14,11 +14,11 @@ import type { TermViewModel } from "../term-model";
 import type { TermWrap } from "../termwrap";
 import { makeAICompletionProvider } from "./ai-provider";
 import { TermCompletionService } from "./completion-service";
-import { figSpecExists, makeFigStaticCompletionProvider } from "./fig-static-provider";
 import { makeFileCompletionProvider, type ListDirectoryForCompletion } from "./file-provider";
 import { makeCompletionGhostText } from "./ghost";
 import { makeHelpFallbackCompletionProvider } from "./help-provider";
 import { makeHistoryCompletionProvider } from "./history-provider";
+import { hasFigSpec, makeLazyFigCompletionProvider } from "./lazy-fig-provider";
 import { makePathCommandCompletionProvider } from "./path-provider";
 import { buildCompletionContext } from "./tokenizer";
 import type { CompletionItem, ShellType, TermInputBuffer } from "./types";
@@ -183,9 +183,9 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         const listDirectory: ListDirectoryForCompletion = (path, ctx) => listDirectoryForCompletion(path, ctx);
         return new TermCompletionService([
             makeHistoryCompletionProvider(),
-            makeFigStaticCompletionProvider({ runGenerator: runCompletionGenerator }),
+            makeLazyFigCompletionProvider(runCompletionGenerator),
             makePathCommandCompletionProvider(runCompletionGenerator),
-            makeHelpFallbackCompletionProvider(runCompletionGenerator, figSpecExists),
+            makeHelpFallbackCompletionProvider(runCompletionGenerator, hasFigSpec),
             makeFileCompletionProvider(listDirectory),
             makeAICompletionProvider(model.commandComposerBackend),
         ]);

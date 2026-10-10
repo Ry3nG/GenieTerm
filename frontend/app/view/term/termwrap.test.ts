@@ -12,6 +12,21 @@ import type { TermInputBuffer } from "./completion/types";
 import { handleOsc16162Command, type ShellIntegrationStatus } from "./osc-handlers";
 import { TermWrap } from "./termwrap";
 
+vi.mock("@xterm/addon-search", () => ({
+    SearchAddon: class {
+        findNext = vi.fn();
+        findPrevious = vi.fn();
+        clearDecorations = vi.fn();
+        onDidChangeResults = vi.fn(() => ({ dispose: vi.fn() }));
+    },
+}));
+
+vi.mock("@xterm/addon-serialize", () => ({
+    SerializeAddon: class {
+        serialize = vi.fn(() => "snapshot");
+    },
+}));
+
 vi.mock("@/store/global", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@/store/global")>();
     const { atom } = await import("jotai");
@@ -72,6 +87,8 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
         terminal,
         loaded: true,
         disposed: false,
+        searchRequest: 0,
+        toDispose: [],
         replayingTerminalData: false,
         drainingHeldData: false,
         heldData: [],
@@ -118,6 +135,52 @@ function replay(termWrap: TermWrap, data: string) {
         termWrap.replayingTerminalData = false;
     }
 }
+
+describe("TermWrap deferred addons", () => {
+    it("uses the newest search after loading and cancels a search when cleared", async () => {
+        const { termWrap, terminal } = makeTermWrap();
+        Object.assign(terminal, { loadAddon: vi.fn() });
+        await termWrap.search("", "next", {});
+        expect(termWrap.searchAddonLoad).toBeUndefined();
+        const first = termWrap.search("old", "next", {});
+        const second = termWrap.search("new", "previous", { regex: true });
+        await Promise.all([first, second]);
+        expect(termWrap.terminal.loadAddon).toHaveBeenCalledTimes(1);
+        expect(termWrap.searchAddon.findNext).not.toHaveBeenCalled();
+        expect(termWrap.searchAddon.findPrevious).toHaveBeenCalledWith("new", { regex: true });
+
+        const { termWrap: pending } = makeTermWrap();
+        Object.assign(pending.terminal, { loadAddon: vi.fn() });
+        const search = pending.search("closed", "next", {});
+        pending.clearSearch();
+        await search;
+        expect(pending.searchAddon.findNext).not.toHaveBeenCalled();
+    });
+
+    it("does not attach addons to a terminal disposed during import", async () => {
+        const { termWrap, terminal } = makeTermWrap();
+        Object.assign(terminal, { loadAddon: vi.fn() });
+        const search = termWrap.search("query", "next", {});
+        termWrap.disposed = true;
+        await search;
+        expect(termWrap.terminal.loadAddon).not.toHaveBeenCalled();
+    });
+
+    it("defers serialization until a cache save and rechecks stream safety after loading", async () => {
+        const { termWrap, terminal } = makeTermWrap();
+        Object.assign(terminal, { loadAddon: vi.fn() });
+        Object.assign(termWrap, { dataBytesProcessed: 0, streamBoundary: { isSafe: true } });
+        termWrap.processAndCacheData();
+        expect(termWrap.serializeAddonLoad).toBeUndefined();
+        termWrap.dataBytesProcessed = 102400;
+        termWrap.processAndCacheData();
+        termWrap.inSyncTransaction = true;
+        await termWrap.serializeAddonLoad;
+        expect(termWrap.terminal.loadAddon).toHaveBeenCalledTimes(1);
+        expect(termWrap.serializeAddon.serialize).not.toHaveBeenCalled();
+        expect(termWrap.dataBytesProcessed).toBe(102400);
+    });
+});
 
 function startPrompt(termWrap: TermWrap) {
     termWrap.onPromptStart(termWrap.makePromptMarker());
