@@ -12,7 +12,12 @@ import { Readable } from "stream";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import * as keyutil from "../frontend/util/keyutil";
-import type { TransferError, TransferJobInput } from "../frontend/util/transferqueue";
+import {
+    isInactiveTransferStatus,
+    type TransferError,
+    type TransferJob,
+    type TransferJobInput,
+} from "../frontend/util/transferqueue";
 import { fireAndForget, parseDataUrl } from "../frontend/util/util";
 import { applyDockIconVariant, getAppIconPath, normalizeAppIconVariant, type AppIconVariant } from "./app-icon";
 import {
@@ -43,6 +48,7 @@ import {
     flushDownloadTransferPersistence,
     mapNativeDownloadState,
     NativeDownloadDestination,
+    runTransferUpdate,
 } from "./transfer/download-transfer";
 import {
     clearTransferCancelHandle,
@@ -60,9 +66,14 @@ const TransferQueueUpdateChannel = "transfer-queue:update";
 const TransferQueueClearChannel = "transfer-queue:clear";
 const TransferQueueCancelChannel = "transfer-queue:cancel";
 const TransferQueueRetryChannel = "transfer-queue:retry";
-const TransferJobStartChannel = "transfer-job:start";
+const TransferJobEnqueueChannel = "transfer-job:enqueue";
+const TransferJobBeginChannel = "transfer-job:begin";
 const TransferJobFinishChannel = "transfer-job:finish";
 const transferQueueSubscribers = new Map<number, electron.WebContents>();
+const rendererTransferJobOwners = new Map<string, number>();
+const rendererTransferOwnerIds = new Set<number>();
+const nativeDownloadSessions = new WeakSet<electron.Session>();
+const pendingNativeDownloads = new Map<string, string>();
 let transferQueueBridgeRegistered = false;
 
 type RendererTransferJobOutcome =
@@ -236,23 +247,74 @@ function broadcastTransferQueue(queue: ReturnType<typeof downloadTransferTracker
     }
 }
 
-function startTrackedFileDownload(jobId: string, filePath: string, sender: electron.WebContents): void {
-    const baseName = encodeURIComponent(path.basename(filePath));
-    const streamingUrl =
-        getWebServerEndpoint() + "/wave/stream-file/" + baseName + "?path=" + encodeURIComponent(filePath);
-    downloadTransferTracker.start(jobId);
-    const onWillDownload = (
-        _downloadEvent: Electron.Event,
-        item: Electron.DownloadItem,
-        webContents: Electron.WebContents
-    ) => {
-        if (webContents.id !== sender.id || item.getURL() !== streamingUrl) {
+// Renderer-driven jobs (uploads) only make progress while their renderer is alive, so they are failed as
+// interrupted when it goes away instead of staying "running" forever.
+function setRendererTransferJobOwner(jobId: string, webContents: electron.WebContents) {
+    rendererTransferJobOwners.set(jobId, webContents.id);
+    if (rendererTransferOwnerIds.has(webContents.id)) {
+        return;
+    }
+    const webContentsId = webContents.id;
+    rendererTransferOwnerIds.add(webContentsId);
+    webContents.once("destroyed", () => {
+        rendererTransferOwnerIds.delete(webContentsId);
+        failRendererTransferJobs(webContentsId);
+    });
+}
+
+function failRendererTransferJobs(webContentsId: number) {
+    for (const [jobId, ownerId] of rendererTransferJobOwners) {
+        if (ownerId !== webContentsId) {
+            continue;
+        }
+        rendererTransferJobOwners.delete(jobId);
+        const job = downloadTransferTracker.findJob(jobId);
+        if (job == null || isInactiveTransferStatus(job.status)) {
+            continue;
+        }
+        runTransferUpdate("fail interrupted renderer transfer", () =>
+            downloadTransferTracker.fail(jobId, {
+                code: "transfer_interrupted",
+                message: "Transfer was interrupted because its window closed.",
+                retryable: true,
+            })
+        );
+    }
+}
+
+function ensureNativeDownloadListener(session: electron.Session) {
+    if (nativeDownloadSessions.has(session)) {
+        return;
+    }
+    nativeDownloadSessions.add(session);
+    session.on("will-download", (_event, item) => {
+        const jobId = pendingNativeDownloads.get(item.getURL());
+        if (jobId == null) {
             return;
         }
-        sender.session.off("will-download", onWillDownload);
-        registerTransferCancelHandle(jobId, () => item.cancel());
-        item.once("done", (_doneEvent, state) => {
-            clearTransferCancelHandle(jobId);
+        pendingNativeDownloads.delete(item.getURL());
+        runTransferUpdate("attach native download", () => attachNativeDownloadItem(jobId, item));
+    });
+}
+
+function attachNativeDownloadItem(jobId: string, item: electron.DownloadItem) {
+    if (downloadTransferTracker.findJob(jobId)?.status !== "running") {
+        item.cancel();
+        return;
+    }
+    registerTransferCancelHandle(jobId, () => item.cancel());
+    item.on("updated", () => {
+        runTransferUpdate("native download progress", () => {
+            const totalBytes = item.getTotalBytes();
+            downloadTransferTracker.updateProgress(jobId, {
+                bytesTransferred: item.getReceivedBytes(),
+                ...(totalBytes > 0 ? { totalBytes } : {}),
+            });
+        });
+    });
+    item.once("done", (_doneEvent, state) => {
+        clearTransferCancelHandle(jobId);
+        runTransferUpdate("finish native download", () => {
             const result = mapNativeDownloadState(state);
             if (result.status === "completed") {
                 downloadTransferTracker.complete(jobId);
@@ -262,12 +324,28 @@ function startTrackedFileDownload(jobId: string, filePath: string, sender: elect
                 downloadTransferTracker.fail(jobId, result.error);
             }
         });
-    };
-    sender.session.on("will-download", onWillDownload);
+    });
+}
+
+// Each attempt gets its own URL token so concurrent downloads of the same file each claim their own DownloadItem.
+function startTrackedFileDownload(jobId: string, filePath: string, sender: electron.WebContents): void {
+    const attempt = downloadTransferTracker.findJob(jobId)?.attempt ?? 1;
+    const baseName = encodeURIComponent(path.basename(filePath));
+    const streamingUrl =
+        getWebServerEndpoint() +
+        "/wave/stream-file/" +
+        baseName +
+        "?path=" +
+        encodeURIComponent(filePath) +
+        "&transferjob=" +
+        encodeURIComponent(`${jobId}.${attempt}`);
+    downloadTransferTracker.start(jobId);
     try {
+        ensureNativeDownloadListener(sender.session);
+        pendingNativeDownloads.set(streamingUrl, jobId);
         sender.downloadURL(streamingUrl);
     } catch (error) {
-        sender.session.off("will-download", onWillDownload);
+        pendingNativeDownloads.delete(streamingUrl);
         downloadTransferTracker.fail(jobId, {
             code: "native_download_failed",
             message: "Could not start native download.",
@@ -275,6 +353,23 @@ function startTrackedFileDownload(jobId: string, filePath: string, sender: elect
             retryable: true,
         });
     }
+}
+
+function startRetriedTransferJob(job: TransferJob, sender: electron.WebContents) {
+    if ((job.transport === "rsync" || job.transport === "scp") && job.destination.startsWith("file://")) {
+        void startTrackedFolderDownload(job.id, job.source, fileURLToPath(job.destination));
+        return;
+    }
+    if (job.operation === "download" && job.transport === "wsh" && job.destination === NativeDownloadDestination) {
+        startTrackedFileDownload(job.id, job.source, sender);
+        return;
+    }
+    if (job.operation === "upload") {
+        // The renderer that asked for the retry re-runs the copy and reports back via begin/finish.
+        setRendererTransferJobOwner(job.id, sender);
+        return;
+    }
+    throw new Error(`No retry handler for ${job.operation} via ${job.transport}`);
 }
 
 function registerTransferQueueBridge() {
@@ -293,51 +388,71 @@ function registerTransferQueueBridge() {
         return downloadTransferTracker.clearInactive();
     });
     electron.ipcMain.handle(TransferQueueCancelChannel, (_event, jobId: string) => {
-        invokeTransferCancelHandle(jobId);
-        try {
+        const job = downloadTransferTracker.findJob(jobId);
+        if (job == null || isInactiveTransferStatus(job.status)) {
+            return downloadTransferTracker.getQueue();
+        }
+        if (invokeTransferCancelHandle(jobId)) {
             downloadTransferTracker.cancel(jobId);
-        } catch {
-            // already terminal
+        } else if (job.status === "running" && job.operation === "upload") {
+            // In-flight RPC copies cannot be interrupted; the renderer skips remaining work and reports the
+            // real outcome of the current copy when it finishes.
+            downloadTransferTracker.requestCancel(jobId);
+        } else {
+            downloadTransferTracker.cancel(jobId);
         }
         return downloadTransferTracker.getQueue();
     });
     electron.ipcMain.handle(TransferQueueRetryChannel, (event, jobId: string) => {
+        const retried = downloadTransferTracker.retry(jobId);
         try {
-            const retried = downloadTransferTracker.retry(jobId);
-            if (
-                (retried.transport === "rsync" || retried.transport === "scp") &&
-                retried.destination.startsWith("file://")
-            ) {
-                const destPath = fileURLToPath(retried.destination);
-                startTrackedFolderDownload(retried.id, retried.source, destPath);
-            } else if (
-                retried.operation === "download" &&
-                retried.transport === "wsh" &&
-                retried.destination === NativeDownloadDestination
-            ) {
-                startTrackedFileDownload(retried.id, retried.source, event.sender);
-            } else if (retried.operation === "upload") {
-                downloadTransferTracker.start(retried.id);
-            }
+            startRetriedTransferJob(retried, event.sender);
         } catch (err) {
             console.error("retry transfer failed", err);
+            runTransferUpdate("fail retried transfer", () =>
+                downloadTransferTracker.fail(jobId, {
+                    code: "transfer_retry_failed",
+                    message: "Could not retry the transfer.",
+                    detail: err instanceof Error ? err.message : String(err),
+                    retryable: false,
+                })
+            );
+            throw err;
         }
         return downloadTransferTracker.getQueue();
     });
-    electron.ipcMain.handle(TransferJobStartChannel, (_event, input: TransferJobInput) => {
-        downloadTransferTracker.enqueue(input);
-        downloadTransferTracker.start(input.id);
+    electron.ipcMain.handle(TransferJobEnqueueChannel, (event, inputs: TransferJobInput[]) => {
+        for (const input of inputs ?? []) {
+            downloadTransferTracker.enqueue(input);
+            setRendererTransferJobOwner(input.id, event.sender);
+        }
+    });
+    electron.ipcMain.handle(TransferJobBeginChannel, (event, jobId: string) => {
+        if (downloadTransferTracker.findJob(jobId)?.status !== "queued") {
+            return false;
+        }
+        downloadTransferTracker.start(jobId);
+        setRendererTransferJobOwner(jobId, event.sender);
+        return true;
     });
     electron.ipcMain.handle(TransferJobFinishChannel, (_event, jobId: string, outcome: RendererTransferJobOutcome) => {
-        if (outcome.status === "completed") {
+        rendererTransferJobOwners.delete(jobId);
+        const job = downloadTransferTracker.findJob(jobId);
+        if (job == null || isInactiveTransferStatus(job.status)) {
+            return;
+        }
+        if (outcome?.status === "completed") {
             downloadTransferTracker.complete(jobId);
             return;
         }
-        if (outcome.status === "canceled") {
+        if (outcome?.status === "canceled") {
             downloadTransferTracker.cancel(jobId);
             return;
         }
-        downloadTransferTracker.fail(jobId, outcome.error);
+        downloadTransferTracker.fail(
+            jobId,
+            outcome?.error ?? { code: "transfer_failed", message: "Transfer failed.", retryable: true }
+        );
     });
     downloadTransferTracker.subscribe((queue) => {
         broadcastTransferQueue(queue);
@@ -401,10 +516,17 @@ export function initIpcHandlers() {
             payload.filePath,
             createDownloadTransferJobId("file-download")
         );
-        downloadTransferTracker.enqueue(jobInput);
-        startTrackedFileDownload(jobInput.id, jobInput.source, event.sender);
+        runTransferUpdate("start native download", () => {
+            downloadTransferTracker.enqueue(jobInput);
+            startTrackedFileDownload(jobInput.id, jobInput.source, event.sender);
+        });
     });
-    registerDownloadFolderHandler();
+    registerDownloadFolderHandler({
+        resolveConnKeywords: async (connection) => {
+            const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+            return fullConfig?.connections?.[connection];
+        },
+    });
 
     electron.ipcMain.on("get-cursor-point", (event) => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { atom } from "jotai";
+import { atom, type PrimitiveAtom } from "jotai";
 import { describe, expect, it, vi } from "vitest";
 import {
     copyWithOverwriteConfirmation,
@@ -91,6 +91,76 @@ describe("copyWithOverwriteConfirmation", () => {
         expect(refresh).toHaveBeenCalledTimes(2);
         expect(copyCalls[1].opts).toMatchObject({ timeout: 42, overwrite: true });
         expect(data.opts.overwrite).toBeUndefined();
+    });
+
+    function makeConfirmationHarness() {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const errorMsgAtom = atom(null) as PrimitiveAtom<ErrorMsg>;
+        const copyFile = vi.fn(async (_data: CommandFileCopyData) => {
+            if (copyFile.mock.calls.length === 1) {
+                throw new Error(`file already exists, ${overwriteError}`);
+            }
+        });
+        const deps = {
+            copyFile,
+            setErrorMsg: (msg: ErrorMsg) => globalStore.set(errorMsgAtom, msg),
+            watchErrorMsg: (listener: (msg: ErrorMsg) => void) =>
+                globalStore.sub(errorMsgAtom, () => listener(globalStore.get(errorMsgAtom))),
+        };
+        const data: CommandFileCopyData = { srcuri: "file:///tmp/a.txt", desturi: "wsh://devbox/~/up" };
+        return { errorMsgAtom, copyFile, deps, data };
+    }
+
+    async function flushMicrotasks() {
+        for (let index = 0; index < 5; index++) {
+            await Promise.resolve();
+        }
+    }
+
+    it("settles as canceled when the overwrite prompt is replaced by another message", async () => {
+        const { errorMsgAtom, deps, data } = makeConfirmationHarness();
+        const resultPromise = copyWithOverwriteConfirmation(data, "file", deps);
+        await flushMicrotasks();
+        expect(globalStore.get(errorMsgAtom)?.status).toBe("Confirm Overwrite File(s)");
+
+        globalStore.set(errorMsgAtom, { status: "Rename Failed", text: "boom" });
+
+        await expect(resultPromise).resolves.toMatchObject({ ok: false, canceled: true });
+        expect(globalStore.get(errorMsgAtom)?.status).toBe("Rename Failed");
+    });
+
+    it("settles as canceled and clears the prompt when aborted (unmount or job cancel)", async () => {
+        const { errorMsgAtom, copyFile, deps, data } = makeConfirmationHarness();
+        const controller = new AbortController();
+        const resultPromise = copyWithOverwriteConfirmation(data, "file", { ...deps, signal: controller.signal });
+        await flushMicrotasks();
+        expect(globalStore.get(errorMsgAtom)?.status).toBe("Confirm Overwrite File(s)");
+
+        controller.abort();
+
+        await expect(resultPromise).resolves.toMatchObject({ ok: false, canceled: true });
+        expect(globalStore.get(errorMsgAtom)).toBeNull();
+        expect(copyFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not prompt when already aborted and keeps a confirmed copy running after the overlay resets", async () => {
+        const aborted = makeConfirmationHarness();
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+            copyWithOverwriteConfirmation(aborted.data, "file", { ...aborted.deps, signal: controller.signal })
+        ).resolves.toMatchObject({ canceled: true });
+        expect(globalStore.get(aborted.errorMsgAtom)).toBeNull();
+
+        const { errorMsgAtom, copyFile, deps, data } = makeConfirmationHarness();
+        const resultPromise = copyWithOverwriteConfirmation(data, "file", deps);
+        await flushMicrotasks();
+        const prompt = globalStore.get(errorMsgAtom);
+        prompt.buttons[0].onClick();
+        globalStore.set(errorMsgAtom, null);
+
+        await expect(resultPromise).resolves.toEqual({ ok: true });
+        expect(copyFile).toHaveBeenCalledTimes(2);
     });
 });
 

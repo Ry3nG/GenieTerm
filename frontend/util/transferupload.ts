@@ -1,5 +1,12 @@
+import { PLATFORM } from "./platformutil";
 import type { TransferItemType, TransferJobInput } from "./transferqueue";
-import { buildRemoteUri, getRemotePathBaseName, parseWshRemoteUri, type RemoteUriScheme } from "./transferutil";
+import {
+    buildRemoteUri,
+    getRemotePathBaseName,
+    localPathToFileUri,
+    parseWshRemoteUri,
+    type RemoteUriScheme,
+} from "./transferutil";
 
 export type LocalUploadItem = {
     path: string;
@@ -16,6 +23,7 @@ export type UploadTransferPlan = {
 export type UploadTransferPlanOptions = {
     createId?: (item: LocalUploadItem, index: number) => string;
     groupId?: string;
+    platform?: NodeJS.Platform;
 };
 
 let nextUploadTransferSeq = 0;
@@ -41,7 +49,7 @@ export function buildLocalUploadTransferPlans(
     return items.map((item, index) => {
         const localPath = normalizeLocalPath(item.path);
         const label = getUploadItemBasename(item);
-        const srcuri = buildLocalUploadFileUri(localPath);
+        const srcuri = buildLocalUploadFileUri(localPath, options.platform);
         const destination = appendRemotePathSegment(destDir.scheme, destDir.connection, destDir.remotePath, label);
         return {
             srcuri,
@@ -60,8 +68,8 @@ export function buildLocalUploadTransferPlans(
     });
 }
 
-export function buildLocalUploadFileUri(localPath: string): string {
-    return encodeURI(`file://${normalizeLocalPath(localPath)}`);
+export function buildLocalUploadFileUri(localPath: string, platform: NodeJS.Platform = PLATFORM): string {
+    return localPathToFileUri(normalizeLocalPath(localPath), platform);
 }
 
 function parseRemoteUploadDestination(remoteDestDirUri: string): {
@@ -77,7 +85,7 @@ function parseRemoteUploadDestination(remoteDestDirUri: string): {
 }
 
 function getUploadItemBasename(item: LocalUploadItem): string {
-    const candidate = item.name || item.path;
+    const candidate = item.name || item.path.replace(/\\/g, "/");
     const basename = getRemotePathBaseName(candidate);
     if (!basename) {
         throw new Error(`Upload item must have a basename: ${item.path}`);

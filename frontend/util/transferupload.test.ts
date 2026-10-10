@@ -80,6 +80,34 @@ describe("transferupload", () => {
         ).toThrow("Upload item path must be an absolute local file path");
     });
 
+    it("builds file:///C:/ upload sources for Windows drive and UNC paths", () => {
+        const plans = buildLocalUploadTransferPlans(
+            [
+                { path: "C:\\Users\\me\\My Files\\#1 report 100%.txt", itemType: "file" },
+                { path: "\\\\fileserver\\team share\\notes.txt", itemType: "file" },
+            ],
+            "genie://devbox/~/uploads",
+            { createId: (_item, index) => `upload-${index}`, platform: "win32" }
+        );
+
+        expect(plans.map((plan) => plan.srcuri)).toEqual([
+            "file:///C:/Users/me/My%20Files/%231%20report%20100%25.txt",
+            "file://fileserver/team%20share/notes.txt",
+        ]);
+        expect(plans.map((plan) => plan.jobInput.label)).toEqual(["#1 report 100%.txt", "notes.txt"]);
+        expect(plans[0].jobInput.destination).toBe("genie://devbox/~/uploads/#1 report 100%.txt");
+    });
+
+    it("percent-encodes characters that would otherwise be read as URI syntax on POSIX", () => {
+        const plans = buildLocalUploadTransferPlans(
+            [{ path: "/home/me/a#b/100% done?.txt", itemType: "file" }],
+            "genie://devbox/~/uploads",
+            { createId: () => "upload-1", platform: "linux" }
+        );
+
+        expect(plans[0].srcuri).toBe("file:///home/me/a%23b/100%25%20done%3F.txt");
+    });
+
     it("creates stable upload ids and group ids with requested prefixes", () => {
         expect(createUploadTransferJobId("drop-upload")).toMatch(/^drop-upload-\d+-\d+$/);
         expect(createUploadTransferGroupId("multi-upload")).toMatch(/^multi-upload-\d+-\d+$/);

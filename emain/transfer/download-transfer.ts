@@ -8,18 +8,23 @@ import {
     createTransferQueue,
     enqueueTransferJob,
     failTransferJob,
+    findTransferJob,
     getTransferJob,
     recoverTransferQueue,
+    requestTransferJobCancel,
     retryTransferJob,
     startTransferJob,
+    updateTransferProgress,
     type TransferError,
     type TransferJob,
     type TransferJobInput,
+    type TransferProgress,
     type TransferQueue,
 } from "../../frontend/util/transferqueue";
 import { getRemotePathBaseName, parseTransferPath } from "../../frontend/util/transferutil";
 
 export const NativeDownloadDestination = "electron://native-download";
+export const ProgressNotifyIntervalMs = 250;
 
 type NowFn = () => number;
 
@@ -34,9 +39,12 @@ export type DownloadTransferTracker = {
     complete(jobId: string): TransferJob;
     fail(jobId: string, error: TransferError): TransferJob;
     cancel(jobId: string): TransferJob;
+    requestCancel(jobId: string): TransferJob;
     retry(jobId: string): TransferJob;
+    updateProgress(jobId: string, progress: Partial<TransferProgress>): TransferJob | undefined;
     clearInactive(): TransferQueue;
     getJob(jobId: string): TransferJob;
+    findJob(jobId: string): TransferJob | undefined;
     getQueue(): TransferQueue;
     hydrate(queue: TransferQueue): TransferQueue;
     subscribe(listener: TransferQueueListener): () => void;
@@ -67,14 +75,44 @@ export function buildFileDownloadTransferJobInput(source: string, id: string): T
     };
 }
 
-export function createDownloadTransferTracker(nowFn: NowFn = () => Date.now()): DownloadTransferTracker {
+export function createDownloadTransferTracker(
+    nowFn: NowFn = () => Date.now(),
+    progressIntervalMs = ProgressNotifyIntervalMs
+): DownloadTransferTracker {
     let queue = createTransferQueue();
     const listeners = new Set<TransferQueueListener>();
+    let progressTimer: ReturnType<typeof setTimeout> = null;
+    let lastNotifyAt = Number.NEGATIVE_INFINITY;
 
     function notify() {
-        for (const listener of listeners) {
-            listener(queue);
+        if (progressTimer != null) {
+            clearTimeout(progressTimer);
+            progressTimer = null;
         }
+        lastNotifyAt = nowFn();
+        for (const listener of listeners) {
+            callListener(listener);
+        }
+    }
+
+    function callListener(listener: TransferQueueListener) {
+        try {
+            listener(queue);
+        } catch (error) {
+            console.error("transfer queue listener failed", error);
+        }
+    }
+
+    function scheduleProgressNotify() {
+        if (progressTimer != null) {
+            return;
+        }
+        const waitMs = lastNotifyAt + progressIntervalMs - nowFn();
+        if (waitMs <= 0) {
+            notify();
+            return;
+        }
+        progressTimer = setTimeout(notify, waitMs);
     }
 
     function commit(nextQueue: TransferQueue): TransferQueue {
@@ -104,8 +142,21 @@ export function createDownloadTransferTracker(nowFn: NowFn = () => Date.now()): 
             commit(cancelTransferJob(queue, jobId, nowFn()));
             return getTransferJob(queue, jobId);
         },
+        requestCancel(jobId) {
+            commit(requestTransferJobCancel(queue, jobId, nowFn()));
+            return getTransferJob(queue, jobId);
+        },
         retry(jobId) {
             commit(retryTransferJob(queue, jobId, nowFn()));
+            return getTransferJob(queue, jobId);
+        },
+        updateProgress(jobId, progress) {
+            const job = findTransferJob(queue, jobId);
+            if (job?.status !== "running") {
+                return job;
+            }
+            queue = updateTransferProgress(queue, jobId, progress, nowFn());
+            scheduleProgressNotify();
             return getTransferJob(queue, jobId);
         },
         clearInactive() {
@@ -113,6 +164,9 @@ export function createDownloadTransferTracker(nowFn: NowFn = () => Date.now()): 
         },
         getJob(jobId) {
             return getTransferJob(queue, jobId);
+        },
+        findJob(jobId) {
+            return findTransferJob(queue, jobId);
         },
         getQueue() {
             return queue;
@@ -122,12 +176,23 @@ export function createDownloadTransferTracker(nowFn: NowFn = () => Date.now()): 
         },
         subscribe(listener) {
             listeners.add(listener);
-            listener(queue);
+            callListener(listener);
             return () => {
                 listeners.delete(listener);
             };
         },
     };
+}
+
+// Transfer state changes are driven from Electron event listeners (child "close", DownloadItem "done", ...).
+// A throw there becomes an uncaughtException that quits the app, so callers route transitions through this guard.
+export function runTransferUpdate<T>(label: string, update: () => T): T | undefined {
+    try {
+        return update();
+    } catch (error) {
+        console.error(`transfer update failed (${label})`, error);
+        return undefined;
+    }
 }
 
 export const downloadTransferTracker = createDownloadTransferTracker();
@@ -153,7 +218,7 @@ export function writeTransferQueueSnapshot(filePath: string, queue: TransferQueu
     fs.renameSync(temporaryPath, filePath);
 }
 
-export function makeTransferQueuePersistence(filePath: string, delayMs = 100) {
+export function makeTransferQueuePersistence(filePath: string, delayMs = ProgressNotifyIntervalMs) {
     let pendingQueue: TransferQueue | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const flush = () => {
