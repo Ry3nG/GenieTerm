@@ -66,7 +66,7 @@ const (
 	JobKind_Task  = "task"
 )
 
-const DefaultStreamRwnd = 64 * 1024
+const DefaultStreamRwnd = 2 * 1024 * 1024
 const MetaKey_TotalGap = "totalgap"
 const JobOutputFileName = "term"
 const AutoReconnectDelay = 1 * time.Second
@@ -789,7 +789,8 @@ func runOutputLoop(ctx context.Context, jobId string, streamId string, reader *s
 
 	log.Printf("[job:%s] [stream:%s] output loop started", jobId, streamId)
 	js := getJobStream(jobId)
-	buf := make([]byte, 4096)
+	// job managers send packets of up to 64 KB; read whole packets so each becomes one append
+	buf := make([]byte, 64*1024)
 	for {
 		n, err := reader.Read(buf)
 		isCurrent := js.runIfCurrent(streamId, func() {

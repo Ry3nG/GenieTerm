@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package jobmanager
@@ -70,33 +70,31 @@ func (cb *CirBuf) SetEffectiveWindow(syncMode bool, windowSize int) {
 func (cb *CirBuf) WriteAvailable(data []byte) (int, <-chan struct{}) {
 	cb.lock.Lock()
 	defer cb.lock.Unlock()
+	if len(data) == 0 {
+		return 0, nil
+	}
 
 	size := len(cb.buf)
-	written := 0
-
-	for i := 0; i < len(data); i++ {
-		if cb.syncMode && cb.count >= cb.windowSize {
-			if written > 0 {
-				return written, nil
-			}
+	written := len(data)
+	if cb.syncMode {
+		written = min(written, max(0, cb.windowSize-cb.count))
+		if written == 0 && len(data) > 0 {
 			spaceAvailable := make(chan struct{})
 			if !tryWriteCh(cb.waiterChan, spaceAvailable) {
 				panic("CirBuf: multiple concurrent blocked writes not allowed")
 			}
 			return 0, spaceAvailable
 		}
-
-		cb.buf[cb.writePos] = data[i]
-		cb.writePos = (cb.writePos + 1) % size
-		if cb.count < cb.windowSize {
-			cb.count++
-		} else {
-			cb.readPos = (cb.readPos + 1) % size
-		}
-		cb.totalSize++
-		written++
 	}
-
+	kept := min(written, cb.windowSize)
+	start := (cb.writePos + written - kept) % size
+	tail := data[written-kept : written]
+	n := copy(cb.buf[start:], tail)
+	copy(cb.buf, tail[n:])
+	cb.writePos = (cb.writePos + written) % size
+	cb.count = min(cb.count+written, cb.windowSize)
+	cb.readPos = (cb.writePos - cb.count + size) % size
+	cb.totalSize += int64(written)
 	return written, nil
 }
 
@@ -112,17 +110,10 @@ func (cb *CirBuf) PeekDataAt(offset int, data []byte) int {
 		return 0
 	}
 
-	size := len(cb.buf)
-	pos := (cb.readPos + offset) % size
-	maxRead := cb.count - offset
-	read := 0
-
-	for i := 0; i < len(data) && i < maxRead; i++ {
-		data[i] = cb.buf[pos]
-		pos = (pos + 1) % size
-		read++
-	}
-
+	pos := (cb.readPos + offset) % len(cb.buf)
+	read := min(len(data), cb.count-offset)
+	n := copy(data[:read], cb.buf[pos:])
+	copy(data[n:read], cb.buf)
 	return read
 }
 
