@@ -44,7 +44,6 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wavejwt"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
-	"github.com/Ry3nG/GenieTerm/pkg/wcloud"
 	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 	"github.com/Ry3nG/GenieTerm/pkg/wcore"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
@@ -1184,10 +1183,6 @@ func (ws *WshServer) RecordTEventCommand(ctx context.Context, data telemetrydata
 		log.Printf("error recording telemetry event: %v", err)
 	}
 	return err
-}
-
-func (ws WshServer) SendTelemetryCommand(ctx context.Context) error {
-	return wcloud.SendAllTelemetry(wstore.GetClientId())
 }
 
 var wshActivityRe = regexp.MustCompile(`^[a-z:#]+$`)

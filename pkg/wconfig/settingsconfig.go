@@ -172,9 +172,6 @@ type SettingsType struct {
 	WindowDimensions                    string   `json:"window:dimensions,omitempty"`
 	WindowZoom                          *float64 `json:"window:zoom,omitempty"`
 
-	TelemetryClear   bool `json:"telemetry:*,omitempty"`
-	TelemetryEnabled bool `json:"telemetry:enabled,omitempty"`
-
 	ConnClear                bool    `json:"conn:*,omitempty"`
 	ConnAskBeforeWshInstall  *bool   `json:"conn:askbeforewshinstall,omitempty"`
 	ConnWshEnabled           bool    `json:"conn:wshenabled,omitempty"`
@@ -995,23 +992,3 @@ func (fc *FullConfigType) CountCustomAIModes() int {
 	return count
 }
 
-// CountCustomSettings returns the number of settings in the user's settings file.
-// This excludes telemetry:enabled and autoupdate:channel which don't count as customizations.
-func CountCustomSettings() int {
-	// Load user settings
-	userSettings, _ := ReadWaveHomeConfigFile("settings.json")
-	if userSettings == nil {
-		return 0
-	}
-
-	// Count all keys except telemetry:enabled and autoupdate:channel
-	count := 0
-	for key := range userSettings {
-		if key == "telemetry:enabled" || key == "autoupdate:channel" {
-			continue
-		}
-		count++
-	}
-
-	return count
-}

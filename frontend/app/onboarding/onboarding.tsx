@@ -7,7 +7,6 @@ import { FlexiModal } from "@/app/modals/modal";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { OnboardingFeatures } from "@/app/onboarding/onboarding-features";
 import { ClientModel } from "@/app/store/client-model";
-import { useSettingsKeyAtom } from "@/app/store/global";
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
 import * as services from "@/store/services";
@@ -21,16 +20,8 @@ type PageName = "init" | "features";
 
 const pageNameAtom: PrimitiveAtom<PageName> = atom<PageName>("init");
 
-const InitPage = ({
-    isCompact,
-    telemetryUpdateFn,
-}: {
-    isCompact: boolean;
-    telemetryUpdateFn: (value: boolean) => Promise<void>;
-}) => {
-    const telemetrySetting = useSettingsKeyAtom("telemetry:enabled");
+const InitPage = ({ isCompact }: { isCompact: boolean }) => {
     const clientData = useAtomValue(ClientModel.getInstance().clientAtom);
-    const [telemetryEnabled, setTelemetryEnabled] = useState<boolean>(!!telemetrySetting);
     const setPageName = useSetAtom(pageNameAtom);
 
     const acceptTos = () => {
@@ -39,16 +30,6 @@ const InitPage = ({
         }
         setPageName("features");
     };
-
-    const setTelemetry = (value: boolean) => {
-        fireAndForget(() =>
-            telemetryUpdateFn(value).then(() => {
-                setTelemetryEnabled(value);
-            })
-        );
-    };
-
-    const label = telemetryEnabled ? "Enabled" : "Disabled";
 
     return (
         <div className="flex flex-col h-full">
@@ -67,21 +48,10 @@ const InitPage = ({
                 <div className="flex flex-col items-start gap-8 w-full mb-5 unselectable">
                     <div className="flex w-full items-center gap-[18px]">
                         <div>
-                            <i className="text-[32px] text-white/50 fa-solid fa-chart-line"></i>
+                            <i className="text-[32px] text-white/50 fa-solid fa-lock"></i>
                         </div>
-                        <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-secondary leading-5">
-                                Anonymous usage data helps us improve features you use.
-                            </div>
-                            <label className="flex items-center gap-2 cursor-pointer text-secondary">
-                                <input
-                                    type="checkbox"
-                                    checked={telemetryEnabled}
-                                    onChange={(e) => setTelemetry(e.target.checked)}
-                                    className="cursor-pointer accent-gray-500"
-                                />
-                                <span>{label}</span>
-                            </label>
+                        <div className="text-secondary leading-5 flex-1">
+                            GenieTerm runs on your machine and sends no usage data.
                         </div>
                     </div>
                 </div>
@@ -158,12 +128,7 @@ const NewInstallOnboardingModal = () => {
     let pageComp: React.JSX.Element = null;
     switch (pageName) {
         case "init":
-            pageComp = (
-                <InitPage
-                    isCompact={isCompact}
-                    telemetryUpdateFn={(value) => services.ClientService.TelemetryUpdate(value)}
-                />
-            );
+            pageComp = <InitPage isCompact={isCompact} />;
             break;
         case "features":
             pageComp = <FeaturesPage />;

@@ -77,19 +77,6 @@ func GetAllConnStatus() []wshrpc.ConnStatus {
 	return connStatuses
 }
 
-func GetNumWSLHasConnected() int {
-	globalLock.Lock()
-	defer globalLock.Unlock()
-
-	var connectedCount int
-	for _, conn := range clientControllerMap {
-		if conn.LastConnectTime > 0 {
-			connectedCount++
-		}
-	}
-	return connectedCount
-}
-
 func (conn *WslConn) DeriveConnStatus() wshrpc.ConnStatus {
 	conn.Lock.Lock()
 	defer conn.Lock.Unlock()

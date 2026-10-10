@@ -757,12 +757,6 @@ func RunCompletionGenCommand(w *wshutil.WshRpc, data wshrpc.CommandRunCompletion
 	return resp, err
 }
 
-// command "sendtelemetry", wshserver.SendTelemetryCommand
-func SendTelemetryCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "sendtelemetry", nil, opts)
-	return err
-}
-
 // command "setblockfocus", wshserver.SetBlockFocusCommand
 func SetBlockFocusCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "setblockfocus", data, opts)

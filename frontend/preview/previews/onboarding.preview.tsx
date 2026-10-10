@@ -22,7 +22,7 @@ function OnboardingFeaturesV() {
     return (
         <div className="flex flex-col w-full gap-8">
             <OnboardingModalWrapper width="w-[560px]">
-                <InitPage isCompact={false} telemetryUpdateFn={async () => {}} />
+                <InitPage isCompact={false} />
             </OnboardingModalWrapper>
             <OnboardingModalWrapper width="w-[800px]">
                 <DurableSessionPage onNext={noop} onSkip={noop} onPrev={noop} />

@@ -11,7 +11,6 @@ import (
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote/conncontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
-	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 	"github.com/Ry3nG/GenieTerm/pkg/wcore"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wslconn"
@@ -64,15 +63,4 @@ func (cs *ClientService) AgreeTos(ctx context.Context) (waveobj.UpdatesRtnType, 
 	}
 	wcore.BootstrapStarterLayout(ctx)
 	return waveobj.ContextGetUpdatesRtn(ctx), nil
-}
-
-func (cs *ClientService) TelemetryUpdate(ctx context.Context, telemetryEnabled bool) error {
-	meta := waveobj.MetaMapType{
-		wconfig.ConfigKey_TelemetryEnabled: telemetryEnabled,
-	}
-	err := wconfig.SetBaseConfigValue(meta)
-	if err != nil {
-		return fmt.Errorf("error setting telemetry value: %w", err)
-	}
-	return nil
 }

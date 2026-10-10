@@ -762,12 +762,6 @@ export class RpcApiType {
         return client.wshRpcCall("runcompletiongen", data, opts);
     }
 
-    // command "sendtelemetry" [call]
-    SendTelemetryCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "sendtelemetry", null, opts);
-        return client.wshRpcCall("sendtelemetry", null, opts);
-    }
-
     // command "setblockfocus" [call]
     SetBlockFocusCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "setblockfocus", data, opts);
