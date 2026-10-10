@@ -28,6 +28,7 @@ const (
 	Event_WorkspaceUpdate  = "workspace:update" // type: none
 	Event_BlockJobStatus   = "block:jobstatus"  // type: wshrpc.BlockJobStatusData
 	Event_Badge            = "badge"            // type: baseds.BadgeEvent
+	Event_PortForward      = "portforward"      // type: []wshrpc.PortForwardInfo (scope: connection name)
 )
 
 var AllEvents []string = []string{
@@ -44,6 +45,7 @@ var AllEvents []string = []string{
 	Event_WorkspaceUpdate,
 	Event_BlockJobStatus,
 	Event_Badge,
+	Event_PortForward,
 }
 
 type WaveEvent struct {

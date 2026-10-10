@@ -3,31 +3,15 @@
 
 package wshserver
 
-import "testing"
+import (
+	"testing"
 
-func TestNormalizeGitGraphLimit(t *testing.T) {
-	tests := []struct {
-		name  string
-		limit int
-		want  int
-	}{
-		{name: "default", limit: 0, want: GitGraphDefaultLimit},
-		{name: "negative", limit: -1, want: GitGraphDefaultLimit},
-		{name: "inside max", limit: 120, want: 120},
-		{name: "clamps above max", limit: 250, want: GitGraphMaxLimit},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := normalizeGitGraphLimit(tc.limit); got != tc.want {
-				t.Fatalf("normalizeGitGraphLimit(%d) = %d, want %d", tc.limit, got, tc.want)
-			}
-		})
-	}
-}
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+)
 
 func TestParseGitStatusPorcelain(t *testing.T) {
 	resp := parseGitStatusPorcelain("## main...origin/main\x00 M file one.txt\x00?? 新文件.go\x00R  new-name.ts\x00old-name.ts\x00")
-	if resp.Branch != "main...origin/main" {
+	if resp.Branch != "main" || resp.Upstream != "origin/main" {
 		t.Fatalf("branch = %q", resp.Branch)
 	}
 	if len(resp.Files) != 3 {
@@ -44,21 +28,27 @@ func TestParseGitStatusPorcelain(t *testing.T) {
 	}
 }
 
-func TestParseGitGraph(t *testing.T) {
-	resp := parseGitGraph("* \x1fabc123456789\x1fabc1234\x1fdef999 aaa111\x1fHEAD -> main, origin/main, tag: v1\x1fAda\x1f2 hours ago\x1f1760000000\x1fMerge branch\n| * \x1fdef999\x1fdef999\x1f\x1ffeat/git\x1fGrace\x1fyesterday\x1f1759999999\x1fAdd graph\n|/\n")
-	if len(resp.Commits) != 2 {
-		t.Fatalf("commit count = %d", len(resp.Commits))
+func TestParseGitBranchHeader(t *testing.T) {
+	tests := []struct {
+		header   string
+		branch   string
+		upstream string
+		ahead    int
+		behind   int
+		detached bool
+	}{
+		{header: "main...origin/main [ahead 1, behind 2]", branch: "main", upstream: "origin/main", ahead: 1, behind: 2},
+		{header: "feat/x...origin/feat/x [behind 3]", branch: "feat/x", upstream: "origin/feat/x", behind: 3},
+		{header: "main...origin/main [gone]", branch: "main", upstream: "origin/main"},
+		{header: "main", branch: "main"},
+		{header: "No commits yet on main", branch: "main"},
+		{header: "HEAD (no branch)", detached: true},
 	}
-	if resp.Commits[0].Hash != "abc123456789" || resp.Commits[0].ShortHash != "abc1234" {
-		t.Fatalf("first commit hash = %#v", resp.Commits[0])
-	}
-	if len(resp.Commits[0].Parents) != 2 || resp.Commits[0].Parents[1] != "aaa111" {
-		t.Fatalf("first commit parents = %#v", resp.Commits[0].Parents)
-	}
-	if len(resp.Commits[0].Refs) != 3 || resp.Commits[0].Refs[0] != "HEAD -> main" {
-		t.Fatalf("first commit refs = %#v", resp.Commits[0].Refs)
-	}
-	if resp.Commits[1].Graph != "| *" || resp.Commits[1].Subject != "Add graph" {
-		t.Fatalf("second commit = %#v", resp.Commits[1])
+	for _, tc := range tests {
+		rtn := &wshrpc.GitStatusResponse{}
+		parseGitBranchHeader(rtn, tc.header)
+		if rtn.Branch != tc.branch || rtn.Upstream != tc.upstream || rtn.Ahead != tc.ahead || rtn.Behind != tc.behind || rtn.Detached != tc.detached {
+			t.Errorf("%q => %+v", tc.header, rtn)
+		}
 	}
 }

@@ -179,55 +179,15 @@ async function assertCount(locator, expected, label) {
 }
 
 async function runPreviewIndexInteraction(browser, baseUrl) {
-  const { page, assertClean } = await newCheckedPage(browser, baseUrl, "gitpanel", { width: 1280, height: 900 });
-  await assertVisible(page.getByText("gitpanel", { exact: true }), "preview header");
+  const { page, assertClean } = await newCheckedPage(browser, baseUrl, "transfer-queue", { width: 1280, height: 900 });
+  await assertVisible(page.getByText("transfer-queue", { exact: true }), "preview header");
   await page.getByRole("link", { name: "index" }).click();
   await assertVisible(page.getByText("GenieTerm Preview Server"), "preview index title");
-  await page.getByRole("link", { name: "gitpanel" }).click();
-  await assertVisible(page.getByText("Source Control", { exact: false }).first(), "gitpanel source control");
+  await page.getByRole("link", { name: "transfer-queue" }).click();
+  await assertVisible(page.getByRole("region", { name: "Transfer status" }).first(), "transfer status region");
   await assertClean();
   await page.close();
   log("preview index navigation passed");
-}
-
-async function runGitPanelInteractions(browser, baseUrl) {
-  const { page, assertClean } = await newCheckedPage(browser, baseUrl, "gitpanel", { width: 1680, height: 1120 });
-  const panels = page.locator("aside");
-  const changesPanel = panels.nth(0);
-  const graphPanel = panels.nth(1);
-
-  await assertVisible(changesPanel.getByText("Merge Changes"), "merge group");
-  await assertVisible(
-    changesPanel.getByText("frontend/app/workspace/gitpanel.tsx", { exact: false }).first(),
-    "sample changed file"
-  );
-  await changesPanel.getByRole("button", { name: "Graph" }).click();
-  await assertVisible(changesPanel.getByText("No commits"), "empty graph state");
-  await changesPanel.getByRole("button", { name: "Changes" }).click();
-  await assertVisible(changesPanel.getByText("Staged Changes"), "staged group");
-
-  await assertVisible(graphPanel.getByPlaceholder("Find commits, branches, tags, author, hash"), "graph filter input");
-  await assertVisible(graphPanel.getByText("6/6"), "initial graph count");
-  await graphPanel.getByPlaceholder("Find commits, branches, tags, author, hash").fill("Codex");
-  await assertVisible(graphPanel.getByText("1/6"), "filtered graph count");
-  await assertVisible(graphPanel.getByText("Polish Git panel graph density", { exact: false }), "filtered commit");
-  await graphPanel.getByPlaceholder("Find commits, branches, tags, author, hash").fill("not-present");
-  await assertVisible(graphPanel.getByText("0/6"), "empty filtered graph count");
-  await assertVisible(graphPanel.getByText("No commits"), "empty filtered graph state");
-  await graphPanel.getByPlaceholder("Find commits, branches, tags, author, hash").fill("");
-  await assertVisible(graphPanel.getByText("6/6"), "restored graph count");
-
-  await assertVisible(graphPanel.getByText("Detached HEAD checkout"), "detached checkout warning");
-  await graphPanel.getByRole("button", { name: "Cancel" }).click();
-  await assertCount(graphPanel.getByText("Detached HEAD checkout"), 0, "detached checkout warning");
-  await graphPanel.getByRole("button", { name: "Uncommitted Changes" }).click();
-  await assertVisible(graphPanel.getByText("Merge Changes"), "graph panel changes view");
-  await graphPanel.getByRole("button", { name: "Graph" }).click();
-  await assertVisible(graphPanel.getByText("Files Changed"), "selected commit files");
-
-  await assertClean();
-  await page.close();
-  log("gitpanel interactions passed");
 }
 
 async function runTransferQueueInteractions(browser, baseUrl) {
@@ -270,7 +230,6 @@ async function main() {
     }
     browser = await chromium.launch({ executablePath });
     await runPreviewIndexInteraction(browser, baseUrl);
-    await runGitPanelInteractions(browser, baseUrl);
     await runTransferQueueInteractions(browser, baseUrl);
     await runFilesUploadDropInteractions(browser, baseUrl);
     log("all preview interaction QA checks passed");

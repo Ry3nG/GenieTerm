@@ -12,7 +12,6 @@ Screenshots are written to `artifacts/visual-qa`.
 
 ## Covered Previews
 
-- `gitpanel`: Source Control changes, diff, graph, detached checkout confirmation, empty state, and error state.
 - `transfer-queue`: full and compact transfer queue states across running, queued, failed, canceled, and completed jobs.
 - `processviewer`: process table, status strip, sort state, process summary, and narrow viewport sizing.
 - `sysinfo`: CPU and memory charts with mock WPS updates.

@@ -8,9 +8,7 @@ import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
-import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from "react";
-
-const GitPanel = lazy(() => import("./gitpanel").then((m) => ({ default: m.GitPanel })));
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 export type WidgetsEnv = WaveEnvSubset<{
     isDev: WaveEnv["isDev"];
@@ -50,15 +48,6 @@ type WidgetSettingsActionItem = {
 type WidgetSettingsActionOptions = {
     hasConfigErrors: boolean;
     onOpenSettings: () => void;
-};
-
-type BuiltinToolButtonProps = {
-    icon: string;
-    label: string;
-    tooltip: string;
-    mode: WidgetPropsType["mode"];
-    active?: boolean;
-    onClick: () => void;
 };
 
 function makeWidgetSettingsActionItems({
@@ -174,33 +163,6 @@ function WidgetSettingsButton({ item, mode }: { item: WidgetSettingsActionItem; 
     );
 }
 
-function BuiltinToolButton({ icon, label, tooltip, mode, active, onClick }: BuiltinToolButtonProps) {
-    const isNormal = mode === "normal";
-    return (
-        <div
-            className={clsx(
-                "flex flex-col justify-center items-center w-full py-1.5 pr-0.5 text-secondary overflow-hidden rounded-sm hover:bg-hoverbg hover:text-white cursor-pointer",
-                active && "bg-hoverbg text-white",
-                mode === "supercompact" ? "text-sm" : "text-lg"
-            )}
-            onClick={onClick}
-        >
-            <Tooltip content={tooltip} placement="left">
-                <div className="flex flex-col items-center w-full">
-                    <div>
-                        <i className={makeIconClass(icon, true)}></i>
-                    </div>
-                    {isNormal && (
-                        <div className="text-xxs mt-0.5 w-full px-0.5 text-center whitespace-nowrap overflow-hidden text-ellipsis">
-                            {label}
-                        </div>
-                    )}
-                </div>
-            </Tooltip>
-        </div>
-    );
-}
-
 const Widgets = memo(() => {
     const env = useWaveEnv<WidgetsEnv>();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
@@ -215,15 +177,6 @@ const Widgets = memo(() => {
         Object.entries(widgetsMap).filter(([_key, widget]) => shouldIncludeWidgetForWorkspace(widget, workspaceId))
     );
     const widgets = sortByDisplayOrder(filteredWidgets);
-
-    const [activeTool, setActiveTool] = useState<"git" | null>(null);
-    const [gitLoaded, setGitLoaded] = useState(false);
-
-    useEffect(() => {
-        if (activeTool === "git") {
-            setGitLoaded(true);
-        }
-    }, [activeTool]);
 
     const openSettings = useCallback(() => {
         modalsModel.pushModal("SettingsModal");
@@ -246,7 +199,7 @@ const Widgets = memo(() => {
             newMode = "compact";
 
             // Calculate total widget count for supercompact check
-            const totalWidgets = (widgets?.length || 0) + 2;
+            const totalWidgets = (widgets?.length || 0) + 1;
             const minHeightPerWidget = 32;
             const requiredHeight = totalWidgets * minHeightPerWidget;
 
@@ -301,11 +254,6 @@ const Widgets = memo(() => {
 
     return (
         <>
-            {(gitLoaded || activeTool === "git") && (
-                <Suspense fallback={null}>
-                    <GitPanel open={activeTool === "git"} onClose={() => setActiveTool(null)} />
-                </Suspense>
-            )}
             <div
                 ref={containerRef}
                 className="flex flex-col w-12 overflow-hidden py-1 -ml-1 select-none shrink-0"
@@ -314,14 +262,6 @@ const Widgets = memo(() => {
                 {mode === "supercompact" ? (
                     <>
                         <div className="grid grid-cols-2 gap-0 w-full">
-                            <BuiltinToolButton
-                                icon="code-branch"
-                                label="git"
-                                tooltip="Source Control"
-                                mode={mode}
-                                active={activeTool === "git"}
-                                onClick={() => setActiveTool((tool) => (tool === "git" ? null : "git"))}
-                            />
                             {widgets?.map((data, idx) => (
                                 <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
                             ))}
@@ -335,14 +275,6 @@ const Widgets = memo(() => {
                     </>
                 ) : (
                     <>
-                        <BuiltinToolButton
-                            icon="code-branch"
-                            label="git"
-                            tooltip="Source Control"
-                            mode={mode}
-                            active={activeTool === "git"}
-                            onClick={() => setActiveTool((tool) => (tool === "git" ? null : "git"))}
-                        />
                         {widgets?.map((data, idx) => (
                             <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
                         ))}
@@ -365,14 +297,6 @@ const Widgets = memo(() => {
                 ref={measurementRef}
                 className="flex flex-col w-12 py-1 -ml-1 select-none absolute -z-10 opacity-0 pointer-events-none"
             >
-                <BuiltinToolButton
-                    icon="code-branch"
-                    label="git"
-                    tooltip="Source Control"
-                    mode="normal"
-                    active={false}
-                    onClick={() => {}}
-                />
                 {widgets?.map((data, idx) => (
                     <Widget key={`measurement-widget-${idx}`} widget={data} mode="normal" env={env} />
                 ))}

@@ -420,18 +420,6 @@ export class RpcApiType {
         return client.wshRpcCall("getvar", data, opts);
     }
 
-    // command "gitgraph" [call]
-    GitGraphCommand(client: WshClient, data: CommandGitGraphData, opts?: RpcOpts): Promise<GitGraphResponse> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "gitgraph", data, opts);
-        return client.wshRpcCall("gitgraph", data, opts);
-    }
-
-    // command "gitrun" [call]
-    GitRunCommand(client: WshClient, data: CommandGitRunData, opts?: RpcOpts): Promise<GitRunResponse> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "gitrun", data, opts);
-        return client.wshRpcCall("gitrun", data, opts);
-    }
-
     // command "gitstatus" [call]
     GitStatusCommand(client: WshClient, data: CommandGitStatusData, opts?: RpcOpts): Promise<GitStatusResponse> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "gitstatus", data, opts);
@@ -558,6 +546,24 @@ export class RpcApiType {
         return client.wshRpcCall("path", data, opts);
     }
 
+    // command "portforwardlist" [call]
+    PortForwardListCommand(client: WshClient, data: CommandPortForwardListData, opts?: RpcOpts): Promise<PortForwardInfo[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "portforwardlist", data, opts);
+        return client.wshRpcCall("portforwardlist", data, opts);
+    }
+
+    // command "portforwardstart" [call]
+    PortForwardStartCommand(client: WshClient, data: CommandPortForwardStartData, opts?: RpcOpts): Promise<PortForwardInfo> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "portforwardstart", data, opts);
+        return client.wshRpcCall("portforwardstart", data, opts);
+    }
+
+    // command "portforwardstop" [call]
+    PortForwardStopCommand(client: WshClient, data: CommandPortForwardStopData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "portforwardstop", data, opts);
+        return client.wshRpcCall("portforwardstop", data, opts);
+    }
+
     // command "recordtevent" [call]
     RecordTEventCommand(client: WshClient, data: TEvent, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "recordtevent", data, opts);
@@ -624,10 +630,22 @@ export class RpcApiType {
         return client.wshRpcCall("remotegetinfo", null, opts);
     }
 
+    // command "remotehostinfo" [call]
+    RemoteHostInfoCommand(client: WshClient, opts?: RpcOpts): Promise<HostInfo> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "remotehostinfo", null, opts);
+        return client.wshRpcCall("remotehostinfo", null, opts);
+    }
+
     // command "remoteinstallrcfiles" [call]
     RemoteInstallRcFilesCommand(client: WshClient, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "remoteinstallrcfiles", null, opts);
         return client.wshRpcCall("remoteinstallrcfiles", null, opts);
+    }
+
+    // command "remotelisteningports" [call]
+    RemoteListeningPortsCommand(client: WshClient, opts?: RpcOpts): Promise<ListeningPortsResponse> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "remotelisteningports", null, opts);
+        return client.wshRpcCall("remotelisteningports", null, opts);
     }
 
     // command "remotelistentries" [responsestream]

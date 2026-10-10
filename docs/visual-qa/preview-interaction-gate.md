@@ -13,10 +13,6 @@ This gate uses Playwright against the standalone preview server. It is a fast ba
 ## Covered Interactions
 
 - Preview index navigation to and from a named preview.
-- GitPanel changes-to-graph tab switching.
-- GitPanel graph filtering, empty filtered state, and filter reset.
-- GitPanel detached-checkout warning cancellation.
-- GitPanel uncommitted-changes row switching back to changes.
 - Transfer queue keyboard smoke and status visibility.
 - Files upload drop affordance pointer smoke and file-table visibility.
 

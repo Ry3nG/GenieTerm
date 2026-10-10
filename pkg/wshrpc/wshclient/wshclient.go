@@ -417,18 +417,6 @@ func GetVarCommand(w *wshutil.WshRpc, data wshrpc.CommandVarData, opts *wshrpc.R
 	return resp, err
 }
 
-// command "gitgraph", wshserver.GitGraphCommand
-func GitGraphCommand(w *wshutil.WshRpc, data wshrpc.CommandGitGraphData, opts *wshrpc.RpcOpts) (*wshrpc.GitGraphResponse, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.GitGraphResponse](w, "gitgraph", data, opts)
-	return resp, err
-}
-
-// command "gitrun", wshserver.GitRunCommand
-func GitRunCommand(w *wshutil.WshRpc, data wshrpc.CommandGitRunData, opts *wshrpc.RpcOpts) (*wshrpc.GitRunResponse, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.GitRunResponse](w, "gitrun", data, opts)
-	return resp, err
-}
-
 // command "gitstatus", wshserver.GitStatusCommand
 func GitStatusCommand(w *wshutil.WshRpc, data wshrpc.CommandGitStatusData, opts *wshrpc.RpcOpts) (*wshrpc.GitStatusResponse, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.GitStatusResponse](w, "gitstatus", data, opts)
@@ -555,6 +543,24 @@ func PathCommand(w *wshutil.WshRpc, data wshrpc.PathCommandData, opts *wshrpc.Rp
 	return resp, err
 }
 
+// command "portforwardlist", wshserver.PortForwardListCommand
+func PortForwardListCommand(w *wshutil.WshRpc, data wshrpc.CommandPortForwardListData, opts *wshrpc.RpcOpts) ([]wshrpc.PortForwardInfo, error) {
+	resp, err := sendRpcRequestCallHelper[[]wshrpc.PortForwardInfo](w, "portforwardlist", data, opts)
+	return resp, err
+}
+
+// command "portforwardstart", wshserver.PortForwardStartCommand
+func PortForwardStartCommand(w *wshutil.WshRpc, data wshrpc.CommandPortForwardStartData, opts *wshrpc.RpcOpts) (*wshrpc.PortForwardInfo, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.PortForwardInfo](w, "portforwardstart", data, opts)
+	return resp, err
+}
+
+// command "portforwardstop", wshserver.PortForwardStopCommand
+func PortForwardStopCommand(w *wshutil.WshRpc, data wshrpc.CommandPortForwardStopData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "portforwardstop", data, opts)
+	return err
+}
+
 // command "recordtevent", wshserver.RecordTEventCommand
 func RecordTEventCommand(w *wshutil.WshRpc, data telemetrydata.TEvent, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "recordtevent", data, opts)
@@ -621,10 +627,22 @@ func RemoteGetInfoCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (wshrpc.Remot
 	return resp, err
 }
 
+// command "remotehostinfo", wshserver.RemoteHostInfoCommand
+func RemoteHostInfoCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.HostInfo, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.HostInfo](w, "remotehostinfo", nil, opts)
+	return resp, err
+}
+
 // command "remoteinstallrcfiles", wshserver.RemoteInstallRcFilesCommand
 func RemoteInstallRcFilesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "remoteinstallrcfiles", nil, opts)
 	return err
+}
+
+// command "remotelisteningports", wshserver.RemoteListeningPortsCommand
+func RemoteListeningPortsCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.ListeningPortsResponse, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.ListeningPortsResponse](w, "remotelisteningports", nil, opts)
+	return resp, err
 }
 
 // command "remotelistentries", wshserver.RemoteListEntriesCommand

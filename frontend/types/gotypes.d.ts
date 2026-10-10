@@ -325,22 +325,6 @@ declare global {
         oref: ORef;
     };
 
-    // wshrpc.CommandGitGraphData
-    type CommandGitGraphData = {
-        connname?: string;
-        cwd?: string;
-        limit?: number;
-        timeoutms?: number;
-    };
-
-    // wshrpc.CommandGitRunData
-    type CommandGitRunData = {
-        connname?: string;
-        cwd?: string;
-        args: string[];
-        timeoutms?: number;
-    };
-
     // wshrpc.CommandGitStatusData
     type CommandGitStatusData = {
         connname?: string;
@@ -407,6 +391,24 @@ declare global {
     // wshrpc.CommandMessageData
     type CommandMessageData = {
         message: string;
+    };
+
+    // wshrpc.CommandPortForwardListData
+    type CommandPortForwardListData = {
+        connname?: string;
+    };
+
+    // wshrpc.CommandPortForwardStartData
+    type CommandPortForwardStartData = {
+        connname: string;
+        remotehost?: string;
+        remoteport: number;
+        localport?: number;
+    };
+
+    // wshrpc.CommandPortForwardStopData
+    type CommandPortForwardStopData = {
+        id: string;
     };
 
     // wshrpc.CommandRemoteDisconnectFromJobManagerData
@@ -849,36 +851,6 @@ declare global {
         buildtime: string;
     };
 
-    // wshrpc.GitGraphCommit
-    type GitGraphCommit = {
-        hash: string;
-        shorthash: string;
-        parents: string[];
-        refs: string[];
-        subject: string;
-        author: string;
-        reldate: string;
-        timestamp: number;
-        graph: string;
-    };
-
-    // wshrpc.GitGraphResponse
-    type GitGraphResponse = {
-        commits: GitGraphCommit[];
-        stdout?: string;
-        stderr?: string;
-        exitcode: number;
-        supported: boolean;
-    };
-
-    // wshrpc.GitRunResponse
-    type GitRunResponse = {
-        stdout?: string;
-        stderr?: string;
-        exitcode: number;
-        supported: boolean;
-    };
-
     // wshrpc.GitStatusFile
     type GitStatusFile = {
         path: string;
@@ -890,11 +862,50 @@ declare global {
     // wshrpc.GitStatusResponse
     type GitStatusResponse = {
         branch?: string;
+        upstream?: string;
+        ahead?: number;
+        behind?: number;
+        detached?: boolean;
         files: GitStatusFile[];
         stdout?: string;
         stderr?: string;
         exitcode: number;
         supported: boolean;
+    };
+
+    // wshrpc.GpuData
+    type GpuData = {
+        index: number;
+        name: string;
+        util: number;
+        memused: number;
+        memtotal: number;
+        temp: number;
+        power: number;
+        powerlimit: number;
+        processes?: GpuProcessInfo[];
+    };
+
+    // wshrpc.GpuProcessInfo
+    type GpuProcessInfo = {
+        pid: number;
+        command?: string;
+        user?: string;
+        memused: number;
+    };
+
+    // wshrpc.HostInfo
+    type HostInfo = {
+        hostname: string;
+        os: string;
+        kernel: string;
+        arch: string;
+        cpumodel?: string;
+        numcpu: number;
+        memtotal: number;
+        boottime: number;
+        gpudriver?: string;
+        cudaversion?: string;
     };
 
     // waveobj.Job
@@ -951,6 +962,22 @@ declare global {
     type LeafOrderEntry = {
         nodeid: string;
         blockid: string;
+    };
+
+    // wshrpc.ListeningPort
+    type ListeningPort = {
+        port: number;
+        address: string;
+        pid?: number;
+        command?: string;
+        user?: string;
+    };
+
+    // wshrpc.ListeningPortsResponse
+    type ListeningPortsResponse = {
+        ports: ListeningPort[];
+        platform: string;
+        partial?: boolean;
     };
 
     // waveobj.MetaTSType
@@ -1100,6 +1127,19 @@ declare global {
     type Point = {
         x: number;
         y: number;
+    };
+
+    // wshrpc.PortForwardInfo
+    type PortForwardInfo = {
+        id: string;
+        connname: string;
+        remotehost: string;
+        remoteport: number;
+        localport: number;
+        status: string;
+        error?: string;
+        activeconns: number;
+        createdts: number;
     };
 
     // wshrpc.ProcessInfo
@@ -1485,6 +1525,7 @@ declare global {
         ts: number;
         values: {[key: string]: number};
         disks?: DiskUsageData[];
+        gpus?: GpuData[];
     };
 
     // waveobj.UIContext

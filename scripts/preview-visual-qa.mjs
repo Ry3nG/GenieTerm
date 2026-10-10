@@ -30,22 +30,6 @@ const PreviewCases = [
     ],
   },
   {
-    name: "gitpanel",
-    path: "/?preview=gitpanel",
-    checks: [
-      "SOURCE CONTROL",
-      "Changes",
-      "Graph",
-      "Detached HEAD checkout",
-      "Files Changed",
-      "fatal: not a git repository",
-    ],
-    viewports: [
-      { name: "desktop", width: 1800, height: 1180 },
-      { name: "narrow", width: 960, height: 1100 },
-    ],
-  },
-  {
     name: "transfer-queue",
     path: "/?preview=transfer-queue",
     checks: ["Files transfer queue strip", "upload", "download", "failed"],
