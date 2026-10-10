@@ -171,16 +171,44 @@ function TransferQueueStatus({
             {display.jobs.length > 0 && (
                 <div className="transfer-queue-list">
                     {display.jobs.map((job) => (
-                        <div className="transfer-queue-row" data-status={job.status} data-tone={job.tone} key={job.id}>
-                            <i className={clsx("transfer-queue-row-icon", job.iconClass)} aria-hidden="true" />
+                        <div
+                            className="transfer-queue-row"
+                            data-status={job.status}
+                            data-tone={job.tone}
+                            key={job.id}
+                            title={job.label}
+                        >
+                            <span className="transfer-queue-row-icon" aria-hidden="true">
+                                <i className={job.iconClass} />
+                            </span>
                             <div className="transfer-queue-row-main">
                                 <div className="transfer-queue-row-topline">
                                     <span className="transfer-queue-row-label">{job.label}</span>
                                     <span className="transfer-queue-row-status">{job.statusLabel}</span>
                                 </div>
-                                <div className="transfer-queue-row-detail">{job.detail}</div>
-                                {job.subdetail && <div className="transfer-queue-row-subdetail">{job.subdetail}</div>}
-                                {job.errorText && <div className="transfer-queue-row-error">{job.errorText}</div>}
+                                <div
+                                    className={clsx("transfer-queue-row-detail", {
+                                        "transfer-queue-row-error": job.detailIsError,
+                                    })}
+                                >
+                                    {job.percent != null && (
+                                        <span className="transfer-queue-row-percent">{job.percent}%</span>
+                                    )}
+                                    <span className="transfer-queue-row-detail-text">{job.detail}</span>
+                                </div>
+                                {job.status === "running" && (
+                                    <div
+                                        className="transfer-queue-row-progress"
+                                        role="progressbar"
+                                        aria-label={`${job.label} progress`}
+                                        aria-valuemin={0}
+                                        aria-valuemax={100}
+                                        aria-valuenow={job.percent ?? undefined}
+                                        data-indeterminate={job.percent == null ? "" : undefined}
+                                    >
+                                        <span style={job.percent != null ? { width: `${job.percent}%` } : undefined} />
+                                    </div>
+                                )}
                             </div>
                             <div className="transfer-queue-row-actions">
                                 {job.canCancel && onCancel && (
@@ -191,7 +219,7 @@ function TransferQueueStatus({
                                         aria-label={`Cancel ${job.label}`}
                                         onClick={() => onCancel(job.id)}
                                     >
-                                        Cancel
+                                        <i className="fa-solid fa-xmark" aria-hidden="true" />
                                     </button>
                                 )}
                                 {job.canRetry && onRetry && (
@@ -202,7 +230,7 @@ function TransferQueueStatus({
                                         aria-label={`Retry ${job.label}`}
                                         onClick={() => onRetry(job.id)}
                                     >
-                                        Retry
+                                        <i className="fa-solid fa-rotate-right" aria-hidden="true" />
                                     </button>
                                 )}
                             </div>

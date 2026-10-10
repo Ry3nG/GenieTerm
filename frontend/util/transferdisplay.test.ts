@@ -50,10 +50,11 @@ describe("transferdisplay", () => {
             label: "out",
             status: "running",
             statusLabel: "Running",
-            detail: "Downloading folder - 50%",
-            subdetail: "copying files",
+            detail: "copying files",
+            detailIsError: false,
+            percent: 50,
             tone: "active",
-            iconClass: "fa-solid fa-spinner",
+            iconClass: "fa-solid fa-arrow-down",
             canCancel: true,
             canRetry: false,
         });
@@ -73,10 +74,11 @@ describe("transferdisplay", () => {
         );
 
         expect(display).toMatchObject({
-            detail: "Download failed",
-            errorText: "Folder transfer failed. rsync exited with code 23.",
+            detail: "Folder transfer failed. rsync exited with code 23.",
+            detailIsError: true,
+            percent: null,
             tone: "danger",
-            iconClass: "fa-solid fa-circle-exclamation",
+            iconClass: "fa-solid fa-arrow-down",
             canCancel: false,
             canRetry: true,
         });
@@ -101,7 +103,9 @@ describe("transferdisplay", () => {
             job({ status: "running", operation: "upload", transport: "wsh", cancelRequestedAt: 1500 })
         );
         expect(display).toMatchObject({
-            detail: "Canceling - waiting for the current copy to finish",
+            statusLabel: "Canceling",
+            detail: "Stopping after the current copy finishes",
+            iconClass: "fa-solid fa-arrow-up",
             canCancel: false,
             canRetry: false,
         });
@@ -114,7 +118,7 @@ describe("transferdisplay", () => {
                         message: "Finished before the cancel request could take effect.",
                     },
                 })
-            ).subdetail
+            ).detail
         ).toBe("Finished before the cancel request could take effect.");
     });
 
@@ -125,9 +129,17 @@ describe("transferdisplay", () => {
                     status: "running",
                     progress: { bytesTransferred: 1536, totalBytes: 3 * 1024 * 1024, percent: 0 },
                 })
-            ).subdetail
+            ).detail
         ).toBe("1.5 KB of 3.0 MB");
-        expect(summarizeTransferJob(job({ status: "running" })).subdetail).toBeUndefined();
+        expect(summarizeTransferJob(job({ status: "running" }))).toMatchObject({
+            detail: "Downloading…",
+            percent: null,
+        });
+        expect(
+            summarizeTransferJob(job({ status: "running", progress: { bytesTransferred: 1024, totalBytes: 4096 } }))
+                .percent
+        ).toBe(25);
+        expect(summarizeTransferJob(job({ status: "queued", operation: "upload" })).detail).toBe("Waiting to upload");
     });
 
     it("orders active transfers before recent terminal transfers and reports hidden rows", () => {

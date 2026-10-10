@@ -10,11 +10,14 @@ export type TransferDisplayTone = "active" | "success" | "danger" | "muted";
 export type TransferJobDisplay = {
     id: string;
     label: string;
+    operation: TransferJob["operation"];
     status: TransferJobStatus;
     statusLabel: string;
+    // one secondary line: progress while running, the reason when it failed
     detail: string;
-    subdetail?: string;
-    errorText?: string;
+    detailIsError: boolean;
+    // 0-100 when the transport reports progress; null while running without a known total
+    percent: number | null;
     tone: TransferDisplayTone;
     iconClass: string;
     canCancel: boolean;
@@ -68,19 +71,40 @@ export function summarizeTransferQueue(queue: TransferQueue, limit = 5): Transfe
 }
 
 export function summarizeTransferJob(job: TransferJob): TransferJobDisplay {
+    const errorText = getTransferErrorText(job);
     return {
         id: job.id,
         label: job.label || job.source,
+        operation: job.operation,
         status: job.status,
-        statusLabel: getTransferStatusLabel(job.status),
-        detail: getTransferDetail(job),
-        subdetail: getTransferSubdetail(job),
-        errorText: getTransferErrorText(job),
+        statusLabel:
+            job.status === "running" && job.cancelRequestedAt != null
+                ? "Canceling"
+                : getTransferStatusLabel(job.status),
+        detail: errorText ?? getTransferDetail(job),
+        detailIsError: errorText != null && job.status === "failed",
+        percent: getTransferPercent(job),
         tone: getTransferTone(job.status),
-        iconClass: getTransferIconClass(job.status),
+        iconClass: getTransferIconClass(job.operation),
         canCancel: isCancelableTransferJob(job),
         canRetry: isRetryableTransferJob(job),
     };
+}
+
+function getTransferPercent(job: TransferJob): number | null {
+    if (job.status !== "running") {
+        return null;
+    }
+    const percent = job.progress?.percent;
+    if (percent != null && percent > 0) {
+        return Math.min(100, Math.max(0, percent));
+    }
+    const total = job.progress?.totalBytes;
+    const transferred = job.progress?.bytesTransferred;
+    if (total != null && total > 0 && transferred != null) {
+        return Math.min(100, Math.round((transferred / total) * 100));
+    }
+    return null;
 }
 
 export function isCancelableTransferJob(job: TransferJob): boolean {
@@ -98,35 +122,22 @@ export function isRetryableTransferJob(job: TransferJob): boolean {
 }
 
 function getTransferDetail(job: TransferJob): string {
-    const operation = getOperationLabel(job.operation);
+    const isUpload = job.operation === "upload";
     switch (job.status) {
         case "queued":
-            return `${operation} queued`;
-        case "running": {
+            return isUpload ? "Waiting to upload" : "Waiting to download";
+        case "running":
             if (job.cancelRequestedAt != null) {
-                return "Canceling - waiting for the current copy to finish";
+                return "Stopping after the current copy finishes";
             }
-            const activeOperation = job.operation === "upload" ? "Uploading" : "Downloading";
-            const progress = job.progress?.percent != null ? ` - ${job.progress.percent}%` : "";
-            return `${activeOperation} ${job.itemType}${progress}`;
-        }
+            return job.progress?.message ?? getByteProgressText(job) ?? (isUpload ? "Uploading…" : "Downloading…");
         case "completed":
-            return `${operation} complete`;
+            return job.progress?.message ?? (isUpload ? "Uploaded" : "Downloaded");
         case "failed":
-            return `${operation} failed`;
+            return isUpload ? "Upload failed" : "Download failed";
         case "canceled":
-            return `${operation} canceled`;
+            return "Canceled";
     }
-}
-
-function getTransferSubdetail(job: TransferJob): string {
-    if (job.status === "running") {
-        return job.progress?.message ?? getByteProgressText(job);
-    }
-    if (job.status === "completed" && job.progress?.message) {
-        return job.progress.message;
-    }
-    return undefined;
 }
 
 function getByteProgressText(job: TransferJob): string {
@@ -172,21 +183,6 @@ function getTransferTone(status: TransferJobStatus): TransferDisplayTone {
     }
 }
 
-function getTransferIconClass(status: TransferJobStatus): string {
-    switch (status) {
-        case "queued":
-            return "fa-solid fa-clock";
-        case "running":
-            return "fa-solid fa-spinner";
-        case "completed":
-            return "fa-solid fa-circle-check";
-        case "failed":
-            return "fa-solid fa-circle-exclamation";
-        case "canceled":
-            return "fa-solid fa-circle-xmark";
-    }
-}
-
-function getOperationLabel(operation: TransferJob["operation"]): string {
-    return operation === "upload" ? "Upload" : "Download";
+function getTransferIconClass(operation: TransferJob["operation"]): string {
+    return operation === "upload" ? "fa-solid fa-arrow-up" : "fa-solid fa-arrow-down";
 }
