@@ -36,6 +36,7 @@ function MarkdownPreview({ model }: SpecializedViewProps) {
                 fontSizeOverride={fontSizeOverride}
                 fixedFontSizeOverride={fixedFontSizeOverride}
                 contentClassName="pt-[5px] pr-[15px] pb-[10px] pl-[15px]"
+                readableWidth
             />
         </div>
     );

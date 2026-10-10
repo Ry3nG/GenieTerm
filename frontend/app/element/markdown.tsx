@@ -10,7 +10,7 @@ import {
     transformBlocks,
 } from "@/app/element/markdown-util";
 import remarkMermaidToTag from "@/app/element/remark-mermaid-to-tag";
-import { boundNumber, useAtomValueSafe, cn } from "@/util/util";
+import { boundNumber, cn, useAtomValueSafe } from "@/util/util";
 import clsx from "clsx";
 import { Atom } from "jotai";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
@@ -304,6 +304,7 @@ type MarkdownProps = {
     rehype?: boolean;
     fontSizeOverride?: number;
     fixedFontSizeOverride?: number;
+    readableWidth?: boolean;
 };
 
 const Markdown = ({
@@ -318,6 +319,7 @@ const Markdown = ({
     fixedFontSizeOverride,
     scrollable = true,
     rehype = true,
+    readableWidth = false,
     onClickExecute,
 }: MarkdownProps) => {
     const textAtomValue = useAtomValueSafe<string>(textAtom);
@@ -460,13 +462,15 @@ const Markdown = ({
                 className={cn("content", contentClassName)}
                 options={{ scrollbars: { autoHide: "leave" } }}
             >
-                <ReactMarkdown
-                    remarkPlugins={remarkPlugins}
-                    rehypePlugins={rehypePlugins}
-                    components={markdownComponents}
-                >
-                    {transformedText}
-                </ReactMarkdown>
+                <div className={cn(readableWidth && "mx-auto max-w-[860px]")}>
+                    <ReactMarkdown
+                        remarkPlugins={remarkPlugins}
+                        rehypePlugins={rehypePlugins}
+                        components={markdownComponents}
+                    >
+                        {transformedText}
+                    </ReactMarkdown>
+                </div>
             </OverlayScrollbarsComponent>
         );
     };
