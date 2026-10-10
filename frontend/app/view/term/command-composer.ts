@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { isUserInterruptExit } from "./cmdblockdisplay";
 import { type CmdBlock, blockHasCommand, isCmdBlockCommandPlaceholder } from "./cmdblocks";
 import type { ShellIntegrationStatus } from "./osc-handlers";
 
@@ -419,7 +420,13 @@ export function isCommandComposerEnabled(settings: Record<string, any>): boolean
 }
 
 export function getInlineAICommandPrompt(block: CmdBlock): string {
-    if (block?.state !== "done" || !blockHasCommand(block) || block.exitCode == null || block.exitCode === 0) {
+    if (
+        block?.state !== "done" ||
+        !blockHasCommand(block) ||
+        block.exitCode == null ||
+        block.exitCode === 0 ||
+        isUserInterruptExit(block.exitCode)
+    ) {
         return "";
     }
     if (isCmdBlockCommandPlaceholder(block.command)) {

@@ -3,6 +3,7 @@
 
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import { appHandleKeyDown } from "@/app/store/keymodel";
+import { getLocalHomeDir } from "@/app/store/localhome";
 import { modalsModel } from "@/app/store/modalmodel";
 import type { TabModel } from "@/app/store/tab-model";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
@@ -33,8 +34,9 @@ import {
 } from "@/store/global";
 import * as services from "@/store/services";
 import * as keyutil from "@/util/keyutil";
+import { formatCwdLabel } from "@/util/pathlabel";
 import { isMacOS, isWindows } from "@/util/platformutil";
-import { fireAndForget, stringToBase64 } from "@/util/util";
+import { fireAndForget, isLocalConnName, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { blockEndLine, blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
@@ -191,6 +193,14 @@ export class TermViewModel implements ViewModel {
                 });
             }
             const isCmd = get(this.isCmdController);
+            if (!isCmd) {
+                const blockMeta = get(this.blockAtom)?.meta;
+                const cwd = blockMeta?.["cmd:cwd"] as string;
+                const cwdLabel = formatCwdLabel(cwd, isLocalConnName(blockMeta?.connection) ? getLocalHomeDir() : null);
+                if (cwdLabel) {
+                    rtn.push({ elemtype: "text", text: cwdLabel, noGrow: true });
+                }
+            }
             if (isCmd) {
                 const blockMeta = get(this.blockAtom)?.meta;
                 let cmdText = blockMeta?.["cmd"];
