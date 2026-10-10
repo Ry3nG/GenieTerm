@@ -110,6 +110,45 @@ func TestIntegrationScriptsNounsetSafe(t *testing.T) {
 	}
 }
 
+// pwsh isn't available in CI, so guard the invariants the PowerShell hooks depend on textually
+func TestPwshIntegrationScriptInvariants(t *testing.T) {
+	text := PwshStartup_wavepwsh
+	if strings.Contains(text, "`e") {
+		t.Errorf("pwsh script uses `e, which Windows PowerShell 5.1 does not support")
+	}
+	lines := strings.Split(text, "\n")
+	for _, fnDecl := range []string{"function Global:prompt {", "function Global:PSConsoleHostReadLine {"} {
+		found := false
+		for idx, line := range lines {
+			if strings.TrimSpace(line) != fnDecl {
+				continue
+			}
+			found = true
+			var firstStmt string
+			for _, next := range lines[idx+1:] {
+				trimmed := strings.TrimSpace(next)
+				if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+					continue
+				}
+				firstStmt = trimmed
+				break
+			}
+			// anything that runs before this resets $? and the user's prompt loses the failure state
+			if firstStmt != "$wsiOk = $global:?" {
+				t.Errorf("%q must capture $? first, got %q", fnDecl, firstStmt)
+			}
+		}
+		if !found {
+			t.Errorf("pwsh script is missing %q", fnDecl)
+		}
+	}
+	for _, want := range []string{`Write-Error "failure" -ErrorAction Ignore`, `"16162;A"`, `16162;C;{`, `16162;D;{`, "[Convert]::ToBase64String"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("pwsh script is missing %q", want)
+		}
+	}
+}
+
 func renderRcFiles(t *testing.T) string {
 	t.Helper()
 	waveHome := t.TempDir()
