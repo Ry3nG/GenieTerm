@@ -581,14 +581,18 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 			time.Sleep(100 * time.Millisecond)
 			close(shellInputCh) // don't use bc.ShellInputCh (it's nil)
 		}()
-		buf := make([]byte, 4096)
+		output := MakeOutputCoalescer(OutputCoalesceWindow, OutputCoalesceMaxBytes, func(data []byte) {
+			err := HandleAppendBlockFile(bc.BlockId, wavebase.BlockFile_Term, data)
+			if err != nil {
+				log.Printf("error appending to blockfile: %v\n", err)
+			}
+		})
+		defer output.Close()
+		buf := make([]byte, 32*1024)
 		for {
 			nr, err := shellProc.Cmd.Read(buf)
 			if nr > 0 {
-				err := HandleAppendBlockFile(bc.BlockId, wavebase.BlockFile_Term, buf[:nr])
-				if err != nil {
-					log.Printf("error appending to blockfile: %v\n", err)
-				}
+				output.Write(buf[:nr])
 			}
 			if err == io.EOF {
 				break
@@ -598,6 +602,7 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 				break
 			}
 		}
+		output.Close()
 	}()
 	go func() {
 		// handles input from the shellInputCh, sent to pty
