@@ -12,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"github.com/Ry3nG/GenieTerm/pkg/authkey"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/eventbus"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/web/webcmd"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 )
 
 const wsReadWaitTimeout = 15 * time.Second

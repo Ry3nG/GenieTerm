@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/Ry3nG/GenieTerm/pkg/authkey"
 	"github.com/Ry3nG/GenieTerm/pkg/blockcontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
@@ -38,6 +37,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshserver"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
+	"github.com/joho/godotenv"
 
 	"net/http"
 	_ "net/http/pprof"

@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/Ry3nG/GenieTerm/pkg/util/unixutil"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/creack/pty"
 )
 
 type CmdDef struct {

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/eventbus"
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
@@ -16,6 +15,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
+	"github.com/google/uuid"
 )
 
 func SwitchWorkspace(ctx context.Context, windowId string, workspaceId string) (*waveobj.Workspace, error) {

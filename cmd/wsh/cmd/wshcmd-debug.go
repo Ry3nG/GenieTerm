@@ -6,8 +6,8 @@ package cmd
 import (
 	"encoding/json"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/spf13/cobra"
 )
 
 var debugCmd = &cobra.Command{

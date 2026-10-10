@@ -6,12 +6,12 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/remote"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/spf13/cobra"
 )
 
 var (

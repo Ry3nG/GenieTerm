@@ -248,7 +248,7 @@ func ParseJsonMap(val string, forceMake bool) map[string]any {
 	if err != nil {
 		return noRtn
 	}
-return m
+	return m
 }
 
 func ParseJsonArr[T any](val string) []T {

@@ -9,9 +9,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/jmoiron/sqlx"
 )
 
 const OldDBName = "~/.waveterm/waveterm.db"

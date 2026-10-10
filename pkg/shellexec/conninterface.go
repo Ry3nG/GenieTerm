@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/util/unixutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wsl"
+	"github.com/creack/pty"
 	"golang.org/x/crypto/ssh"
 )
 

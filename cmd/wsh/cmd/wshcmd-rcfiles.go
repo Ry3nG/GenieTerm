@@ -4,8 +4,8 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/spf13/cobra"
 )
 
 func init() {

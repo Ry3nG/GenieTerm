@@ -15,7 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/streamclient"
@@ -23,6 +22,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/google/uuid"
 )
 
 const DefaultTimeoutMs = 5000

@@ -15,10 +15,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 

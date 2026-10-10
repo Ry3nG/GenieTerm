@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/util/shellutil"
+	"github.com/spf13/cobra"
 )
 
 func init() {

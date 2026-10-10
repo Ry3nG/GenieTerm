@@ -10,10 +10,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/spf13/cobra"
 )
 
 // Command-line flags for the blocks commands
@@ -40,7 +40,7 @@ var blocksListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls", "get"},
 	Short:   "List blocks in workspaces/windows",
-	Long:    `List blocks with optional filtering by workspace, window, tab, or view type.
+	Long: `List blocks with optional filtering by workspace, window, tab, or view type.
 
 Examples:
   # List blocks from all workspaces
@@ -63,8 +63,8 @@ Examples:
 
   # Set a different timeout (in milliseconds)
   wsh blocks list --timeout=10000`,
-	RunE:    blocksListRun,
-	PreRunE: preRunSetupRpcClient,
+	RunE:         blocksListRun,
+	PreRunE:      preRunSetupRpcClient,
 	SilenceUsage: true,
 }
 
@@ -86,9 +86,9 @@ func init() {
 	}
 
 	blocksCmd := &cobra.Command{
-		Use:     "blocks",
-		Short:   "Manage blocks",
-		Long:    "Commands for working with blocks",
+		Use:   "blocks",
+		Short: "Manage blocks",
+		Long:  "Commands for working with blocks",
 	}
 
 	blocksCmd.AddCommand(blocksListCmd)

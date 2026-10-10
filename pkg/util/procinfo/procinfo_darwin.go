@@ -151,4 +151,3 @@ func getDarwinProcTaskInfo(pid int32) (*procTaskInfo, error) {
 	}
 	return &ti, nil
 }
-

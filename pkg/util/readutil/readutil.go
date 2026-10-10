@@ -32,7 +32,7 @@ func ReadLines(reader io.Reader, lineCount int, skipLines int, readLimit int) ([
 		line, err := bufReader.ReadString('\n')
 		if len(line) > 0 {
 			bytesRead += len(line)
-			
+
 			if skippedLines < skipLines {
 				skippedLines++
 			} else {
@@ -41,7 +41,7 @@ func ReadLines(reader io.Reader, lineCount int, skipLines int, readLimit int) ([
 					return lines, "", nil
 				}
 			}
-			
+
 			if readLimit > 0 && bytesRead >= readLimit {
 				return lines, StopReasonReadLimit, nil
 			}

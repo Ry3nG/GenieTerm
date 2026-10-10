@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/utilds"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/google/uuid"
 )
 
 type workItem struct {

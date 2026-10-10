@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Ry3nG/GenieTerm/pkg/jobmanager"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"github.com/Ry3nG/GenieTerm/pkg/jobmanager"
 )
 
 var jobManagerCmd = &cobra.Command{

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/google/uuid"
 )
 
 type WshServer struct{}

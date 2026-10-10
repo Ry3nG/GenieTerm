@@ -18,8 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	"github.com/Ry3nG/GenieTerm/pkg/authkey"
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
@@ -30,6 +28,8 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 )
 
 type WebFnType = func(http.ResponseWriter, *http.Request)

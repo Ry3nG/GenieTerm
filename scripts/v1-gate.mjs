@@ -31,6 +31,21 @@ function run(label, command, commandArgs, options = {}) {
   console.log(`[v1-gate] passed: ${label} (${elapsed}s)`);
 }
 
+function checkGoFormat() {
+  console.log("\n[v1-gate] Go format check");
+  const files = spawnSync("git", ["ls-files", "*.go"], { encoding: "utf8" });
+  if (files.status !== 0) {
+    fail("Go format check: could not list Go files");
+  }
+  const goFiles = files.stdout.split("\n").filter(Boolean);
+  const result = spawnSync("gofmt", ["-l", ...goFiles], { encoding: "utf8" });
+  if (result.status !== 0 || result.stdout.trim() !== "") {
+    console.error(result.stdout + (result.stderr ?? ""));
+    fail("Go format check (run `gofmt -w` on the files above)");
+  }
+  console.log("[v1-gate] passed: Go format check");
+}
+
 function fail(message) {
   console.error(`[v1-gate] failed: ${message}`);
   process.exit(1);
@@ -63,6 +78,8 @@ run("Runtime dependency audit", "npm", ["audit", "--omit=dev", "--audit-level=mo
 run("ESLint", "npm", ["run", "lint"]);
 run("Format check", "npm", ["run", "format:check"]);
 run("Vitest suite", "npm", ["test", "--", "--run"]);
+checkGoFormat();
+run("Go vet", "go", ["vet", "./..."]);
 run("Go test suite", "go", ["test", "./..."]);
 run("Go vulnerability scan", "go", ["run", "golang.org/x/vuln/cmd/govulncheck@v1.8.0", "./..."]);
 run("Production build", "npm", ["run", "build:prod"]);

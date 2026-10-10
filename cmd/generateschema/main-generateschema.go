@@ -21,7 +21,6 @@ const WaveSchemaConnectionsFileName = "schema/connections.json"
 const WaveSchemaWidgetsFileName = "schema/widgets.json"
 const WaveSchemaBackgroundsFileName = "schema/backgrounds.json"
 
-
 // ViewNameType is a string type whose JSON Schema offers enum suggestions for the most
 // common widget view names while still accepting any arbitrary string value.
 type ViewNameType string
