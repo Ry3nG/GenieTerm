@@ -279,7 +279,7 @@ export class TermWrap {
         // Register OSC handlers
         this.terminal.parser.registerOscHandler(7, (data: string) => {
             try {
-                return handleOsc7Command(data, this.blockId, this.loaded);
+                return handleOsc7Command(data, this.blockId, this.isProcessingLiveData());
             } catch (e) {
                 console.error("[termwrap] osc 7 handler error", this.blockId, e);
                 return false;
@@ -287,7 +287,7 @@ export class TermWrap {
         });
         this.terminal.parser.registerOscHandler(52, (data: string) => {
             try {
-                return handleOsc52Command(data, this.blockId, this.loaded, this);
+                return handleOsc52Command(data, this.blockId, this.isProcessingLiveData(), this);
             } catch (e) {
                 console.error("[termwrap] osc 52 handler error", this.blockId, e);
                 return false;
