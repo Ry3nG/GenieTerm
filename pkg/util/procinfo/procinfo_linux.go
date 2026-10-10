@@ -16,6 +16,9 @@ import (
 // On Linux this is always 100.
 const userHz = 100.0
 
+// linuxCommMaxLen is TASK_COMM_LEN minus its terminating NUL: /proc/[pid]/stat keeps at most 15 bytes of the name.
+const linuxCommMaxLen = 15
+
 // pageSize is cached at init since it never changes at runtime.
 var pageSize int64
 
@@ -98,7 +101,7 @@ func readStat(pid int32) (*ProcInfo, error) {
 
 	info := &ProcInfo{
 		Pid:        int32(parsedPid),
-		Command:    comm,
+		Command:    expandLinuxCommand(pid, comm),
 		Status:     status,
 		CpuUser:    -1,
 		CpuSys:     -1,
@@ -151,4 +154,16 @@ func readUid(pid int32) (uint32, error) {
 		return uint32(uid), nil
 	}
 	return 0, fmt.Errorf("procinfo: Uid line not found in %s", path)
+}
+
+func expandLinuxCommand(pid int32, comm string) string {
+	if len(comm) < linuxCommMaxLen {
+		return comm
+	}
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	if err != nil || len(data) == 0 {
+		return comm
+	}
+	argv0, _, _ := strings.Cut(string(data), "\x00")
+	return expandTruncatedCommand(comm, argv0, linuxCommMaxLen)
 }

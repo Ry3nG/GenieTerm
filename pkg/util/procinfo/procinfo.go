@@ -3,7 +3,11 @@
 
 package procinfo
 
-import "errors"
+import (
+	"errors"
+	"path/filepath"
+	"strings"
+)
 
 // ErrNotFound is returned by GetProcInfo when the requested pid does not exist.
 var ErrNotFound = errors.New("procinfo: process not found")
@@ -39,4 +43,18 @@ type ProcInfo struct {
 	VmRSS      int64   // resident set size in bytes; -1 if unavailable
 	Uid        uint32
 	NumThreads int32 // -1 if unavailable
+}
+
+// expandTruncatedCommand returns the file name from exePath when comm looks like the
+// kernel cut it at maxLen bytes (p_comm on macOS, /proc/[pid]/comm on Linux) and is a
+// prefix of that file name. Otherwise it returns comm unchanged.
+func expandTruncatedCommand(comm string, exePath string, maxLen int) string {
+	if len(comm) < maxLen || exePath == "" {
+		return comm
+	}
+	base := filepath.Base(exePath)
+	if len(base) <= len(comm) || !strings.HasPrefix(base, comm) {
+		return comm
+	}
+	return base
 }
