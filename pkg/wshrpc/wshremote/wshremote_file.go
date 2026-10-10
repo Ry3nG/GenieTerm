@@ -19,16 +19,14 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/fspath"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/fsutil"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/wshfs"
 	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
-	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 )
-
-const RemoteFileTransferSizeLimit = 32 * 1024 * 1024
 
 var DisableRecursiveFileOpts = true
 
@@ -39,82 +37,8 @@ func routeForFileSourceHost(host string) string {
 	return wshutil.MakeConnectionRouteId(host)
 }
 
-// prepareDestForCopy resolves the final destination path and handles overwrite logic.
-// destPath is the raw destination path (may be a directory or file path).
-// srcBaseName is the basename of the source file (used when dest is a directory or ends with slash).
-// destHasSlash indicates if the original URI ended with a slash (forcing directory interpretation).
-// Returns the resolved path ready for writing.
-func prepareDestForCopy(destPath string, srcBaseName string, destHasSlash bool, overwrite bool) (string, error) {
-	destInfo, err := os.Stat(destPath)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("cannot stat destination %q: %w", destPath, err)
-	}
-
-	destExists := destInfo != nil
-	destIsDir := destExists && destInfo.IsDir()
-
-	var finalPath string
-	if destHasSlash || destIsDir {
-		finalPath = filepath.Join(destPath, srcBaseName)
-	} else {
-		finalPath = destPath
-	}
-
-	finalInfo, err := os.Stat(finalPath)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("cannot stat file %q: %w", finalPath, err)
-	}
-
-	if finalInfo != nil {
-		if !overwrite {
-			return "", fmt.Errorf(wshfs.OverwriteRequiredError, finalPath)
-		}
-		if err := os.Remove(finalPath); err != nil {
-			return "", fmt.Errorf("cannot remove file %q: %w", finalPath, err)
-		}
-	}
-
-	return finalPath, nil
-}
-
-// remoteCopyFileInternal copies FROM local (this host) TO local (this host)
-// Only supports copying files, not directories
-func remoteCopyFileInternal(srcUri, destUri string, srcPathCleaned, destPathCleaned string, destHasSlash bool, overwrite bool) error {
-	srcFileStat, err := os.Stat(srcPathCleaned)
-	if err != nil {
-		return fmt.Errorf("cannot stat file %q: %w", srcPathCleaned, err)
-	}
-	if srcFileStat.IsDir() {
-		return fmt.Errorf("copying directories is not supported")
-	}
-	if srcFileStat.Size() > RemoteFileTransferSizeLimit {
-		return fmt.Errorf("file %q size %d exceeds transfer limit of %d bytes", srcPathCleaned, srcFileStat.Size(), RemoteFileTransferSizeLimit)
-	}
-
-	destFilePath, err := prepareDestForCopy(destPathCleaned, filepath.Base(srcPathCleaned), destHasSlash, overwrite)
-	if err != nil {
-		return err
-	}
-
-	srcFile, err := os.Open(srcPathCleaned)
-	if err != nil {
-		return fmt.Errorf("cannot open file %q: %w", srcPathCleaned, err)
-	}
-	defer srcFile.Close()
-
-	destFile, err := os.OpenFile(destFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcFileStat.Mode())
-	if err != nil {
-		return fmt.Errorf("cannot create file %q: %w", destFilePath, err)
-	}
-	defer destFile.Close()
-
-	if _, err = io.Copy(destFile, srcFile); err != nil {
-		return fmt.Errorf("cannot copy %q to %q: %w", srcUri, destUri, err)
-	}
-	return nil
-}
-
-// RemoteFileCopyCommand copies a file FROM somewhere TO here
+// RemoteFileCopyCommand copies a file or directory tree FROM somewhere TO here. Files are streamed into
+// a temp file and renamed into place, so an interrupted transfer never destroys an existing file.
 func (impl *ServerImpl) RemoteFileCopyCommand(ctx context.Context, data wshrpc.CommandFileCopyData) (bool, error) {
 	log.Printf("RemoteFileCopyCommand: src=%s, dest=%s\n", data.SrcUri, data.DestUri)
 	opts := data.Opts
@@ -123,9 +47,6 @@ func (impl *ServerImpl) RemoteFileCopyCommand(ctx context.Context, data wshrpc.C
 	}
 	if opts.Overwrite && opts.Merge {
 		return false, fmt.Errorf("cannot specify both overwrite and merge")
-	}
-	if opts.Recursive {
-		return false, fmt.Errorf("directory copying is not supported")
 	}
 	srcConn, err := connparse.ParseURIAndReplaceCurrentHost(ctx, data.SrcUri)
 	if err != nil {
@@ -138,73 +59,42 @@ func (impl *ServerImpl) RemoteFileCopyCommand(ctx context.Context, data wshrpc.C
 	destPathCleaned := filepath.Clean(wavebase.ExpandHomeDirSafe(destConn.Path))
 	destHasSlash := strings.HasSuffix(data.DestUri, "/")
 
-	if srcConn.Host == destConn.Host {
-		srcPathCleaned := filepath.Clean(wavebase.ExpandHomeDirSafe(srcConn.Path))
-		err := remoteCopyFileInternal(data.SrcUri, data.DestUri, srcPathCleaned, destPathCleaned, destHasSlash, opts.Overwrite)
-		return false, err
-	}
-
-	// FROM external TO here - only supports single file copying
 	timeout := wshfs.DefaultTimeout
 	if opts.Timeout > 0 {
 		timeout = time.Duration(opts.Timeout) * time.Millisecond
 	}
-	readCtx, timeoutCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout copying file %q to %q", data.SrcUri, data.DestUri))
+	copyCtx, timeoutCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout copying %q to %q", data.SrcUri, data.DestUri))
 	defer timeoutCancel()
 	copyStart := time.Now()
 
-	srcFileInfo, err := wshclient.RemoteFileInfoCommand(wshfs.RpcClient, srcConn.Path, &wshrpc.RpcOpts{Timeout: opts.Timeout, Route: routeForFileSourceHost(srcConn.Host)})
+	sameHost := srcConn.Host == destConn.Host
+	var src fsutil.CopySource
+	var srcPath string
+	if sameHost {
+		src = fsutil.LocalCopySource{}
+		srcPath = filepath.Clean(wavebase.ExpandHomeDirSafe(srcConn.Path))
+	} else {
+		src = wshfs.MakeRpcCopySource(copyCtx, routeForFileSourceHost(srcConn.Host))
+		srcPath = srcConn.Path
+	}
+	srcEntry, err := src.Stat(srcPath)
 	if err != nil {
-		return false, fmt.Errorf("cannot get info for source file %q: %w", data.SrcUri, err)
+		return false, fmt.Errorf("cannot stat source %q: %w", data.SrcUri, err)
 	}
-	if srcFileInfo.IsDir {
-		return false, fmt.Errorf("copying directories is not supported")
-	}
-	if srcFileInfo.Size > RemoteFileTransferSizeLimit {
-		return false, fmt.Errorf("file %q size %d exceeds transfer limit of %d bytes", data.SrcUri, srcFileInfo.Size, RemoteFileTransferSizeLimit)
-	}
-
-	destFilePath, err := prepareDestForCopy(destPathCleaned, fspath.Base(srcConn.Path), destHasSlash, opts.Overwrite)
+	dest := fsutil.LocalCopyDest{}
+	finalPath, err := fsutil.ResolveCopyDestPath(dest, destPathCleaned, fspath.Base(srcConn.Path), destHasSlash)
 	if err != nil {
 		return false, err
 	}
-
-	destFile, err := os.OpenFile(destFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcFileInfo.Mode)
+	if sameHost && srcEntry.IsDir && fsutil.IsPathWithin(srcPath, finalPath, string(filepath.Separator)) {
+		return true, fmt.Errorf("cannot copy directory %q into itself", srcPath)
+	}
+	err = fsutil.CopyTree(copyCtx, src, srcEntry, dest, finalPath, fsutil.CopyOpts{Overwrite: opts.Overwrite, Merge: opts.Merge})
 	if err != nil {
-		return false, fmt.Errorf("cannot create destination file %q: %w", destFilePath, err)
+		return srcEntry.IsDir, err
 	}
-	defer destFile.Close()
-
-	if wshfs.RpcClientRouteId == "" {
-		return false, fmt.Errorf("stream broker route id not available for file copy")
-	}
-	writerRouteId := routeForFileSourceHost(srcConn.Host)
-	reader, streamMeta := wshfs.RpcClient.StreamBroker.CreateStreamReader(wshfs.RpcClientRouteId, writerRouteId, 256*1024)
-	log.Printf("RemoteFileCopyCommand: readroute=%s writeroute=%s", streamMeta.ReaderRouteId, streamMeta.WriterRouteId)
-	defer reader.Close()
-	go func() {
-		<-readCtx.Done()
-		reader.Close()
-	}()
-	streamData := wshrpc.CommandRemoteFileStreamData{
-		Path:       srcConn.Path,
-		StreamMeta: *streamMeta,
-	}
-	if _, err = wshclient.RemoteFileStreamCommand(wshfs.RpcClient, streamData, &wshrpc.RpcOpts{Route: writerRouteId}); err != nil {
-		return false, fmt.Errorf("error starting file stream for %q: %w", data.SrcUri, err)
-	}
-	if _, err = io.Copy(destFile, reader); err != nil {
-		return false, fmt.Errorf("error copying file %q to %q: %w", data.SrcUri, data.DestUri, err)
-	}
-
-	totalTime := time.Since(copyStart).Seconds()
-	totalMegaBytes := float64(srcFileInfo.Size) / 1024 / 1024
-	rate := float64(0)
-	if totalTime > 0 {
-		rate = totalMegaBytes / totalTime
-	}
-	log.Printf("RemoteFileCopyCommand: done; 1 file copied in %.3fs, total of %.4f MB, %.2f MB/s\n", totalTime, totalMegaBytes, rate)
-	return false, nil
+	log.Printf("RemoteFileCopyCommand: done; copied %q to %q in %.3fs\n", data.SrcUri, finalPath, time.Since(copyStart).Seconds())
+	return srcEntry.IsDir, nil
 }
 
 func (impl *ServerImpl) RemoteListEntriesCommand(ctx context.Context, data wshrpc.CommandRemoteListEntriesData) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRemoteListEntriesRtnData] {
@@ -528,6 +418,12 @@ func (*ServerImpl) RemoteWriteFileCommand(ctx context.Context, data wshrpc.FileD
 	if atOffset > fileSize {
 		return fmt.Errorf("cannot write at offset %d, file size is %d", atOffset, fileSize)
 	}
+	if truncate && !append && atOffset == 0 {
+		if err := fsutil.SaveLocalFile(path, dataBytes[:n], createMode); err != nil {
+			return fmt.Errorf("cannot write to file %q: %w", path, err)
+		}
+		return nil
+	}
 	openFlags := os.O_CREATE | os.O_WRONLY
 	if truncate {
 		openFlags |= os.O_TRUNC
@@ -660,7 +556,7 @@ func (*ServerImpl) RemoteFileDeleteCommand(ctx context.Context, data wshrpc.Comm
 
 	err = os.Remove(cleanedPath)
 	if err != nil {
-		finfo, statErr := os.Stat(cleanedPath)
+		finfo, statErr := os.Lstat(cleanedPath)
 		if statErr == nil && finfo.IsDir() {
 			return fmt.Errorf(wshfs.RecursiveRequiredError)
 		}

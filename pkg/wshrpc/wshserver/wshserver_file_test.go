@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 func TestRemoteFileInfoCommandServesLocalFilesFromMainServer(t *testing.T) {
@@ -31,5 +33,29 @@ func TestRemoteFileInfoCommandServesLocalFilesFromMainServer(t *testing.T) {
 	}
 	if info.Size != int64(len("upload source\n")) {
 		t.Fatalf("expected size %d, got %d", len("upload source\n"), info.Size)
+	}
+}
+
+func TestRemoteListEntriesCommandServesLocalFoldersFromMainServer(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for resp := range WshServerImpl.RemoteListEntriesCommand(context.Background(), wshrpc.CommandRemoteListEntriesData{Path: dir}) {
+		if resp.Error != nil {
+			t.Fatalf("list entries: %v", resp.Error)
+		}
+		for _, info := range resp.Response.FileInfo {
+			names[info.Name] = info.IsDir
+		}
+	}
+	if len(names) != 2 || names["a.txt"] || !names["sub"] {
+		t.Fatalf("unexpected entries: %#v", names)
 	}
 }

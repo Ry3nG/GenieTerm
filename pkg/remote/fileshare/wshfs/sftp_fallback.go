@@ -4,9 +4,7 @@ package wshfs
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote"
@@ -265,7 +262,11 @@ func sftpWrite(conn *connparse.Connection, data wshrpc.FileData) error {
 	}
 	appendMode := data.Info != nil && data.Info.Opts != nil && data.Info.Opts.Append
 	if data.At == nil && !appendMode {
-		return sftpReplaceFile(client, remotePath, raw, data.Info)
+		createMode := os.FileMode(0)
+		if data.Info != nil {
+			createMode = data.Info.Mode.Perm()
+		}
+		return sftpSaveFile(client, remotePath, raw, createMode)
 	}
 	flags := os.O_CREATE | os.O_WRONLY
 	if appendMode {
@@ -287,50 +288,6 @@ func sftpWrite(conn *connparse.Connection, data wshrpc.FileData) error {
 		_, err = file.Write(raw)
 	}
 	return err
-}
-
-func sftpReplaceFile(client *sftp.Client, remotePath string, raw []byte, requestedInfo *wshrpc.FileInfo) error {
-	existing, statErr := client.Stat(remotePath)
-	if statErr != nil && !os.IsNotExist(statErr) {
-		return statErr
-	}
-	if existing != nil && existing.IsDir() {
-		return fmt.Errorf("cannot overwrite directory %q", remotePath)
-	}
-	mode := os.FileMode(0644)
-	if existing != nil {
-		mode = existing.Mode().Perm()
-	} else if requestedInfo != nil && requestedInfo.Mode != 0 {
-		mode = requestedInfo.Mode.Perm()
-	}
-	randomBytes := make([]byte, 8)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return err
-	}
-	temporaryPath := path.Join(path.Dir(remotePath), ".genieterm-"+path.Base(remotePath)+"-"+hex.EncodeToString(randomBytes))
-	file, err := client.OpenFile(temporaryPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY)
-	if err != nil {
-		return err
-	}
-	defer client.Remove(temporaryPath)
-	n, writeErr := file.Write(raw)
-	closeErr := file.Close()
-	if writeErr != nil {
-		return writeErr
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	if n != len(raw) {
-		return io.ErrShortWrite
-	}
-	if err := client.Chmod(temporaryPath, mode); err != nil {
-		return err
-	}
-	if existing != nil {
-		return client.PosixRename(temporaryPath, remotePath)
-	}
-	return client.Rename(temporaryPath, remotePath)
 }
 
 func sftpMkdir(conn *connparse.Connection) error {
@@ -356,17 +313,25 @@ func sftpDelete(conn *connparse.Connection, recursive bool) error {
 	if err != nil {
 		return err
 	}
-	info, err := client.Stat(remotePath)
+	remotePath = path.Clean(remotePath)
+	// Lstat, not Stat: deleting a symlink must remove the link, never the directory it points to.
+	info, err := client.Lstat(remotePath)
 	if err != nil {
 		return err
 	}
-	if info.IsDir() {
-		if recursive {
-			return client.RemoveAll(remotePath)
-		}
-		return client.RemoveDirectory(remotePath)
+	if !info.IsDir() {
+		return client.Remove(remotePath)
 	}
-	return client.Remove(remotePath)
+	if recursive {
+		return sftpRemoveAll(client, remotePath)
+	}
+	if err := client.RemoveDirectory(remotePath); err != nil {
+		if stillInfo, statErr := client.Lstat(remotePath); statErr == nil && stillInfo.IsDir() {
+			return fmt.Errorf(RecursiveRequiredError)
+		}
+		return err
+	}
+	return nil
 }
 
 func sftpMove(srcConn, destConn *connparse.Connection, overwrite bool) error {
@@ -464,130 +429,4 @@ func sftpFileStream(conn *connparse.Connection, data wshrpc.CommandFileStreamDat
 	fileInfo := sftpFileInfo(conn.Path, info)
 	fileInfo.MimeType = sftpMimeType(client, remotePath, info)
 	return fileInfo, nil
-}
-
-func sftpCopy(ctx context.Context, srcConn, destConn *connparse.Connection, opts *wshrpc.FileCopyOpts) (bool, error) {
-	if opts == nil {
-		opts = &wshrpc.FileCopyOpts{}
-	}
-	if opts.Recursive {
-		return false, fmt.Errorf("directory copying is not supported")
-	}
-	var source *wshrpc.FileData
-	var err error
-	if srcConn.GetType() == "file" {
-		info, statErr := os.Stat(srcConn.Path)
-		if statErr != nil {
-			return false, statErr
-		}
-		if info.IsDir() || info.Size() > RemoteFileTransferSizeLimit {
-			return false, fmt.Errorf("local upload source must be a file smaller than %d bytes", RemoteFileTransferSizeLimit)
-		}
-		raw, readErr := os.ReadFile(srcConn.Path)
-		if readErr != nil {
-			return false, readErr
-		}
-		source = &wshrpc.FileData{Info: sftpFileInfo(srcConn.Path, info), Data64: base64.StdEncoding.EncodeToString(raw)}
-	} else if shouldUseSFTP(srcConn) {
-		source, err = sftpRead(ctx, srcConn, nil)
-	} else {
-		source, err = Read(ctx, wshrpc.FileData{Info: &wshrpc.FileInfo{Path: srcConn.GetFullURI()}})
-	}
-	if err != nil {
-		return false, err
-	}
-	if source.Info == nil || source.Info.IsDir {
-		return false, fmt.Errorf("directory copying is not supported")
-	}
-	destination := destConn.GetFullURI()
-	if strings.HasSuffix(destination, "/") {
-		destination += path.Base(srcConn.Path)
-	} else {
-		var destInfo *wshrpc.FileInfo
-		if destConn.GetType() == "file" {
-			localInfo, statErr := os.Stat(destConn.Path)
-			if statErr == nil {
-				destInfo = sftpFileInfo(destConn.Path, localInfo)
-			} else if os.IsNotExist(statErr) {
-				destInfo = &wshrpc.FileInfo{NotFound: true}
-			} else {
-				err = statErr
-			}
-		} else if shouldUseSFTP(destConn) {
-			destInfo, err = sftpStat(destConn)
-		} else {
-			destInfo, err = Stat(ctx, destination)
-		}
-		if err != nil {
-			return false, err
-		}
-		if destInfo != nil && destInfo.IsDir {
-			destination = strings.TrimSuffix(destination, "/") + "/" + path.Base(srcConn.Path)
-		} else if destInfo != nil && !destInfo.NotFound && !opts.Overwrite {
-			return false, fmt.Errorf(OverwriteRequiredError, destination)
-		}
-	}
-	resolvedDest, err := parseConnection(ctx, destination)
-	if err != nil {
-		return false, err
-	}
-	var finalInfo *wshrpc.FileInfo
-	if resolvedDest.GetType() == "file" {
-		localInfo, statErr := os.Stat(resolvedDest.Path)
-		if statErr == nil {
-			finalInfo = sftpFileInfo(resolvedDest.Path, localInfo)
-		} else if os.IsNotExist(statErr) {
-			finalInfo = &wshrpc.FileInfo{NotFound: true}
-		} else {
-			err = statErr
-		}
-	} else if shouldUseSFTP(resolvedDest) {
-		finalInfo, err = sftpStat(resolvedDest)
-	} else {
-		finalInfo, err = Stat(ctx, destination)
-	}
-	if err != nil {
-		return false, err
-	}
-	if finalInfo != nil && !finalInfo.NotFound && !opts.Overwrite {
-		return false, fmt.Errorf(OverwriteRequiredError, destination)
-	}
-	if resolvedDest.GetType() == "file" {
-		raw, decodeErr := base64.StdEncoding.DecodeString(source.Data64)
-		if decodeErr != nil {
-			return false, decodeErr
-		}
-		mode := source.Info.Mode.Perm()
-		if finalInfo != nil && !finalInfo.NotFound {
-			mode = finalInfo.Mode.Perm()
-		}
-		if err := writeLocalCopyFile(resolvedDest.Path, raw, mode); err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-	if err := PutFile(ctx, wshrpc.FileData{Info: &wshrpc.FileInfo{Path: destination, Mode: source.Info.Mode}, Data64: source.Data64}); err != nil {
-		return false, err
-	}
-	return false, nil
-}
-
-func writeLocalCopyFile(destination string, data []byte, mode os.FileMode) error {
-	file, err := os.CreateTemp(filepath.Dir(destination), ".genieterm-"+filepath.Base(destination)+"-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(file.Name())
-	if _, err := file.Write(data); err != nil {
-		file.Close()
-		return err
-	}
-	if err := file.Chmod(mode); err != nil {
-		file.Close()
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	return os.Rename(file.Name(), destination)
 }

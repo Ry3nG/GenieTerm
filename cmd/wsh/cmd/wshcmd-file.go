@@ -344,6 +344,19 @@ func checkFileSize(path string, maxSize int64) (*wshrpc.FileInfo, error) {
 	return info, nil
 }
 
+// copies stream file contents and walk directories on the backend, so cp has no size or directory limit
+func checkFileExists(path string) error {
+	info, err := wshclient.FileInfoCommand(RpcClient, wshrpc.FileData{Info: &wshrpc.FileInfo{Path: path}}, &wshrpc.RpcOpts{Timeout: fileTimeout})
+	err = convertNotFoundErr(err)
+	if err != nil {
+		return fmt.Errorf("getting file info: %w", err)
+	}
+	if info.NotFound {
+		return fmt.Errorf("%s: no such file", path)
+	}
+	return nil
+}
+
 func fileCpRun(cmd *cobra.Command, args []string) error {
 	src, dst := args[0], args[1]
 	merge, err := cmd.Flags().GetBool("merge")
@@ -360,7 +373,7 @@ func fileCpRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to parse src path: %w", err)
 	}
 
-	_, err = checkFileSize(srcPath, MaxFileSize)
+	err = checkFileExists(srcPath)
 	if err != nil {
 		return err
 	}
