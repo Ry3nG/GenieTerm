@@ -29,11 +29,6 @@ declare global {
         "waveai:premium"?: boolean;
     };
 
-    // wconfig.AIModeConfigUpdate
-    type AIModeConfigUpdate = {
-        configs: {[key: string]: AIModeConfigType};
-    };
-
     // wshrpc.ActivityDisplayType
     type ActivityDisplayType = {
         width: number;
