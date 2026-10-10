@@ -168,6 +168,49 @@ func TestAppendDataWithOffset(t *testing.T) {
 	}
 }
 
+func TestTruncateWithEpochAndAppendEpoch(t *testing.T) {
+	initDb(t)
+	defer cleanupDb(t)
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFn()
+	zoneId := uuid.NewString()
+	if err := WFS.MakeFile(ctx, zoneId, "term", wshrpc.FileMeta{"keep": "me"}, wshrpc.FileOpts{}); err != nil {
+		t.Fatalf("create term file: %v", err)
+	}
+	offset, epoch, err := WFS.AppendDataWithOffsetAndEpoch(ctx, zoneId, "term", []byte("before"))
+	if err != nil || offset != 0 || epoch != 0 {
+		t.Fatalf("append before truncate = (%d, %d, %v), want (0, 0, nil)", offset, epoch, err)
+	}
+	var callbackEpoch int64 = -1
+	newEpoch, err := WFS.TruncateWithEpoch(ctx, zoneId, "term", func(e int64) {
+		callbackEpoch = e
+	})
+	if err != nil || newEpoch != 1 || callbackEpoch != 1 {
+		t.Fatalf("truncate = (%d, %v), callback epoch %d; want epoch 1", newEpoch, err, callbackEpoch)
+	}
+	file, err := WFS.Stat(ctx, zoneId, "term")
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if file.Size != 0 || TerminalFileEpoch(file.Meta) != 1 || file.Meta["keep"] != "me" {
+		t.Fatalf("after truncate: size=%d meta=%v", file.Size, file.Meta)
+	}
+	offset, epoch, err = WFS.AppendDataWithOffsetAndEpoch(ctx, zoneId, "term", []byte("after"))
+	if err != nil || offset != 0 || epoch != 1 {
+		t.Fatalf("append after truncate = (%d, %d, %v), want (0, 1, nil)", offset, epoch, err)
+	}
+	_, data, err := WFS.ReadFile(ctx, zoneId, "term")
+	if err != nil || string(data) != "after" {
+		t.Fatalf("content after truncate+append = %q, %v", data, err)
+	}
+	// readers holding a pre-truncate Stat may ask for an offset past the new EOF
+	_, data, err = WFS.ReadAt(ctx, zoneId, "term", 100, 50)
+	if err != nil || len(data) != 0 {
+		t.Fatalf("read past EOF = %q, %v; want empty, nil", data, err)
+	}
+}
+
 func containsFile(arr []*WaveFile, name string) bool {
 	for _, f := range arr {
 		if f.Name == name {
