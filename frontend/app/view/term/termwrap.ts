@@ -30,7 +30,7 @@ import { Terminal } from "@xterm/xterm";
 import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
-import { getCmdBlockStatus } from "./cmdblockdisplay";
+import { getCmdBlockStatus, getCommandRunBlockedReason } from "./cmdblockdisplay";
 import {
     blockHasCommand,
     findCmdBlockAtLine,
@@ -44,11 +44,9 @@ import {
 import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
-    shouldInterceptNaturalLanguagePrompt,
-    updateNaturalLanguagePromptInput,
     type CommandInlineAIRequestHandler,
 } from "./command-composer";
-import { applyPromptInputData, emptyPromptInputBuffer } from "./completion/input-mirror";
+import { applyPromptInputData, emptyPromptInputBuffer, isTypeaheadInput } from "./completion/input-mirror";
 import { normalizeShellType, type ShellType, type TermInputBuffer } from "./completion/types";
 import {
     handleOsc16162Command,
@@ -60,6 +58,7 @@ import {
 import { TerminalStreamBoundaryTracker } from "./terminal-stream-boundary";
 import {
     bufferLinesToText,
+    canUseTerminalCache,
     createTempFileFromBlob,
     extractAllClipboardData,
     normalizeCursorStyle,
@@ -128,7 +127,7 @@ export class TermWrap {
     serializeAddon: SerializeAddon;
     mainFileSubject: SubjectWithRef<WSFileEventData> | null;
     loaded: boolean;
-    heldData: { data: Uint8Array; offset: number }[];
+    heldData: { data: Uint8Array; offset: number; fileEpoch: number }[];
     appendQueue: Promise<void> = Promise.resolve();
     fileEpoch = 0;
     termFileEpoch = 0;
@@ -157,9 +156,11 @@ export class TermWrap {
     cmdBlocks: CmdBlock[] = [];
     cmdBlocksAtom: jotai.PrimitiveAtom<CmdBlock[]>;
     altScreenActiveAtom: jotai.PrimitiveAtom<boolean>;
-    currentPromptInput = "";
     localCompletionInputBuffer: TermInputBuffer;
     localCompletionInputDisabled = false;
+    inputSentWhileRunning = false;
+    drainingHeldData = false;
+    cmdBlocksCacheDirty = false;
     shellInputReportSeen = false;
     currentInputBufferAtom: jotai.PrimitiveAtom<TermInputBuffer | null>;
     pendingCmdBlock: CmdBlock | null = null;
@@ -175,6 +176,7 @@ export class TermWrap {
     semanticBlocksEnabled = false;
     hoveredBlockIdAtom: jotai.PrimitiveAtom<number | null>;
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
+    shellIntegrationDisabledAtom: jotai.PrimitiveAtom<boolean>;
     shellTypeAtom: jotai.PrimitiveAtom<ShellType>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
     claudeCodeActiveAtom: jotai.PrimitiveAtom<boolean>;
@@ -221,6 +223,7 @@ export class TermWrap {
         this.hoveredBlockIdAtom = jotai.atom(null) as jotai.PrimitiveAtom<number | null>;
         this.altScreenActiveAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
+        this.shellIntegrationDisabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellTypeAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellType>;
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
@@ -283,7 +286,7 @@ export class TermWrap {
         });
         this.terminal.parser.registerOscHandler(16162, (data: string) => {
             try {
-                return handleOsc16162Command(data, this.blockId, this.loaded, this);
+                return handleOsc16162Command(data, this.blockId, this.isProcessingLiveData(), this);
             } catch (e) {
                 console.error("[termwrap] osc 16162 handler error", this.blockId, e);
                 return false;
@@ -440,6 +443,24 @@ export class TermWrap {
         this.terminal.options.cursorBlink = cursorBlink ?? false;
     }
 
+    setFontOptions(fontSize: number, fontFamily: string) {
+        const options = this.terminal.options;
+        if (options.fontSize === fontSize && options.fontFamily === fontFamily) {
+            return;
+        }
+        options.fontSize = fontSize;
+        options.fontFamily = fontFamily;
+        // cell size changed, so rows/cols (and the PTY size) must be refit
+        this.handleResize();
+    }
+
+    setScrollback(scrollback: number) {
+        if (this.terminal.options.scrollback === scrollback) {
+            return;
+        }
+        this.terminal.options.scrollback = scrollback;
+    }
+
     setTermRenderer(renderer: "webgl" | "dom") {
         if (renderer === "webgl") {
             if (this.webglAddon != null) {
@@ -526,9 +547,15 @@ export class TermWrap {
                 shellState = rtInfo["shell:state"] as ShellIntegrationStatus;
                 globalStore.set(this.shellIntegrationStatusAtom, shellState || null);
                 globalStore.set(this.shellTypeAtom, normalizeShellType(rtInfo["shell:type"] as string));
+                globalStore.set(this.shellIntegrationDisabledAtom, false);
             } else {
+                const integrationDisabled = rtInfo?.["shell:integration"] === false;
                 globalStore.set(this.shellIntegrationStatusAtom, null);
-                globalStore.set(this.shellTypeAtom, "unknown");
+                globalStore.set(
+                    this.shellTypeAtom,
+                    integrationDisabled ? normalizeShellType(rtInfo["shell:type"] as string) : "unknown"
+                );
+                globalStore.set(this.shellIntegrationDisabledAtom, integrationDisabled);
             }
 
             const lastCmd = rtInfo ? rtInfo["shell:lastcmd"] : null;
@@ -549,10 +576,7 @@ export class TermWrap {
                     this.streamBoundary.reset();
                     continue;
                 }
-                while (this.heldData.length > 0 && epoch === this.fileEpoch) {
-                    const held = this.heldData.shift();
-                    await this.applyFileAppend(held.data, held.offset, epoch);
-                }
+                await this.drainHeldData(epoch);
                 if (epoch === this.fileEpoch) {
                     this.loaded = true;
                     this.publishCmdBlocks();
@@ -564,6 +588,28 @@ export class TermWrap {
         }
         if (!this.disposed) {
             this.runProcessIdleTimeout();
+        }
+    }
+
+    // Data that arrives while the initial load runs is held and drained afterwards. It is
+    // new output (not a replay of history), so shell-integration markers in it must be
+    // processed as live even though the terminal isn't marked loaded yet.
+    isProcessingLiveData(): boolean {
+        return this.loaded || this.drainingHeldData;
+    }
+
+    async drainHeldData(epoch: number): Promise<void> {
+        this.drainingHeldData = true;
+        try {
+            while (this.heldData.length > 0 && epoch === this.fileEpoch && !this.disposed) {
+                const held = this.heldData.shift();
+                if (held.fileEpoch !== this.termFileEpoch) {
+                    continue;
+                }
+                await this.applyFileAppend(held.data, held.offset, epoch);
+            }
+        } finally {
+            this.drainingHeldData = false;
         }
     }
 
@@ -621,13 +667,9 @@ export class TermWrap {
             return;
         }
 
-        if (this.tryInterceptNaturalLanguagePrompt(data)) {
-            return;
-        }
         if (data) {
             this.onInlineAIDismiss?.();
         }
-        this.currentPromptInput = updateNaturalLanguagePromptInput(this.currentPromptInput, data);
         this.handleLocalCompletionInputData(data);
         this.sendDataHandler?.(data);
         this.multiInputCallback?.(data);
@@ -637,11 +679,84 @@ export class TermWrap {
         this.handleLocalCompletionInputData(data);
     }
 
-    handleLocalCompletionInputData(data: string) {
-        if (!data || this.shellInputReportSeen || this.localCompletionInputDisabled) {
+    getRunBlockedReason(command: string): string | null {
+        return getCommandRunBlockedReason(command, {
+            shellIntegrationStatus: globalStore.get(this.shellIntegrationStatusAtom),
+            altScreenActive: globalStore.get(this.altScreenActiveAtom),
+        });
+    }
+
+    // Types a command at the idle prompt and submits it, through the same path as user
+    // keystrokes so the input mirror and multi-input see it too.
+    runCommand(command: string): boolean {
+        if (!this.loaded || this.getRunBlockedReason(command) != null) {
+            return false;
+        }
+        // ctrl-e ctrl-u: drop whatever is already typed at the prompt (works in the
+        // default emacs keymaps of bash, zsh and fish).
+        let data = "\x05\x15";
+        const bracketedPaste =
+            this.terminal.modes?.bracketedPasteMode === true && !this.terminal.options.ignoreBracketedPasteMode;
+        if (bracketedPaste && /[\r\n]/.test(command)) {
+            data += `\x1b[200~${command}\x1b[201~`;
+        } else {
+            data += command;
+        }
+        this.terminal.focus();
+        this.handleTermData(data + "\r");
+        return true;
+    }
+
+    makePromptMarker(): TermTypes.IMarker | null {
+        const marker = this.terminal.registerMarker(0);
+        if (marker == null) {
+            return null;
+        }
+        this.promptMarkers.push(marker);
+        marker.onDispose(() => {
+            const idx = this.promptMarkers.indexOf(marker);
+            if (idx !== -1) {
+                this.promptMarkers.splice(idx, 1);
+            }
+            this.handleCmdBlockMarkerDisposed(marker);
+        });
+        return marker;
+    }
+
+    // xterm's clear() disposes every marker, including the one anchoring the block for
+    // the prompt the user is typing at; without re-anchoring, its command would be lost.
+    clearTerminal() {
+        const pending = this.pendingCmdBlock;
+        this.terminal.clear();
+        if (pending == null || this.pendingCmdBlock === pending) {
             return;
         }
-        if (globalStore.get(this.shellIntegrationStatusAtom) !== "ready" || globalStore.get(this.altScreenActiveAtom)) {
+        const marker = this.makePromptMarker();
+        if (marker == null) {
+            return;
+        }
+        pending.startMarker = marker;
+        pending.outputMarker = null;
+        pending.endMarker = null;
+        this.pendingCmdBlock = pending;
+        this.cmdBlocks.push(pending);
+        this.publishCmdBlocks();
+        this.scheduleCmdDecorationSync();
+    }
+
+    handleLocalCompletionInputData(data: string) {
+        if (!data) {
+            return;
+        }
+        const shellIntegrationStatus = globalStore.get(this.shellIntegrationStatusAtom);
+        const altScreenActive = globalStore.get(this.altScreenActiveAtom);
+        if (shellIntegrationStatus === "running-command" && !altScreenActive && isTypeaheadInput(data)) {
+            this.inputSentWhileRunning = true;
+        }
+        if (this.shellInputReportSeen || this.localCompletionInputDisabled) {
+            return;
+        }
+        if (shellIntegrationStatus !== "ready" || altScreenActive) {
             return;
         }
         const next = applyPromptInputData(this.localCompletionInputBuffer, data);
@@ -652,32 +767,6 @@ export class TermWrap {
         }
         this.localCompletionInputBuffer = next;
         globalStore.set(this.currentInputBufferAtom, next);
-    }
-
-    tryInterceptNaturalLanguagePrompt(data: string): boolean {
-        if (data !== "\r" && data !== "\n") {
-            return false;
-        }
-        const prompt = this.currentPromptInput.trim();
-        if (!prompt || this.pendingCmdBlock == null) {
-            return false;
-        }
-        const shellIntegrationStatus = globalStore.get(this.shellIntegrationStatusAtom);
-        const altScreenActive = globalStore.get(this.altScreenActiveAtom);
-        const commandComposerEnabled = globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
-        if (
-            !shouldInterceptNaturalLanguagePrompt(prompt, {
-                shellIntegrationStatus,
-                altScreenActive,
-                commandComposerEnabled,
-            })
-        ) {
-            return false;
-        }
-        this.currentPromptInput = "";
-        this.sendDataHandler?.("\x15");
-        this.onInlineAIRequest?.(prompt, this.pendingCmdBlock, { auto: true });
-        return true;
     }
 
     addFocusListener(focusFn: () => void) {
@@ -695,13 +784,20 @@ export class TermWrap {
             this.resetCmdBlocks();
         } else if (msg.fileop == "append") {
             const decodedData = base64ToArray(msg.data64);
+            // appends published before a truncate can arrive after it; they belong to the
+            // old file contents. termFileEpoch isn't known until the initial load finishes,
+            // so held appends are filtered when they are drained.
+            const appendEpoch = Number(msg.fileepoch ?? 0);
             if (this.loaded) {
+                if (appendEpoch !== this.termFileEpoch) {
+                    return;
+                }
                 const epoch = this.fileEpoch;
                 this.appendQueue = this.appendQueue
                     .then(() => this.applyFileAppend(decodedData, msg.offset, epoch))
                     .catch((error) => console.error("Terminal append failed", error));
             } else {
-                this.heldData.push({ data: decodedData, offset: msg.offset });
+                this.heldData.push({ data: decodedData, offset: msg.offset, fileEpoch: appendEpoch });
             }
         } else {
             console.log("bad fileop for terminal", msg);
@@ -774,18 +870,23 @@ export class TermWrap {
         let termFileEpoch = Number(mainFile?.meta?.["fileepoch"] ?? 0);
         this.termFileEpoch = termFileEpoch;
         const fileTermSize: TermSize = cacheFile?.meta?.["termsize"];
-        let useCache =
-            cacheFile != null &&
-            cacheData?.byteLength > 0 &&
-            ptyOffset > 0 &&
-            mainFile != null &&
-            ptyOffset <= mainFile.size &&
-            Number(cacheFile.meta?.["fileepoch"] ?? 0) === termFileEpoch;
+        let useCache = canUseTerminalCache({
+            cacheFile,
+            cacheByteLength: cacheData?.byteLength ?? 0,
+            ptyOffset,
+            mainFile,
+            termFileEpoch,
+        });
         let snapshot: CmdBlockIndexSnapshot | null = null;
         if (useCache && cacheFile.meta?.["statehash"] != null) {
             const rawIndex = cacheFile.meta["commandindex"];
             const revision = Number(cacheFile.meta["revision"]);
-            snapshot = parseCmdBlockIndexSnapshot(rawIndex, ptyOffset, fileTermSize?.cols);
+            snapshot = parseCmdBlockIndexSnapshot(
+                rawIndex,
+                ptyOffset,
+                fileTermSize?.cols,
+                this.terminal.options.scrollback
+            );
             if (snapshot == null || typeof rawIndex !== "string" || !Number.isSafeInteger(revision)) {
                 useCache = false;
             } else {
@@ -800,26 +901,17 @@ export class TermWrap {
                 useCache = hash === cacheFile.meta["statehash"];
             }
         }
+        if (useCache) {
+            useCache = await this.restoreTerminalCache(cacheData, ptyOffset, fileTermSize, snapshot);
+            if (!useCache) {
+                this.terminal.reset();
+            }
+        }
         if (!useCache) {
             ptyOffset = 0;
             ({ data: mainData, fileInfo: mainFile } = await fetchWaveFile(zoneId, TermFileName, 0));
             termFileEpoch = Number(mainFile?.meta?.["fileepoch"] ?? 0);
             this.termFileEpoch = termFileEpoch;
-        } else {
-            const curTermSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
-            const didResize =
-                fileTermSize != null &&
-                (fileTermSize.rows !== curTermSize.rows || fileTermSize.cols !== curTermSize.cols);
-            if (didResize) {
-                this.terminal.resize(fileTermSize.cols, fileTermSize.rows);
-            }
-            await this.doTerminalWrite(cacheData, ptyOffset);
-            if (snapshot != null) {
-                this.restoreCmdBlockMarkers(snapshot);
-            }
-            if (didResize) {
-                this.terminal.resize(curTermSize.cols, curTermSize.rows);
-            }
         }
         console.log(
             `terminal loaded cachefile:${useCache ? cacheData.byteLength : 0} main:${mainData?.byteLength ?? 0} bytes, ${Date.now() - startTs}ms`
@@ -832,6 +924,31 @@ export class TermWrap {
                 this.replayingTerminalData = false;
             }
         }
+    }
+
+    // Returns false when the restored buffer doesn't line up with the saved command index;
+    // the caller then discards the cache and replays the raw stream instead.
+    async restoreTerminalCache(
+        cacheData: Uint8Array,
+        ptyOffset: number,
+        fileTermSize: TermSize,
+        snapshot: CmdBlockIndexSnapshot | null
+    ): Promise<boolean> {
+        const curTermSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
+        const didResize =
+            fileTermSize != null && (fileTermSize.rows !== curTermSize.rows || fileTermSize.cols !== curTermSize.cols);
+        if (didResize) {
+            this.terminal.resize(fileTermSize.cols, fileTermSize.rows);
+        }
+        await this.doTerminalWrite(cacheData, ptyOffset);
+        const snapshotMatches = snapshot == null || this.terminal.buffer.active.length === snapshot.bufferlength;
+        if (snapshotMatches && snapshot != null) {
+            this.restoreCmdBlockMarkers(snapshot);
+        }
+        if (didResize) {
+            this.terminal.resize(curTermSize.cols, curTermSize.rows);
+        }
+        return snapshotMatches;
     }
 
     restoreCmdBlockMarkers(snapshot: CmdBlockIndexSnapshot): void {
@@ -874,6 +991,7 @@ export class TermWrap {
                 command: saved.command,
                 exitCode: saved.exitcode,
                 state: saved.state,
+                interrupted: saved.interrupted === true,
                 startTs: saved.startts,
                 doneTs: saved.donets,
                 cwd: saved.cwd,
@@ -931,7 +1049,7 @@ export class TermWrap {
             this.inSyncTransaction ||
             this.terminal.buffer.active.type !== "normal" ||
             !this.streamBoundary.isSafe ||
-            this.dataBytesProcessed < MinDataProcessedForCache
+            (this.dataBytesProcessed < MinDataProcessedForCache && !this.cmdBlocksCacheDirty)
         ) {
             return;
         }
@@ -941,7 +1059,15 @@ export class TermWrap {
         const epoch = this.fileEpoch;
         const termFileEpoch = this.termFileEpoch;
         const revision = (this.cacheRevision = Math.max(Date.now(), this.cacheRevision + 1));
-        const commandIndex = JSON.stringify(makeCmdBlockIndexSnapshot(this.cmdBlocks, ptyOffset, termSize.cols));
+        const commandIndex = JSON.stringify(
+            makeCmdBlockIndexSnapshot(
+                this.cmdBlocks,
+                ptyOffset,
+                termSize.cols,
+                this.terminal.options.scrollback,
+                this.terminal.buffer.active.length
+            )
+        );
         console.log("idle timeout term", this.dataBytesProcessed, serializedOutput.length, termSize);
         this.cacheSaveQueue = this.cacheSaveQueue
             .catch((error) => console.error("Terminal cache save failed", error))
@@ -974,6 +1100,7 @@ export class TermWrap {
             });
         fireAndForget(() => this.cacheSaveQueue);
         this.dataBytesProcessed = 0;
+        this.cmdBlocksCacheDirty = false;
     }
 
     runProcessIdleTimeout() {
@@ -1034,18 +1161,25 @@ export class TermWrap {
 
     // Command-block index lifecycle, driven by shell-integration OSC 16162 (A/C/D).
     // A new command block spans from one prompt-start (A) marker to the next.
-    onPromptStart(marker: TermTypes.IMarker) {
-        this.currentPromptInput = "";
+    onPromptStart(marker: TermTypes.IMarker, replaying = false) {
         this.localCompletionInputBuffer = emptyPromptInputBuffer();
-        this.localCompletionInputDisabled = false;
+        // typeahead queued while the previous command ran lands in this prompt's line
+        // editor without passing through the mirror, so the mirror can't be trusted here.
+        this.localCompletionInputDisabled = this.inputSentWhileRunning;
+        this.inputSentWhileRunning = false;
         this.shellInputReportSeen = false;
-        globalStore.set(this.currentInputBufferAtom, { text: "", cursorIndex: 0 });
+        globalStore.set(
+            this.currentInputBufferAtom,
+            this.localCompletionInputDisabled ? null : { text: "", cursorIndex: 0 }
+        );
         const prev = this.pendingCmdBlock;
         if (prev != null) {
             prev.endMarker = marker;
             if (!blockHasCommand(prev)) {
                 // an A with no following C = empty Enter; don't keep it as a block
                 this.cmdBlocks = this.cmdBlocks.filter((b) => b !== prev);
+            } else {
+                this.finalizeInterruptedCmdBlock(prev, replaying);
             }
         }
         const block: CmdBlock = {
@@ -1071,7 +1205,6 @@ export class TermWrap {
         if (this.pendingCmdBlock == null) {
             return;
         }
-        this.currentPromptInput = "";
         const outputMarker = this.terminal.registerMarker(0);
         if (outputMarker != null) {
             this.pendingCmdBlock.outputMarker = outputMarker;
@@ -1098,7 +1231,16 @@ export class TermWrap {
         const block = this.pendingCmdBlock;
         block.exitCode = exitCode;
         block.state = "done";
+        block.interrupted = false;
         block.doneTs = replaying ? null : Date.now();
+        if (block.doneTs == null) {
+            // a restored running block keeps its real startTs, but the replayed D carries
+            // no timestamp - hide the duration instead of letting it grow forever.
+            block.startTs = 0;
+        }
+        if (!replaying) {
+            this.cmdBlocksCacheDirty = true;
+        }
         const inlineAIPrompt = getInlineAICommandPrompt(block);
         const commandComposerEnabled = globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
         if (!replaying && commandComposerEnabled && inlineAIPrompt && shouldAutoComposeInlineAI(block)) {
@@ -1106,6 +1248,31 @@ export class TermWrap {
         }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
+    }
+
+    // A block whose command never reported D (shell killed, exec'd, or restarted) must
+    // not stay "Running" forever; close it with an unknown result.
+    finalizeInterruptedCmdBlock(block: CmdBlock, replaying = false): boolean {
+        if (block == null || block.state !== "running" || !blockHasCommand(block)) {
+            return false;
+        }
+        block.state = "done";
+        block.exitCode = null;
+        block.interrupted = true;
+        block.doneTs = replaying || !block.startTs ? null : Date.now();
+        if (block.doneTs == null) {
+            block.startTs = 0;
+        }
+        if (!replaying) {
+            this.cmdBlocksCacheDirty = true;
+        }
+        this.publishCmdBlocks();
+        this.scheduleCmdDecorationSync();
+        return true;
+    }
+
+    onShellRestart(replaying = false) {
+        this.finalizeInterruptedCmdBlock(this.pendingCmdBlock, replaying);
     }
 
     // Shell-integration OSC 16162 "I" report: the live prompt input buffer + cursor.
@@ -1257,7 +1424,6 @@ export class TermWrap {
         this.pendingCmdBlock = null;
         this.outputMarkers.forEach((marker) => marker.dispose());
         this.outputMarkers = [];
-        this.currentPromptInput = "";
         globalStore.set(this.hoveredBlockIdAtom, null);
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();

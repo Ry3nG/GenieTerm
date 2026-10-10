@@ -101,6 +101,10 @@
             background: var(--success-color);
         }
 
+        &.is-unknown::before {
+            background: color-mix(in srgb, var(--warning-color) 70%, transparent);
+        }
+
         &.is-error {
             background: color-mix(in srgb, var(--error-color) 9%, transparent);
 
@@ -172,6 +176,10 @@
 
         &.is-running .term-command-action-status {
             color: var(--accent-color);
+        }
+
+        &.is-unknown .term-command-action-status {
+            color: var(--warning-color);
         }
     }
 
@@ -382,6 +390,13 @@
 
     .term-inline-ai-dock-btn {
         padding: 0 7px;
+
+        &:disabled {
+            opacity: 0.38;
+            cursor: default;
+            background: transparent;
+            color: var(--secondary-text-color);
+        }
     }
 
     .term-inline-ai-dock-close {

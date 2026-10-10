@@ -12,12 +12,11 @@ import {
     getCommandProposalApplyMode,
     getInlineAICommandPrompt,
     isCommandComposerEnabled,
+    isLikelyNaturalLanguageCommand,
     LocalCommandComposerBackend,
     makeLocalCommandProposals,
     parseCommandProposalResponse,
     shouldAutoComposeInlineAI,
-    shouldInterceptNaturalLanguagePrompt,
-    updateNaturalLanguagePromptInput,
 } from "./command-composer";
 
 function makeBlock(command: string, cwd = "/repo"): CmdBlock {
@@ -231,59 +230,13 @@ describe("command-composer", () => {
         expect(isCommandComposerEnabled({ "term:commandcomposer": false })).toBe(false);
     });
 
-    it("intercepts natural language prompt input only when the terminal is ready for AI composition", () => {
-        expect(
-            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
-                shellIntegrationStatus: "ready",
-                altScreenActive: false,
-                commandComposerEnabled: true,
-            })
-        ).toBe(true);
-        expect(
-            shouldInterceptNaturalLanguagePrompt("help me check disk usage", {
-                shellIntegrationStatus: "ready",
-                altScreenActive: false,
-                commandComposerEnabled: true,
-            })
-        ).toBe(true);
-        expect(
-            shouldInterceptNaturalLanguagePrompt("git status --short", {
-                shellIntegrationStatus: "ready",
-                altScreenActive: false,
-                commandComposerEnabled: true,
-            })
-        ).toBe(false);
-        expect(
-            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
-                shellIntegrationStatus: "running-command",
-                altScreenActive: false,
-                commandComposerEnabled: true,
-            })
-        ).toBe(false);
-        expect(
-            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
-                shellIntegrationStatus: "ready",
-                altScreenActive: true,
-                commandComposerEnabled: true,
-            })
-        ).toBe(false);
-        expect(
-            shouldInterceptNaturalLanguagePrompt("看下我的little wam项目的目录在哪里", {
-                shellIntegrationStatus: "ready",
-                altScreenActive: false,
-                commandComposerEnabled: false,
-            })
-        ).toBe(false);
-    });
-
-    it("tracks prompt input conservatively before Enter interception", () => {
-        let input = updateNaturalLanguagePromptInput("", "help me");
-        input = updateNaturalLanguagePromptInput(input, "\x7f");
-        input = updateNaturalLanguagePromptInput(input, "y");
-        expect(input).toBe("help my");
-        expect(updateNaturalLanguagePromptInput(input, "\x15")).toBe("");
-        expect(updateNaturalLanguagePromptInput(input, "\r")).toBe("");
-        expect(updateNaturalLanguagePromptInput(input, "\x1b[D")).toBe("");
+    it("uses the natural-language heuristic only after a command-not-found failure", () => {
+        expect(isLikelyNaturalLanguageCommand("help me check disk usage")).toBe(true);
+        expect(isLikelyNaturalLanguageCommand("git status --short")).toBe(false);
+        const naturalLanguage = { ...makeBlock("help me check disk usage"), exitCode: 127 };
+        expect(shouldAutoComposeInlineAI(naturalLanguage)).toBe(true);
+        expect(shouldAutoComposeInlineAI({ ...naturalLanguage, exitCode: 1 })).toBe(false);
+        expect(shouldAutoComposeInlineAI({ ...naturalLanguage, state: "running", exitCode: null })).toBe(false);
     });
 
     it("requires confirmation before inserting risky proposals and copies while shell is busy", () => {

@@ -38,7 +38,7 @@ describe("terminal chrome overlap safety", () => {
         const termScss = readTermFile("term.scss");
         const dockRule = termScss.match(/\.term-inline-ai-dock\s*\{[\s\S]*?\n {4}\}/)?.[0] ?? "";
 
-        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*<TerminalPresentationShell/);
+        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*\)\}\s*<TerminalPresentationShell/);
         expect(dockRule).toContain("flex: 0 0 auto");
         expect(dockRule).not.toContain("position: absolute");
         expect(dockRule).not.toContain("position: fixed");
@@ -50,31 +50,33 @@ describe("terminal chrome overlap safety", () => {
         const actionBarRule = termScss.match(/\.term-command-action-bar\s*\{[\s\S]*?\n {4}\}/)?.[0] ?? "";
 
         expect(termView).toContain("const TermCommandActionBar");
-        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*<TerminalPresentationShell/);
+        expect(termView).toMatch(/<TermCommandActionBar[^>]*\/>\s*\)\}\s*<TerminalPresentationShell/);
         expect(termView).toContain("Copy command");
         expect(termView).toContain("Copy output");
         expect(termView).toContain("Re-run command");
         expect(termView).toContain("Jump past output");
         expect(termView).toContain("Fix with AI");
+        expect(termView).toMatch(
+            /shouldShowSemanticTerminal\(terminalPresentationMode\) && \(\s*<TermCommandActionBar/
+        );
         expect(actionBarRule).toContain("flex: 0 0 auto");
         expect(actionBarRule).not.toContain("position: absolute");
         expect(actionBarRule).not.toContain("position: fixed");
     });
 
-    it("wires natural language prompt interception before shell execution", () => {
+    it("never intercepts Enter before the shell sees it", () => {
         const termWrap = readTermFile("termwrap.ts");
 
-        expect(termWrap).toContain("shouldInterceptNaturalLanguagePrompt");
-        expect(termWrap).toContain("updateNaturalLanguagePromptInput");
-        expect(termWrap).toContain('this.sendDataHandler?.("\\x15")');
-        expect(termWrap).toContain("this.onInlineAIRequest?.(prompt");
+        expect(termWrap).not.toContain("tryInterceptNaturalLanguagePrompt");
+        expect(termWrap).not.toContain("shouldInterceptNaturalLanguagePrompt");
+        expect(termWrap).not.toContain('this.sendDataHandler?.("\\x15")');
     });
 
     it("selects the terminal renderer from the resolved theme palette", () => {
         const termView = readTermFile("term.tsx");
 
         expect(termView).toContain("shouldUseWebGlRenderer");
-        expect(termView).toContain('useWebGl: shouldUseWebGlRenderer(termSettings?.["term:disablewebgl"], termTheme)');
+        expect(termView).toContain("useWebGl: shouldUseWebGlRenderer(settingsDisableWebGl, termTheme)");
     });
 
     it("sets terminal color contrast from the resolved theme palette", () => {

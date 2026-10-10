@@ -1,9 +1,10 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { CmdBlock } from "./cmdblocks";
+import { isCmdBlockCommandPlaceholder, type CmdBlock } from "./cmdblocks";
+import type { ShellIntegrationStatus } from "./osc-handlers";
 
-export type CmdBlockStatusTone = "running" | "success" | "error";
+export type CmdBlockStatusTone = "running" | "success" | "error" | "unknown";
 
 export type CmdBlockStatusDisplay = {
     label: string;
@@ -12,7 +13,7 @@ export type CmdBlockStatusDisplay = {
 };
 
 export function formatCmdBlockDuration(block: CmdBlock, nowTs = Date.now()): string {
-    if (!block?.startTs) {
+    if (!block?.startTs || (block.state === "done" && block.doneTs == null)) {
         return "";
     }
     const endTs = block.doneTs ?? nowTs;
@@ -38,6 +39,20 @@ export function getCmdBlockStatus(block: CmdBlock): CmdBlockStatusDisplay {
             iconClass: "fa-solid fa-spinner fa-spin",
         };
     }
+    if (block.interrupted) {
+        return {
+            label: "Interrupted",
+            tone: "unknown",
+            iconClass: "fa-solid fa-circle-minus",
+        };
+    }
+    if (block.exitCode == null) {
+        return {
+            label: "Finished",
+            tone: "unknown",
+            iconClass: "fa-solid fa-circle-question",
+        };
+    }
     if (block.exitCode === 0) {
         return {
             label: "OK",
@@ -46,7 +61,7 @@ export function getCmdBlockStatus(block: CmdBlock): CmdBlockStatusDisplay {
         };
     }
     return {
-        label: `Exit ${block.exitCode ?? "?"}`,
+        label: `Exit ${block.exitCode}`,
         tone: "error",
         iconClass: "fa-solid fa-xmark",
     };
@@ -55,4 +70,30 @@ export function getCmdBlockStatus(block: CmdBlock): CmdBlockStatusDisplay {
 export function getCmdBlockTitle(block: CmdBlock, nowTs = Date.now()): string {
     const status = getCmdBlockStatus(block);
     return [block?.command, status.label, formatCmdBlockDuration(block, nowTs), block?.cwd].filter(Boolean).join(" - ");
+}
+
+export type CommandRunGate = {
+    shellIntegrationStatus: ShellIntegrationStatus | null;
+    altScreenActive: boolean;
+};
+
+// Typing a command is only safe at an idle prompt: anything else would feed the text
+// to whatever program currently owns the terminal.
+export function getCommandRunBlockedReason(command: string | null | undefined, gate: CommandRunGate): string | null {
+    if (!command?.trim()) {
+        return "No command to run";
+    }
+    if (isCmdBlockCommandPlaceholder(command)) {
+        return "This command was too large to record";
+    }
+    if (gate.altScreenActive) {
+        return "Unavailable while a full-screen program is running";
+    }
+    if (gate.shellIntegrationStatus === "running-command") {
+        return "Unavailable while another command is running";
+    }
+    if (gate.shellIntegrationStatus !== "ready") {
+        return "Unavailable until the shell reports it is at a prompt";
+    }
+    return null;
 }

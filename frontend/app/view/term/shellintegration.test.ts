@@ -35,6 +35,22 @@ describe("shell integration recovery", () => {
         expect(getShellIntegrationRecovery({ ...connected, wshenabled: true }).action).toBe("restart");
     });
 
+    it("explains PowerShell's missing command blocks without offering a useless restart", () => {
+        const recovery = getShellIntegrationRecovery(
+            { ...connected, connection: "local" },
+            { integrationDisabled: true, shellType: "pwsh" }
+        );
+        expect(recovery).toEqual({ message: "Command blocks aren't available for PowerShell yet.", action: null });
+    });
+
+    it("does not offer a restart when any shell reports integration:false", () => {
+        const recovery = getShellIntegrationRecovery(
+            { ...connected, connection: "local" },
+            { integrationDisabled: true, shellType: "unknown" }
+        );
+        expect(recovery.action).toBeNull();
+    });
+
     it("never offers SSH reconnection for local terminals", () => {
         for (const connection of ["", "local", "local:workstation"]) {
             expect(getShellIntegrationRecovery({ ...connected, connection }).action).toBe("restart");

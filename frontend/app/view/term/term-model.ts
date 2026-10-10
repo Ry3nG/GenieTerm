@@ -54,6 +54,7 @@ import {
 } from "./command-composer";
 import { LLMCommandComposerBackend } from "./command-composer-llm";
 import { TermCompletionModel } from "./completion/completion-model";
+import type { TermInputBuffer } from "./completion/types";
 import { getBlockingCommand } from "./shellblocking";
 import {
     computeTheme,
@@ -120,6 +121,8 @@ export class TermViewModel implements ViewModel {
     >;
     commandComposerBackend: CommandComposerBackend = new LLMCommandComposerBackend();
     completionModel = new TermCompletionModel();
+    commandComposerRequestCounter = 0;
+    inlineCommandAIRequestCounter = 0;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.viewType = "term";
@@ -549,11 +552,27 @@ export class TermViewModel implements ViewModel {
             .catch((error) => console.error("Terminal input failed", error));
     }
 
-    acceptCompletionSelected() {
-        this.completionModel.acceptSelected((data) => {
+    getCurrentInputBuffer(): TermInputBuffer | null {
+        const inputBufferAtom = this.termRef.current?.currentInputBufferAtom;
+        return inputBufferAtom == null ? null : globalStore.get(inputBufferAtom);
+    }
+
+    acceptCompletionSelected(): boolean {
+        return this.completionModel.acceptSelected((data) => {
             this.termRef.current?.handleProgrammaticInputData(data);
             this.sendDataToController(data);
-        });
+        }, this.getCurrentInputBuffer());
+    }
+
+    // Keys like Cmd+Arrow are translated to shell control sequences; they go through the
+    // same path as typed input so the prompt mirror and multi-input stay in sync.
+    sendUserInput(data: string) {
+        const termWrap = this.termRef.current;
+        if (termWrap == null) {
+            this.sendDataToController(data);
+            return;
+        }
+        termWrap.handleTermData(data);
     }
 
     setTermMode(mode: "term" | "vdom") {
@@ -676,6 +695,7 @@ export class TermViewModel implements ViewModel {
             return false;
         }
         this.completionModel.dismiss();
+        this.commandComposerRequestCounter++;
         if (initialInput != null) {
             globalStore.set(this.commandComposerInputAtom, initialInput);
         }
@@ -689,12 +709,16 @@ export class TermViewModel implements ViewModel {
     }
 
     closeCommandComposer() {
+        this.commandComposerRequestCounter++;
         globalStore.set(this.commandComposerOpenAtom, false);
         globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
         this.giveFocus();
     }
 
     async generateCommandProposals(prompt: string, contextInput: CommandComposerContextInput) {
+        const requestId = ++this.commandComposerRequestCounter;
+        const isCurrent = () =>
+            requestId === this.commandComposerRequestCounter && globalStore.get(this.commandComposerOpenAtom);
         const trimmedPrompt = prompt.trim();
         if (!trimmedPrompt) {
             globalStore.set(this.commandComposerProposalsAtom, []);
@@ -707,11 +731,17 @@ export class TermViewModel implements ViewModel {
         globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
         try {
             const result = await this.commandComposerBackend.compose(trimmedPrompt, context);
+            if (!isCurrent()) {
+                return;
+            }
             globalStore.set(this.commandComposerProviderStatusAtom, result.providerStatus);
             globalStore.set(this.commandComposerProposalsAtom, result.proposals);
             globalStore.set(this.commandComposerStatusAtom, "ready");
         } catch (e) {
             console.error("command composer failed", e);
+            if (!isCurrent()) {
+                return;
+            }
             globalStore.set(this.commandComposerProposalsAtom, []);
             globalStore.set(this.commandComposerProviderStatusAtom, {
                 ...ErrorFallbackCommandAIProviderStatus,
@@ -772,10 +802,17 @@ export class TermViewModel implements ViewModel {
             this.clearInlineCommandAIState(block);
             return;
         }
-        this.setInlineCommandAIState(block, { prompt: trimmedPrompt, status: "loading" });
+        const requestId = ++this.inlineCommandAIRequestCounter;
+        // dismissing (or a newer request) replaces/removes the state, so a late result
+        // for this request must not bring the suggestion back.
+        const isCurrent = () => this.getInlineCommandAIState(block)?.requestId === requestId;
+        this.setInlineCommandAIState(block, { prompt: trimmedPrompt, status: "loading", requestId });
         try {
             const context = buildCommandComposerContext(this.getCommandComposerContextInputForBlock(block));
             const result = await this.commandComposerBackend.compose(trimmedPrompt, context);
+            if (!isCurrent()) {
+                return;
+            }
             const proposal = result.proposals[0];
             if (proposal == null) {
                 this.setInlineCommandAIState(block, {
@@ -783,6 +820,7 @@ export class TermViewModel implements ViewModel {
                     status: "error",
                     providerStatus: result.providerStatus,
                     error: "No command suggestion",
+                    requestId,
                 });
                 return;
             }
@@ -791,11 +829,16 @@ export class TermViewModel implements ViewModel {
                 status: "ready",
                 proposal,
                 providerStatus: result.providerStatus,
+                requestId,
             });
         } catch (e) {
             console.error("inline command AI failed", e);
+            if (!isCurrent()) {
+                return;
+            }
             this.setInlineCommandAIState(block, {
                 prompt: trimmedPrompt,
+                requestId,
                 status: "error",
                 providerStatus: {
                     ...ErrorFallbackCommandAIProviderStatus,
@@ -832,7 +875,11 @@ export class TermViewModel implements ViewModel {
         if (proposal == null) {
             return null;
         }
-        const shellIntegrationStatus = readAtom(this.termRef?.current?.shellIntegrationStatusAtom);
+        const termWrap = this.termRef.current;
+        if (action === "run" && (termWrap == null || termWrap.getRunBlockedReason(proposal.command) != null)) {
+            return null;
+        }
+        const shellIntegrationStatus = readAtom(termWrap?.shellIntegrationStatusAtom);
         const mode = getCommandProposalApplyMode(proposal, {
             confirmed: state?.confirmAction === action,
             shellIntegrationStatus,
@@ -847,10 +894,11 @@ export class TermViewModel implements ViewModel {
             return mode;
         }
         if (action === "run") {
-            this.termRef.current?.terminal?.focus();
-            this.termRef.current?.sendDataHandler?.(`${proposal.command}\r`);
+            if (!termWrap.runCommand(proposal.command)) {
+                return null;
+            }
         } else {
-            this.termRef.current?.terminal?.paste(proposal.command);
+            termWrap?.terminal?.paste(proposal.command);
         }
         this.clearInlineCommandAIState(block);
         this.giveFocus();
@@ -1071,14 +1119,19 @@ export class TermViewModel implements ViewModel {
                 return false;
             }
             if (keyutil.checkKeyPressed(waveEvent, "ArrowRight")) {
-                this.acceptCompletionSelected();
+                if (
+                    !this.completionModel.canAcceptWithArrowRight(this.getCurrentInputBuffer()) ||
+                    !this.acceptCompletionSelected()
+                ) {
+                    this.completionModel.dismiss();
+                    return true;
+                }
                 event.preventDefault();
                 event.stopPropagation();
                 return false;
             }
             if (keyutil.checkKeyPressed(waveEvent, "Tab")) {
-                if (this.completionModel.shouldAcceptSelectedFromKey()) {
-                    this.acceptCompletionSelected();
+                if (this.completionModel.shouldAcceptSelectedFromKey() && this.acceptCompletionSelected()) {
                     event.preventDefault();
                     event.stopPropagation();
                     return false;
@@ -1113,13 +1166,13 @@ export class TermViewModel implements ViewModel {
 
         if (isMacOS()) {
             if (keyutil.checkKeyPressed(waveEvent, "Cmd:ArrowLeft")) {
-                this.sendDataToController("\x01"); // Ctrl-A (beginning of line)
+                this.sendUserInput("\x01"); // Ctrl-A (beginning of line)
                 event.preventDefault();
                 event.stopPropagation();
                 return false;
             }
             if (keyutil.checkKeyPressed(waveEvent, "Cmd:ArrowRight")) {
-                this.sendDataToController("\x05"); // Ctrl-E (end of line)
+                this.sendUserInput("\x05"); // Ctrl-E (end of line)
                 event.preventDefault();
                 event.stopPropagation();
                 return false;
@@ -1165,7 +1218,7 @@ export class TermViewModel implements ViewModel {
         } else if (keyutil.checkKeyPressed(waveEvent, "Cmd:k")) {
             event.preventDefault();
             event.stopPropagation();
-            this.termRef.current?.terminal?.clear();
+            this.termRef.current?.clearTerminal();
             return false;
         }
         const shellProcStatus = globalStore.get(this.shellProcStatus);

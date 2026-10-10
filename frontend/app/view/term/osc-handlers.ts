@@ -14,11 +14,13 @@ import {
 } from "@/store/global";
 import { base64ToString, fireAndForget, isSshConnName, isWslConnName } from "@/util/util";
 import debug from "debug";
+import { isCmdBlockCommandPlaceholder, makeCmdBlockCommandTooLargePlaceholder } from "./cmdblocks";
 import { normalizeShellType } from "./completion/types";
 import type { TermWrap } from "./termwrap";
 
 const dlog = debug("wave:termwrap");
 
+const MaxRecordedCommandBytes = 8192;
 const Osc52MaxDecodedSize = 75 * 1024; // max clipboard size for OSC 52 (matches common terminal implementations)
 const Osc52MaxRawLength = 128 * 1024; // includes selector + base64 + whitespace (rough check)
 
@@ -110,24 +112,14 @@ function handleShellIntegrationCommandStart(
     const isDurable = globalStore.get(getBlockTermDurableAtom(blockId)) ?? false;
     getApi().incrementTermCommands({ isRemote, isWsl, isDurable });
     if (cmd.data.cmd64) {
-        const decodedLen = Math.ceil(cmd.data.cmd64.length * 0.75);
-        if (decodedLen > 8192) {
-            rtInfo["shell:lastcmd"] = `# command too large (${decodedLen} bytes)`;
-            globalStore.set(termWrap.lastCommandAtom, rtInfo["shell:lastcmd"]);
-        } else {
-            try {
-                const decodedCmd = base64ToString(cmd.data.cmd64);
-                rtInfo["shell:lastcmd"] = decodedCmd;
-                globalStore.set(termWrap.lastCommandAtom, decodedCmd);
-                const isCC = isClaudeCodeCommand(decodedCmd);
-                globalStore.set(termWrap.claudeCodeActiveAtom, isCC);
-                checkCommandForTelemetry(decodedCmd);
-            } catch (e) {
-                console.error("Error decoding cmd64:", e);
-                rtInfo["shell:lastcmd"] = null;
-                globalStore.set(termWrap.lastCommandAtom, null);
-                globalStore.set(termWrap.claudeCodeActiveAtom, false);
-            }
+        const decodedCmd = decodeOsc16162CommandText(cmd.data.cmd64);
+        rtInfo["shell:lastcmd"] = decodedCmd;
+        globalStore.set(termWrap.lastCommandAtom, decodedCmd);
+        if (decodedCmd != null && !isCmdBlockCommandPlaceholder(decodedCmd)) {
+            globalStore.set(termWrap.claudeCodeActiveAtom, isClaudeCodeCommand(decodedCmd));
+            checkCommandForTelemetry(decodedCmd);
+        } else if (decodedCmd == null) {
+            globalStore.set(termWrap.claudeCodeActiveAtom, false);
         }
     } else {
         rtInfo["shell:lastcmd"] = null;
@@ -282,20 +274,63 @@ export function handleOsc7Command(data: string, blockId: string, loaded: boolean
     return true;
 }
 
-function registerCommandPromptMarker(termWrap: TermWrap): void {
-    const marker = termWrap.terminal.registerMarker(0);
+function registerCommandPromptMarker(termWrap: TermWrap, replaying = false): void {
+    const marker = termWrap.makePromptMarker();
     if (marker == null) {
         return;
     }
-    termWrap.promptMarkers.push(marker);
-    marker.onDispose(() => {
-        const idx = termWrap.promptMarkers.indexOf(marker);
-        if (idx !== -1) {
-            termWrap.promptMarkers.splice(idx, 1);
-        }
-        termWrap.handleCmdBlockMarkerDisposed(marker);
-    });
-    termWrap.onPromptStart(marker);
+    termWrap.onPromptStart(marker, replaying);
+}
+
+// The C payload comes straight from the shell; a malformed one (fish on some platforms
+// emits base64 with spaces) must not throw inside xterm's synchronous OSC handler, which
+// would stall the write queue.
+export function decodeOsc16162CommandText(cmd64: string | null | undefined): string | null {
+    if (!cmd64) {
+        return null;
+    }
+    const decodedLen = Math.ceil(cmd64.length * 0.75);
+    if (decodedLen > MaxRecordedCommandBytes) {
+        return makeCmdBlockCommandTooLargePlaceholder(decodedLen);
+    }
+    try {
+        return base64ToString(cmd64);
+    } catch (e) {
+        console.error("Error decoding cmd64:", e);
+        return null;
+    }
+}
+
+function handleShellIntegrationMetadata(termWrap: TermWrap, data: { shell?: string; integration?: boolean }) {
+    if (data.shell) {
+        globalStore.set(termWrap.shellTypeAtom, normalizeShellType(data.shell));
+    }
+    if (data.integration != null) {
+        globalStore.set(termWrap.shellIntegrationDisabledAtom, data.integration === false);
+    }
+}
+
+function handleReplayedOsc16162Command(termWrap: TermWrap, cmd: Osc16162Command): void {
+    switch (cmd.command) {
+        case "A":
+            globalStore.set(termWrap.shellIntegrationStatusAtom, "ready");
+            registerCommandPromptMarker(termWrap, true);
+            break;
+        case "C":
+            globalStore.set(termWrap.shellIntegrationStatusAtom, "running-command");
+            termWrap.onCommandStart(decodeOsc16162CommandText(cmd.data.cmd64), true);
+            break;
+        case "D":
+            termWrap.onCommandDone(cmd.data.exitcode ?? null, true);
+            break;
+        case "M":
+            handleShellIntegrationMetadata(termWrap, cmd.data);
+            break;
+        case "R":
+            globalStore.set(termWrap.shellIntegrationStatusAtom, null);
+            termWrap.onShellRestart(true);
+            break;
+    }
 }
 
 export function handleOsc16162Command(data: string, blockId: string, loaded: boolean, termWrap: TermWrap): boolean {
@@ -321,14 +356,7 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
 
     const cmd: Osc16162Command = { command: commandStr, data: parsedData } as Osc16162Command;
     if (!loaded) {
-        if (cmd.command === "A") {
-            registerCommandPromptMarker(termWrap);
-        } else if (cmd.command === "C") {
-            const command = cmd.data.cmd64 ? base64ToString(cmd.data.cmd64) : null;
-            termWrap.onCommandStart(command, true);
-        } else if (cmd.command === "D") {
-            termWrap.onCommandDone(cmd.data.exitcode ?? null, true);
-        }
+        handleReplayedOsc16162Command(termWrap, cmd);
         return true;
     }
     const rtInfo: ObjRTInfo = {};
@@ -345,9 +373,9 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
             termWrap.onCommandStart(globalStore.get(termWrap.lastCommandAtom));
             break;
         case "M":
+            handleShellIntegrationMetadata(termWrap, cmd.data);
             if (cmd.data.shell) {
                 rtInfo["shell:type"] = cmd.data.shell;
-                globalStore.set(termWrap.shellTypeAtom, normalizeShellType(cmd.data.shell));
             }
             if (cmd.data.shellversion) {
                 rtInfo["shell:version"] = cmd.data.shellversion;
@@ -385,6 +413,7 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
         case "R":
             globalStore.set(termWrap.shellIntegrationStatusAtom, null);
             globalStore.set(termWrap.claudeCodeActiveAtom, false);
+            termWrap.onShellRestart();
             if (terminal.buffer.active.type === "alternate") {
                 terminal.write("\x1b[?1049l");
             }

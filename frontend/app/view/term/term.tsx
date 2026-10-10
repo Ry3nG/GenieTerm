@@ -13,7 +13,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { TermViewModel } from "@/app/view/term/term-model";
-import { atoms, getApi, getOverrideConfigAtom, getSettingsKeyAtom, getSettingsPrefixAtom, WOS } from "@/store/global";
+import { atoms, getApi, getOverrideConfigAtom, getSettingsKeyAtom, WOS } from "@/store/global";
 import { fireAndForget, useAtomValueSafe } from "@/util/util";
 import { computeBgStyleFromMeta } from "@/util/waveutil";
 import { ISearchOptions } from "@xterm/addon-search";
@@ -22,8 +22,8 @@ import debug from "debug";
 import * as jotai from "jotai";
 import * as React from "react";
 import { useDrop } from "react-dnd";
-import { formatCmdBlockDuration, getCmdBlockStatus } from "./cmdblockdisplay";
-import { blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
+import { formatCmdBlockDuration, getCmdBlockStatus, getCommandRunBlockedReason } from "./cmdblockdisplay";
+import { blockHasCommand, getBlockOutputText, isCmdBlockCommandPlaceholder, type CmdBlock } from "./cmdblocks";
 import {
     getInlineAICommandPrompt,
     UnknownCommandAIProviderStatus,
@@ -31,12 +31,14 @@ import {
 } from "./command-composer";
 import { TermCommandComposer } from "./command-composer-ui";
 import { TermCompletion } from "./completion/completion-ui";
+import type { ShellType } from "./completion/types";
 import { getShellIntegrationRecovery } from "./shellintegration";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
     getTerminalPresentationClassName,
     normalizeTerminalPresentationMode,
+    shouldShowSemanticTerminal,
     type TerminalPresentationMode,
 } from "./terminaldisplay";
 import { TermStickers } from "./termsticker";
@@ -45,6 +47,7 @@ import {
     computeTheme,
     normalizeCursorStyle,
     resolveTermMinimumContrastRatio,
+    resolveTermScrollback,
     shouldUseWebGlRenderer,
 } from "./termutil";
 import { TermWrap } from "./termwrap";
@@ -218,6 +221,8 @@ const TermToolbarVDomNode = ({ blockId, model }: TerminalViewProps) => {
 const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel; termWrap: TermWrap | null }) => {
     const inlineAIStates = jotai.useAtomValue(model.inlineCommandAIStatesAtom);
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
+    const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
+    const altScreenActive = useAtomValueSafe<boolean>(termWrap?.altScreenActiveAtom) ?? false;
     const activeItem = React.useMemo(() => {
         for (let i = cmdBlocks.length - 1; i >= 0; i--) {
             const block = cmdBlocks[i];
@@ -247,6 +252,10 @@ const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel
     const proposal = state.proposal;
     const commandText = block.command || state.prompt;
     const providerStatus = state.providerStatus ?? UnknownCommandAIProviderStatus;
+    const runBlockedReason =
+        proposal == null || termWrap == null
+            ? "Terminal is not ready"
+            : getCommandRunBlockedReason(proposal.command, { shellIntegrationStatus, altScreenActive });
 
     return (
         <div className={`term-inline-ai-dock is-${state.status}`} role="status" aria-live="polite">
@@ -290,6 +299,8 @@ const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel
                         <button
                             type="button"
                             className="term-inline-ai-dock-btn cursor-pointer"
+                            title={runBlockedReason ?? "Run this command"}
+                            disabled={runBlockedReason != null}
                             onClick={() => runAction("run")}
                         >
                             {state.confirmAction === "run" ? "Confirm" : "Run"}
@@ -340,6 +351,8 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
         return null;
     }, [cmdBlocks, hoveredBlockId]);
 
+    const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
+    const altScreenActive = useAtomValueSafe<boolean>(termWrap?.altScreenActiveAtom) ?? false;
     const [copyFeedback, setCopyFeedback] = React.useState<string | null>(null);
     const [nowTs, setNowTs] = React.useState(Date.now());
     const status = activeBlock != null ? getCmdBlockStatus(activeBlock) : null;
@@ -368,6 +381,9 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
     }, []);
 
     const copyCommand = React.useCallback(() => {
+        if (isCmdBlockCommandPlaceholder(activeBlock?.command)) {
+            return;
+        }
         copyText(activeBlock?.command ?? "", "Copied command");
     }, [activeBlock?.command, copyText]);
 
@@ -382,8 +398,7 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
         if (!activeBlock?.command || termWrap == null) {
             return;
         }
-        termWrap.terminal.focus();
-        termWrap.sendDataHandler?.(`${activeBlock.command}\r`);
+        termWrap.runCommand(activeBlock.command);
     }, [activeBlock?.command, termWrap]);
 
     const jumpPastOutput = React.useCallback(() => {
@@ -406,6 +421,11 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
     }
 
     const canCopyOutput = activeBlock.state === "done" && termWrap != null;
+    const commandIsPlaceholder = isCmdBlockCommandPlaceholder(activeBlock.command);
+    const rerunBlockedReason =
+        termWrap == null
+            ? "Terminal is not ready"
+            : getCommandRunBlockedReason(activeBlock.command, { shellIntegrationStatus, altScreenActive });
 
     return (
         <div className={`term-command-action-bar is-${status.tone}`} aria-label="Command actions">
@@ -424,10 +444,11 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                 <button
                     type="button"
                     className="term-command-action-btn cursor-pointer"
-                    title="Copy command"
+                    title={commandIsPlaceholder ? "This command was too large to record" : "Copy command"}
                     aria-label="Copy command"
                     onMouseDown={preventButtonFocus}
                     onClick={copyCommand}
+                    disabled={commandIsPlaceholder}
                 >
                     <i className="fa-solid fa-terminal" aria-hidden="true" />
                 </button>
@@ -445,10 +466,11 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                 <button
                     type="button"
                     className="term-command-action-btn cursor-pointer"
-                    title="Re-run command"
+                    title={rerunBlockedReason ?? "Re-run command"}
                     aria-label="Re-run command"
                     onMouseDown={preventButtonFocus}
                     onClick={rerunCommand}
+                    disabled={rerunBlockedReason != null}
                 >
                     <i className="fa-solid fa-rotate-right" aria-hidden="true" />
                 </button>
@@ -486,7 +508,9 @@ const TermShellIntegrationBanner = React.memo(
         const connStatus = jotai.useAtomValue(model.connStatus);
         const [busy, setBusy] = React.useState(false);
         const [error, setError] = React.useState<string>(null);
-        const recovery = getShellIntegrationRecovery(connStatus);
+        const integrationDisabled = useAtomValueSafe<boolean>(termWrap?.shellIntegrationDisabledAtom) ?? false;
+        const shellType = useAtomValueSafe<ShellType>(termWrap?.shellTypeAtom) ?? "unknown";
+        const recovery = getShellIntegrationRecovery(connStatus, { integrationDisabled, shellType });
         const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
         const [readyToWarn, setReadyToWarn] = React.useState(false);
 
@@ -623,8 +647,10 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const connStatus = jotai.useAtomValue(model.connStatus);
     const shellIntegrationStatus = useAtomValueSafe(termWrapInst?.shellIntegrationStatusAtom);
     const lastCommand = useAtomValueSafe(termWrapInst?.lastCommandAtom);
-    const termSettingsAtom = getSettingsPrefixAtom("term");
-    const termSettings = jotai.useAtomValue(termSettingsAtom);
+    const settingsScrollback = jotai.useAtomValue(getSettingsKeyAtom("term:scrollback"));
+    const settingsFontFamily = jotai.useAtomValue(getSettingsKeyAtom("term:fontfamily"));
+    const settingsDisableWebGl = jotai.useAtomValue(getSettingsKeyAtom("term:disablewebgl"));
+    const macOptionIsMeta = jotai.useAtomValue(getOverrideConfigAtom(blockId, "term:macoptionismeta"));
     const terminalPresentationSetting = jotai.useAtomValue(getOverrideConfigAtom(blockId, "term:presentation"));
     const terminalPresentationMode = normalizeTerminalPresentationMode(terminalPresentationSetting);
     // Command blocks (Warp-style) are drawn as xterm decorations over the live terminal,
@@ -643,6 +669,8 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const termFontSize = jotai.useAtomValue(model.fontSizeAtom);
     const fullConfig = globalStore.get(atoms.fullConfigAtom);
     const connFontFamily = fullConfig.connections?.[blockData?.meta?.connection]?.["term:fontfamily"];
+    const termFontFamily = settingsFontFamily ?? connFontFamily ?? "Hack";
+    const termScrollback = resolveTermScrollback(settingsScrollback, blockData?.meta?.["term:scrollback"]);
     const isFocused = jotai.useAtomValue(model.nodeModel.isFocused);
     const isMI = jotai.useAtomValue(tabModel.isTermMultiInput);
     const isBasicTerm = termMode != "vdom" && blockData?.meta?.controller != "cmd"; // needs to match isBasicTerm
@@ -717,25 +745,14 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     }, [searchOpts]);
     // end search
 
+    // Rebuilding disposes the terminal and replays its whole history, so only a new block
+    // does that; option changes (font, scrollback, renderer) are applied live below.
     React.useEffect(() => {
         const fullConfig = globalStore.get(atoms.fullConfigAtom);
         const termThemeName = globalStore.get(model.termThemeNameAtom);
         const termTransparency = globalStore.get(model.termTransparencyAtom);
         const termMacOptionIsMetaAtom = getOverrideConfigAtom(blockId, "term:macoptionismeta");
         const [termTheme, _] = computeTheme(fullConfig, termThemeName, termTransparency);
-        let termScrollback = 2000;
-        if (termSettings?.["term:scrollback"]) {
-            termScrollback = Math.floor(termSettings["term:scrollback"]);
-        }
-        if (blockData?.meta?.["term:scrollback"]) {
-            termScrollback = Math.floor(blockData.meta["term:scrollback"]);
-        }
-        if (termScrollback < 0) {
-            termScrollback = 0;
-        }
-        if (termScrollback > 50000) {
-            termScrollback = 50000;
-        }
         const termAllowBPM = globalStore.get(model.termBPMAtom) ?? true;
         const termMacOptionIsMeta = globalStore.get(termMacOptionIsMetaAtom) ?? false;
         const termCursorStyle = normalizeCursorStyle(globalStore.get(getOverrideConfigAtom(blockId, "term:cursor")));
@@ -748,7 +765,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             {
                 theme: termTheme,
                 fontSize: termFontSize,
-                fontFamily: termSettings?.["term:fontfamily"] ?? connFontFamily ?? "Hack",
+                fontFamily: termFontFamily,
                 drawBoldTextInBrightColors: false,
                 fontWeight: "normal",
                 fontWeightBold: "bold",
@@ -764,7 +781,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             },
             {
                 keydownHandler: model.handleTerminalKeydown.bind(model),
-                useWebGl: shouldUseWebGlRenderer(termSettings?.["term:disablewebgl"], termTheme),
+                useWebGl: shouldUseWebGlRenderer(settingsDisableWebGl, termTheme),
                 sendDataHandler: model.sendDataToController.bind(model),
                 onInlineAIRequest: model.openInlineCommandAI.bind(model),
                 onInlineAIDismiss: model.dismissInlineCommandAI.bind(model),
@@ -793,7 +810,26 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             rszObs.disconnect();
             setTermWrapInst(null);
         };
-    }, [blockId, termSettings, termFontSize, connFontFamily]);
+    }, [blockId]);
+
+    React.useEffect(() => {
+        termWrapInst?.setFontOptions(termFontSize, termFontFamily);
+    }, [termWrapInst, termFontSize, termFontFamily]);
+
+    React.useEffect(() => {
+        termWrapInst?.setScrollback(termScrollback);
+    }, [termWrapInst, termScrollback]);
+
+    React.useEffect(() => {
+        if (termWrapInst == null) {
+            return;
+        }
+        termWrapInst.terminal.options.macOptionIsMeta = macOptionIsMeta ?? false;
+    }, [termWrapInst, macOptionIsMeta]);
+
+    React.useEffect(() => {
+        termWrapInst?.setTermRenderer(shouldUseWebGlRenderer(settingsDisableWebGl) ? "webgl" : "dom");
+    }, [termWrapInst, settingsDisableWebGl]);
 
     React.useEffect(() => {
         if (termModeRef.current == "vdom" && termMode == "term") {
@@ -898,7 +934,9 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
             <TermShellIntegrationBanner termWrap={termWrapInst} model={model} />
             <TermDurablePromptBanner blockId={blockId} model={model} connection={blockData?.meta?.connection} />
-            <TermCommandActionBar model={model} termWrap={termWrapInst} />
+            {shouldShowSemanticTerminal(terminalPresentationMode) && (
+                <TermCommandActionBar model={model} termWrap={termWrapInst} />
+            )}
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
