@@ -21,8 +21,9 @@ const ListDirChanSize = 50
 
 // cache settings
 const (
-	maxCacheEntries = 20
-	cacheTTL        = 60 * time.Second
+	maxCacheEntries  = 20
+	cacheTTL         = 60 * time.Second
+	cacheCleanerTick = 60 * time.Second
 )
 
 type cacheEntry struct {
@@ -36,22 +37,34 @@ var (
 	cache    = make(map[string]*cacheEntry)
 	cacheLRU = list.New()
 	cacheMu  sync.Mutex
+	// cacheCleanerRunning is guarded by cacheMu; the cleaner only runs while the cache has entries
+	cacheCleanerRunning bool
 
 	// group ensures only one listing per key is executed concurrently.
 	group singleflight.Group
 )
 
-func init() {
-	go func() {
-		ticker := time.NewTicker(60 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			cleanCache()
-		}
-	}()
+// ensureCacheCleaner must be called with cacheMu held.
+func ensureCacheCleaner() {
+	if cacheCleanerRunning {
+		return
+	}
+	cacheCleanerRunning = true
+	go runCacheCleaner()
 }
 
-func cleanCache() {
+func runCacheCleaner() {
+	ticker := time.NewTicker(cacheCleanerTick)
+	defer ticker.Stop()
+	for range ticker.C {
+		if !cleanCache() {
+			return
+		}
+	}
+}
+
+// cleanCache drops expired entries and returns false (marking the cleaner stopped) once the cache is empty.
+func cleanCache() bool {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
 	now := time.Now()
@@ -61,6 +74,11 @@ func cleanCache() {
 			delete(cache, key)
 		}
 	}
+	if len(cache) > 0 {
+		return true
+	}
+	cacheCleanerRunning = false
+	return false
 }
 
 func getCache(key string) ([]DirEntryResult, bool) {
@@ -110,6 +128,7 @@ func setCache(key string, value []DirEntryResult) {
 		expiration: time.Now().Add(cacheTTL),
 		lruElement: elem,
 	}
+	ensureCacheCleaner()
 }
 
 // cacheDispose clears all cache entries for the provided widgetId.
