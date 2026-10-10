@@ -94,6 +94,24 @@ const PreviewCases = [
     viewports: [{ name: "desktop", width: 1300, height: 900 }],
   },
   {
+    name: "settings",
+    path: "/?preview=waveconfig",
+    checks: ["Appearance", "Terminal font size", "Command presentation", "Durable SSH sessions", "Automatic updates"],
+    viewports: [
+      { name: "desktop", width: 1300, height: 1000 },
+      { name: "narrow", width: 640, height: 1000 },
+    ],
+  },
+  {
+    name: "files-directory",
+    path: "/?preview=files-directory",
+    checks: ["Name", "Last Modified", "TypeScript", "Folder"],
+    viewports: [
+      { name: "desktop", width: 1500, height: 800 },
+      { name: "narrow", width: 760, height: 800 },
+    ],
+  },
+  {
     name: "files-upload-drop",
     path: "/?preview=files-upload-drop",
     checks: ["Files upload drop affordance", "reports", "release notes.txt"],
