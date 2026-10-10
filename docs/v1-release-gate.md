@@ -35,35 +35,43 @@ Before merging release-bound work:
 task v1:gate
 ```
 
-Before tagging:
+Before tagging, on a Mac:
 
 ```sh
 task v1:gate:package
 ```
 
-The release gate must pass:
+`scripts/v1-gate.mjs` is the single source of the check list: CI (`ci.yml` → `V1 gate`) and the release preflight (`release.yml`) both run `node scripts/v1-gate.mjs`, so they cannot drift. The gate must pass:
 
-- TypeScript typecheck, ESLint, Vitest, Go tests
+- TypeScript typecheck, ESLint, format check, Vitest, Go tests, `govulncheck`, runtime `npm audit`
 - All local font references in the shipped Font Awesome CSS resolve to packaged source assets
 - Production frontend/electron build
 - Preview build + visual QA + interaction QA
-- macOS and Windows x64 packages + artifact identity + packaged-app smoke on their native runners
+- With `--package --installed` (macOS): an arm64 package, `task package:verify` (bundle identity, helpers, `codesign --verify --deep --strict`, update metadata against the zip), and a packaged-window smoke
 
-Details: `docs/visual-qa/preview-screenshot-gate.md`, `docs/visual-qa/preview-interaction-gate.md`, `docs/packaging-artifact-gate.md`, `docs/installed-app-gate.md`.
+The release workflow additionally builds macOS arm64 + x64 on a native runner, verifies both zips against `latest-mac.yml` / `beta-mac.yml` / `alpha-mac.yml`, launch-smokes the arm64 app, and fails if packaging changed the checkout. Pushes to `main` run the same arm64 packaging + smoke in CI.
+
+Stable releases are **macOS-only**. Windows x64 is explicitly deferred from stable until a code-signing certificate exists; it ships as an **unsigned preview** on prerelease tags (`vX.Y.Z-beta.N`) and never blocks or touches the stable channel. Linux is not shipped.
+
+Details: `docs/visual-qa/preview-screenshot-gate.md`, `docs/visual-qa/preview-interaction-gate.md`, `docs/packaging-artifact-gate.md`, `docs/installed-app-gate.md`, `RELEASES.md`.
 
 ## Interaction gate (installed app)
 
-- Install and launch each platform's package, then restore a workspace.
+- Install and launch the macOS package from `/Applications`, then restore a workspace.
 - Run a command and inspect block status, copy, and re-run.
 - Open a durable SSH session, disconnect, reconnect.
 - Browse remote files; download a folder; upload a file; cancel or retry a transfer.
+- Update from the previous stable release through the in-app updater and confirm the relaunched version.
 
 ## Release decision
 
 Tag `1.0.0` only when:
 
 - `task v1:gate:package` passes on a real Mac.
-- The Windows x64 release gate in `docs/windows-release-gate.md` passes on a native Windows runner and a clean Windows desktop.
 - The 1.0 feature matrix is all pass or explicitly deferred in this file.
-- CI is green on `main`.
-- The installed macOS and Windows app versions are `1.0.0`.
+- CI is green on `main`, including the macOS arm64 packaging job.
+- The installed macOS app version is `1.0.0`, for both arm64 and x64 artifacts.
+
+The macOS app is ad-hoc signed and not notarized (no Apple Developer ID). That is accepted for 1.0: release notes must tell users that Gatekeeper blocks the first launch and that they open it with **System Settings → Privacy & Security → Open Anyway** (after moving the app to `/Applications`), or by running `xattr -dr com.apple.quarantine /Applications/GenieTerm.app`.
+
+Windows x64 is **deferred** from 1.0 stable. It does not gate the stable tag; it continues as an unsigned preview on prerelease tags, gated by `docs/windows-release-gate.md`, until a signing certificate is available.

@@ -89,7 +89,7 @@ tasks:
             - npm run build:prod && npm exec electron-builder -- -c electron-builder.config.cjs -p never {{.CLI_ARGS}} && node scripts/normalize-update-metadata.mjs
 
     package:verify:
-        desc: Verify packaged macOS app identity, version, helpers, artifact, and signature.
+        desc: Verify packaged macOS app identity, version, helpers, code signature, and update metadata.
         cmd: node scripts/verify-package-artifact.mjs {{.CLI_ARGS}}
         deps:
             - npm:install
