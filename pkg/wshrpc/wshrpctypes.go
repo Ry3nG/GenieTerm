@@ -39,7 +39,6 @@ type WshRpcInterface interface {
 	AuthenticateTokenVerifyCommand(ctx context.Context, data CommandAuthenticateTokenData) (CommandAuthenticateRtnData, error) // (special) validates token without binding, root router only
 	AuthenticateJobManagerCommand(ctx context.Context, data CommandAuthenticateJobManagerData) error
 	AuthenticateJobManagerVerifyCommand(ctx context.Context, data CommandAuthenticateJobManagerData) error // (special) validates job auth token without binding, root router only
-	DisposeCommand(ctx context.Context, data CommandDisposeData) error
 	RouteAnnounceCommand(ctx context.Context) error               // (special) announces a new route to the main router
 	RouteUnannounceCommand(ctx context.Context) error             // (special) unannounces a route to the main router
 	ControlGetRouteIdCommand(ctx context.Context) (string, error) // (special) gets the route for the link that we're on
@@ -63,14 +62,10 @@ type WshRpcInterface interface {
 	EventPublishCommand(ctx context.Context, data wps.WaveEvent) error
 	EventSubCommand(ctx context.Context, data wps.SubscriptionRequest) error
 	EventUnsubCommand(ctx context.Context, data string) error
-	EventUnsubAllCommand(ctx context.Context) error
 	EventReadHistoryCommand(ctx context.Context, data CommandEventReadHistoryData) ([]*wps.WaveEvent, error)
 
-	FileRestoreBackupCommand(ctx context.Context, data CommandFileRestoreBackupData) error
-	GetTempDirCommand(ctx context.Context, data CommandGetTempDirData) (string, error)
 	WriteTempFileCommand(ctx context.Context, data CommandWriteTempFileData) (string, error)
 	StreamTestCommand(ctx context.Context) chan RespOrErrorUnion[int]
-	StreamCpuDataCommand(ctx context.Context, request CpuDataRequest) chan RespOrErrorUnion[TimeSeriesData]
 	TestCommand(ctx context.Context, data string) error
 	TestMultiArgCommand(ctx context.Context, arg1 string, arg2 int, arg3 bool) (string, error)
 	SetConfigCommand(ctx context.Context, data MetaSettingsType) error
@@ -95,7 +90,6 @@ type WshRpcInterface interface {
 	GitStatusCommand(ctx context.Context, data CommandGitStatusData) (*GitStatusResponse, error)
 	GitGraphCommand(ctx context.Context, data CommandGitGraphData) (*GitGraphResponse, error)
 	GitRunCommand(ctx context.Context, data CommandGitRunData) (*GitRunResponse, error)
-	GetTabCommand(ctx context.Context, tabId string) (*waveobj.Tab, error)
 	UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error
 	UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error
 	GetAllBadgesCommand(ctx context.Context) ([]baseds.BadgeEvent, error)
@@ -111,7 +105,6 @@ type WshRpcInterface interface {
 	WslListCommand(ctx context.Context) ([]string, error)
 	WslDefaultDistroCommand(ctx context.Context) (string, error)
 	DismissWshFailCommand(ctx context.Context, connName string) error
-	ConnUpdateWshCommand(ctx context.Context, remoteInfo RemoteInfo) (bool, error)
 	FindGitBashCommand(ctx context.Context, rescan bool) (string, error)
 	ConnServerInitCommand(ctx context.Context, data CommandConnServerInitData) error
 	NotifySystemResumeCommand(ctx context.Context) error
@@ -121,7 +114,6 @@ type WshRpcInterface interface {
 
 	// remotes
 	WshRpcRemoteFileInterface
-	RemoteStreamCpuDataCommand(ctx context.Context) chan RespOrErrorUnion[TimeSeriesData]
 	RemoteGetInfoCommand(ctx context.Context) (RemoteInfo, error)
 	RemoteInstallRcFilesCommand(ctx context.Context) error
 	RemoteStartJobCommand(ctx context.Context, data CommandRemoteStartJobData) (*CommandStartJobRtnData, error)
@@ -156,11 +148,9 @@ type WshRpcInterface interface {
 	VDomAsyncInitiationCommand(ctx context.Context, data vdom.VDomAsyncInitiationRequest) error
 
 	// screenshot
-	CaptureBlockScreenshotCommand(ctx context.Context, data CommandCaptureBlockScreenshotData) (string, error)
 
 	// block focus
 	SetBlockFocusCommand(ctx context.Context, blockId string) error
-	GetFocusedBlockDataCommand(ctx context.Context) (*FocusedBlockData, error)
 
 	// rtinfo
 	GetRTInfoCommand(ctx context.Context, data CommandGetRTInfoData) (*waveobj.ObjRTInfo, error)
@@ -200,7 +190,6 @@ type WshRpcInterface interface {
 	JobControllerConnectedJobsCommand(ctx context.Context) ([]string, error)
 	JobControllerAttachJobCommand(ctx context.Context, data CommandJobControllerAttachJobData) error
 	JobControllerDetachJobCommand(ctx context.Context, jobId string) error
-	JobControllerGetAllJobManagerStatusCommand(ctx context.Context) ([]*JobManagerStatusUpdate, error)
 	BlockJobStatusCommand(ctx context.Context, blockId string) (*BlockJobStatusData, error)
 }
 
@@ -244,11 +233,6 @@ type CommandAuthenticateRtnData struct {
 
 type CommandAuthenticateTokenData struct {
 	Token string `json:"token"`
-}
-
-type CommandDisposeData struct {
-	RouteId string `json:"routeid"`
-	// auth token travels in the packet directly
 }
 
 type CommandMessageData struct {
@@ -330,25 +314,6 @@ type CommandEventReadHistoryData struct {
 	Event    string `json:"event"`
 	Scope    string `json:"scope"`
 	MaxItems int    `json:"maxitems"`
-}
-
-type CpuDataRequest struct {
-	Id    string `json:"id"`
-	Count int    `json:"count"`
-}
-
-type CpuDataType struct {
-	Time  int64   `json:"time"`
-	Value float64 `json:"value"`
-}
-
-type CommandFileRestoreBackupData struct {
-	BackupFilePath    string `json:"backupfilepath"`
-	RestoreToFileName string `json:"restoretofilename"`
-}
-
-type CommandGetTempDirData struct {
-	FileName string `json:"filename,omitempty"`
 }
 
 type CommandWriteTempFileData struct {
@@ -549,10 +514,6 @@ type CommandWaveAIGetToolDiffData struct {
 type CommandWaveAIGetToolDiffRtnData struct {
 	OriginalContents64 string `json:"originalcontents64"`
 	ModifiedContents64 string `json:"modifiedcontents64"`
-}
-
-type CommandCaptureBlockScreenshotData struct {
-	BlockId string `json:"blockid"`
 }
 
 type CommandVarData struct {
@@ -953,18 +914,6 @@ type BlockJobStatusData struct {
 	CmdExitTs     int64  `json:"cmdexitts,omitempty"`
 	CmdExitCode   *int   `json:"cmdexitcode,omitempty"`
 	CmdExitSignal string `json:"cmdexitsignal,omitempty"`
-}
-
-type FocusedBlockData struct {
-	BlockId                    string              `json:"blockid"`
-	ViewType                   string              `json:"viewtype"`
-	Controller                 string              `json:"controller"`
-	ConnName                   string              `json:"connname"`
-	BlockMeta                  waveobj.MetaMapType `json:"blockmeta"`
-	TermJobStatus              *BlockJobStatusData `json:"termjobstatus,omitempty"`
-	ConnStatus                 *ConnStatus         `json:"connstatus,omitempty"`
-	TermShellIntegrationStatus string              `json:"termshellintegrationstatus,omitempty"`
-	TermLastCommand            string              `json:"termlastcommand,omitempty"`
 }
 
 // ProcessInfo holds per-process information for the process viewer.

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -26,7 +25,6 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/blockcontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
-	"github.com/Ry3nG/GenieTerm/pkg/filebackup"
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
 	"github.com/Ry3nG/GenieTerm/pkg/genconn"
 	"github.com/Ry3nG/GenieTerm/pkg/jobcontroller"
@@ -108,37 +106,6 @@ func (ws *WshServer) StreamTestCommand(ctx context.Context) chan wshrpc.RespOrEr
 		close(rtn)
 	}()
 	return rtn
-}
-
-func MakePlotData(ctx context.Context, blockId string) error {
-	block, err := wstore.DBMustGet[*waveobj.Block](ctx, blockId)
-	if err != nil {
-		return err
-	}
-	viewName := block.Meta.GetString(waveobj.MetaKey_View, "")
-	if viewName != "cpuplot" && viewName != "sysinfo" {
-		return fmt.Errorf("invalid view type: %s", viewName)
-	}
-	return filestore.WFS.MakeFile(ctx, blockId, "cpuplotdata", nil, wshrpc.FileOpts{})
-}
-
-func SavePlotData(ctx context.Context, blockId string, history string) error {
-	block, err := wstore.DBMustGet[*waveobj.Block](ctx, blockId)
-	if err != nil {
-		return err
-	}
-	viewName := block.Meta.GetString(waveobj.MetaKey_View, "")
-	if viewName != "cpuplot" && viewName != "sysinfo" {
-		return fmt.Errorf("invalid view type: %s", viewName)
-	}
-	// todo: interpret the data being passed
-	// for now, this is just to throw an error if the block was closed
-	historyBytes, err := json.Marshal(history)
-	if err != nil {
-		return fmt.Errorf("unable to serialize plot data: %v", err)
-	}
-	// ignore MakeFile error (already exists is ok)
-	return filestore.WFS.WriteFile(ctx, blockId, "cpuplotdata", historyBytes)
 }
 
 func (ws *WshServer) GetMetaCommand(ctx context.Context, data wshrpc.CommandGetMetaData) (waveobj.MetaMapType, error) {
@@ -414,33 +381,6 @@ func (ws *WshServer) FileJoinCommand(ctx context.Context, paths []string) (*wshr
 	return wshfs.Join(ctx, paths[0], paths[1:]...)
 }
 
-func (ws *WshServer) FileRestoreBackupCommand(ctx context.Context, data wshrpc.CommandFileRestoreBackupData) error {
-	expandedBackupPath, err := wavebase.ExpandHomeDir(data.BackupFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to expand backup file path: %w", err)
-	}
-	expandedRestorePath, err := wavebase.ExpandHomeDir(data.RestoreToFileName)
-	if err != nil {
-		return fmt.Errorf("failed to expand restore file path: %w", err)
-	}
-	return filebackup.RestoreBackup(expandedBackupPath, expandedRestorePath)
-}
-
-func (ws *WshServer) GetTempDirCommand(ctx context.Context, data wshrpc.CommandGetTempDirData) (string, error) {
-	tempDir := os.TempDir()
-	if data.FileName != "" {
-		// Reduce to a simple file name to avoid absolute paths or traversal
-		name := filepath.Base(data.FileName)
-		// Normalize/trim any stray separators and whitespace
-		name = strings.Trim(name, `/\`+" ")
-		if name == "" || name == "." {
-			return tempDir, nil
-		}
-		return filepath.Join(tempDir, name), nil
-	}
-	return tempDir, nil
-}
-
 func (ws *WshServer) WriteTempFileCommand(ctx context.Context, data wshrpc.CommandWriteTempFileData) (string, error) {
 	if data.FileName == "" {
 		return "", fmt.Errorf("filename is required")
@@ -539,15 +479,6 @@ func (ws *WshServer) EventUnsubCommand(ctx context.Context, data string) error {
 		return fmt.Errorf("no rpc source set")
 	}
 	wps.Broker.Unsubscribe(rpcSource, data)
-	return nil
-}
-
-func (ws *WshServer) EventUnsubAllCommand(ctx context.Context) error {
-	rpcSource := wshutil.GetRpcSourceFromContext(ctx)
-	if rpcSource == "" {
-		return fmt.Errorf("no rpc source set")
-	}
-	wps.Broker.UnsubscribeAll(rpcSource)
 	return nil
 }
 
@@ -838,49 +769,6 @@ func (ws *WshServer) ConnReinstallWshCommand(ctx context.Context, data wshrpc.Co
 		return fmt.Errorf("connection not found: %s", connName)
 	}
 	return conn.InstallWsh(ctx, "")
-}
-
-func (ws *WshServer) ConnUpdateWshCommand(ctx context.Context, remoteInfo wshrpc.RemoteInfo) (bool, error) {
-	handler := wshutil.GetRpcResponseHandlerFromContext(ctx)
-	if handler == nil {
-		return false, fmt.Errorf("could not determine handler from context")
-	}
-	connName := handler.GetRpcContext().Conn
-	if connName == "" {
-		return false, fmt.Errorf("invalid remote info: missing connection name")
-	}
-
-	log.Printf("checking wsh version for connection %s (current: %s)", connName, remoteInfo.ClientVersion)
-	upToDate, _, _, err := conncontroller.IsWshVersionUpToDate(ctx, remoteInfo.ClientVersion)
-	if err != nil {
-		return false, fmt.Errorf("unable to compare wsh version: %w", err)
-	}
-	if upToDate {
-		// no need to update
-		log.Printf("wsh is already up to date for connection %s", connName)
-		return false, nil
-	}
-
-	// todo: need to add user input code here for validation
-
-	if strings.HasPrefix(connName, "wsl://") {
-		return false, fmt.Errorf("connupdatewshcommand is not supported for wsl connections")
-	}
-	connOpts, err := remote.ParseOpts(connName)
-	if err != nil {
-		return false, fmt.Errorf("error parsing connection name: %w", err)
-	}
-	conn := conncontroller.GetConn(connOpts)
-	if conn == nil {
-		return false, fmt.Errorf("connection not found: %s", connName)
-	}
-	err = conn.UpdateWsh(ctx, connName, &remoteInfo)
-	if err != nil {
-		return false, fmt.Errorf("wsh update failed for connection %s: %w", connName, err)
-	}
-
-	// todo: need to add code for modifying configs?
-	return true, nil
 }
 
 func (ws *WshServer) ConnListCommand(ctx context.Context) ([]string, error) {
@@ -1332,14 +1220,6 @@ func (ws *WshServer) FetchSuggestionsCommand(ctx context.Context, data wshrpc.Fe
 func (ws *WshServer) DisposeSuggestionsCommand(ctx context.Context, widgetId string) error {
 	suggestion.DisposeSuggestions(ctx, widgetId)
 	return nil
-}
-
-func (ws *WshServer) GetTabCommand(ctx context.Context, tabId string) (*waveobj.Tab, error) {
-	tab, err := wstore.DBGet[*waveobj.Tab](ctx, tabId)
-	if err != nil {
-		return nil, fmt.Errorf("error getting tab: %w", err)
-	}
-	return tab, nil
 }
 
 func (ws *WshServer) GetAllBadgesCommand(ctx context.Context) ([]baseds.BadgeEvent, error) {

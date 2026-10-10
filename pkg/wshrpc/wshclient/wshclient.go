@@ -88,12 +88,6 @@ func BlocksListCommand(w *wshutil.WshRpc, data wshrpc.BlocksListRequest, opts *w
 	return resp, err
 }
 
-// command "captureblockscreenshot", wshserver.CaptureBlockScreenshotCommand
-func CaptureBlockScreenshotCommand(w *wshutil.WshRpc, data wshrpc.CommandCaptureBlockScreenshotData, opts *wshrpc.RpcOpts) (string, error) {
-	resp, err := sendRpcRequestCallHelper[string](w, "captureblockscreenshot", data, opts)
-	return resp, err
-}
-
 // command "connconnect", wshserver.ConnConnectCommand
 func ConnConnectCommand(w *wshutil.WshRpc, data wshrpc.ConnRequest, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "connconnect", data, opts)
@@ -133,12 +127,6 @@ func ConnServerInitCommand(w *wshutil.WshRpc, data wshrpc.CommandConnServerInitD
 // command "connstatus", wshserver.ConnStatusCommand
 func ConnStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.ConnStatus, error) {
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.ConnStatus](w, "connstatus", nil, opts)
-	return resp, err
-}
-
-// command "connupdatewsh", wshserver.ConnUpdateWshCommand
-func ConnUpdateWshCommand(w *wshutil.WshRpc, data wshrpc.RemoteInfo, opts *wshrpc.RpcOpts) (bool, error) {
-	resp, err := sendRpcRequestCallHelper[bool](w, "connupdatewsh", data, opts)
 	return resp, err
 }
 
@@ -208,12 +196,6 @@ func DismissWshFailCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts)
 	return err
 }
 
-// command "dispose", wshserver.DisposeCommand
-func DisposeCommand(w *wshutil.WshRpc, data wshrpc.CommandDisposeData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "dispose", data, opts)
-	return err
-}
-
 // command "disposesuggestions", wshserver.DisposeSuggestionsCommand
 func DisposeSuggestionsCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "disposesuggestions", data, opts)
@@ -265,12 +247,6 @@ func EventSubCommand(w *wshutil.WshRpc, data wps.SubscriptionRequest, opts *wshr
 // command "eventunsub", wshserver.EventUnsubCommand
 func EventUnsubCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "eventunsub", data, opts)
-	return err
-}
-
-// command "eventunsuball", wshserver.EventUnsubAllCommand
-func EventUnsubAllCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "eventunsuball", nil, opts)
 	return err
 }
 
@@ -345,12 +321,6 @@ func FileReadCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOp
 	return resp, err
 }
 
-// command "filerestorebackup", wshserver.FileRestoreBackupCommand
-func FileRestoreBackupCommand(w *wshutil.WshRpc, data wshrpc.CommandFileRestoreBackupData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "filerestorebackup", data, opts)
-	return err
-}
-
 // command "filestream", wshserver.FileStreamCommand
 func FileStreamCommand(w *wshutil.WshRpc, data wshrpc.CommandFileStreamData, opts *wshrpc.RpcOpts) (*wshrpc.FileInfo, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.FileInfo](w, "filestream", data, opts)
@@ -384,12 +354,6 @@ func GetAllBadgesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]baseds.Badg
 // command "getallvars", wshserver.GetAllVarsCommand
 func GetAllVarsCommand(w *wshutil.WshRpc, data wshrpc.CommandVarData, opts *wshrpc.RpcOpts) ([]wshrpc.CommandVarResponseData, error) {
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.CommandVarResponseData](w, "getallvars", data, opts)
-	return resp, err
-}
-
-// command "getfocusedblockdata", wshserver.GetFocusedBlockDataCommand
-func GetFocusedBlockDataCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*wshrpc.FocusedBlockData, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.FocusedBlockData](w, "getfocusedblockdata", nil, opts)
 	return resp, err
 }
 
@@ -432,18 +396,6 @@ func GetSecretsLinuxStorageBackendCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpt
 // command "getsecretsnames", wshserver.GetSecretsNamesCommand
 func GetSecretsNamesCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]string, error) {
 	resp, err := sendRpcRequestCallHelper[[]string](w, "getsecretsnames", nil, opts)
-	return resp, err
-}
-
-// command "gettab", wshserver.GetTabCommand
-func GetTabCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (*waveobj.Tab, error) {
-	resp, err := sendRpcRequestCallHelper[*waveobj.Tab](w, "gettab", data, opts)
-	return resp, err
-}
-
-// command "gettempdir", wshserver.GetTempDirCommand
-func GetTempDirCommand(w *wshutil.WshRpc, data wshrpc.CommandGetTempDirData, opts *wshrpc.RpcOpts) (string, error) {
-	resp, err := sendRpcRequestCallHelper[string](w, "gettempdir", data, opts)
 	return resp, err
 }
 
@@ -517,12 +469,6 @@ func JobControllerDisconnectJobCommand(w *wshutil.WshRpc, data string, opts *wsh
 func JobControllerExitJobCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "jobcontrollerexitjob", data, opts)
 	return err
-}
-
-// command "jobcontrollergetalljobmanagerstatus", wshserver.JobControllerGetAllJobManagerStatusCommand
-func JobControllerGetAllJobManagerStatusCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]*wshrpc.JobManagerStatusUpdate, error) {
-	resp, err := sendRpcRequestCallHelper[[]*wshrpc.JobManagerStatusUpdate](w, "jobcontrollergetalljobmanagerstatus", nil, opts)
-	return resp, err
 }
 
 // command "jobcontrollerlist", wshserver.JobControllerListCommand
@@ -710,11 +656,6 @@ func RemoteStartJobCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteStartJobD
 	return resp, err
 }
 
-// command "remotestreamcpudata", wshserver.RemoteStreamCpuDataCommand
-func RemoteStreamCpuDataCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.TimeSeriesData] {
-	return sendRpcRequestResponseStreamHelper[wshrpc.TimeSeriesData](w, "remotestreamcpudata", nil, opts)
-}
-
 // command "remotesysinfowatch", wshserver.RemoteSysInfoWatchCommand
 func RemoteSysInfoWatchCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteSysInfoWatchData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "remotesysinfowatch", data, opts)
@@ -809,11 +750,6 @@ func SetVarCommand(w *wshutil.WshRpc, data wshrpc.CommandVarData, opts *wshrpc.R
 func StartJobCommand(w *wshutil.WshRpc, data wshrpc.CommandStartJobData, opts *wshrpc.RpcOpts) (*wshrpc.CommandStartJobRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandStartJobRtnData](w, "startjob", data, opts)
 	return resp, err
-}
-
-// command "streamcpudata", wshserver.StreamCpuDataCommand
-func StreamCpuDataCommand(w *wshutil.WshRpc, data wshrpc.CpuDataRequest, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.TimeSeriesData] {
-	return sendRpcRequestResponseStreamHelper[wshrpc.TimeSeriesData](w, "streamcpudata", data, opts)
 }
 
 // command "streamdata", wshserver.StreamDataCommand

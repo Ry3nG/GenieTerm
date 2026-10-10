@@ -239,11 +239,6 @@ declare global {
         termsize?: TermSize;
     };
 
-    // wshrpc.CommandCaptureBlockScreenshotData
-    type CommandCaptureBlockScreenshotData = {
-        blockid: string;
-    };
-
     // wshrpc.CommandConnServerInitData
     type CommandConnServerInitData = {
         clientid: string;
@@ -304,11 +299,6 @@ declare global {
         recursive: boolean;
     };
 
-    // wshrpc.CommandDisposeData
-    type CommandDisposeData = {
-        routeid: string;
-    };
-
     // wshrpc.CommandElectronDecryptData
     type CommandElectronDecryptData = {
         ciphertext: string;
@@ -345,12 +335,6 @@ declare global {
         opts?: FileCopyOpts;
     };
 
-    // wshrpc.CommandFileRestoreBackupData
-    type CommandFileRestoreBackupData = {
-        backupfilepath: string;
-        restoretofilename: string;
-    };
-
     // wshrpc.CommandFileStreamData
     type CommandFileStreamData = {
         info: FileInfo;
@@ -366,11 +350,6 @@ declare global {
     // wshrpc.CommandGetRTInfoData
     type CommandGetRTInfoData = {
         oref: ORef;
-    };
-
-    // wshrpc.CommandGetTempDirData
-    type CommandGetTempDirData = {
-        filename?: string;
     };
 
     // wshrpc.CommandGitGraphData
@@ -769,12 +748,6 @@ declare global {
         keepalivesenttime?: number;
     };
 
-    // wshrpc.CpuDataRequest
-    type CpuDataRequest = {
-        id: string;
-        count: number;
-    };
-
     // wshrpc.DiskUsageData
     type DiskUsageData = {
         mount: string;
@@ -881,19 +854,6 @@ declare global {
         append?: boolean;
     };
 
-    // wshrpc.FocusedBlockData
-    type FocusedBlockData = {
-        blockid: string;
-        viewtype: string;
-        controller: string;
-        connname: string;
-        blockmeta: MetaType;
-        termjobstatus?: BlockJobStatusData;
-        connstatus?: ConnStatus;
-        termshellintegrationstatus?: string;
-        termlastcommand?: string;
-    };
-
     // wconfig.FullConfigType
     type FullConfigType = {
         settings: SettingsType;
@@ -984,12 +944,6 @@ declare global {
         cmdexiterror?: string;
         streamdone?: boolean;
         streamerror?: string;
-    };
-
-    // wshrpc.JobManagerStatusUpdate
-    type JobManagerStatusUpdate = {
-        jobid: string;
-        jobmanagerstatus: string;
     };
 
     // waveobj.LayoutActionData
