@@ -24,6 +24,26 @@ import * as React from "react";
 // newConnList -> connList => filteredList -> remoteItems -> sortedRemoteItems => remoteSuggestion
 // filteredList -> createNew
 
+// switching a block's connection destroys its controller, which terminates a durable
+// session's remote shell; make that explicit before doing it
+async function confirmDurableSessionSwitch(blockId: string, oldConn: string, newConn: string): Promise<boolean> {
+    let count = 0;
+    try {
+        count = await RpcApi.DurableJobCountCommand(TabRpcClient, { blockids: [blockId] });
+    } catch (e) {
+        console.log("unable to check durable session before switching connection", blockId, e);
+        return true;
+    }
+    if (!count) {
+        return true;
+    }
+    const fromName = util.isBlank(oldConn) ? "local" : oldConn;
+    const toName = util.isBlank(newConn) ? "local" : newConn;
+    return window.confirm(
+        `This terminal has a running durable session on "${fromName}". Switching to "${toName}" will terminate it (the remote shell and its programs are stopped).\n\nSwitch anyway?`
+    );
+}
+
 function getConnConfig(fullConfig: FullConfigType, connName: string): ConnKeywords {
     return fullConfig?.connections?.[connName];
 }
@@ -405,6 +425,9 @@ const ChangeConnectionBlockModal = React.memo(
                     connName = null;
                 }
                 if (connName == blockData?.meta?.connection) {
+                    return;
+                }
+                if (!(await confirmDurableSessionSwitch(blockId, blockData?.meta?.connection, connName))) {
                     return;
                 }
                 const oldFile = blockData?.meta?.file ?? "";
