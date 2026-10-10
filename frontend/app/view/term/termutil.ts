@@ -474,3 +474,43 @@ export function isLikelyOnSameHost(lastCommand: string): boolean {
 export function quoteForPosixShell(filePath: string): string {
     return "'" + filePath.replace(/'/g, "'\\''") + "'";
 }
+
+export const MaxCoalescedAppendBytes = 1024 * 1024;
+
+export type QueuedTermAppend = { data: Uint8Array; offset: number };
+
+// Merges the contiguous run at the head of the queue into one chunk: a burst of small pty appends becomes one
+// xterm write instead of one write (and one write-callback round trip) per chunk.
+export function takeAppendBatch<T extends QueuedTermAppend>(
+    queue: T[],
+    canJoin: (first: T, next: T) => boolean = () => true,
+    maxBytes = MaxCoalescedAppendBytes
+): QueuedTermAppend {
+    const first = queue.shift();
+    if (first == null) {
+        return null;
+    }
+    const parts = [first.data];
+    let total = first.data.length;
+    let nextOffset = first.offset + first.data.length;
+    while (queue.length > 0) {
+        const next = queue[0];
+        if (next.offset !== nextOffset || total + next.data.length > maxBytes || !canJoin(first, next)) {
+            break;
+        }
+        queue.shift();
+        parts.push(next.data);
+        total += next.data.length;
+        nextOffset += next.data.length;
+    }
+    if (parts.length === 1) {
+        return { data: first.data, offset: first.offset };
+    }
+    const merged = new Uint8Array(total);
+    let pos = 0;
+    for (const part of parts) {
+        merged.set(part, pos);
+        pos += part.length;
+    }
+    return { data: merged, offset: first.offset };
+}

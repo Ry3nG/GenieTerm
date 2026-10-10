@@ -14,6 +14,7 @@ import {
     resolveTermThemeName,
     resolveTermTransparency,
     shouldUseWebGlRenderer,
+    takeAppendBatch,
 } from "@/app/view/term/termutil";
 
 const FullConfig = {
@@ -129,5 +130,34 @@ describe("term theme defaults (dark-only)", () => {
     it("uses the default minimum contrast ratio", () => {
         const [darkTheme] = computeTheme(FullConfig, DefaultTermTheme, 0.5);
         expect(resolveTermMinimumContrastRatio(darkTheme)).toBe(1);
+    });
+});
+
+describe("takeAppendBatch", () => {
+    const chunk = (offset: number, ...bytes: number[]) => ({ data: new Uint8Array(bytes), offset });
+
+    it("merges the contiguous run at the head of the queue", () => {
+        const queue = [chunk(0, 1, 2), chunk(2, 3), chunk(3, 4, 5), chunk(9, 6)];
+        const batch = takeAppendBatch(queue);
+        expect(batch.offset).toBe(0);
+        expect(Array.from(batch.data)).toEqual([1, 2, 3, 4, 5]);
+        expect(queue).toEqual([chunk(9, 6)]);
+    });
+
+    it("stops at the size cap and when canJoin refuses", () => {
+        const capped = [chunk(0, 1, 2), chunk(2, 3, 4), chunk(4, 5)];
+        expect(Array.from(takeAppendBatch(capped, undefined, 4).data)).toEqual([1, 2, 3, 4]);
+        expect(capped).toHaveLength(1);
+
+        const tagged = [
+            { ...chunk(0, 1), epoch: 0 },
+            { ...chunk(1, 2), epoch: 1 },
+        ];
+        expect(Array.from(takeAppendBatch(tagged, (first, next) => first.epoch === next.epoch).data)).toEqual([1]);
+        expect(tagged).toHaveLength(1);
+    });
+
+    it("returns null for an empty queue", () => {
+        expect(takeAppendBatch([])).toBeNull();
     });
 });

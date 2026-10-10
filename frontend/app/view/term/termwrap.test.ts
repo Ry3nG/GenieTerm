@@ -76,6 +76,8 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
         drainingHeldData: false,
         heldData: [],
         appendQueue: Promise.resolve(),
+        pendingAppends: [],
+        appendDrainScheduled: false,
         fileEpoch: 0,
         termFileEpoch: 0,
         ptyOffset: 0,
@@ -273,6 +275,59 @@ describe("TermWrap command blocks", () => {
     });
 });
 
+describe("TermWrap live append coalescing", () => {
+    it("merges appends that arrive while a write is in flight into one write", async () => {
+        const { termWrap } = makeTermWrap();
+        const writes: { data: number[]; offset: number }[] = [];
+        let releaseFirst: () => void = null;
+        termWrap.applyFileAppend = vi.fn(async (data: Uint8Array, offset: number) => {
+            writes.push({ data: Array.from(data), offset });
+            if (writes.length === 1) {
+                await new Promise<void>((resolve) => (releaseFirst = resolve));
+            }
+        });
+
+        termWrap.queueLiveAppend(new Uint8Array([1]), 0);
+        await Promise.resolve();
+        await Promise.resolve();
+        termWrap.queueLiveAppend(new Uint8Array([2]), 1);
+        termWrap.queueLiveAppend(new Uint8Array([3, 4]), 2);
+        termWrap.queueLiveAppend(new Uint8Array([9]), 10);
+        releaseFirst();
+        await termWrap.appendQueue;
+
+        expect(writes).toEqual([
+            { data: [1], offset: 0 },
+            { data: [2, 3, 4], offset: 1 },
+            { data: [9], offset: 10 },
+        ]);
+    });
+
+    it("drops queued appends when the terminal is truncated", async () => {
+        const { termWrap } = makeTermWrap();
+        const writes: number[] = [];
+        let releaseFirst: () => void = null;
+        termWrap.applyFileAppend = vi.fn(async (data: Uint8Array) => {
+            writes.push(data[0]);
+            if (writes.length === 1) {
+                await new Promise<void>((resolve) => (releaseFirst = resolve));
+            }
+        });
+        termWrap.streamBoundary = { reset: vi.fn() } as any;
+        termWrap.resetCmdBlocks = vi.fn();
+
+        termWrap.queueLiveAppend(new Uint8Array([1]), 0);
+        await Promise.resolve();
+        await Promise.resolve();
+        termWrap.queueLiveAppend(new Uint8Array([2]), 1);
+        termWrap.handleNewFileSubjectData({ fileop: "truncate", fileepoch: 1 } as WSFileEventData);
+        releaseFirst();
+        await termWrap.appendQueue;
+
+        expect(writes).toEqual([1]);
+    });
+});
+
 describe("TermWrap shell-integration markers during load", () => {
     it("treats held data drained after the initial load as live output", async () => {
         const { termWrap } = makeTermWrap();
@@ -283,7 +338,7 @@ describe("TermWrap shell-integration markers during load", () => {
         });
         termWrap.heldData = [
             { data: new Uint8Array([1]), offset: 0, fileEpoch: 0 },
-            { data: new Uint8Array([2]), offset: 1, fileEpoch: 0 },
+            { data: new Uint8Array([2]), offset: 5, fileEpoch: 0 },
         ];
 
         await termWrap.drainHeldData(0);

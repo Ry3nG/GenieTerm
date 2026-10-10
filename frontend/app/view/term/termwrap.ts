@@ -63,6 +63,7 @@ import {
     extractAllClipboardData,
     normalizeCursorStyle,
     quoteForPosixShell,
+    takeAppendBatch,
     trimTerminalSelection,
 } from "./termutil";
 
@@ -129,6 +130,8 @@ export class TermWrap {
     loaded: boolean;
     heldData: { data: Uint8Array; offset: number; fileEpoch: number }[];
     appendQueue: Promise<void> = Promise.resolve();
+    pendingAppends: { data: Uint8Array; offset: number; epoch: number }[] = [];
+    appendDrainScheduled = false;
     fileEpoch = 0;
     termFileEpoch = 0;
     cacheRevision = 0;
@@ -602,11 +605,12 @@ export class TermWrap {
         this.drainingHeldData = true;
         try {
             while (this.heldData.length > 0 && epoch === this.fileEpoch && !this.disposed) {
-                const held = this.heldData.shift();
-                if (held.fileEpoch !== this.termFileEpoch) {
+                if (this.heldData[0].fileEpoch !== this.termFileEpoch) {
+                    this.heldData.shift();
                     continue;
                 }
-                await this.applyFileAppend(held.data, held.offset, epoch);
+                const batch = takeAppendBatch(this.heldData, (first, next) => next.fileEpoch === first.fileEpoch);
+                await this.applyFileAppend(batch.data, batch.offset, epoch);
             }
         } finally {
             this.drainingHeldData = false;
@@ -779,6 +783,7 @@ export class TermWrap {
             this.termFileEpoch = msg.fileepoch || this.termFileEpoch + 1;
             this.terminal.clear();
             this.heldData = [];
+            this.pendingAppends = [];
             this.ptyOffset = 0;
             this.streamBoundary.reset();
             this.resetCmdBlocks();
@@ -792,16 +797,37 @@ export class TermWrap {
                 if (appendEpoch !== this.termFileEpoch) {
                     return;
                 }
-                const epoch = this.fileEpoch;
-                this.appendQueue = this.appendQueue
-                    .then(() => this.applyFileAppend(decodedData, msg.offset, epoch))
-                    .catch((error) => console.error("Terminal append failed", error));
+                this.queueLiveAppend(decodedData, msg.offset);
             } else {
                 this.heldData.push({ data: decodedData, offset: msg.offset, fileEpoch: appendEpoch });
             }
         } else {
             console.log("bad fileop for terminal", msg);
             return;
+        }
+    }
+
+    queueLiveAppend(data: Uint8Array, offset: number) {
+        this.pendingAppends.push({ data, offset, epoch: this.fileEpoch });
+        if (this.appendDrainScheduled) {
+            return;
+        }
+        this.appendDrainScheduled = true;
+        this.appendQueue = this.appendQueue
+            .then(() => this.drainPendingAppends())
+            .catch((error) => console.error("Terminal append failed", error));
+    }
+
+    // Appends that arrive while a write is in flight wait here and are merged into the next write.
+    async drainPendingAppends(): Promise<void> {
+        try {
+            while (this.pendingAppends.length > 0 && !this.disposed) {
+                const epoch = this.pendingAppends[0].epoch;
+                const batch = takeAppendBatch(this.pendingAppends, (first, next) => next.epoch === first.epoch);
+                await this.applyFileAppend(batch.data, batch.offset, epoch);
+            }
+        } finally {
+            this.appendDrainScheduled = false;
         }
     }
 
