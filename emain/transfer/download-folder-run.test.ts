@@ -54,7 +54,8 @@ function enqueueFolderJob(): string {
     return id;
 }
 
-describe("startTrackedFolderDownload", () => {
+// these cases cover the rsync (macOS/Linux) transport; Windows uses scp
+describe.skipIf(process.platform === "win32")("startTrackedFolderDownload", () => {
     let child: FakeChild;
     let uncaught: unknown[];
     const onUncaught = (err: unknown) => uncaught.push(err);
