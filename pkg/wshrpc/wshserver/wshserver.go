@@ -393,6 +393,11 @@ func (ws *WshServer) RemoteFileStreamCommand(ctx context.Context, data wshrpc.Co
 	return localRemoteFileServer.RemoteFileStreamCommand(ctx, data)
 }
 
+// remote hosts walk local (file://) folder uploads through the main server's default route
+func (ws *WshServer) RemoteListEntriesCommand(ctx context.Context, data wshrpc.CommandRemoteListEntriesData) chan wshrpc.RespOrErrorUnion[wshrpc.CommandRemoteListEntriesRtnData] {
+	return localRemoteFileServer.RemoteListEntriesCommand(ctx, data)
+}
+
 func (ws *WshServer) FileCopyCommand(ctx context.Context, data wshrpc.CommandFileCopyData) error {
 	return wshfs.Copy(ctx, data)
 }

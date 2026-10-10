@@ -44,14 +44,15 @@ import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from 
 import { DirectoryTreeView } from "./preview-directory-tree";
 import {
     cleanMimetype,
+    confirmFileDelete,
     copyWithOverwriteConfirmation,
     getBestUnit,
     getLastModifiedTime,
     getSortIcon,
-    handleFileDelete,
     handleRename,
     isFileCopyFailure,
     isIconValid,
+    isParentDirEntry,
     makeDirectoryDefaultMenuItems,
     type FileCopyResult,
 } from "./preview-directory-utils";
@@ -442,6 +443,8 @@ function TableBody({
                 return;
             }
             const fileName = finfo.path.split("/").pop();
+            // the ".." row points at the parent directory; rename/delete on it would act on the parent
+            const isParentRow = isParentDirEntry(finfo);
             const menu: ContextMenuItem[] = [
                 {
                     label: "New File",
@@ -455,12 +458,16 @@ function TableBody({
                         table.options.meta.newDirectory();
                     },
                 },
-                {
+            ];
+            if (!isParentRow) {
+                menu.push({
                     label: "Rename",
                     click: () => {
                         table.options.meta.updateName(finfo.path, finfo.isdir);
                     },
-                },
+                });
+            }
+            menu.push(
                 {
                     type: "separator",
                 },
@@ -479,8 +486,8 @@ function TableBody({
                 {
                     label: "Copy Full File Name (Shell Quoted)",
                     click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([finfo.path]))),
-                },
-            ];
+                }
+            );
             addOpenMenuItems(menu, conn, finfo);
             menu.push(
                 {
@@ -489,15 +496,19 @@ function TableBody({
                 {
                     label: "Default Settings",
                     submenu: makeDirectoryDefaultMenuItems(model),
-                },
-                {
-                    type: "separator",
-                },
-                {
-                    label: "Delete",
-                    click: () => handleFileDelete(model, finfo.path, false, setErrorMsg),
                 }
             );
+            if (!isParentRow) {
+                menu.push(
+                    {
+                        type: "separator",
+                    },
+                    {
+                        label: "Delete",
+                        click: () => confirmFileDelete(model, finfo, setErrorMsg),
+                    }
+                );
+            }
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },
         [setRefreshVersion, conn]
@@ -587,10 +598,10 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
     const [_, drag] = useDrag(
         () => ({
             type: "FILE_ITEM",
-            canDrag: true,
+            canDrag: !isParentDirEntry(row.original),
             item: () => dragItem,
         }),
-        [dragItem]
+        [dragItem, row.original]
     );
 
     const dragRef = useCallback(
