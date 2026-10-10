@@ -1,6 +1,6 @@
 # Contributing To GenieTerm
 
-GenieTerm is a private product fork. Keep changes on the product: semantic command blocks, durable remote sessions, and remote files. AI is natural-language → a proposed command, not a chat product.
+GenieTerm is an open-source fork of [Wave Terminal](https://github.com/wavetermdev/waveterm) with its own product direction. Keep changes on the product: semantic command blocks, durable remote sessions, and remote files. AI is natural-language → a proposed command, not a chat product.
 
 ## Expectations
 

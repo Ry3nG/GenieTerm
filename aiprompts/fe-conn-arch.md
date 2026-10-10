@@ -2,7 +2,7 @@
 
 ## Overview
 
-The frontend connection architecture provides a reactive interface for managing and interacting with connections (local, SSH, WSL, S3). It follows a unidirectional data flow pattern where the backend manages connection state, the frontend observes this state through Jotai atoms, and user interactions trigger backend operations via RPC commands.
+The frontend connection architecture provides a reactive interface for managing and interacting with connections (local, SSH, WSL). It follows a unidirectional data flow pattern where the backend manages connection state, the frontend observes this state through Jotai atoms, and user interactions trigger backend operations via RPC commands.
 
 ## Architecture Pattern
 
@@ -142,9 +142,6 @@ useEffect(() => {
     
     RpcApi.WslListCommand(TabRpcClient, { timeout: 2000 })
         .then(setWslList)
-    
-    RpcApi.ConnListAWSCommand(TabRpcClient, { timeout: 2000 })
-        .then(setS3List)
 }, [changeConnModalOpen])
 ```
 
@@ -180,11 +177,7 @@ const changeConnection = async (connName: string) => {
    - Format: `"user@host"` or `"user@host:port"`
    - Filtered by `display:hidden` config
 
-3. **S3 Connections** (optional)
-   - AWS S3 profiles
-   - Format: `"aws:profile-name"`
-
-4. **Actions**
+3. **Actions**
    - Reconnect (if disconnected/error)
    - Disconnect (if connected)
    - Edit Connections (opens config editor)
@@ -359,14 +352,17 @@ fullFile = atom<Promise<FileData>>(async (get) => {
 
 **View models do NOT directly manage shell processes.** They interact with block controllers via RPC:
 
-**Starting a Shell:**
+**Restarting a Shell:**
 ```typescript
 // User clicks restart button in terminal
-forceRestartController() {
+async forceRestartController() {
+    await RpcApi.ControllerDestroyCommand(TabRpcClient, this.blockId)
     // Backend handles connection verification and process startup
-    RpcApi.ControllerRestartCommand(TabRpcClient, {
+    await RpcApi.ControllerResyncCommand(TabRpcClient, {
+        tabid: globalStore.get(atoms.staticTabId),
         blockid: this.blockId,
-        force: true
+        forcerestart: true,
+        rtopts: { termsize }
     })
 }
 ```
@@ -383,14 +379,17 @@ sendDataToController(data: string) {
 ```
 
 **Backend Block Controller Flow:**
-1. Frontend calls `ControllerRestartCommand`
-2. Backend `ShellController.Run()` starts
-3. `CheckConnStatus()` verifies connection is ready
-4. If not connected, triggers connection attempt
-5. Once connected, `setupAndStartShellProcess()`
-6. `getConnUnion()` retrieves appropriate connection (Local/SSH/WSL)
-7. `StartLocalShellProc()`, `StartRemoteShellProc()`, or `StartWslShellProc()`
-8. Process I/O managed by `manageRunningShellProcess()`
+1. Frontend calls `ControllerDestroyCommand`, then `ControllerResyncCommand`
+2. Backend `blockcontroller.ResyncController()` picks `ShellController` or `DurableShellController`
+3. For remote connections, `CheckConnStatus()` (or `CheckConnWshStatus()` for durable) verifies the connection is ready
+4. `controller.Start()` runs; for `ShellController` this calls `setupAndStartShellProcess()`
+5. `getConnUnion()` retrieves appropriate connection (Local/SSH/WSL)
+6. `StartLocalShellProc()`, `StartRemoteShellProc()`, or `StartWslShellProc()`
+7. Process I/O managed by `manageRunningShellProcess()`
+
+**Durable sessions:** SSH terminal blocks default to `DurableShellController` (`term:durable`, resolved by `jobcontroller.IsBlockTermDurable()`; local and WSL are never durable). The shell runs under a remote job manager tracked by `pkg/jobcontroller`, so it survives app restarts and disconnects and reattaches by job id. Durable sessions require wsh on the remote.
+
+**SFTP fallback:** when an SSH connection is up but wsh is disabled or unavailable, remote file operations in `pkg/remote/fileshare/wshfs` fall back to SFTP over the same SSH client (`shouldUseSFTP()` in `sftp_fallback.go`), so preview and transfers still work.
 
 ## Connection Configuration
 
@@ -469,14 +468,6 @@ WslListCommand(client: RpcClient): Promise<string[]>
 - Returns list of installed WSL distribution names
 - Windows only (silently fails on other platforms)
 - Connection names formatted as `wsl://[distro]`
-
-**ConnListAWSCommand**
-```typescript
-ConnListAWSCommand(client: RpcClient): Promise<string[]>
-```
-- Returns list of AWS profile names from config
-- Used for S3 preview connections
-- Connection names formatted as `aws:[profile]`
 
 **ConnEnsureCommand**
 ```typescript
@@ -562,7 +553,7 @@ FileReadCommand(
 ```
 - Reads file content as base64
 - Supports streaming for large files
-- Remote files read via connection's WSH
+- Remote files read via connection's WSH (SFTP fallback when wsh is unavailable)
 
 ### Controller Commands (Indirect Connection Usage)
 
@@ -577,16 +568,22 @@ ControllerInputCommand(
 - Controller uses block's connection for execution
 - Base64-encoded to handle binary data
 
-**ControllerRestartCommand**
+**ControllerDestroyCommand**
 ```typescript
-ControllerRestartCommand(
+ControllerDestroyCommand(client: RpcClient, blockId: string): Promise<void>
+```
+- Stops and removes the block's controller
+
+**ControllerResyncCommand**
+```typescript
+ControllerResyncCommand(
     client: RpcClient,
-    data: { blockid: string, force?: boolean }
+    data: { tabid: string, blockid: string, forcerestart?: boolean, rtopts?: RuntimeOpts }
 ): Promise<void>
 ```
-- Restarts block's controller
+- Creates or restarts the block's controller to match block metadata
 - Backend checks connection status before starting
-- If not connected, triggers connection first
+- If not connected, returns an error and the overlay drives reconnection
 
 ## Event-Driven Updates
 
@@ -594,11 +591,11 @@ ControllerRestartCommand(
 
 **Connection Status Updates:**
 ```typescript
-waveEventSubscribe({
-    eventType: "connstatus",
+waveEventSubscribeSingle({
+    eventType: "connchange",
     handler: (event) => {
-        const status: ConnStatus = event.data
-        updateConnStatusAtom(status.connection, status)
+        const connStatus: ConnStatus = event.data
+        globalStore.set(getConnStatusAtom(connStatus.connection), connStatus)
     }
 })
 ```
@@ -643,7 +640,7 @@ User Action: Click connection button → select new connection
                         ↓
         Backend triggers connection if needed
                         ↓
-      Backend emits connstatus events as connection progresses
+      Backend emits connchange events as connection progresses
                         ↓
     Frontend updates ConnStatus atom ("connecting" → "connected")
                         ↓
@@ -659,13 +656,13 @@ User Action: Press Enter in disconnected terminal
                         ↓
           forceRestartController() called
                         ↓
-        RpcApi.ControllerRestartCommand()
+  RpcApi.ControllerDestroyCommand() + ControllerResyncCommand()
                         ↓
-    Backend ShellController.Run() starts
+    Backend ResyncController() picks a controller
                         ↓
          CheckConnStatus() verifies connection
                         ↓
-        If not connected: trigger connection
+   If not connected: start fails with an error
                         ↓
    (Frontend shows ConnStatusOverlay with "connecting")
                         ↓
@@ -805,7 +802,7 @@ connStatus = {
 - Shown in ConnStatusOverlay
 - "always disable wsh" button sets `conn:wshenabled: false`
 - Terminal still works without WSH (limited features)
-- Preview requires WSH (shows error if unavailable)
+- Preview and file operations fall back to SFTP when wsh is unavailable
 
 ### WSL Connection
 
@@ -824,27 +821,6 @@ connStatus = {
 - No network overhead
 - Predetermined domain socket path
 - Simpler error handling
-
-### S3 Connection (Preview Only)
-
-**Connection Names:**
-- Format: `"aws:[profile]"`
-- Examples: `"aws:default"`, `"aws:production"`
-
-**Frontend Behavior:**
-- Database icon (accent color)
-- Only available in Preview view
-- No shell/terminal support
-- File paths: `aws:profile:/bucket/key`
-
-**View Model Settings:**
-```typescript
-// Terminal: S3 not shown
-showS3 = atom(false)
-
-// Preview: S3 shown
-showS3 = atom(true)
-```
 
 ## Error Handling
 

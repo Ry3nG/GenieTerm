@@ -15,7 +15,7 @@ Controllers have three primary states:
 
 ### Backend: Controller Registry
 
-Location: [`pkg/blockcontroller/blockcontroller.go`](pkg/blockcontroller/blockcontroller.go)
+Location: [`pkg/blockcontroller/blockcontroller.go`](../pkg/blockcontroller/blockcontroller.go)
 
 The backend maintains a **global controller registry** that maps blockIds to controller instances:
 
@@ -26,17 +26,22 @@ var (
 )
 ```
 
-Controllers implement the [`Controller` interface](pkg/blockcontroller/blockcontroller.go:64):
+Controllers implement the `Controller` interface in [`blockcontroller.go`](../pkg/blockcontroller/blockcontroller.go):
 - `Start(ctx, blockMeta, rtOpts, force)` - Start the controller process
-- `Stop(graceful, newStatus)` - Stop the controller process
+- `Stop(graceful, newStatus, destroy)` - Stop the controller process
 - `GetRuntimeStatus()` - Get current runtime status
+- `GetConnName()` - Connection the controller was created for
 - `SendInput(input)` - Send input (data, signals, terminal size) to the process
+
+There are two implementations:
+- **`ShellController`** ([`shellcontroller.go`](../pkg/blockcontroller/shellcontroller.go)) - runs `shell` and `cmd` blocks directly as local, SSH, or WSL processes
+- **`DurableShellController`** ([`durableshellcontroller.go`](../pkg/blockcontroller/durableshellcontroller.go)) - runs remote `shell` blocks as durable jobs managed by [`pkg/jobcontroller`](../pkg/jobcontroller/jobcontroller.go). The shell lives under a remote job manager, survives app restarts and disconnects, and is reattached by the block's `JobId`. It is selected when `jobcontroller.IsBlockIdTermDurable()` is true (view `term`, controller `shell`, non-local and non-WSL connection, `term:durable` from block meta → connection config → settings, default true).
 
 ### Frontend: View Model
 
-Location: [`frontend/app/view/term/term-model.ts`](frontend/app/view/term/term-model.ts)
+Location: [`frontend/app/view/term/term-model.ts`](../frontend/app/view/term/term-model.ts)
 
-The [`TermViewModel`](frontend/app/view/term/term-model.ts:44) manages the frontend side of a terminal block:
+`TermViewModel` manages the frontend side of a terminal block:
 
 **Key Atoms:**
 - `shellProcFullStatus` - Holds the current controller status from backend
@@ -44,14 +49,13 @@ The [`TermViewModel`](frontend/app/view/term/term-model.ts:44) manages the front
 - `isRestarting` - UI state for restart animation
 
 **Event Subscription:**
-The constructor subscribes to controller status events (line 317-324):
+The constructor subscribes to controller status events:
 ```typescript
-this.shellProcStatusUnsubFn = waveEventSubscribe({
+this.shellProcStatusUnsubFn = waveEventSubscribeSingle({
     eventType: "controllerstatus",
     scope: WOS.makeORef("block", blockId),
     handler: (event) => {
-        let bcRTS: BlockControllerRuntimeStatus = event.data;
-        this.updateShellProcStatus(bcRTS);
+        this.updateShellProcStatus(event.data);
     },
 });
 ```
@@ -62,17 +66,17 @@ This creates a **reactive data flow**: backend publishes status updates → fron
 
 ### 1. Frontend Triggers Controller Creation/Start
 
-**Entry Point:** [`ResyncController()`](pkg/blockcontroller/blockcontroller.go:120) RPC endpoint
+**Entry Point:** `ResyncController()` in [`blockcontroller.go`](../pkg/blockcontroller/blockcontroller.go), reached via the `ControllerResyncCommand` RPC
 
-The frontend calls this via [`RpcApi.ControllerResyncCommand`](frontend/app/view/term/term-model.ts:661) when:
+The frontend calls this via `RpcApi.ControllerResyncCommand` when:
 
 1. **Manual Restart** - User clicks restart button or presses Enter when process is done
-   - Triggered by [`forceRestartController()`](frontend/app/view/term/term-model.ts:652)
-   - Passes `forcerestart: true` flag
+   - Triggered by `TermViewModel.forceRestartController()`
+   - Calls `ControllerDestroyCommand` first, then `ControllerResyncCommand` with `forcerestart: true`
    - Includes current terminal size (`termsize: { rows, cols }`)
 
 2. **Connection Status Changes** - Connection becomes available/unavailable
-   - Monitored by [`TermResyncHandler`](frontend/app/view/term/term.tsx:34) component
+   - Monitored by the `TermResyncHandler` component in [`term.tsx`](../frontend/app/view/term/term.tsx)
    - Watches `connStatus` atom for changes
    - Calls `termRef.current?.resyncController("resync handler")`
 
@@ -82,7 +86,7 @@ The frontend calls this via [`RpcApi.ControllerResyncCommand`](frontend/app/view
 
 ### 2. Backend Processes Resync Request
 
-The [`ResyncController()`](pkg/blockcontroller/blockcontroller.go:120) function:
+The `ResyncController()` function:
 
 ```go
 func ResyncController(ctx context.Context, tabId, blockId string, 
@@ -91,22 +95,27 @@ func ResyncController(ctx context.Context, tabId, blockId string,
 
 **Steps:**
 
-1. **Get Block Data** - Fetch block metadata from database
-2. **Determine Controller Type** - Read `controller` meta key ("shell", "cmd", "tsunami")
-3. **Check Existing Controller:**
-   - If controller type changed → stop old, create new
-   - If connection changed (for shell/cmd) → stop and restart
-   - If `force=true` → stop existing
-4. **Register Controller** - Add to registry (replaces existing if present)
-5. **Check if Start Needed** - If status is "init" or "done":
-   - For remote connections: verify connection status first
+1. **Serialize** - Take the per-block resync mutex
+2. **Get Block Data** - Fetch block metadata from database
+3. **Determine Controller Type** - Read `controller` meta key ("shell" or "cmd"); an empty value destroys any existing controller
+4. **Pick Implementation** - `DurableShellController` if `jobcontroller.IsBlockIdTermDurable()`, else `ShellController`
+5. **Check Existing Controller:**
+   - If connection changed → destroy
+   - If implementation needs to change (shell ↔ durable shell) → destroy
+   - If `force=true` → destroy
+   - If status is "done" → destroy before restarting
+6. **Create and Register** - `MakeShellController()` or `MakeDurableShellController()`, then `registerController()`
+7. **Check if Start Needed** - If status is "init":
+   - For remote connections: `CheckConnStatus()` (or `CheckConnWshStatus()` for durable controllers, which require wsh) must pass, otherwise the resync returns an error
    - Call `controller.Start(ctx, blockMeta, rtOpts, force)`
-6. **Publish Status** - Controller publishes runtime status updates
+8. **Publish Status** - Controller publishes runtime status updates
 
-**Important:** Registering a new controller automatically stops any existing controller for that blockId (line 95-98):
+A `DurableShellController.Start()` reattaches to the block's existing job when its job manager is still running; otherwise it starts a new job (only when `force` is set if the block already had a job).
+
+**Important:** Registering a new controller automatically stops any existing controller for that blockId:
 ```go
 if existingController != nil {
-    existingController.Stop(false, Status_Done)
+    existingController.Stop(false, Status_Done, true)
     wstore.DeleteRTInfo(waveobj.MakeORef(waveobj.OType_Block, blockId))
 }
 ```
@@ -126,15 +135,14 @@ The status includes:
 
 ### 4. Frontend Receives and Processes Updates
 
-**Status Update Handler** (line 321-323):
+**Status Update Handler:**
 ```typescript
 handler: (event) => {
-    let bcRTS: BlockControllerRuntimeStatus = event.data;
-    this.updateShellProcStatus(bcRTS);
+    this.updateShellProcStatus(event.data);
 }
 ```
 
-**Status Update Logic** (line 430-438):
+**Status Update Logic:**
 ```typescript
 updateShellProcStatus(fullStatus: BlockControllerRuntimeStatus) {
     if (fullStatus == null) return;
@@ -152,17 +160,17 @@ The version check ensures out-of-order events don't cause issues.
 
 The UI reacts to status changes through Jotai atoms:
 
-**Header Buttons** (line 263-306):
+**Header Buttons:**
 - Show "Play" icon when status is "init"
 - Show "Refresh" icon when status is "running" or "done"
 - Display exit code/status icons for cmd controller
 
-**Restart Behavior** (line 631-635 in term.tsx via term-model.ts):
+**Restart Behavior** (key handling in `term-model.ts`):
 ```typescript
 const shellProcStatus = globalStore.get(this.shellProcStatus);
 if ((shellProcStatus == "done" || shellProcStatus == "init") && 
     keyutil.checkKeyPressed(waveEvent, "Enter")) {
-    this.forceRestartController();
+    fireAndForget(() => this.forceRestartController());
     return false;
 }
 ```
@@ -173,7 +181,7 @@ Pressing Enter when the process is done/init triggers a restart.
 
 **Frontend → Backend:**
 
-When user types in terminal, data flows through [`sendDataToController()`](frontend/app/view/term/term-model.ts:408):
+When user types in terminal, data flows through `TermViewModel.sendDataToController()`:
 ```typescript
 sendDataToController(data: string) {
     const b64data = stringToBase64(data);
@@ -184,9 +192,9 @@ sendDataToController(data: string) {
 }
 ```
 
-This calls the backend [`SendInput()`](pkg/blockcontroller/blockcontroller.go:260) function which forwards to the controller's `SendInput()` method.
+This calls the backend `blockcontroller.SendInput()` function which forwards to the controller's `SendInput()` method.
 
-The [`BlockInputUnion`](pkg/blockcontroller/blockcontroller.go:48) supports three types of input:
+`BlockInputUnion` supports three types of input:
 - `inputdata` - Raw terminal input bytes
 - `signame` - Signal names (e.g., "SIGTERM", "SIGINT")
 - `termsize` - Terminal size changes (rows/cols)
@@ -226,7 +234,7 @@ When a controller is replaced:
 - Runtime info is cleaned up
 - Registry entry is updated atomically
 
-The `registerController()` function handles this automatically (line 84-99).
+The `registerController()` function handles this automatically.
 
 ## Common Patterns
 
@@ -234,13 +242,17 @@ The `registerController()` function handles this automatically (line 84-99).
 
 ```typescript
 // In term-model.ts
-forceRestartController() {
+async forceRestartController() {
+    if (globalStore.get(this.isRestarting)) {
+        return;
+    }
     this.triggerRestartAtom();  // UI feedback
+    await RpcApi.ControllerDestroyCommand(TabRpcClient, this.blockId);
     const termsize = {
         rows: this.termRef.current?.terminal?.rows,
         cols: this.termRef.current?.terminal?.cols,
     };
-    RpcApi.ControllerResyncCommand(TabRpcClient, {
+    await RpcApi.ControllerResyncCommand(TabRpcClient, {
         tabid: globalStore.get(atoms.staticTabId),
         blockid: this.blockId,
         forcerestart: true,

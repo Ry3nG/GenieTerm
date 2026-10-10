@@ -9,15 +9,16 @@ Wave Terminal uses a hierarchical configuration system with the following compon
 1. **Go Struct Definitions** - Type-safe configuration structure in Go
 2. **JSON Schema** - Validation schema for configuration files
 3. **Default Values** - Built-in default configuration
-4. **User Configuration** - User-customizable settings in `~/.config/waveterm/settings.json`
-5. **Documentation** - User-facing documentation
+4. **User Configuration** - User-customizable settings in `~/.config/genieterm/settings.json`
+
+GenieTerm has no separate user-facing settings docs; the inherited Wave docsite was removed, so there is no settings table to update.
 
 ## Configuration File Structure
 
 Wave Terminal's configuration system is organized into several key directories and files:
 
 ```
-waveterm/
+GenieTerm/
 ├── pkg/wconfig/                          # Go configuration package
 │   ├── settingsconfig.go                 # Main settings struct definitions
 │   ├── defaultconfig/                    # Default configuration files
@@ -29,9 +30,7 @@ waveterm/
 ├── schema/                               # JSON Schema definitions
 │   ├── settings.json                     # Settings validation schema
 │   └── ...                              # Other schema files
-├── docs/docs/                           # User documentation
-│   └── config.mdx                       # Configuration documentation
-└── ~/.config/waveterm/                  # User config directory (runtime)
+└── ~/.config/genieterm/                 # User config directory (runtime)
     ├── settings.json                    # User settings overrides
     ├── termthemes.json                  # User terminal themes
     ├── presets.json                     # User background presets
@@ -42,17 +41,16 @@ waveterm/
 
 **Key Files:**
 
-- **[`pkg/wconfig/settingsconfig.go`](pkg/wconfig/settingsconfig.go)** - Defines the `SettingsType` struct with all configuration fields
-- **[`schema/settings.json`](schema/settings.json)** - JSON Schema for validation and type checking
-- **[`pkg/wconfig/defaultconfig/settings.json`](pkg/wconfig/defaultconfig/settings.json)** - Default values for all settings
-- **[`docs/docs/config.mdx`](docs/docs/config.mdx)** - User-facing documentation with descriptions and examples
+- **[`pkg/wconfig/settingsconfig.go`](../pkg/wconfig/settingsconfig.go)** - Defines the `SettingsType` struct with all configuration fields
+- **[`schema/settings.json`](../schema/settings.json)** - JSON Schema for validation and type checking
+- **[`pkg/wconfig/defaultconfig/settings.json`](../pkg/wconfig/defaultconfig/settings.json)** - Default values for all settings
 
 ## Configuration Architecture
 
 ### Configuration Hierarchy
 
 1. **Built-in Defaults** (`pkg/wconfig/defaultconfig/settings.json`)
-2. **User Settings** (`~/.config/waveterm/settings.json`)
+2. **User Settings** (`~/.config/genieterm/settings.json`)
 3. **Block-level Overrides** (stored in block metadata)
 
 Settings cascade from defaults → user settings → block overrides.
@@ -61,13 +59,13 @@ Settings cascade from defaults → user settings → block overrides.
 
 Wave Terminal supports block-level configuration overrides through the metadata system. This allows settings to be applied globally, per-connection, or per-block:
 
-1. **Global Settings** (`~/.config/waveterm/settings.json`) - Apply to all blocks by default
+1. **Global Settings** (`~/.config/genieterm/settings.json`) - Apply to all blocks by default
 2. **Connection Settings** (in connections config) - Apply to all blocks using a specific connection
 3. **Block Metadata** - Override settings for individual blocks
 
 **Key Files for Block Overrides:**
 
-- **[`pkg/waveobj/wtypemeta.go`](pkg/waveobj/wtypemeta.go)** - Defines the `MetaTSType` struct for block-level metadata
+- **[`pkg/waveobj/wtypemeta.go`](../pkg/waveobj/wtypemeta.go)** - Defines the `MetaTSType` struct for block-level metadata
 - Block metadata fields should match the corresponding settings fields for consistency
 
 **Frontend Usage:**
@@ -95,7 +93,7 @@ Follow these steps to add a new configuration setting:
 
 ### Step 1: Add to Go Struct Definition
 
-Edit [`pkg/wconfig/settingsconfig.go`](pkg/wconfig/settingsconfig.go) and add your new field to the `SettingsType` struct:
+Edit [`pkg/wconfig/settingsconfig.go`](../pkg/wconfig/settingsconfig.go) and add your new field to the `SettingsType` struct:
 
 ```go
 type SettingsType struct {
@@ -129,7 +127,7 @@ type SettingsType struct {
 
 ### Step 1.5: Add to Block Metadata (Optional)
 
-If your setting should support block-level overrides, also add it to [`pkg/waveobj/wtypemeta.go`](pkg/waveobj/wtypemeta.go):
+If your setting should support block-level overrides, also add it to [`pkg/waveobj/wtypemeta.go`](../pkg/waveobj/wtypemeta.go):
 
 ```go
 type MetaTSType struct {
@@ -154,7 +152,7 @@ type MetaTSType struct {
 
 ### Step 2: Set Default Value (Optional)
 
-If your setting should have a default value, add it to [`pkg/wconfig/defaultconfig/settings.json`](pkg/wconfig/defaultconfig/settings.json):
+If your setting should have a default value, add it to [`pkg/wconfig/defaultconfig/settings.json`](../pkg/wconfig/defaultconfig/settings.json):
 
 ```json
 {
@@ -175,23 +173,7 @@ If your setting should have a default value, add it to [`pkg/wconfig/defaultconf
 - Ensure defaults make sense for the typical user experience
 - Keep defaults conservative and safe
 
-### Step 3: Update Documentation
-
-Add your new setting to the configuration table in [`docs/docs/config.mdx`](docs/docs/config.mdx):
-
-```markdown
-| Key Name            | Type     | Function                                  |
-| ------------------- | -------- | ----------------------------------------- |
-| mynew:setting       | string   | Description of what this setting controls |
-| mynew:boolsetting   | bool     | Enable/disable some feature               |
-| mynew:numbersetting | float    | Numeric setting for some parameter        |
-| mynew:intsetting    | int      | Integer setting for some configuration    |
-| mynew:arraysetting  | string[] | Array of strings for multiple values      |
-```
-
-Also update the default configuration example in the same file if you added defaults.
-
-### Step 4: Regenerate Schema and TypeScript Types
+### Step 3: Regenerate Schema and TypeScript Types
 
 Run the generate task to automatically regenerate the JSON schema and TypeScript types:
 
@@ -201,13 +183,13 @@ task generate
 
 **What this does:**
 - Runs `task build:schema` (automatically generates JSON schema from Go structs)
-- Generates TypeScript type definitions in [`frontend/types/gotypes.d.ts`](frontend/types/gotypes.d.ts)
+- Generates TypeScript type definitions in [`frontend/types/gotypes.d.ts`](../frontend/types/gotypes.d.ts)
 - Generates RPC client APIs
 - Generates metadata constants
 
-**Note:** The JSON schema in [`schema/settings.json`](schema/settings.json) is **automatically generated** from the Go struct definitions - you don't need to edit it manually.
+**Note:** The JSON schema in [`schema/settings.json`](../schema/settings.json) is **automatically generated** from the Go struct definitions - you don't need to edit it manually.
 
-### Step 5: Use in Frontend Code
+### Step 4: Use in Frontend Code
 
 Access your new setting in React components:
 
@@ -241,7 +223,7 @@ const appGlobalHotkey = useAtomValue(getSettingsKeyAtom("app:globalhotkey")) ?? 
 const connStatus = useAtomValue(getConnStatusAtom(connectionName));
 ```
 
-### Step 6: Use in Backend Code
+### Step 5: Use in Backend Code
 
 Access settings in Go code:
 
@@ -324,19 +306,13 @@ type MetaTSType struct {
 }
 ```
 
-### 4. Documentation (docs/config.mdx)
-
-```markdown
-| term:bellsound | string | Sound to play for terminal bell ("default", "none", or custom sound file path) |
-```
-
-### 5. Regenerate Types
+### 4. Regenerate Types
 
 ```bash
 task generate
 ```
 
-### 6. Frontend Usage
+### 5. Frontend Usage
 
 ```typescript
 // Use override config for hierarchical resolution
@@ -344,7 +320,7 @@ const bellSoundAtom = getOverrideConfigAtom(blockId, "term:bellsound");
 const bellSound = useAtomValue(bellSoundAtom) ?? "default";
 ```
 
-### 7. Usage Examples
+### 6. Usage Examples
 
 ```bash
 # Set globally
@@ -359,9 +335,9 @@ wsh setmeta --block BLOCK_ID term:bellsound="beep"
 
 ## Testing Your Configuration
 
-1. **Build and run** Wave Terminal with your changes
+1. **Build and run** GenieTerm with your changes
 2. **Test default behavior** - Ensure the default value works
-3. **Test user override** - Add your setting to `~/.config/waveterm/settings.json`
+3. **Test user override** - Add your setting to `~/.config/genieterm/settings.json`
 4. **Test block override** - Set block-specific metadata
 5. **Verify schema validation** - Ensure invalid values are rejected
 
