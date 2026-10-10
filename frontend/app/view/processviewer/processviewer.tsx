@@ -117,7 +117,10 @@ export class ProcessViewerViewModel implements ViewModel {
     connStatus: jotai.Atom<ConnStatus>;
 
     tabModel: TabModel;
+    // set by a host view that embeds this viewer while one of its other tabs is showing
+    suspendedAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
     unsubscribePane: () => void;
+    unsubscribeSuspended: () => void;
     disposed = false;
     cancelPoll: (() => void) | null = null;
     fetchEpoch = 0;
@@ -171,11 +174,14 @@ export class ProcessViewerViewModel implements ViewModel {
             };
             document.addEventListener("visibilitychange", this.visibilityHandler);
             this.unsubscribePane = globalStore.sub(tabModel.isActiveAtom, this.visibilityHandler);
+            this.unsubscribeSuspended = globalStore.sub(this.suspendedAtom, this.visibilityHandler);
         }
     }
 
     isHidden(): boolean {
-        return isDocumentHidden() || !globalStore.get(this.tabModel.isActiveAtom);
+        return (
+            isDocumentHidden() || !globalStore.get(this.tabModel.isActiveAtom) || globalStore.get(this.suspendedAtom)
+        );
     }
 
     get viewComponent(): ViewComponent {
@@ -508,6 +514,7 @@ export class ProcessViewerViewModel implements ViewModel {
 
     dispose() {
         this.unsubscribePane?.();
+        this.unsubscribeSuspended?.();
         this.disposed = true;
         if (this.scrollRefreshTimer != null) {
             clearTimeout(this.scrollRefreshTimer);

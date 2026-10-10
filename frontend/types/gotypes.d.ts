@@ -1035,6 +1035,8 @@ declare global {
         "graph:numpoints"?: number;
         "graph:metrics"?: string[];
         "sysinfo:type"?: string;
+        "host:*"?: boolean;
+        "host:tab"?: string;
         "tab:flagcolor"?: string;
         "tab:background"?: string;
         "bg:*"?: boolean;

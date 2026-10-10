@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip } from "@/app/element/tooltip";
+import { getFocusedBlockId } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
+import * as WOS from "@/app/store/wos";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
+import { makeWidgetBlockDef } from "@/app/workspace/widgetblockdef";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
 import clsx from "clsx";
@@ -66,8 +70,16 @@ function makeWidgetSettingsActionItems({
     ];
 }
 
+function getFocusedBlockMeta(): MetaType {
+    const blockId = getFocusedBlockId();
+    if (blockId == null) {
+        return null;
+    }
+    return globalStore.get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)))?.meta ?? null;
+}
+
 async function handleWidgetSelect(widget: WidgetConfigType, env: WidgetsEnv) {
-    const blockDef = widget.blockdef;
+    const blockDef = makeWidgetBlockDef(widget.blockdef, getFocusedBlockMeta());
     env.createBlock(blockDef, widget.magnified);
 }
 

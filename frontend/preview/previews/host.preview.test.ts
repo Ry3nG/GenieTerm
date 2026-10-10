@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { DefaultSysinfoHistoryPoints, makeMockSysinfoEvent, makeMockSysinfoHistory } from "./sysinfo.preview-util";
+import { DefaultSysinfoHistoryPoints, makeMockSysinfoEvent, makeMockSysinfoHistory } from "./host.preview-util";
 
-describe("sysinfo preview helpers", () => {
+describe("host preview helpers", () => {
     it("creates sysinfo events with the expected metrics", () => {
         const event = makeMockSysinfoEvent(1000, 3);
 
@@ -16,6 +16,9 @@ describe("sysinfo preview helpers", () => {
         expect(event.data.values["mem:used"]).toBeGreaterThan(0);
         expect(event.data.values["mem:total"]).toBeGreaterThan(event.data.values["mem:used"]);
         expect(event.data.values["cpu:0"]).toBeTypeOf("number");
+        expect(event.data.values["swap:total"]).toBeGreaterThan(0);
+        expect(event.data.gpus).toHaveLength(8);
+        expect(event.data.gpus[0].memused).toBeLessThan(event.data.gpus[0].memtotal);
     });
 
     it("creates evenly spaced sysinfo history", () => {

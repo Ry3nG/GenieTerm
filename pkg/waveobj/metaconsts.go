@@ -74,6 +74,9 @@ const (
 
 	MetaKey_SysinfoType = "sysinfo:type"
 
+	MetaKey_HostClear = "host:*"
+	MetaKey_HostTab   = "host:tab"
+
 	MetaKey_TabFlagColor  = "tab:flagcolor"
 	MetaKey_TabBackground = "tab:background"
 

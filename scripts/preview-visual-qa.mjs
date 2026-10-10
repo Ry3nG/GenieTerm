@@ -48,12 +48,12 @@ const PreviewCases = [
     ],
   },
   {
-    name: "sysinfo",
-    path: "/?preview=sysinfo",
-    checks: ["full sysinfo block", "CPU", "Memory"],
+    name: "host",
+    path: "/?preview=host",
+    checks: ["gpu-01", "Overview", "GPUs", "NVIDIA H100 80GB HBM3", "Load average", "Ports", "tensorboard"],
     viewports: [
-      { name: "desktop", width: 1180, height: 900 },
-      { name: "narrow", width: 760, height: 900 },
+      { name: "desktop", width: 1300, height: 1900 },
+      { name: "narrow", width: 760, height: 1900 },
     ],
   },
   {

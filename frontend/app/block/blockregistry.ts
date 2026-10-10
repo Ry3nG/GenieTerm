@@ -13,10 +13,12 @@ BlockRegistry.set("term", TermViewModel);
 const ViewModelLoaders: Record<string, () => Promise<ViewModelClass>> = {
     preview: () => import("@/app/view/preview/preview-model").then((m) => m.PreviewModel),
     web: () => import("@/app/view/webview/webview").then((m) => m.WebViewModel),
-    sysinfo: () => import("@/app/view/sysinfo/sysinfo").then((m) => m.SysinfoViewModel),
+    host: () => import("@/app/view/host/host-model").then((m) => m.HostViewModel),
+    // sysinfo and processviewer blocks saved by earlier versions open as the Host view
+    sysinfo: () => import("@/app/view/host/host-model").then((m) => m.HostViewModel),
     vdom: () => import("@/app/view/vdom/vdom-model").then((m) => m.VDomModel),
     waveconfig: () => import("@/app/view/waveconfig/waveconfig-model").then((m) => m.WaveConfigViewModel),
-    processviewer: () => import("@/app/view/processviewer/processviewer").then((m) => m.ProcessViewerViewModel),
+    processviewer: () => import("@/app/view/host/host-model").then((m) => m.HostViewModel),
 };
 const ViewModelLoads = new Map<string, Promise<void>>();
 

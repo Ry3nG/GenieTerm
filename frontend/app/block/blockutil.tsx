@@ -29,8 +29,8 @@ export function blockViewToIcon(view: string): string {
     if (view == "web") {
         return "globe";
     }
-    if (view == "processviewer") {
-        return "microchip";
+    if (view == "host" || view == "sysinfo" || view == "processviewer") {
+        return "server";
     }
     return "square";
 }
@@ -48,8 +48,8 @@ export function blockViewToName(view: string): string {
     if (view == "web") {
         return "Web";
     }
-    if (view == "processviewer") {
-        return "Processes";
+    if (view == "host" || view == "sysinfo" || view == "processviewer") {
+        return "Host";
     }
     return view;
 }

@@ -75,6 +75,9 @@ type MetaTSType struct {
 
 	SysinfoType string `json:"sysinfo:type,omitempty"`
 
+	HostClear bool   `json:"host:*,omitempty"`
+	HostTab   string `json:"host:tab,omitempty"` // overview, processes, ports
+
 	// for tabs
 	TabFlagColor        string  `json:"tab:flagcolor,omitempty"`
 	TabBackground       string  `json:"tab:background,omitempty"`
