@@ -772,7 +772,7 @@ func StartJob(ctx context.Context, params StartJobParams) (string, error) {
 }
 
 func doWFSAppend(ctx context.Context, oref waveobj.ORef, fileName string, data []byte) error {
-	offset, err := filestore.WFS.AppendDataWithOffset(ctx, oref.OID, fileName, data)
+	offset, fileEpoch, err := filestore.WFS.AppendDataWithOffsetAndEpoch(ctx, oref.OID, fileName, data)
 	if err != nil {
 		return err
 	}
@@ -782,11 +782,12 @@ func doWFSAppend(ctx context.Context, oref waveobj.ORef, fileName string, data [
 			oref.String(),
 		},
 		Data: &wps.WSFileEventData{
-			ZoneId:   oref.OID,
-			FileName: fileName,
-			FileOp:   wps.FileOp_Append,
-			Data64:   base64.StdEncoding.EncodeToString(data),
-			Offset:   offset,
+			ZoneId:    oref.OID,
+			FileName:  fileName,
+			FileOp:    wps.FileOp_Append,
+			Data64:    base64.StdEncoding.EncodeToString(data),
+			Offset:    offset,
+			FileEpoch: fileEpoch,
 		},
 	})
 	return nil
