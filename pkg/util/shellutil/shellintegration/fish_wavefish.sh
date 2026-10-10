@@ -44,10 +44,10 @@ function _waveterm_si_preexec --on-event fish_preexec
     set -l cmd (string join -- ' ' $argv)
     set -l cmd_length (string length -- "$cmd")
     if test $cmd_length -gt 8192
-        set -l cmd64 (printf '# command too large (%d bytes)' $cmd_length | base64 2>/dev/null | string replace -a '\n' '' | string replace -a '\r' '')
+        set -l cmd64 (printf '# command too large (%d bytes)' $cmd_length | base64 2>/dev/null | tr -d '\n\r')
         printf '\033]16162;C;{"cmd64":"%s"}\007' "$cmd64"
     else
-        set -l cmd64 (printf '%s' "$cmd" | base64 2>/dev/null | string replace -a '\n' '' | string replace -a '\r' '')
+        set -l cmd64 (printf '%s' "$cmd" | base64 2>/dev/null | tr -d '\n\r')
         if test -n "$cmd64"
             printf '\033]16162;C;{"cmd64":"%s"}\007' "$cmd64"
         else
