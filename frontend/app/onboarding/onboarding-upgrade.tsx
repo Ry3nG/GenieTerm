@@ -26,7 +26,7 @@ const UpgradeHighlights: FeatureItem[] = [
     {
         icon: "fa-feather",
         title: "Much lighter",
-        description: "Tabs share one renderer per window. Five tabs use about 700 MB instead of 1.2 GB.",
+        description: "Tabs share one renderer per window. Five tabs use under 700 MB instead of 1.2 GB.",
     },
     {
         icon: "fa-location-dot",
