@@ -139,7 +139,7 @@ const CpuCard = memo(({ model }: { model: HostViewModel }) => {
             <Sparkline
                 className="mt-3 h-14"
                 series={[{ values: samples.cpu, color: "var(--accent-color)" }]}
-                label="CPU usage over the last two minutes"
+                label="CPU usage over the last minute"
             />
             {hasLoad && (
                 <div className="mt-3 flex items-center gap-1.5 text-[12px] text-muted">
@@ -189,17 +189,19 @@ const MemoryCard = memo(({ model }: { model: HostViewModel }) => {
             <Sparkline
                 className="mt-3 h-14"
                 series={[{ values: samples.mem, color: "var(--accent-color)" }]}
-                label="Memory usage over the last two minutes"
+                label="Memory usage over the last minute"
             />
             <div className="mt-3 grid grid-cols-3 gap-3">
                 <Stat label="Used" value={formatGiB(used)} />
                 <Stat label="Available" value={formatGiB(available)} />
-                <Stat
-                    label="Swap"
-                    value={swapTotal > 0 ? `${formatGiB(swapUsed)} of ${formatGiB(swapTotal)}` : "None"}
-                />
+                <div className="min-w-0">
+                    <Stat
+                        label="Swap"
+                        value={swapTotal > 0 ? `${formatGiB(swapUsed)} of ${formatGiB(swapTotal)}` : "None"}
+                    />
+                    {swapTotal > 0 && <Meter pct={swapPct} className="mt-1" color="var(--warning-color)" />}
+                </div>
             </div>
-            {swapTotal > 0 && <Meter pct={swapPct} className="mt-2" color="var(--warning-color)" />}
         </Card>
     );
 });
@@ -228,7 +230,7 @@ const GpuCard = memo(({ model, gpu, history }: { model: HostViewModel; gpu: GpuD
             <Sparkline
                 className="mt-3 h-10"
                 series={[{ values: history ?? [], color: "var(--accent-color)" }]}
-                label={`GPU ${gpu.index} utilization over the last two minutes`}
+                label={`GPU ${gpu.index} utilization over the last minute`}
             />
             <div className="mt-3 grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3">
                 <div className="min-w-0">
@@ -350,7 +352,7 @@ const NetworkCard = memo(({ model }: { model: HostViewModel }) => {
                     { values: samples.netDown, color: "var(--accent-color)" },
                     { values: samples.netUp, color: "var(--warning-color)", fill: false },
                 ]}
-                label="Network throughput over the last two minutes"
+                label="Network throughput over the last minute"
             />
         </Card>
     );

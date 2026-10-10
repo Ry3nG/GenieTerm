@@ -162,9 +162,34 @@ export const DirectoryColumnWidths = { logo: 32, name: 240, modestr: 112, modtim
 export const DirectoryNameMinWidth = 160;
 export const DirectoryPermMinWidth = 100;
 
-export function getDirectoryColumnSizing(width: number, overrides: Record<string, number>): Record<string, number> {
+// Narrow blocks drop the least useful columns first, like Finder's list view, instead of
+// scrolling sideways and clipping Type.
+export function getDirectoryHiddenColumns(width: number): string[] {
+    if (!(width > 0)) {
+        return [];
+    }
+    const hidden: string[] = [];
+    if (width < 760) {
+        hidden.push("modestr");
+    }
+    if (width < 600) {
+        hidden.push("mimetype");
+    }
+    if (width < 470) {
+        hidden.push("modtime");
+    }
+    return hidden;
+}
+
+export function getDirectoryColumnSizing(
+    width: number,
+    overrides: Record<string, number>,
+    hidden: string[] = []
+): Record<string, number> {
     const sizes = { ...DirectoryColumnWidths, ...overrides };
-    const fixedWidth = sizes.logo + sizes.modestr + sizes.modtime + sizes.size + sizes.mimetype;
+    const fixedWidth = ["logo", "modestr", "modtime", "size", "mimetype"]
+        .filter((col) => !hidden.includes(col))
+        .reduce((sum, col) => sum + sizes[col], 0);
     return { ...sizes, name: Math.max(DirectoryNameMinWidth, width - fixedWidth - 12) };
 }
 

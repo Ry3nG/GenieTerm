@@ -11,6 +11,7 @@ import {
     formatUptime,
     forwardStatusText,
     forwardsWithoutListener,
+    isBackgroundListener,
     isLikelyHttp,
     isOutdatedHelperError,
     makePortRows,
@@ -141,6 +142,21 @@ describe("ports", () => {
         expect(rows[0].scope.kind).toBe("local");
         expect(rows[0].forward?.localport).toBe(6007);
         expect(rows[2].service).toBe("SSH");
+    });
+
+    it("files GenieTerm, OS daemons and ephemeral ports under other listeners", () => {
+        const rows = makePortRows(
+            [
+                { port: 8888, address: "127.0.0.1", pid: 1, command: "jupyter-lab" },
+                { port: 53688, address: "127.0.0.1", pid: 2, command: "wavesrv.arm64" },
+                { port: 7000, address: "0.0.0.0", pid: 3, command: "ControlCenter" },
+                { port: 22, address: "0.0.0.0" },
+                { port: 61000, address: "127.0.0.1", pid: 4, command: "node" },
+            ],
+            [forward({ remoteport: 61000 })]
+        );
+        const background = rows.filter(isBackgroundListener).map((r) => r.port);
+        expect(background).toEqual([7000, 53688, 22]);
     });
 
     it("lists forwards whose remote port is no longer listening", () => {

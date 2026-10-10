@@ -30,6 +30,7 @@ import {
 import { TermViewModel } from "@/app/view/term/term-model";
 import { NavigateDirection } from "@/layout/index";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
+import { makeWidgetBlockDef } from "@/app/workspace/widgetblockdef";
 import * as keyutil from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -659,7 +660,7 @@ function toggleWidgetsBar() {
         return;
     }
     const oref = WOS.makeORef("workspace", workspaceId);
-    const current = globalStore.get(getOrefMetaKeyAtom(oref, "layout:widgetsvisible")) ?? false;
+    const current = globalStore.get(getOrefMetaKeyAtom(oref, "layout:widgetsvisible")) ?? true;
     fireAndForget(() => RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: { "layout:widgetsvisible": !current } }));
 }
 
@@ -698,22 +699,28 @@ function getAppCommands(): CommandPaletteCommand[] {
     ];
 }
 
+function openOnFocusedConnection(meta: MetaType) {
+    const blockId = getFocusedBlockInStaticTab();
+    const focusedMeta =
+        blockId == null ? null : globalStore.get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)))?.meta;
+    fireAndForget(() => createBlock(makeWidgetBlockDef({ meta }, focusedMeta)));
+}
+
 function getNewBlockCommands(): CommandPaletteCommand[] {
     return [
         makePaletteCommand("block:new-terminal", "New Terminal", () =>
             fireAndForget(() => createBlock({ meta: { view: "term", controller: "shell" } }))
         ),
-        makePaletteCommand("block:new-files", "New Files", () =>
-            fireAndForget(() => createBlock({ meta: { view: "preview", file: "~" } }))
+        makePaletteCommand("block:new-files", "Open Files", () => openOnFocusedConnection({ view: "preview", file: "~" })),
+        makePaletteCommand("block:new-host", "Open Host", () => openOnFocusedConnection({ view: "host" })),
+        makePaletteCommand("block:new-host-processes", "Host: Processes", () =>
+            openOnFocusedConnection({ view: "host", "host:tab": "processes" })
+        ),
+        makePaletteCommand("block:new-host-ports", "Host: Ports and Forwarding", () =>
+            openOnFocusedConnection({ view: "host", "host:tab": "ports" })
         ),
         makePaletteCommand("block:new-web", "New Web", () =>
             fireAndForget(() => createBlock({ meta: { view: "web" } }))
-        ),
-        makePaletteCommand("block:new-sysinfo", "New System Info", () =>
-            fireAndForget(() => createBlock({ meta: { view: "sysinfo" } }))
-        ),
-        makePaletteCommand("block:new-processes", "New Processes", () =>
-            fireAndForget(() => createBlock({ meta: { view: "processviewer" } }))
         ),
     ];
 }

@@ -49,6 +49,7 @@ import {
     copyWithOverwriteConfirmation,
     getBestUnit,
     getDirectoryColumnSizing,
+    getDirectoryHiddenColumns,
     getDirectoryFocusIndex,
     getFileKind,
     getLastModifiedTime,
@@ -295,7 +296,12 @@ function DirectoryTable({
         setViewportWidth(scrollElement.clientWidth);
         return () => observer.disconnect();
     }, [scrollElement]);
-    const columnSizing = getDirectoryColumnSizing(viewportWidth, columnWidths);
+    const hiddenColumns = getDirectoryHiddenColumns(viewportWidth);
+    const columnSizing = getDirectoryColumnSizing(viewportWidth, columnWidths, hiddenColumns);
+    const columnVisibility = useMemo(
+        () => Object.fromEntries([["path", false], ...hiddenColumns.map((col) => [col, false])]),
+        [hiddenColumns.join(",")]
+    );
     const table = useReactTable({
         data,
         columns,
@@ -305,6 +311,7 @@ function DirectoryTable({
 
         state: {
             columnSizing,
+            columnVisibility,
             sorting,
         },
         onColumnSizingChange: (updater) => {
@@ -312,11 +319,6 @@ function DirectoryTable({
             setColumnWidths(resizeDirectoryColumns(columnSizing, next));
         },
         onSortingChange: setSorting,
-        initialState: {
-            columnVisibility: {
-                path: false,
-            },
-        },
         enableMultiSort: false,
         enableSortingRemoval: false,
         meta: {

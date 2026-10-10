@@ -45,6 +45,10 @@ const ActionIcons: Record<string, string> = {
     "block:magnify": "expand",
     "block:close": "xmark",
     "block:new": "plus",
+    "block:new-files": "folder-open",
+    "block:new-host": "server",
+    "block:new-host-processes": "list-tree",
+    "block:new-host-ports": "arrow-right-arrow-left",
     "tab:new": "plus",
     "tab:close": "xmark",
     "tab:next": "arrow-right",
@@ -66,6 +70,10 @@ const ActionKeywords: Record<string, string> = {
     "term:command-composer": "compose command editor multiline",
     "app:settings": "preferences configuration",
     "tab:reload": "reload refresh",
+    "block:new-files": "browse explorer finder sftp remote folder",
+    "block:new-host": "system info sysinfo cpu memory gpu nvidia-smi monitor activity",
+    "block:new-host-processes": "top htop ps kill process list",
+    "block:new-host-ports": "port forward forwarding tunnel ssh -L localhost jupyter tensorboard listening",
 };
 const RecentStorageKey = "genieterm:command-palette:recent:v1";
 const RecentLimit = 5;

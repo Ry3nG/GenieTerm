@@ -10,6 +10,7 @@ import {
     forwardStatusText,
     forwardsWithoutListener,
     forwardUrl,
+    isBackgroundListener,
     isForwardable,
     isLikelyHttp,
     makePortRows,
@@ -221,7 +222,10 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
     const canForward = useAtomValue(model.canForwardAtom);
     const action = useAtomValue(model.forwardActionAtom);
     const [formOpen, setFormOpen] = useState(false);
+    const [showOther, setShowOther] = useState(false);
     const rows = useMemo(() => makePortRows(state.data?.ports ?? [], forwards), [state.data, forwards]);
+    const mainRows = rows.filter((r) => !isBackgroundListener(r));
+    const otherRows = rows.filter(isBackgroundListener);
     const orphanForwards = useMemo(() => forwardsWithoutListener(rows, forwards), [rows, forwards]);
     const actionError = action && !action.busy && action.error && !rows.some((r) => r.port === action.port);
 
@@ -251,7 +255,7 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
                     {state.error ? (
                         <span className="text-error">{state.error}</span>
                     ) : (
-                        `${rows.length} listening ${rows.length === 1 ? "port" : "ports"}`
+                        `${mainRows.length} listening ${mainRows.length === 1 ? "port" : "ports"}`
                     )}
                 </div>
                 {canForward && !formOpen && (
@@ -299,13 +303,40 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
                     ))}
                 </div>
             )}
-            {rows.length === 0 && !state.error ? (
-                <div className="px-4 py-10 text-center text-[13px] text-muted">Nothing is listening on TCP ports.</div>
+            {mainRows.length === 0 && !state.error ? (
+                <div className="px-4 py-10 text-center text-[13px] text-muted">
+                    {otherRows.length > 0
+                        ? "No servers of yours are listening right now."
+                        : "Nothing is listening on TCP ports."}
+                </div>
             ) : (
                 <div>
-                    {rows.map((row) => (
+                    {mainRows.map((row) => (
                         <PortRowView key={row.key} model={model} row={row} canForward={canForward} />
                     ))}
+                </div>
+            )}
+            {otherRows.length > 0 && (
+                <div className="border-t border-border">
+                    <button
+                        className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-[12px] text-muted transition-colors hover:text-primary"
+                        aria-expanded={showOther}
+                        onClick={() => setShowOther((v) => !v)}
+                    >
+                        <i
+                            className={cn(
+                                "fa-solid fa-chevron-right text-[9px] transition-transform",
+                                showOther && "rotate-90"
+                            )}
+                            aria-hidden="true"
+                        />
+                        Other listeners · {otherRows.length}
+                        <span className="text-muted/70">GenieTerm, system services and ephemeral ports</span>
+                    </button>
+                    {showOther &&
+                        otherRows.map((row) => (
+                            <PortRowView key={row.key} model={model} row={row} canForward={canForward} />
+                        ))}
                 </div>
             )}
             {state.data?.partial && (

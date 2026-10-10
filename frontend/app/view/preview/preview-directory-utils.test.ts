@@ -9,6 +9,7 @@ import {
     copyWithOverwriteConfirmation,
     getBestUnit,
     getDirectoryColumnSizing,
+    getDirectoryHiddenColumns,
     getDirectoryFocusIndex,
     getFileKind,
     getLastModifiedTime,
@@ -398,5 +399,21 @@ describe("delete confirmations", () => {
         expect(prompt.text).toContain("/srv/data");
         expect(prompt.text).toContain("2 items");
         expect(prompt.buttons?.[0].text).toBe("Delete Recursively");
+    });
+});
+
+describe("getDirectoryHiddenColumns", () => {
+    it("drops Perm, then Type, then Last Modified as the block narrows", () => {
+        expect(getDirectoryHiddenColumns(0)).toEqual([]);
+        expect(getDirectoryHiddenColumns(900)).toEqual([]);
+        expect(getDirectoryHiddenColumns(700)).toEqual(["modestr"]);
+        expect(getDirectoryHiddenColumns(560)).toEqual(["modestr", "mimetype"]);
+        expect(getDirectoryHiddenColumns(400)).toEqual(["modestr", "mimetype", "modtime"]);
+    });
+
+    it("gives the hidden columns' width to Name", () => {
+        const sizing = getDirectoryColumnSizing(700, {}, ["modestr"]);
+        const used = sizing.logo + sizing.modtime + sizing.size + sizing.mimetype + sizing.name;
+        expect(used).toBe(700 - 12);
     });
 });

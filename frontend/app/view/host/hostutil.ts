@@ -5,7 +5,7 @@ export type HostTab = "overview" | "processes" | "ports";
 
 export const HostTabs: HostTab[] = ["overview", "processes", "ports"];
 
-export const HostHistoryLength = 120;
+export const HostHistoryLength = 60;
 
 const GiB = 1024 * 1024 * 1024;
 
@@ -231,6 +231,41 @@ export function formatGpuMemory(usedBytes: number, totalBytes: number): string {
     const used = usedBytes / GiB;
     const total = totalBytes / GiB;
     return `${used.toFixed(1)}/${total.toFixed(total >= 100 ? 0 : 1)} GB`;
+}
+
+// GenieTerm's own servers and OS daemons are rarely what someone opens the Ports tab for.
+const OwnServerCommand = /^(wavesrv|genieterm|wsh|genie)\b/i;
+const SystemDaemons = new Set([
+    "ARDAgent",
+    "ControlCenter",
+    "rapportd",
+    "sharingd",
+    "remoted",
+    "identityservicesd",
+    "AirPlayXPCHelper",
+    "mDNSResponder",
+    "cupsd",
+    "launchd",
+    "systemd",
+    "systemd-resolved",
+    "systemd-resolve",
+    "rpcbind",
+    "chronyd",
+    "avahi-daemon",
+]);
+const EphemeralPortStart = 49152;
+
+export function isBackgroundListener(row: PortRow): boolean {
+    if (row.forward != null) {
+        return false;
+    }
+    if (OwnServerCommand.test(row.command) || SystemDaemons.has(row.command)) {
+        return true;
+    }
+    if (row.service === "SSH" || row.service === "DNS" || row.service === "rpcbind" || row.service === "Printing") {
+        return true;
+    }
+    return row.port >= EphemeralPortStart;
 }
 
 export type PortRow = {
