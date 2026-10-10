@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip } from "@/app/element/tooltip";
@@ -32,10 +32,11 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
     };
 
     return (
-        <div className="flex flex-col w-48 border-r border-border @w600:h-full @max-w600:absolute @max-w600:left-0.5 @max-w600:top-0 @max-w600:bottom-0.5 @max-w600:z-10 @max-w600:bg-background @max-w600:shadow-xl @max-w600:rounded-bl">
+        <div className="flex flex-col w-48 gap-1 border-r border-border bg-panel p-2 @w600:h-full @max-w600:absolute @max-w600:left-0.5 @max-w600:top-0 @max-w600:bottom-0.5 @max-w600:z-10 @max-w600:bg-background @max-w600:shadow-xl @max-w600:rounded-bl">
             <div className="flex items-center justify-between px-4 py-2 border-b border-border @w600:hidden">
                 <span className="font-semibold">Config Files</span>
                 <button
+                    aria-label="Close settings categories"
                     onClick={() => setIsMenuOpen(false)}
                     className="hover:bg-secondary/50 rounded p-1 cursor-pointer transition-colors"
                 >
@@ -43,12 +44,17 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
                 </button>
             </div>
             {configFiles.map((file) => (
-                <div
+                <button
                     key={file.path}
+                    type="button"
+                    aria-current={selectedFile?.path === file.path ? "page" : undefined}
                     onClick={() => handleFileSelect(file)}
-                    className={`px-4 py-2 border-b border-border cursor-pointer transition-colors ${
-                        selectedFile?.path === file.path ? "bg-accentbg text-primary" : "hover:bg-secondary/50"
-                    }`}
+                    className={cn(
+                        "rounded-lg px-3 py-2.5 text-left text-sm cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+                        selectedFile?.path === file.path
+                            ? "bg-accent/15 text-primary font-medium"
+                            : "text-secondary hover:bg-hover hover:text-primary"
+                    )}
                 >
                     <div className="flex items-center gap-1">
                         <div className="whitespace-nowrap overflow-hidden text-ellipsis flex-1">{file.name}</div>
@@ -61,7 +67,7 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
                             {file.description}
                         </div>
                     )}
-                </div>
+                </button>
             ))}
         </div>
     );
@@ -148,15 +154,16 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                 <div className="flex flex-col flex-1 min-w-0">
                     {selectedFile && (
                         <>
-                            <div className="flex flex-row items-center justify-between px-4 py-2 border-b border-border">
-                                <div className="flex items-baseline gap-2 min-w-0">
+                            <div className="flex min-h-14 flex-row items-center justify-between gap-3 px-5 py-2.5 border-b border-border">
+                                <div className="flex items-center gap-2 min-w-0">
                                     <button
+                                        aria-label="Show settings categories"
                                         onClick={() => setIsMenuOpen(true)}
                                         className="@w600:hidden hover:bg-secondary/50 rounded p-1 cursor-pointer transition-colors mr-2 shrink-0"
                                     >
                                         <i className="fa fa-bars" />
                                     </button>
-                                    <div className="text-lg font-semibold whitespace-nowrap shrink-0">
+                                    <div className="text-sm font-semibold whitespace-nowrap shrink-0">
                                         {selectedFile.name}
                                     </div>
                                     {selectedFile.docsUrl && (
@@ -171,48 +178,58 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                             </a>
                                         </Tooltip>
                                     )}
-                                    <div className="text-xs text-muted-foreground font-mono pb-0.5 ml-1 truncate @max-w450:hidden">
+                                    <div className="text-xs text-muted font-mono ml-1 truncate @max-w600:hidden">
                                         {selectedFile.path}
                                     </div>
                                 </div>
-                                <div className="flex gap-2 items-baseline shrink-0">
-                                    {selectedFile.hasJsonView && (
-                                        <>
-                                            {hasChanges && (
-                                                <span className="text-xs text-warning pb-0.5 @max-w450:hidden">
-                                                    Unsaved changes
-                                                </span>
-                                            )}
-                                            <Tooltip content={saveTooltip} placement="bottom" divClassName="shrink-0">
-                                                <button
-                                                    onClick={() => model.saveFile()}
-                                                    disabled={!hasChanges || isSaving}
-                                                    className={`px-3 py-1 rounded transition-colors text-sm ${
-                                                        !hasChanges || isSaving
-                                                            ? "border border-border text-muted-foreground opacity-50"
-                                                            : "bg-accent/80 text-primary hover:bg-accent cursor-pointer"
-                                                    }`}
+                                <div className="flex gap-2 items-center shrink-0">
+                                    {selectedFile.hasJsonView &&
+                                        !(selectedFile.visualComponent && activeTab === "visual") && (
+                                            <>
+                                                {hasChanges && (
+                                                    <span className="text-xs text-warning pb-0.5 @max-w450:hidden">
+                                                        Unsaved changes
+                                                    </span>
+                                                )}
+                                                <Tooltip
+                                                    content={saveTooltip}
+                                                    placement="bottom"
+                                                    divClassName="shrink-0"
                                                 >
-                                                    {isSaving ? "Saving..." : "Save"}
-                                                </button>
-                                            </Tooltip>
-                                        </>
-                                    )}
+                                                    <button
+                                                        onClick={() => model.saveFile()}
+                                                        disabled={!hasChanges || isSaving}
+                                                        className={`h-8 px-3 rounded-md border border-border cursor-pointer transition-colors text-xs font-medium ${
+                                                            !hasChanges || isSaving
+                                                                ? "text-secondary opacity-40"
+                                                                : "bg-accent/80 text-primary hover:bg-accent cursor-pointer"
+                                                        }`}
+                                                    >
+                                                        {isSaving ? "Saving..." : "Save"}
+                                                    </button>
+                                                </Tooltip>
+                                            </>
+                                        )}
                                 </div>
                             </div>
                             {selectedFile.visualComponent && selectedFile.hasJsonView && (
-                                <div className="flex gap-0 border-b border-border">
+                                <div
+                                    className="flex items-center gap-1 border-b border-border px-5 py-2"
+                                    role="group"
+                                    aria-label="Settings view"
+                                >
                                     <button
                                         onClick={() => {
                                             if (!model.confirmDiscardChanges()) return;
                                             model.discardChanges();
                                             setActiveTab("visual");
                                         }}
+                                        aria-pressed={activeTab === "visual"}
                                         className={cn(
-                                            "px-4 pt-1 pb-1.5 cursor-pointer transition-colors text-secondary",
+                                            "rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-accent",
                                             activeTab === "visual"
                                                 ? "bg-highlightbg text-primary"
-                                                : "bg-transparent hover:bg-hover"
+                                                : "text-secondary hover:bg-hover hover:text-primary"
                                         )}
                                     >
                                         Visual
@@ -220,11 +237,12 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                     {/* No guard needed: visual tab saves changes immediately via RPC */}
                                     <button
                                         onClick={() => setActiveTab("json")}
+                                        aria-pressed={activeTab === "json"}
                                         className={cn(
-                                            "px-4 pt-1 pb-1.5 cursor-pointer transition-colors text-secondary",
+                                            "rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-accent",
                                             activeTab === "json"
                                                 ? "bg-highlightbg text-primary"
-                                                : "bg-transparent hover:bg-hover"
+                                                : "text-secondary hover:bg-hover hover:text-primary"
                                         )}
                                     >
                                         Raw JSON

@@ -8,9 +8,28 @@ import {
     makeAppThemeOptions,
     updateSettingsJsonAppIcon,
     updateSettingsJsonTheme,
+    updateSettingsJsonValue,
 } from "./generalcontent";
 
 describe("general settings content", () => {
+    it.each(["Hack", true, false, 14.5, 0, null, ["a", 2], { nested: true }])(
+        "writes JSON value %j without losing other settings",
+        (value) => {
+            expect(JSON.parse(updateSettingsJsonValue('{"keep":false,"value":"old"}', "value", value))).toEqual({
+                keep: false,
+                value,
+            });
+        }
+    );
+
+    it("initializes an empty settings file", () => {
+        expect(JSON.parse(updateSettingsJsonValue("  ", "term:fontsize", 12))).toEqual({ "term:fontsize": 12 });
+    });
+
+    it.each(["{bad", "[]", "null", "true", "12", '"text"'])("preserves invalid settings objects: %s", (content) => {
+        expect(updateSettingsJsonValue(content, "term:cursorblink", true)).toBe(content);
+    });
+
     it("defaults unknown theme values to the dark option", () => {
         const options = makeAppThemeOptions("system");
 

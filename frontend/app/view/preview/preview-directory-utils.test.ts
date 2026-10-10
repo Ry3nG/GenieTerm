@@ -7,6 +7,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
     confirmFileDelete,
     copyWithOverwriteConfirmation,
+    getBestUnit,
+    getDirectoryColumnSizing,
+    getDirectoryFocusIndex,
+    getFileKind,
     getLastModifiedTime,
     handleFileDelete,
     isFileCopyFailure,
@@ -15,30 +19,163 @@ import {
     makeDirectoryDefaultMenuItems,
     makeRecursiveDeleteConfirmation,
     overwriteError,
+    parentDirectoryFirst,
     recursiveError,
+    resizeDirectoryColumns,
 } from "./preview-directory-utils";
 
 describe("getLastModifiedTime", () => {
-    it("shows month, padded day, and local time for files from the current year", () => {
-        vi.useFakeTimers();
-        try {
-            vi.setSystemTime(new Date(2026, 5, 1, 12, 0, 0));
+    const now = new Date(2026, 6, 6, 12, 0);
 
-            expect(getLastModifiedTime(new Date(2026, 0, 5, 9, 7, 0).getTime())).toBe("Jan  5 09:07");
-        } finally {
-            vi.useRealTimers();
-        }
+    it.each([
+        [new Date(2026, 6, 6, 0, 21), "Today 00:21"],
+        [new Date(2026, 6, 5, 20, 9), "Yesterday 20:09"],
+        [new Date(2026, 0, 5, 9, 7), "Jan 5 09:07"],
+        [new Date(2025, 6, 5, 20, 52), "Jul 5, 2025"],
+        [new Date(2027, 6, 5), "Jul 5, 2027"],
+    ])("formats %s as %s", (date, expected) => {
+        expect(getLastModifiedTime(date.getTime(), now)).toBe(expected);
     });
 
-    it("shows the date for files from a different year", () => {
-        vi.useFakeTimers();
-        try {
-            vi.setSystemTime(new Date(2026, 5, 1, 12, 0, 0));
+    it("recognizes yesterday across year and month boundaries", () => {
+        expect(getLastModifiedTime(new Date(2025, 11, 31, 23, 59).getTime(), new Date(2026, 0, 1))).toBe(
+            "Yesterday 23:59"
+        );
+        expect(getLastModifiedTime(new Date(2026, 1, 28, 20, 9).getTime(), new Date(2026, 2, 1))).toBe(
+            "Yesterday 20:09"
+        );
+    });
 
-            expect(getLastModifiedTime(new Date(2025, 11, 31, 23, 59, 0).getTime())).toBe("2025-12-31");
-        } finally {
-            vi.useRealTimers();
-        }
+    it("uses calendar days across daylight saving changes", () => {
+        expect(getLastModifiedTime(new Date(2026, 2, 8, 0, 30).getTime(), new Date(2026, 2, 9, 0, 15))).toBe(
+            "Yesterday 00:30"
+        );
+        expect(getLastModifiedTime(new Date(2026, 10, 1, 0, 30).getTime(), new Date(2026, 10, 2, 0, 15))).toBe(
+            "Yesterday 00:30"
+        );
+    });
+
+    it.each([null, undefined, NaN, Infinity, 1e20])("handles unavailable dates (%s)", (date) => {
+        expect(getLastModifiedTime(date, now)).toBe("—");
+    });
+});
+
+describe("getBestUnit", () => {
+    it.each([
+        [0, "0 B"],
+        [206, "206 B"],
+        [999, "999 B"],
+        [1000, "1.0 KB"],
+        [1950, "1.9 KB"],
+        [5130, "5.1 KB"],
+        [12400000, "12.4 MB"],
+        [1200000000, "1.2 GB"],
+        [99950, "100 KB"],
+        [100500, "101 KB"],
+        [999500, "1.0 MB"],
+        [1e12, "1.0 TB"],
+        [1e15, "1.0 PB"],
+        [null, "—"],
+        [undefined, "—"],
+        [-1, "—"],
+        [NaN, "—"],
+        [Infinity, "—"],
+    ])("formats %s as %s", (bytes, expected) => {
+        expect(getBestUnit(bytes)).toBe(expected);
+    });
+});
+
+describe("getFileKind", () => {
+    it.each([
+        ["README.md", "text/plain", "Markdown"],
+        ["README.MARKDOWN", "", "Markdown"],
+        ["config.json", "application/octet-stream", "JSON"],
+        ["config.yml", "text/plain", "YAML"],
+        ["config.yaml", "", "YAML"],
+        ["app.tsx", "text/plain", "TypeScript"],
+        ["app.ts", "video/mp2t", "TypeScript"],
+        ["app.jsx", "", "JavaScript"],
+        ["main.go", "", "Go source"],
+        ["setup.sh", "", "Shell script"],
+        ["image.PNG", "", "PNG image"],
+        ["image.jpeg", "", "JPEG image"],
+        ["image.jpg", "", "JPEG image"],
+        ["report.pdf", "", "PDF"],
+        ["notes.txt", "", "Plain text"],
+        ["yarn.lock", "text/plain", "LOCK file"],
+        ["README", "text/plain; charset=utf-8", "Plain text"],
+        ["LICENSE", "", "Document"],
+        [".gitignore", "", "Document"],
+        ["file.", "", "Document"],
+        ["", "application/json; charset=utf-8", "JSON"],
+        ["image", "image/png", "PNG image"],
+        ["constructor", "application/octet-stream", "Document"],
+        ["file.constructor", "", "CONSTRUCTOR file"],
+    ])("formats %s (%s) as %s", (name, mimetype, expected) => {
+        expect(getFileKind({ name, mimetype })).toBe(expected);
+    });
+
+    it("prioritizes folders and symlinks over file extensions", () => {
+        expect(getFileKind({ name: "folder.json", isdir: true })).toBe("Folder");
+        expect(getFileKind({ mimetype: "directory" })).toBe("Folder");
+        expect(getFileKind({ name: "linked.md", modestr: "Lrwxr-xr-x" })).toBe("Symlink");
+        expect(getFileKind({ isdir: true, modestr: "lrwxr-xr-x" })).toBe("Symlink");
+        expect(getFileKind({ mode: 1 << 27 })).toBe("Symlink");
+        expect(getFileKind({ mimetype: "inode/symlink" })).toBe("Symlink");
+        expect(getFileKind({})).toBe("Document");
+    });
+});
+
+describe("directory navigation", () => {
+    it.each([-20, -1, 1, 20])("starts at the first real entry for movement %s", (delta) => {
+        expect(getDirectoryFocusIndex(-1, 5, delta, true)).toBe(1);
+        expect(getDirectoryFocusIndex(-1, 5, delta, false)).toBe(0);
+    });
+
+    it("handles empty and parent-only directories and clamps navigation", () => {
+        expect(getDirectoryFocusIndex(-1, 0, 1, false)).toBe(-1);
+        expect(getDirectoryFocusIndex(-1, 1, 1, true)).toBe(0);
+        expect(getDirectoryFocusIndex(1, 5, -1, true)).toBe(0);
+        expect(getDirectoryFocusIndex(4, 5, 20, true)).toBe(4);
+        expect(getDirectoryFocusIndex(4, 5, -20, true)).toBe(0);
+    });
+
+    it("keeps the parent first for both rendered rows and selected paths after sorting", () => {
+        const rows = ["z.txt", "a.txt", ".."].map((name) => ({ original: { name, path: `/tmp/${name}` } }));
+        const ordered = parentDirectoryFirst(rows);
+        expect(ordered.map((row) => row.original.name)).toEqual(["..", "z.txt", "a.txt"]);
+        expect(ordered[getDirectoryFocusIndex(-1, ordered.length, 1, true)].original.path).toBe("/tmp/z.txt");
+        expect(rows[0].original.name).toBe("z.txt");
+        expect(parentDirectoryFirst(rows.slice(0, 2))).toEqual(rows.slice(0, 2));
+    });
+});
+
+describe("directory column sizing", () => {
+    it("fills a wide viewport and preserves minimum widths in a narrow one", () => {
+        const wide = getDirectoryColumnSizing(1900, {});
+        expect(Object.values(wide).reduce((sum, width) => sum + width, 12)).toBe(1900);
+        expect(wide.name).toBeGreaterThan(1200);
+        const narrow = getDirectoryColumnSizing(500, {});
+        expect(narrow.name).toBe(160);
+        expect(narrow.mimetype).toBe(wide.mimetype);
+    });
+
+    it("resizes fixed columns while Name absorbs the difference", () => {
+        const current = getDirectoryColumnSizing(1900, {});
+        const resized = resizeDirectoryColumns(current, { ...current, mimetype: 220 });
+        const next = getDirectoryColumnSizing(1900, resized);
+        expect(next.mimetype).toBe(220);
+        expect(next.name).toBe(current.name - 68);
+        expect(getDirectoryColumnSizing(1000, resized).mimetype).toBe(220);
+    });
+
+    it("moves the Name/Perm boundary without leaving empty space", () => {
+        const current = getDirectoryColumnSizing(1900, {});
+        const resized = resizeDirectoryColumns(current, { ...current, name: current.name - 80 });
+        const next = getDirectoryColumnSizing(1900, resized);
+        expect(next.name).toBe(current.name - 80);
+        expect(next.modestr).toBe(current.modestr + 80);
+        expect(resizeDirectoryColumns(current, { ...current, name: current.name + 500 }).modestr).toBe(100);
     });
 });
 

@@ -1,21 +1,24 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { normalizeAppIconVariant } from "@/app/app-icon";
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import { globalStore } from "@/app/store/jotaiStore";
 import type { TabModel } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { ConnectionsContent } from "@/app/view/waveconfig/connectionscontent";
-import { GeneralSettingsContent } from "@/app/view/waveconfig/generalcontent";
+import { GeneralSettingsContent, updateSettingsJsonValue } from "@/app/view/waveconfig/generalcontent";
 import { SecretsContent } from "@/app/view/waveconfig/secretscontent";
-import type { WaveConfigEnv } from "@/app/view/waveconfig/waveconfigenv";
+import type { GeneralSettingKey, WaveConfigEnv } from "@/app/view/waveconfig/waveconfigenv";
 import { base64ToString, stringToBase64 } from "@/util/util";
 import { atom, type Atom, type PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import * as React from "react";
 
-const LazyWaveConfigView = React.lazy(() => import("@/app/view/waveconfig/waveconfig").then(({ WaveConfigView }) => ({ default: WaveConfigView })));
+const LazyWaveConfigView = React.lazy(() =>
+    import("@/app/view/waveconfig/waveconfig").then(({ WaveConfigView }) => ({ default: WaveConfigView }))
+);
 
 type ValidationResult = { success: true } | { error: string };
 type ConfigValidator = (parsed: any) => ValidationResult;
@@ -98,6 +101,8 @@ export class WaveConfigViewModel implements ViewModel {
     nodeModel: BlockNodeModel;
     tabModel: TabModel;
     env: WaveConfigEnv;
+    generalSettingsSaveQueue = Promise.resolve(true);
+    pendingGeneralSettings = 0;
 
     selectedFileAtom: PrimitiveAtom<ConfigFile>;
     fileContentAtom: PrimitiveAtom<string>;
@@ -288,6 +293,66 @@ export class WaveConfigViewModel implements ViewModel {
         }
     }
 
+    saveGeneralSetting(key: GeneralSettingKey, value: string | number | boolean): Promise<boolean> {
+        if (
+            (globalStore.get(this.isSavingAtom) && this.pendingGeneralSettings === 0) ||
+            globalStore.get(this.isLoadingAtom)
+        ) {
+            return Promise.resolve(false);
+        }
+        const selectedFile = globalStore.get(this.selectedFileAtom);
+        if (selectedFile?.path !== "settings.json") {
+            return Promise.resolve(false);
+        }
+        this.pendingGeneralSettings++;
+        globalStore.set(this.isSavingAtom, true);
+        const saving = this.generalSettingsSaveQueue
+            .then(() => this.persistGeneralSetting(selectedFile, key, value))
+            .finally(() => {
+                this.pendingGeneralSettings--;
+                globalStore.set(this.isSavingAtom, this.pendingGeneralSettings > 0);
+            });
+        this.generalSettingsSaveQueue = saving;
+        return saving;
+    }
+
+    async persistGeneralSetting(
+        selectedFile: ConfigFile,
+        key: GeneralSettingKey,
+        value: string | number | boolean
+    ): Promise<boolean> {
+        globalStore.set(this.errorMessageAtom, null);
+        try {
+            const savedValue = key === "term:fontfamily" && value === "" ? null : value;
+            await this.env.rpc.SetConfigCommand(TabRpcClient, { [key]: savedValue });
+            if (key === "app:icon") {
+                this.env.electron.setAppIconVariant(normalizeAppIconVariant(value));
+            }
+            // Keep the exact disk formatting for assertFileUnchanged, even though the editor formats JSON differently.
+            const fileData = await this.env.rpc.FileReadCommand(TabRpcClient, {
+                info: { path: `${this.configDir}/settings.json` },
+            });
+            if (globalStore.get(this.selectedFileAtom) !== selectedFile || globalStore.get(this.isLoadingAtom)) {
+                return true;
+            }
+            const diskContent = fileData?.data64 ? base64ToString(fileData.data64) : "";
+            const hasEdits = globalStore.get(this.hasEditedAtom);
+            // Null removes an override on the server; the fresh disk content already reflects that deletion.
+            const nextContent =
+                savedValue == null ? diskContent : updateSettingsJsonValue(diskContent, key, savedValue);
+            if (!hasEdits) {
+                globalStore.set(this.fileContentAtom, nextContent);
+            }
+            globalStore.set(this.originalContentAtom, diskContent);
+            globalStore.set(this.hasEditedAtom, hasEdits);
+            return true;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            globalStore.set(this.errorMessageAtom, `Failed to save ${key}: ${message}`);
+            return false;
+        }
+    }
+
     async refreshConnectionsFile(expectedContent: string): Promise<boolean> {
         const selectedFile = globalStore.get(this.selectedFileAtom);
         if (selectedFile?.path !== "connections.json") {
@@ -299,7 +364,10 @@ export class WaveConfigViewModel implements ViewModel {
         const content = fileData?.data64 ? base64ToString(fileData.data64) : "";
         if (globalStore.get(this.fileContentAtom) !== expectedContent) {
             globalStore.set(this.hasEditedAtom, true);
-            globalStore.set(this.errorMessageAtom, "Connections changed on disk. Review your Raw JSON edits before saving.");
+            globalStore.set(
+                this.errorMessageAtom,
+                "Connections changed on disk. Review your Raw JSON edits before saving."
+            );
             return false;
         }
         globalStore.set(this.fileContentAtom, content.trim() === "" ? "{\n\n}" : content);

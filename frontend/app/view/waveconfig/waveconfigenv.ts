@@ -3,8 +3,33 @@
 
 import type { MetaKeyAtomFnType, SettingsKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 
+export type GeneralSettingKey =
+    | "app:icon"
+    | "term:fontsize"
+    | "term:fontfamily"
+    | "term:cursor"
+    | "term:cursorblink"
+    | "app:tabbar"
+    | "term:presentation"
+    | "term:copyonselect"
+    | "app:rightclickpaste"
+    | "term:bellindicator"
+    | "term:bellsound"
+    | "term:scrollback"
+    | "term:commandcomposer"
+    | "term:durable"
+    | "conn:wshenabled"
+    | "conn:askbeforewshinstall"
+    | "app:confirmquit"
+    | "window:confirmclose"
+    | "window:savelastwindow"
+    | "window:tilegapsize"
+    | "autoupdate:enabled"
+    | "autoupdate:installonquit";
+
 export type WaveConfigEnv = WaveEnvSubset<{
     electron: {
+        getAboutModalDetails: WaveEnv["electron"]["getAboutModalDetails"];
         getConfigDir: WaveEnv["electron"]["getConfigDir"];
         getPlatform: WaveEnv["electron"]["getPlatform"];
         setAppIconVariant: WaveEnv["electron"]["setAppIconVariant"];
@@ -26,6 +51,6 @@ export type WaveConfigEnv = WaveEnvSubset<{
         fullConfigAtom: WaveEnv["atoms"]["fullConfigAtom"];
     };
     getBlockMetaKeyAtom: MetaKeyAtomFnType<"file">;
-    getSettingsKeyAtom: SettingsKeyAtomFnType<"app:theme" | "app:icon">;
+    getSettingsKeyAtom: SettingsKeyAtomFnType<GeneralSettingKey>;
     isWindows: WaveEnv["isWindows"];
 }>;

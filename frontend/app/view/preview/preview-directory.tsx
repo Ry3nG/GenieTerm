@@ -15,7 +15,7 @@ import {
     createUploadTransferJobId,
     type LocalUploadItem,
 } from "@/util/transferupload";
-import { fireAndForget } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { formatRemoteUri } from "@/util/waveutil";
 import { offset, useDismiss, useFloating, useInteractions } from "@floating-ui/react";
 import {
@@ -31,7 +31,6 @@ import {
     useReactTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import clsx from "clsx";
 import { PrimitiveAtom, atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -43,10 +42,15 @@ import "./directorypreview.scss";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
 import { DirectoryTreeView } from "./preview-directory-tree";
 import {
-    cleanMimetype,
+    DirectoryColumnWidths,
+    DirectoryNameMinWidth,
+    DirectoryPermMinWidth,
     confirmFileDelete,
     copyWithOverwriteConfirmation,
     getBestUnit,
+    getDirectoryColumnSizing,
+    getDirectoryFocusIndex,
+    getFileKind,
     getLastModifiedTime,
     getSortIcon,
     handleRename,
@@ -54,6 +58,8 @@ import {
     isIconValid,
     isParentDirEntry,
     makeDirectoryDefaultMenuItems,
+    parentDirectoryFirst,
+    resizeDirectoryColumns,
     type FileCopyResult,
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
@@ -103,21 +109,26 @@ interface DirectoryTableHeaderCellProps {
 function DirectoryTableHeaderCell({ header }: DirectoryTableHeaderCellProps) {
     return (
         <div
-            className="dir-table-head-cell"
+            className={cn("dir-table-head-cell", "col-" + header.column.id)}
             key={header.id}
             style={{ width: `calc(var(--header-${header.id}-size) * 1px)` }}
         >
-            <div className="dir-table-head-cell-content" onClick={() => header.column.toggleSorting()}>
+            <div
+                className={cn("dir-table-head-cell-content", header.column.getCanSort() && "cursor-pointer")}
+                onClick={header.column.getToggleSortingHandler()}
+            >
                 {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                 {getSortIcon(header.column.getIsSorted())}
             </div>
-            <div className="dir-table-head-resize-box">
-                <div
-                    className="dir-table-head-resize"
-                    onMouseDown={header.getResizeHandler()}
-                    onTouchStart={header.getResizeHandler()}
-                />
-            </div>
+            {header.column.getCanResize() && (
+                <div className="dir-table-head-resize-box">
+                    <div
+                        className="dir-table-head-resize"
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                    />
+                </div>
+            )}
         </div>
     );
 }
@@ -192,42 +203,48 @@ function DirectoryTable({
                 ),
                 header: () => <span></span>,
                 id: "logo",
-                size: 25,
+                size: DirectoryColumnWidths.logo,
+                enableResizing: false,
                 enableSorting: false,
             }),
             columnHelper.accessor("name", {
                 cell: (info) => <span className="dir-table-name ellipsis">{info.getValue()}</span>,
                 header: () => <span className="dir-table-head-name">Name</span>,
                 sortingFn: "alphanumeric",
-                size: 200,
-                minSize: 90,
+                size: DirectoryColumnWidths.name,
+                minSize: DirectoryNameMinWidth,
             }),
             columnHelper.accessor("modestr", {
                 cell: (info) => <span className="dir-table-modestr">{info.getValue()}</span>,
                 header: () => <span>Perm</span>,
-                size: 91,
-                minSize: 90,
+                size: DirectoryColumnWidths.modestr,
+                minSize: DirectoryPermMinWidth,
                 sortingFn: "alphanumeric",
             }),
             columnHelper.accessor("modtime", {
                 cell: (info) => <span className="dir-table-lastmod">{getLastModifiedTime(info.getValue())}</span>,
                 header: () => <span>Last Modified</span>,
-                size: 91,
-                minSize: 65,
-                sortingFn: "datetime",
+                size: DirectoryColumnWidths.modtime,
+                minSize: 148,
+                sortingFn: "basic",
             }),
             columnHelper.accessor("size", {
-                cell: (info) => <span className="dir-table-size">{getBestUnit(info.getValue())}</span>,
+                cell: (info) => (
+                    <span className="dir-table-size">
+                        {info.row.original.isdir ? "—" : getBestUnit(info.getValue())}
+                    </span>
+                ),
                 header: () => <span className="dir-table-head-size">Size</span>,
-                size: 55,
-                minSize: 50,
+                size: DirectoryColumnWidths.size,
+                minSize: 88,
                 sortingFn: "auto",
             }),
-            columnHelper.accessor("mimetype", {
-                cell: (info) => <span className="dir-table-type ellipsis">{cleanMimetype(info.getValue() ?? "")}</span>,
+            columnHelper.accessor(getFileKind, {
+                id: "mimetype",
+                cell: (info) => <span className="dir-table-type ellipsis">{info.getValue()}</span>,
                 header: () => <span className="dir-table-head-type">Type</span>,
-                size: 97,
-                minSize: 97,
+                size: DirectoryColumnWidths.mimetype,
+                minSize: 120,
                 sortingFn: "alphanumeric",
             }),
             columnHelper.accessor("path", {}),
@@ -268,6 +285,17 @@ function DirectoryTable({
         setSorting(defaultSorting);
     }, [defaultSorting]);
 
+    const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
+    const [viewportWidth, setViewportWidth] = useState(0);
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+    useEffect(() => {
+        if (scrollElement == null) return;
+        const observer = new ResizeObserver(() => setViewportWidth(scrollElement.clientWidth));
+        observer.observe(scrollElement);
+        setViewportWidth(scrollElement.clientWidth);
+        return () => observer.disconnect();
+    }, [scrollElement]);
+    const columnSizing = getDirectoryColumnSizing(viewportWidth, columnWidths);
     const table = useReactTable({
         data,
         columns,
@@ -276,7 +304,12 @@ function DirectoryTable({
         getCoreRowModel: getCoreRowModel(),
 
         state: {
+            columnSizing,
             sorting,
+        },
+        onColumnSizingChange: (updater) => {
+            const next = typeof updater === "function" ? updater(columnSizing) : updater;
+            setColumnWidths(resizeDirectoryColumns(columnSizing, next));
         },
         onSortingChange: setSorting,
         initialState: {
@@ -294,7 +327,7 @@ function DirectoryTable({
     });
     const sortingState = table.getState().sorting;
     useEffect(() => {
-        const allRows = table.getRowModel()?.flatRows || [];
+        const allRows = parentDirectoryFirst(table.getRowModel().flatRows);
         setSelectedPath((allRows[focusIndex]?.getValue("path") as string) ?? null);
     }, [focusIndex, data, setSelectedPath, sortingState]);
 
@@ -307,10 +340,9 @@ function DirectoryTable({
             colSizes[`--col-${header.column.id}-size`] = header.column.getSize();
         }
         return colSizes;
-    }, [table.getState().columnSizingInfo]);
+    }, [columnSizing]);
 
     const osRef = useRef<OverlayScrollbarsComponentRef>(null);
-    const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
     const [scrollHeight, setScrollHeight] = useState(0);
 
@@ -391,19 +423,17 @@ function TableBody({
     const warningBoxRef = useRef<HTMLDivElement>(null);
     const conn = useAtomValue(model.connection);
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
-    const allRows = table.getRowModel().flatRows;
-    const dotdotRow = allRows.find((row) => row.getValue("name") === "..");
-    const rows = dotdotRow ? [dotdotRow, ...allRows.filter((row) => row !== dotdotRow)] : allRows;
+    const rows = parentDirectoryFirst(table.getRowModel().flatRows);
     const rowVirtualizer = useVirtualizer({
         count: rows.length,
         getScrollElement: () => scrollElement,
-        estimateSize: () => 28,
+        estimateSize: () => 30,
         getItemKey: (index) => rows[index]?.original.path ?? index,
         overscan: 12,
     });
 
     useEffect(() => {
-        if (focusIndex === null || !bodyRef.current || !osRef) {
+        if (focusIndex < 0 || !bodyRef.current || !osRef) {
             return;
         }
 
@@ -613,7 +643,7 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
 
     return (
         <div
-            className={clsx("dir-table-body-row", { focused: focusIndex === idx })}
+            className={cn("dir-table-body-row cursor-pointer", { focused: focusIndex === idx })}
             data-rowindex={idx}
             onDoubleClick={() => {
                 const newFileName = row.getValue("path") as string;
@@ -627,8 +657,9 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
         >
             {row.getVisibleCells().map((cell) => (
                 <div
-                    className={clsx("dir-table-body-cell", "col-" + cell.column.id)}
+                    className={cn("dir-table-body-cell", "col-" + cell.column.id)}
                     key={cell.id}
+                    title={cell.column.id === "mimetype" ? row.original.mimetype : undefined}
                     style={{ width: `calc(var(--col-${cell.column.id}-size) * 1px)` }}
                 >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -638,10 +669,8 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
     );
 }
 
-const MemoizedTableBody = React.memo(
-    TableBody,
-    (prev, next) => prev.table.options.data == next.table.options.data
-) as typeof TableBody;
+const MemoizedTableBody = React.memo(TableBody, (prev, next) => prev.table.options.data == next.table.options.data);
+MemoizedTableBody.displayName = "MemoizedTableBody";
 
 interface DirectoryPreviewProps {
     model: PreviewModel;
@@ -650,7 +679,7 @@ interface DirectoryPreviewProps {
 function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const env = useWaveEnv<PreviewEnv>();
     const [searchText, setSearchText] = useState("");
-    const [focusIndex, setFocusIndex] = useState(0);
+    const [focusIndex, setFocusIndex] = useState(-1);
     const [unfilteredData, setUnfilteredData] = useState<FileInfo[]>([]);
     const showHiddenFiles = useAtomValue(model.showHiddenFiles);
     const treeViewMode = useAtomValue(model.treeViewMode);
@@ -689,6 +718,8 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     useEffect(() => {
         let cancelled = false;
         setUnfilteredData([]);
+        setFocusIndex(-1);
+        setSelectedPath(null);
         fireAndForget(async () => {
             const entries: FileInfo[] = [];
             let lastPublishedCount = 0;
@@ -764,24 +795,38 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 return;
             }
             if (checkKeyPressed(waveEvent, "ArrowUp")) {
-                setFocusIndex((idx) => Math.max(idx - 1, 0));
+                setFocusIndex((idx) =>
+                    getDirectoryFocusIndex(idx, filteredData.length, -1, filteredData.some(isParentDirEntry))
+                );
                 return true;
             }
             if (checkKeyPressed(waveEvent, "ArrowDown")) {
-                setFocusIndex((idx) => Math.min(idx + 1, filteredData.length - 1));
+                setFocusIndex((idx) =>
+                    getDirectoryFocusIndex(idx, filteredData.length, 1, filteredData.some(isParentDirEntry))
+                );
                 return true;
             }
             if (checkKeyPressed(waveEvent, "PageUp")) {
-                setFocusIndex((idx) => Math.max(idx - PageJumpSize, 0));
+                setFocusIndex((idx) =>
+                    getDirectoryFocusIndex(idx, filteredData.length, -PageJumpSize, filteredData.some(isParentDirEntry))
+                );
                 return true;
             }
             if (checkKeyPressed(waveEvent, "PageDown")) {
-                setFocusIndex((idx) => Math.min(idx + PageJumpSize, filteredData.length - 1));
+                setFocusIndex((idx) =>
+                    getDirectoryFocusIndex(idx, filteredData.length, PageJumpSize, filteredData.some(isParentDirEntry))
+                );
                 return true;
             }
             if (checkKeyPressed(waveEvent, "Enter")) {
                 if (filteredData.length == 0) {
                     return;
+                }
+                if (selectedPath == null) {
+                    setFocusIndex(
+                        getDirectoryFocusIndex(-1, filteredData.length, 1, filteredData.some(isParentDirEntry))
+                    );
+                    return true;
                 }
                 model.goHistory(selectedPath);
                 setSearchText("");
@@ -801,7 +846,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 PLATFORM == PlatformMacOS &&
                 !blockData?.meta?.connection
             ) {
-                env.electron.onQuicklook(selectedPath);
+                if (selectedPath != null) env.electron.onQuicklook(selectedPath);
                 return true;
             }
             if (isCharacterKeyEvent(waveEvent)) {
@@ -816,7 +861,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     }, [filteredData, selectedPath, searchText]);
 
     useEffect(() => {
-        if (filteredData.length != 0 && focusIndex > filteredData.length - 1) {
+        if (focusIndex > filteredData.length - 1) {
             setFocusIndex(filteredData.length - 1);
         }
     }, [filteredData]);

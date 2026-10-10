@@ -35,36 +35,23 @@ const ConfirmationCanceledResult: FileCopyResult = {
     canceled: true,
 };
 
-export const displaySuffixes = {
-    B: "b",
-    kB: "k",
-    MB: "m",
-    GB: "g",
-    TB: "t",
-    KiB: "k",
-    MiB: "m",
-    GiB: "g",
-    TiB: "t",
-};
-
 const ShortMonthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
+const SizeUnits = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
 
-export function getBestUnit(bytes: number, si = false, sigfig = 3): string {
-    if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return "-";
-    if (bytes === 0) return "0B";
-
-    const units = si ? ["kB", "MB", "GB", "TB"] : ["KiB", "MiB", "GiB", "TiB"];
-    const divisor = si ? 1000 : 1024;
-
-    const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(divisor)), units.length);
-    const unit = idx === 0 ? "B" : units[idx - 1];
-    const value = bytes / Math.pow(divisor, idx);
-
-    return `${parseFloat(value.toPrecision(sigfig))}${displaySuffixes[unit] ?? unit}`;
-}
-
-function padDay(day: number) {
-    return String(day).padStart(2, " ");
+export function getBestUnit(bytes: number): string {
+    if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return "—";
+    let unit = 0;
+    let value = bytes;
+    while (value >= 1000 && unit < SizeUnits.length - 1) {
+        value /= 1000;
+        unit++;
+    }
+    let rounded = Number(value.toFixed(unit === 0 || value >= 100 ? 0 : 1));
+    if (rounded >= 1000 && unit < SizeUnits.length - 1) {
+        rounded /= 1000;
+        unit++;
+    }
+    return `${rounded.toFixed(unit === 0 || rounded >= 100 ? 0 : 1)} ${SizeUnits[unit]}`;
 }
 
 function padTime(value: number) {
@@ -75,22 +62,122 @@ function formatTime(date: Date) {
     return `${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
 }
 
-function formatDate(date: Date) {
-    return `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}`;
+export function getLastModifiedTime(unixMillis: number, now = new Date()): string {
+    if (unixMillis == null || !Number.isFinite(unixMillis)) return "—";
+    const file = new Date(unixMillis);
+    if (Number.isNaN(file.getTime())) return "—";
+    const time = formatTime(file);
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (file.toDateString() === now.toDateString()) {
+        return `Today ${time}`;
+    }
+    if (file.toDateString() === yesterday.toDateString()) {
+        return `Yesterday ${time}`;
+    }
+    const date = `${ShortMonthFormatter.format(file)} ${file.getDate()}`;
+    if (now.getFullYear() == file.getFullYear()) {
+        return `${date} ${time}`;
+    }
+    return `${date}, ${file.getFullYear()}`;
 }
 
-export function getLastModifiedTime(unixMillis: number): string {
-    const file = new Date(unixMillis);
-    const now = new Date();
+const ExtensionKinds: Record<string, string> = {
+    md: "Markdown",
+    markdown: "Markdown",
+    mdx: "Markdown",
+    json: "JSON",
+    jsonc: "JSON",
+    yaml: "YAML",
+    yml: "YAML",
+    ts: "TypeScript",
+    tsx: "TypeScript",
+    mts: "TypeScript",
+    cts: "TypeScript",
+    js: "JavaScript",
+    jsx: "JavaScript",
+    mjs: "JavaScript",
+    cjs: "JavaScript",
+    go: "Go source",
+    sh: "Shell script",
+    bash: "Shell script",
+    zsh: "Shell script",
+    png: "PNG image",
+    jpg: "JPEG image",
+    jpeg: "JPEG image",
+    pdf: "PDF",
+    txt: "Plain text",
+};
+const MimeKinds: Record<string, string> = {
+    "text/markdown": "Markdown",
+    "text/mdx": "Markdown",
+    "application/json": "JSON",
+    "application/yaml": "YAML",
+    "application/x-yaml": "YAML",
+    "text/yaml": "YAML",
+    "text/x-yaml": "YAML",
+    "text/typescript": "TypeScript",
+    "application/typescript": "TypeScript",
+    "application/x-typescript": "TypeScript",
+    "text/javascript": "JavaScript",
+    "application/javascript": "JavaScript",
+    "application/x-javascript": "JavaScript",
+    "text/x-go": "Go source",
+    "application/x-sh": "Shell script",
+    "text/x-shellscript": "Shell script",
+    "image/png": "PNG image",
+    "image/jpeg": "JPEG image",
+    "application/pdf": "PDF",
+};
 
-    const day = padDay(file.getDate());
-    const time = formatTime(file);
-
-    if (now.getFullYear() == file.getFullYear()) {
-        return `${ShortMonthFormatter.format(file)} ${day} ${time}`;
+export function getFileKind(file: Pick<FileInfo, "name" | "mimetype" | "isdir" | "modestr" | "mode">): string {
+    const mime = cleanMimetype(file.mimetype ?? "").toLowerCase();
+    // Go's FileMode uses L (rather than POSIX l) for symlinks.
+    if (/^[Ll]/.test(file.modestr ?? "") || ((file.mode ?? 0) & (1 << 27)) !== 0 || mime === "inode/symlink") {
+        return "Symlink";
     }
+    if (file.isdir || mime === "directory" || mime === "inode/directory") return "Folder";
+    const name = file.name ?? "";
+    const dot = name.lastIndexOf(".");
+    const extension = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+    if (Object.hasOwn(ExtensionKinds, extension)) return ExtensionKinds[extension];
+    if (Object.hasOwn(MimeKinds, mime)) return MimeKinds[mime];
+    if (extension) return `${extension.toUpperCase()} file`;
+    if (mime === "text/plain") return "Plain text";
+    return "Document";
+}
 
-    return formatDate(file);
+export function getDirectoryFocusIndex(index: number, count: number, delta: number, hasParent: boolean): number {
+    if (count === 0) return -1;
+    if (index < 0) return hasParent && count > 1 ? 1 : 0;
+    return Math.max(0, Math.min(index + delta, count - 1));
+}
+
+export function parentDirectoryFirst<T extends { original: FileInfo }>(rows: T[]): T[] {
+    const parent = rows.find((row) => isParentDirEntry(row.original));
+    return parent == null ? rows : [parent, ...rows.filter((row) => row !== parent)];
+}
+
+export const DirectoryColumnWidths = { logo: 32, name: 240, modestr: 112, modtime: 160, size: 104, mimetype: 152 };
+export const DirectoryNameMinWidth = 160;
+export const DirectoryPermMinWidth = 100;
+
+export function getDirectoryColumnSizing(width: number, overrides: Record<string, number>): Record<string, number> {
+    const sizes = { ...DirectoryColumnWidths, ...overrides };
+    const fixedWidth = sizes.logo + sizes.modestr + sizes.modtime + sizes.size + sizes.mimetype;
+    return { ...sizes, name: Math.max(DirectoryNameMinWidth, width - fixedWidth - 12) };
+}
+
+export function resizeDirectoryColumns(
+    current: Record<string, number>,
+    next: Record<string, number>
+): Record<string, number> {
+    const { name, ...sizes } = next;
+    if (name != null && name !== current.name) {
+        // The flexible Name column shares its resize boundary with Perm.
+        sizes.modestr = Math.max(DirectoryPermMinWidth, current.modestr + current.name - name);
+    }
+    return sizes;
 }
 
 const iconRegex = /^[a-z0-9- ]+$/;
