@@ -371,7 +371,7 @@ func (conn *WslConn) UpdateWsh(ctx context.Context, clientDisplayName string, re
 	if client == nil {
 		return fmt.Errorf("cannot update wsh: ssh client is not connected")
 	}
-	err := CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch)
+	err := CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch, conn.getWshPath())
 	if err != nil {
 		return fmt.Errorf("error installing wsh to remote: %w", err)
 	}
@@ -443,7 +443,7 @@ func (conn *WslConn) InstallWsh(ctx context.Context, osArchStr string) error {
 		conn.Infof(ctx, "ERROR detecting client platform: %v\n", err)
 	}
 	conn.Infof(ctx, "detected remote platform os:%s arch:%s\n", clientOs, clientArch)
-	err = CpWshToRemote(ctx, client, clientOs, clientArch)
+	err = CpWshToRemote(ctx, client, clientOs, clientArch, conn.getWshPath())
 	if err != nil {
 		conn.Infof(ctx, "ERROR copying wsh binary to remote: %v\n", err)
 		return fmt.Errorf("error copying wsh binary to remote: %w", err)
@@ -682,13 +682,21 @@ func (conn *WslConn) connectInternal(ctx context.Context) error {
 	conn.WithLock(func() {
 		conn.Client = client
 	})
-	go func() {
-		defer func() {
-			panichandler.PanicHandler("wsl-waitForDisconnect", recover())
-		}()
-		conn.waitForDisconnect()
-	}()
 	wshResult := conn.tryEnableWsh(ctx, conn.GetName())
+	// the connserver command is the only thing whose exit signals a WSL disconnect, so the
+	// waiter can only start once StartConnServer has set it
+	controller := WithLockRtn(conn, func() *wsl.WslCmd {
+		return conn.ConnController
+	})
+	if controller != nil {
+		conn.HasWaiter.Store(true)
+		go func() {
+			defer func() {
+				panichandler.PanicHandler("wsl-waitForDisconnect", recover())
+			}()
+			conn.waitForDisconnect(client, controller)
+		}()
+	}
 	if !wshResult.WshEnabled {
 		if wshResult.WshError != nil {
 			conn.Infof(ctx, "ERROR enabling wsh: %v\n", wshResult.WshError)
@@ -701,15 +709,16 @@ func (conn *WslConn) connectInternal(ctx context.Context) error {
 	return nil
 }
 
-func (conn *WslConn) waitForDisconnect() {
-	log.Printf("wait for disconnect in %+#v", conn)
-	defer conn.FireConnChangeEvent()
+// only tears down state that still belongs to client: a Close() or a newer Connect may
+// own the connection by the time the connserver exits
+func (conn *WslConn) waitForDisconnect(client *wsl.Distro, controller *wsl.WslCmd) {
 	defer conn.HasWaiter.Store(false)
-	if conn.ConnController == nil {
-		return
-	}
-	err := conn.ConnController.Wait()
-	conn.WithLock(func() {
+	log.Printf("[conn:%s] waiting for connserver exit", conn.GetName())
+	err := controller.Wait()
+	isCurrent := WithLockRtn(conn, func() bool {
+		if conn.Client != client {
+			return false
+		}
 		// disconnects happen for a variety of reasons (like network, etc. and are typically transient)
 		// so we just set the status to "disconnected" here (not error)
 		// don't overwrite any existing error (or error status)
@@ -720,7 +729,11 @@ func (conn *WslConn) waitForDisconnect() {
 			conn.Status = Status_Disconnected
 		}
 		conn.close_nolock()
+		return true
 	})
+	if isCurrent {
+		conn.FireConnChangeEvent()
+	}
 }
 
 func (conn *WslConn) SetWshError(err error) {
