@@ -4,7 +4,7 @@
 
 Living tracker. Release scope last reviewed on the `release/1.0.0` branch on 2026-10-10 (`package.json` **0.4.94-beta.2**).
 
-If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/` (historical, superseded), this file wins.
+If a sentence here disagrees with an older plan, this file wins. Superseded plans live in git history.
 
 ## Product identity
 

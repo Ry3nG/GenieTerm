@@ -15,7 +15,6 @@ Wave Terminal's `wsh` command provides CLI access to Wave Terminal features. The
 2. **Command Files** - Individual command implementations in `cmd/wsh/cmd/wshcmd-*.go`
 3. **RPC Client** - Communication with Wave Terminal backend via `RpcClient`
 4. **Activity Tracking** - Telemetry for command usage analytics
-5. **Documentation** - User-facing docs in `docs/docs/wsh-reference.mdx`
 
 Commands are registered in their `init()` functions and execute through the Cobra framework.
 
@@ -35,8 +34,8 @@ import (
     "fmt"
 
     "github.com/spf13/cobra"
-    "github.com/wavetermdev/waveterm/pkg/wshrpc"
-    "github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 )
 
 var myCommandCmd = &cobra.Command{
@@ -85,7 +84,7 @@ func myCommandRun(cmd *cobra.Command, args []string) (rtnErr error) {
 **File Naming Convention:**
 - Use `wshcmd-[commandname].go` format
 - Use lowercase, hyphenated names for multi-word commands
-- Examples: `wshcmd-getvar.go`, `wshcmd-setmeta.go`, `wshcmd-ai.go`
+- Examples: `wshcmd-getvar.go`, `wshcmd-setmeta.go`, `wshcmd-notify.go`
 
 ### Step 2: Command Structure
 
@@ -308,8 +307,8 @@ Use the `wshclient` package to make RPC calls:
 
 ```go
 import (
-    "github.com/wavetermdev/waveterm/pkg/wshrpc"
-    "github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 )
 
 // Simple RPC call
@@ -338,55 +337,9 @@ if err != nil {
 - `Route`: Route ID for targeting specific components
 - Available routes: `wshutil.ControlRoute`, `wshutil.MakeTabRouteId(tabId)`
 
-### Step 7: Add Documentation
+### Step 7: Write Help Text
 
-Add your command to `docs/docs/wsh-reference.mdx`:
-
-````markdown
-## mycommand
-
-Brief description of what the command does.
-
-```sh
-wsh mycommand [args] [flags]
-```
-
-Detailed explanation of the command's purpose and behavior.
-
-Flags:
-- `-n, --name <value>` - description of this flag
-- `-v, --verbose` - enable verbose output
-- `-b, --block <blockid>` - specify target block (default: current block)
-
-Examples:
-
-```sh
-# Basic usage
-wsh mycommand arg1
-
-# With flags
-wsh mycommand --name value arg1
-
-# With block targeting
-wsh mycommand -b 2 arg1
-
-# Complex example
-wsh mycommand -v --name "example" arg1 arg2
-```
-
-Additional notes, tips, or warnings about the command.
-
----
-````
-
-**Documentation Guidelines:**
-- Place in alphabetical order with other commands
-- Include command signature with argument pattern
-- List all flags with short and long versions
-- Provide practical examples (at least 3-5)
-- Explain common use cases and patterns
-- Add tips or warnings if relevant
-- Use `---` separator between commands
+There is no separate command reference page: users discover commands through `genie --help` and `genie <command> --help`. Give the cobra command a clear `Short`, a `Long` with an example where it helps, and a description for every flag. Commands ship in both the `genie` and `wsh` binaries, so refer to them as `genie <command>` in user-facing text.
 
 ### Step 8: Test Your Command
 
@@ -429,7 +382,7 @@ package cmd
 
 import (
     "github.com/spf13/cobra"
-    "github.com/wavetermdev/waveterm/pkg/wavebase"
+    "github.com/Ry3nG/GenieTerm/pkg/wavebase"
 )
 
 var versionCmd = &cobra.Command{
@@ -487,8 +440,8 @@ import (
     "fmt"
 
     "github.com/spf13/cobra"
-    "github.com/wavetermdev/waveterm/pkg/wshrpc"
-    "github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 )
 
 var setTitleCmd = &cobra.Command{
@@ -589,8 +542,8 @@ import (
     "fmt"
 
     "github.com/spf13/cobra"
-    "github.com/wavetermdev/waveterm/pkg/wshrpc"
-    "github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+    "github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 )
 
 var myGroupCmd = &cobra.Command{
@@ -906,7 +859,6 @@ When adding a new wsh command:
 - [ ] Implement command function with activity tracking
 - [ ] Add command to `rootCmd` in `init()` function
 - [ ] Define flags in `init()` function if needed
-- [ ] Add documentation to `docs/docs/wsh-reference.mdx`
 - [ ] Build and test: `task build:wsh`
 - [ ] Test help: `wsh [commandname] --help`
 - [ ] Test all flag combinations
@@ -917,5 +869,5 @@ When adding a new wsh command:
 - **Root Command**: `cmd/wsh/cmd/wshcmd-root.go` - Main command setup and utilities
 - **RPC Client**: `pkg/wshrpc/wshclient/` - Client functions for RPC calls
 - **RPC Types**: `pkg/wshrpc/wshrpctypes.go` - RPC request/response data structures
-- **Documentation**: `docs/docs/wsh-reference.mdx` - User-facing command reference
 - **Examples**: `cmd/wsh/cmd/wshcmd-*.go` - Existing command implementations
+
