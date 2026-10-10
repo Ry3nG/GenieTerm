@@ -28,9 +28,9 @@ import {
     isCommandComposerEnabled,
 } from "@/app/view/term/command-composer";
 import { TermViewModel } from "@/app/view/term/term-model";
+import { makeWidgetBlockDef } from "@/app/workspace/widgetblockdef";
 import { NavigateDirection } from "@/layout/index";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
-import { makeWidgetBlockDef } from "@/app/workspace/widgetblockdef";
 import * as keyutil from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -711,7 +711,9 @@ function getNewBlockCommands(): CommandPaletteCommand[] {
         makePaletteCommand("block:new-terminal", "New Terminal", () =>
             fireAndForget(() => createBlock({ meta: { view: "term", controller: "shell" } }))
         ),
-        makePaletteCommand("block:new-files", "Open Files", () => openOnFocusedConnection({ view: "preview", file: "~" })),
+        makePaletteCommand("block:new-files", "Open Files", () =>
+            openOnFocusedConnection({ view: "preview", file: "~" })
+        ),
         makePaletteCommand("block:new-host", "Open Host", () => openOnFocusedConnection({ view: "host" })),
         makePaletteCommand("block:new-host-processes", "Host: Processes", () =>
             openOnFocusedConnection({ view: "host", "host:tab": "processes" })
