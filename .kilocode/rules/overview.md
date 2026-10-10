@@ -29,7 +29,7 @@ GenieTerm/
 
 - `emain.ts` - entry point and app lifecycle (starts wavesrv, restores windows, updater)
 - `emain-window.ts` - `WaveBrowserWindow`: tabs, tab switching, close confirmations
-- `emain-tabview.ts` - `WaveTabView`: one WebContentsView (renderer) per tab, plus a pre-warmed spare
+- `emain-tabview.ts` - `WaveTabView`: the window's WebContentsView. One renderer per window shows every tab (`frontend/app/tab/tabpanestack.tsx` keeps an LRU of mounted tab panes); `GENIETERM_LEGACY_TABVIEWS=1` restores one view per tab
 - `emain-wavesrv.ts` - launches and supervises the Go backend
 - `emain-ipc.ts`, `preload.ts` - IPC between renderer and main
 - `transfer/` - folder downloads (rsync/scp) and the persisted transfer queue

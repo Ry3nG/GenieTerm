@@ -61,6 +61,7 @@ Details: `docs/visual-qa/preview-screenshot-gate.md`, `docs/visual-qa/preview-in
 - Run a command and inspect block status, copy, and re-run.
 - Open a durable SSH session, disconnect, reconnect.
 - Browse remote files; download a folder; upload a file; cancel or retry a transfer.
+- Open five tabs, visit each, and switch with Cmd+1–5: each window keeps one renderer and the selected terminal takes the first keystroke.
 - Update from the previous stable release through the in-app updater and confirm the relaunched version.
 
 ## Release decision

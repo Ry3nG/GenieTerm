@@ -2,7 +2,7 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Release scope last reviewed on the `release/1.0.0` branch on 2026-10-10 (`package.json` **0.4.94-beta.2**).
+Living tracker. Release scope last reviewed for **1.0.0** on 2026-10-11.
 
 If a sentence here disagrees with an older plan, this file wins. Superseded plans live in git history.
 
@@ -28,7 +28,7 @@ It is not Ghostty (speed), not Warp (closed + login), not VS Code Remote (an IDE
 
 See `docs/v1-release-gate.md`.
 
-## Shipped (through 0.4.94-beta.2)
+## Shipped
 
 - Semantic presentation default (`term:presentation: semantic`); classic xterm is the same `TermWrap` with decorations off
 - Command-block data from OSC 16162 A/C/D; gutter card; last-command status / duration / copy / re-run / Fix with AI
@@ -48,7 +48,7 @@ See `docs/v1-release-gate.md`.
 
 - 0.4.92–0.4.94-beta.2: Windows x64 NSIS/ZIP preview (unsigned, prerelease tags only), native Windows CI packaging and installer smoke, release asset validation
 
-## Release hardening (`release/1.0.0`, unreleased)
+## 0.5.0 — release hardening
 
 - Terminal: Enter always reaches the shell (no natural-language interception; the exit-127 proposal and `Cmd:Shift:Space` composer stay); re-run and inline "Run" refuse to type into a running program; blocks without a `D` finish as "Interrupted"; stale completion popups never apply; history completion matches the whole typed prefix; `Cmd+K` keeps the next block; settings changes no longer rebuild the terminal; cache snapshots record scrollback
 - Shell integration: PowerShell command blocks (A/C/D, untested on Windows hardware), fish base64 fix, nounset-safe bash/zsh hooks, `$?` preserved for prompt frameworks, appends tagged with the terminal file epoch
@@ -57,6 +57,15 @@ See `docs/v1-release-gate.md`.
 - Platform: telemetry and Wave cloud endpoints removed; process viewer and sysinfo sample only under a live lease; dead RPCs, events, config keys and Electron leftovers removed
 - Release: macOS-only stable channel (ad-hoc signed), Windows deferred to prerelease previews, draft-then-verify publishing, update metadata verification, updater relaunches the old app on any install failure
 - Supply chain: Go 1.27, govulncheck/gofmt/vet in the gate, npm advisories cleared, workflow actions pinned by SHA
+- Performance: PTY output coalescing, router backlog drained on progress, batched terminal appends, lazy view modules, durable stream window 2 MB (200k lines in ~1 s; 10 MiB over a 50 ms link in ~0.5 s)
+
+## 1.0.0
+
+- One renderer per window with an LRU of mounted tab panes; hidden panes stop drawing and release WebGL (five tabs 1.2 GB → 0.7 GB, ~26 MB per extra tab). See `docs/performance/single-renderer.md`
+- Terminal header shows the working directory; default-named tabs follow the first block's folder
+- Command palette: groups, keyword/initials search, recent-first, saved connections
+- Ctrl-C exits show as Interrupted; transfer queue rows with progress, status and reasons; composer example prompts; welcome screen says what GenieTerm is
+- No telemetry calls remain in the UI
 
 ## Known gaps
 
@@ -82,7 +91,7 @@ Done in 0.4.82: WaveAI chat, Tsunami/builder, launcher, and aifilediff are gone.
 
 ### P4 — 1.0
 
-Tag `1.0.0` when `docs/v1-release-gate.md` passes on a real Mac. Stable 1.0 is macOS-only; Windows x64 joins the stable channel only after `docs/windows-release-gate.md` passes for a signed package.
+Shipped 2026-10-11 after `docs/v1-release-gate.md` passed on a real Mac. Stable 1.0 is macOS-only; Windows x64 joins the stable channel only after `docs/windows-release-gate.md` passes for a signed package.
 
 ### P5 — After 1.0
 
