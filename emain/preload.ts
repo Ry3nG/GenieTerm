@@ -35,7 +35,8 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("transfer-queue:update", listener);
         return () => ipcRenderer.off("transfer-queue:update", listener);
     },
-    startTransferJob: (input: TransferJobInput) => ipcRenderer.invoke("transfer-job:start", input),
+    enqueueTransferJobs: (inputs: TransferJobInput[]) => ipcRenderer.invoke("transfer-job:enqueue", inputs),
+    beginTransferJob: (jobId: string) => ipcRenderer.invoke("transfer-job:begin", jobId),
     finishTransferJob: (jobId: string, outcome: TransferJobOutcome) =>
         ipcRenderer.invoke("transfer-job:finish", jobId, outcome),
     openExternal: (url) => {

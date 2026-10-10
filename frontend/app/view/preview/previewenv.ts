@@ -11,7 +11,8 @@ export type PreviewEnv = WaveEnvSubset<{
         cancelTransferJob: WaveEnv["electron"]["cancelTransferJob"];
         retryTransferJob: WaveEnv["electron"]["retryTransferJob"];
         onTransferQueueUpdate: WaveEnv["electron"]["onTransferQueueUpdate"];
-        startTransferJob: WaveEnv["electron"]["startTransferJob"];
+        enqueueTransferJobs: WaveEnv["electron"]["enqueueTransferJobs"];
+        beginTransferJob: WaveEnv["electron"]["beginTransferJob"];
         finishTransferJob: WaveEnv["electron"]["finishTransferJob"];
         getPathForFile: WaveEnv["electron"]["getPathForFile"];
     };

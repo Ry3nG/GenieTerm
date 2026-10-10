@@ -22,6 +22,17 @@ type CopyWithOverwriteConfirmationDeps = {
     copyFile: (data: CommandFileCopyData) => Promise<void>;
     refresh?: () => void;
     setErrorMsg: (msg: ErrorMsg) => void;
+    // Notifies on every error-overlay change so a prompt that gets replaced by another message settles instead of
+    // leaving the copy waiting forever.
+    watchErrorMsg?: (listener: (msg: ErrorMsg) => void) => () => void;
+    signal?: AbortSignal;
+};
+
+const ConfirmationCanceledResult: FileCopyResult = {
+    ok: false,
+    errorText: "Upload confirmation dismissed.",
+    retryable: false,
+    canceled: true,
 };
 
 export const displaySuffixes = {
@@ -128,16 +139,39 @@ export async function copyWithOverwriteConfirmation(
         return initialResult;
     }
 
+    if (deps.signal?.aborted) {
+        return ConfirmationCanceledResult;
+    }
+
     return new Promise<FileCopyResult>((resolve) => {
         let settled = false;
+        let promptOpen = true;
+        let unwatch: () => void = null;
+        let promptMsg: ErrorMsg = null;
+        const closePrompt = () => {
+            promptOpen = false;
+            unwatch?.();
+            unwatch = null;
+            deps.signal?.removeEventListener("abort", onAbort);
+        };
         const settle = (result: FileCopyResult) => {
+            closePrompt();
             if (settled) {
                 return;
             }
             settled = true;
             resolve(result);
         };
+        const onAbort = () => {
+            if (!promptOpen) {
+                return;
+            }
+            closePrompt();
+            deps.setErrorMsg(null);
+            settle(ConfirmationCanceledResult);
+        };
         const runConfirmedCopy = async (opts: Partial<CommandFileCopyData["opts"]>) => {
+            closePrompt();
             const result = await runFileCopy(
                 {
                     ...data,
@@ -173,20 +207,26 @@ export async function copyWithOverwriteConfirmation(
                 },
             });
         }
-        deps.setErrorMsg({
+        promptMsg = {
             status: "Confirm Overwrite File(s)",
             text: "This copy operation will overwrite an existing file. Would you like to continue?",
             level: "warning",
             buttons,
             closeAction: () => {
-                settle({
-                    ok: false,
-                    errorText: "Upload confirmation dismissed.",
-                    retryable: false,
-                    canceled: true,
-                });
+                settle(ConfirmationCanceledResult);
             },
-        });
+        };
+        deps.signal?.addEventListener("abort", onAbort);
+        deps.setErrorMsg(promptMsg);
+        if (!promptOpen) {
+            return;
+        }
+        unwatch =
+            deps.watchErrorMsg?.((msg) => {
+                if (promptOpen && msg !== promptMsg) {
+                    settle(ConfirmationCanceledResult);
+                }
+            }) ?? null;
     });
 }
 

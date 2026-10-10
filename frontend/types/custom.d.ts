@@ -104,7 +104,8 @@ declare global {
         cancelTransferJob: (jobId: string) => Promise<TransferQueue>; // transfer-queue:cancel
         retryTransferJob: (jobId: string) => Promise<TransferQueue>; // transfer-queue:retry
         onTransferQueueUpdate: (callback: (queue: TransferQueue) => void) => () => void; // transfer-queue:update
-        startTransferJob: (input: TransferJobInput) => Promise<void>; // transfer-job:start
+        enqueueTransferJobs: (inputs: TransferJobInput[]) => Promise<void>; // transfer-job:enqueue
+        beginTransferJob: (jobId: string) => Promise<boolean>; // transfer-job:begin
         finishTransferJob: (jobId: string, outcome: TransferJobOutcome) => Promise<void>; // transfer-job:finish
         openExternal: (url: string) => void; // open-external
         onFullScreenChange: (callback: (isFullScreen: boolean) => void) => void; // fullscreen-change
