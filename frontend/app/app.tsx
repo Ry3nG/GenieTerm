@@ -18,7 +18,6 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { ContextMenuModel } from "@/store/contextmenu";
 import { atoms, createBlock, getApi, getSettingsKeyAtom, getSettingsPrefixAtom, refocusNode } from "@/store/global";
 import { appHandleKeyDown, keyboardMouseDownHandler } from "@/store/keymodel";
-import { getElemAsStr } from "@/util/focusutil";
 import * as keyutil from "@/util/keyutil";
 import { PLATFORM } from "@/util/platformutil";
 import * as util from "@/util/util";
@@ -40,7 +39,6 @@ import "./app.scss";
 import "../tailwindsetup.css";
 
 const dlog = debug("wave:app");
-const focusLog = debug("wave:focus");
 
 const App = ({ onFirstRender }: { onFirstRender: () => void }) => {
     const tabId = useAtomValue(atoms.staticTabId);
@@ -173,43 +171,6 @@ function AppSettingsUpdater() {
             document.body.style.removeProperty("--main-bg-color");
         }
     }, [windowSettings]);
-    return null;
-}
-
-function appFocusIn(e: FocusEvent) {
-    focusLog("focusin", getElemAsStr(e.target), "<=", getElemAsStr(e.relatedTarget));
-}
-
-function appFocusOut(e: FocusEvent) {
-    focusLog("focusout", getElemAsStr(e.target), "=>", getElemAsStr(e.relatedTarget));
-}
-
-function appSelectionChange(e: Event) {
-    const selection = document.getSelection();
-    focusLog("selectionchange", getElemAsStr(selection.anchorNode));
-}
-
-function AppFocusHandler() {
-    return null;
-
-    // for debugging
-    useEffect(() => {
-        document.addEventListener("focusin", appFocusIn);
-        document.addEventListener("focusout", appFocusOut);
-        document.addEventListener("selectionchange", appSelectionChange);
-        const ivId = setInterval(() => {
-            const activeElement = document.activeElement;
-            if (activeElement instanceof HTMLElement) {
-                focusLog("activeElement", getElemAsStr(activeElement));
-            }
-        }, 2000);
-        return () => {
-            document.removeEventListener("focusin", appFocusIn);
-            document.removeEventListener("focusout", appFocusOut);
-            document.removeEventListener("selectionchange", appSelectionChange);
-            clearInterval(ivId);
-        };
-    });
     return null;
 }
 
@@ -374,7 +335,6 @@ const AppInner = () => {
             <AppBackground />
             <MacOSFirstClickHandler />
             <AppKeyHandlers />
-            <AppFocusHandler />
             <AppSettingsUpdater />
             <BadgeAutoClearing />
             <DndProvider backend={HTML5Backend}>

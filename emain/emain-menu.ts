@@ -194,13 +194,12 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
 function makeViewMenu(
     webContents: electron.WebContents,
     callbacks: AppMenuCallbacks,
-    isBuilderWindowFocused: boolean,
     fullscreenOnLaunch: boolean
 ): Electron.MenuItemConstructorOptions[] {
     const devToolsAccel = unamePlatform === "darwin" ? "Option+Command+I" : "Alt+Shift+I";
     return [
         {
-            label: isBuilderWindowFocused ? "Reload Window" : "Reload Tab",
+            label: "Reload Tab",
             accelerator: "Shift+CommandOrControl+R",
             click: (_, window) => {
                 (getWindowWebContents(window) ?? webContents)?.reloadIgnoringCache();
@@ -334,7 +333,7 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
     }
     const editMenu = makeEditMenu(fullConfig);
     const fileMenu = makeFileMenu(numWaveWindows, callbacks, fullConfig);
-    const viewMenu = makeViewMenu(webContents, callbacks, false, fullscreenOnLaunch);
+    const viewMenu = makeViewMenu(webContents, callbacks, fullscreenOnLaunch);
     let workspaceMenu: Electron.MenuItemConstructorOptions[] = null;
     try {
         workspaceMenu = await getWorkspaceMenu();

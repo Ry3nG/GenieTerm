@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"regexp"
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
@@ -35,50 +34,6 @@ func tableNameGen[T waveobj.WaveObj]() string {
 func getOTypeGen[T waveobj.WaveObj]() string {
 	var zeroObj T
 	return zeroObj.GetOType()
-}
-
-func DBGetCount[T waveobj.WaveObj](ctx context.Context) (int, error) {
-	return WithTxRtn(ctx, func(tx *TxWrap) (int, error) {
-		table := tableNameGen[T]()
-		query := fmt.Sprintf("SELECT count(*) FROM %s", table)
-		return tx.GetInt(query), nil
-	})
-}
-
-// returns (num named workespaces, num total workspaces, error)
-func DBGetWSCounts(ctx context.Context) (int, int, error) {
-	var named, total int
-	err := WithTx(ctx, func(tx *TxWrap) error {
-		query := `SELECT count(*) FROM db_workspace WHERE COALESCE(json_extract(data, '$.name'), '') <> ''`
-		named = tx.GetInt(query)
-		query = `SELECT count(*) FROM db_workspace`
-		total = tx.GetInt(query)
-		return nil
-	})
-	if err != nil {
-		return 0, 0, err
-	}
-	return named, total, nil
-}
-
-var viewRe = regexp.MustCompile(`^[a-z0-9]{1,20}$`)
-
-func DBGetBlockViewCounts(ctx context.Context) (map[string]int, error) {
-	return WithTxRtn(ctx, func(tx *TxWrap) (map[string]int, error) {
-		query := `SELECT COALESCE(json_extract(data, '$.meta.view'), '') AS view FROM db_block`
-		views := tx.SelectStrings(query)
-		rtn := make(map[string]int)
-		for _, view := range views {
-			if view == "" {
-				continue
-			}
-			if !viewRe.MatchString(view) {
-				continue
-			}
-			rtn[view]++
-		}
-		return rtn, nil
-	})
 }
 
 type idDataType struct {

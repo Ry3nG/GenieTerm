@@ -109,7 +109,6 @@ describe("keymodel command palette commands", () => {
             },
         }));
         vi.doMock("./windowtype", () => ({
-            isBuilderWindow: vi.fn(() => false),
             isTabWindow: vi.fn(() => false),
         }));
 

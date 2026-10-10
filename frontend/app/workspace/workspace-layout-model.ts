@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { isBuilderWindow } from "@/app/store/windowtype";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { atoms, getApi, getOrefMetaKeyAtom, getSettingsKeyAtom } from "@/store/global";
+import { atoms, getOrefMetaKeyAtom, getSettingsKeyAtom } from "@/store/global";
 import * as jotai from "jotai";
 import { ImperativePanelGroupHandle, ImperativePanelHandle } from "react-resizable-panels";
 import { debounce } from "throttle-debounce";
@@ -95,9 +94,8 @@ class WorkspaceLayoutModel {
                 this.vtabWidth = savedVTabWidth;
             }
             const tabBarPosition = globalStore.get(getSettingsKeyAtom("app:tabbar")) ?? "top";
-            this.vtabVisible = tabBarPosition === "left" && !isBuilderWindow();
+            this.vtabVisible = tabBarPosition === "left";
             globalStore.set(this.panelVisibleAtom, false);
-            getApi().setWaveAIOpen(false);
         } catch (e) {
             console.warn("Failed to initialize workspace layout meta:", e);
         }
@@ -200,7 +198,7 @@ class WorkspaceLayoutModel {
     }
 
     getLeftGroupInitialPercentage(windowWidth: number, showLeftTabBar: boolean): number {
-        const vtabW = showLeftTabBar && !isBuilderWindow() ? this.getResolvedVTabWidth() : 0;
+        const vtabW = showLeftTabBar ? this.getResolvedVTabWidth() : 0;
         return windowWidth > 0 ? (vtabW / windowWidth) * 100 : 0;
     }
 
@@ -214,7 +212,6 @@ class WorkspaceLayoutModel {
 
     setAIPanelVisible(): void {
         globalStore.set(this.panelVisibleAtom, false);
-        getApi().setWaveAIOpen(false);
     }
 
     setShowLeftTabBar(showLeftTabBar: boolean): void {

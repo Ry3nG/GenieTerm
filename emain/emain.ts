@@ -10,11 +10,6 @@ import { fireAndForget, sleep } from "../frontend/util/util";
 import { applyDockIconVariant } from "./app-icon";
 import { AuthKey, configureAuthKeyRequestInjection } from "./authkey";
 import {
-    getActivityState,
-    getAndClearTermCommandsDurable,
-    getAndClearTermCommandsRemote,
-    getAndClearTermCommandsRun,
-    getAndClearTermCommandsWsl,
     getForceQuit,
     getGlobalIsRelaunching,
     getUserConfirmedQuit,
@@ -22,8 +17,6 @@ import {
     setGlobalIsQuitting,
     setGlobalIsStarting,
     setUserConfirmedQuit,
-    setWasActive,
-    setWasInFg,
 } from "./emain-activity";
 import { initIpcHandlers } from "./emain-ipc";
 import { log } from "./emain-log";
@@ -43,7 +36,6 @@ import { getIsWaveSrvDead, getWaveSrvProc, getWaveSrvReady, runWaveSrv } from ".
 import {
     createBrowserWindow,
     createNewWaveWindow,
-    focusedWaveWindow,
     getAllWaveWindows,
     getQuakeWindow,
     getWaveWindowById,
@@ -109,125 +101,6 @@ function handleWSEvent(evtMsg: WSEventType) {
             console.log("unhandled electron ws eventtype", evtMsg.eventtype);
         }
     });
-}
-
-// we try to set the primary display as index [0]
-function getActivityDisplays(): ActivityDisplayType[] {
-    const displays = electron.screen.getAllDisplays();
-    const primaryDisplay = electron.screen.getPrimaryDisplay();
-    const rtn: ActivityDisplayType[] = [];
-    for (const display of displays) {
-        const adt = {
-            width: display.size.width,
-            height: display.size.height,
-            dpr: display.scaleFactor,
-            internal: display.internal,
-        };
-        if (display.id === primaryDisplay?.id) {
-            rtn.unshift(adt);
-        } else {
-            rtn.push(adt);
-        }
-    }
-    return rtn;
-}
-
-async function sendDisplaysTDataEvent() {
-    const displays = getActivityDisplays();
-    if (displays.length === 0) {
-        return;
-    }
-    const props: TEventProps = {};
-    props["display:count"] = displays.length;
-    props["display:height"] = displays[0].height;
-    props["display:width"] = displays[0].width;
-    props["display:dpr"] = displays[0].dpr;
-    props["display:all"] = displays;
-    try {
-        await RpcApi.RecordTEventCommand(
-            ElectronWshClient,
-            {
-                event: "app:display",
-                props,
-            },
-            { noresponse: true }
-        );
-    } catch (e) {
-        console.log("error sending display tdata event", e);
-    }
-}
-
-function logActiveState() {
-    fireAndForget(async () => {
-        const astate = getActivityState();
-        const activity: ActivityUpdate = { openminutes: 1 };
-        const ww = focusedWaveWindow;
-        const activeTabView = ww?.activeTabView;
-        const isWaveAIOpen = activeTabView?.isWaveAIOpen ?? false;
-
-        if (astate.wasInFg) {
-            activity.fgminutes = 1;
-        }
-        if (astate.wasActive) {
-            activity.activeminutes = 1;
-        }
-        activity.displays = getActivityDisplays();
-
-        const termCmdCount = getAndClearTermCommandsRun();
-        if (termCmdCount > 0) {
-            activity.termcommandsrun = termCmdCount;
-        }
-        const termCmdRemoteCount = getAndClearTermCommandsRemote();
-        const termCmdWslCount = getAndClearTermCommandsWsl();
-        const termCmdDurableCount = getAndClearTermCommandsDurable();
-
-        const props: TEventProps = {
-            "activity:activeminutes": activity.activeminutes,
-            "activity:fgminutes": activity.fgminutes,
-            "activity:openminutes": activity.openminutes,
-        };
-        if (termCmdCount > 0) {
-            props["activity:termcommandsrun"] = termCmdCount;
-        }
-        if (termCmdRemoteCount > 0) {
-            props["activity:termcommands:remote"] = termCmdRemoteCount;
-        }
-        if (termCmdWslCount > 0) {
-            props["activity:termcommands:wsl"] = termCmdWslCount;
-        }
-        if (termCmdDurableCount > 0) {
-            props["activity:termcommands:durable"] = termCmdDurableCount;
-        }
-        if (astate.wasActive && isWaveAIOpen) {
-            props["activity:waveaiactiveminutes"] = 1;
-        }
-        if (astate.wasInFg && isWaveAIOpen) {
-            props["activity:waveaifgminutes"] = 1;
-        }
-
-        try {
-            await RpcApi.ActivityCommand(ElectronWshClient, activity, { noresponse: true });
-            await RpcApi.RecordTEventCommand(
-                ElectronWshClient,
-                {
-                    event: "app:activity",
-                    props,
-                },
-                { noresponse: true }
-            );
-        } catch (e) {
-            console.log("error logging active state", e);
-        } finally {
-            setWasInFg(ww?.isFocused() ?? false);
-            setWasActive(false);
-        }
-    });
-}
-
-// this isn't perfect, but gets the job done without being complicated
-function runActiveTimer() {
-    logActiveState();
-    setTimeout(runActiveTimer, 60000);
 }
 
 function hideWindowWithCatch(window: WaveBrowserWindow) {
@@ -408,8 +281,6 @@ async function appMain() {
     }
     ensureHotSpareTab(fullConfig);
     await relaunchBrowserWindows();
-    setTimeout(runActiveTimer, 5000); // start active timer, wait 5s just to be safe
-    setTimeout(sendDisplaysTDataEvent, 5000);
 
     makeAndSetAppMenu();
     makeDockTaskbar();

@@ -17,7 +17,6 @@ export const DefaultFullConfig: FullConfigType = {
     termthemes: termthemesJson as unknown as { [key: string]: TermThemeType },
     connections: {},
     bookmarks: {},
-    waveai: {},
     backgrounds: backgroundsJson as { [key: string]: BackgroundConfigType },
     configerrors: [],
     version: "0.0.0-preview",
