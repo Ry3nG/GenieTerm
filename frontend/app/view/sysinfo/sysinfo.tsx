@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { useTabModel } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import * as util from "@/util/util";
 import clsx from "clsx";
@@ -350,6 +351,8 @@ type SysinfoViewProps = {
 };
 
 function SysinfoView({ model, blockId }: SysinfoViewProps) {
+    const tabModel = useTabModel();
+    const paneActive = jotai.useAtomValue(tabModel.isActiveAtom);
     const connName = jotai.useAtomValue(model.connection);
     const lastConnName = React.useRef(connName);
     const connStatus = jotai.useAtomValue(model.connStatus);
@@ -383,7 +386,7 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
         };
         const syncWatch = () => {
             stopRenew();
-            if (document.hidden) {
+            if (document.hidden || !paneActive) {
                 sendWatch(false);
                 return;
             }
@@ -397,7 +400,7 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
             scope: connName,
             handler: (event) => {
                 const loading = globalStore.get(model.loadingAtom);
-                if (loading) {
+                if (loading || !paneActive || document.hidden) {
                     return;
                 }
                 const dataItem = convertWaveEventToDataItem(event);
@@ -423,7 +426,7 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
             stopRenew();
             sendWatch(false);
         };
-    }, [connName, addContinuousData, model, blockId]);
+    }, [connName, addContinuousData, model, blockId, paneActive]);
     if (connStatus?.status != "connected") {
         return null;
     }

@@ -4,6 +4,7 @@
 import { Tooltip } from "@/app/element/tooltip";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
+import { TabModel } from "@/app/store/tab-model";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import * as keyutil from "@/util/keyutil";
@@ -115,13 +116,16 @@ export class ProcessViewerViewModel implements ViewModel {
     connection: jotai.Atom<string>;
     connStatus: jotai.Atom<ConnStatus>;
 
+    tabModel: TabModel;
+    unsubscribePane: () => void;
     disposed = false;
     cancelPoll: (() => void) | null = null;
     fetchEpoch = 0;
     scrollRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     visibilityHandler: (() => void) | null = null;
 
-    constructor({ blockId, waveEnv }: ViewModelInitType) {
+    constructor({ blockId, waveEnv, tabModel }: ViewModelInitType) {
+        this.tabModel = tabModel;
         this.viewType = "processviewer";
         this.blockId = blockId;
         this.env = waveEnv;
@@ -158,7 +162,7 @@ export class ProcessViewerViewModel implements ViewModel {
         this.startPolling();
         if (typeof document !== "undefined") {
             this.visibilityHandler = () => {
-                if (document.hidden) {
+                if (this.isHidden()) {
                     this.stopLoop();
                     this.sendRelease();
                     return;
@@ -166,7 +170,12 @@ export class ProcessViewerViewModel implements ViewModel {
                 this.restartLoop();
             };
             document.addEventListener("visibilitychange", this.visibilityHandler);
+            this.unsubscribePane = globalStore.sub(tabModel.isActiveAtom, this.visibilityHandler);
         }
+    }
+
+    isHidden(): boolean {
+        return isDocumentHidden() || !globalStore.get(this.tabModel.isActiveAtom);
     }
 
     get viewComponent(): ViewComponent {
@@ -174,7 +183,7 @@ export class ProcessViewerViewModel implements ViewModel {
     }
 
     async doOneFetch(lastPidOrder: boolean, cancelledFn?: () => boolean) {
-        if (this.disposed || isDocumentHidden()) return;
+        if (this.disposed || this.isHidden()) return;
         const epoch = ++this.fetchEpoch;
         const sortBy = globalStore.get(this.sortByAtom);
         const sortDesc = globalStore.get(this.sortDescAtom);
@@ -262,7 +271,7 @@ export class ProcessViewerViewModel implements ViewModel {
 
     restartLoop() {
         this.stopLoop();
-        if (this.disposed || isDocumentHidden()) return;
+        if (this.disposed || this.isHidden()) return;
         if (globalStore.get(this.pausedAtom)) {
             this.startKeepAlive();
         } else {
@@ -277,7 +286,7 @@ export class ProcessViewerViewModel implements ViewModel {
         };
 
         const poll = async () => {
-            while (!cancelled && !this.disposed && !isDocumentHidden()) {
+            while (!cancelled && !this.disposed && !this.isHidden()) {
                 await this.doOneFetch(false, () => cancelled);
 
                 if (cancelled || this.disposed) break;
@@ -310,7 +319,7 @@ export class ProcessViewerViewModel implements ViewModel {
         };
 
         const keepAliveLoop = async () => {
-            while (!cancelled && !this.disposed && !isDocumentHidden()) {
+            while (!cancelled && !this.disposed && !this.isHidden()) {
                 await this.doKeepAlive();
 
                 if (cancelled || this.disposed) break;
@@ -498,6 +507,7 @@ export class ProcessViewerViewModel implements ViewModel {
     }
 
     dispose() {
+        this.unsubscribePane?.();
         this.disposed = true;
         if (this.scrollRefreshTimer != null) {
             clearTimeout(this.scrollRefreshTimer);
@@ -555,7 +565,9 @@ const StatusIndicator = React.memo(function StatusIndicator({ model }: { model: 
     const paused = jotai.useAtomValue(model.pausedAtom);
     const error = jotai.useAtomValue(model.errorAtom);
     const lastSuccess = jotai.useAtomValue(model.lastSuccessAtom);
-    const visible = useDocumentVisible();
+    const documentVisible = useDocumentVisible();
+    const paneActive = jotai.useAtomValue(model.tabModel.isActiveAtom);
+    const visible = documentVisible && paneActive;
     const [now, setNow] = React.useState(() => Date.now());
 
     React.useEffect(() => {

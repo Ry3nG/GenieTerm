@@ -4,6 +4,7 @@
 import { WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { createContext, useContext } from "react";
+import { activeTabIdAtom } from "./activetab";
 import { globalStore } from "./jotaiStore";
 import * as WOS from "./wos";
 
@@ -12,10 +13,11 @@ export type TabModelEnv = WaveEnvSubset<{
 }>;
 
 const tabModelCache = new Map<string, TabModel>();
-export const activeTabIdAtom = atom<string>(null) as PrimitiveAtom<string>;
+export { activeTabIdAtom } from "./activetab";
 
 export class TabModel {
     tabId: string;
+    isActiveAtom: Atom<boolean>;
     waveEnv: TabModelEnv;
     tabAtom: Atom<Tab>;
     tabNumBlocksAtom: Atom<number>;
@@ -25,6 +27,7 @@ export class TabModel {
 
     constructor(tabId: string, waveEnv?: TabModelEnv) {
         this.tabId = tabId;
+        this.isActiveAtom = atom((get) => waveEnv?.isMock || get(activeTabIdAtom) === tabId);
         this.waveEnv = waveEnv;
         this.tabAtom = atom((get) => {
             if (this.waveEnv != null) {
@@ -67,6 +70,10 @@ export function getTabModelByTabId(tabId: string, waveEnv?: TabModelEnv): TabMod
         waveEnv.mockModels.set(key, model);
     }
     return model;
+}
+
+export function deleteTabModel(tabId: string) {
+    tabModelCache.delete(tabId);
 }
 
 export function getActiveTabModel(waveEnv?: TabModelEnv): TabModel | null {

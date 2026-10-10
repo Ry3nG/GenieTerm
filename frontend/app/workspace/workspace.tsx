@@ -5,7 +5,7 @@ import { ErrorBoundary } from "@/app/element/errorboundary";
 import { CenteredDiv } from "@/app/element/quickelems";
 import { ModalsRenderer } from "@/app/modals/modalsrenderer";
 import { TabBar } from "@/app/tab/tabbar";
-import { TabContent } from "@/app/tab/tabcontent";
+import { TabPaneStack } from "@/app/tab/tabpanestack";
 import { VTabBar } from "@/app/tab/vtabbar";
 import { Widgets } from "@/app/workspace/widgets";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
@@ -93,7 +93,7 @@ const WorkspaceElem = memo(() => {
             )}
             {(hideTabBar || showLeftTabBar) && isMacOS() && <MacOSTabBarSpacer />}
             <div ref={panelContainerRef} className="flex flex-row flex-grow overflow-hidden">
-                <ErrorBoundary key={tabId}>
+                <ErrorBoundary>
                     <PanelGroup
                         direction="horizontal"
                         onLayout={workspaceLayoutModel.handleOuterPanelLayout}
@@ -115,7 +115,7 @@ const WorkspaceElem = memo(() => {
                                 <CenteredDiv>No Active Tab</CenteredDiv>
                             ) : (
                                 <div className="flex flex-row h-full">
-                                    <TabContent key={tabId} tabId={tabId} noTopPadding={showLeftTabBar && isMacOS()} />
+                                    <TabPaneStack noTopPadding={showLeftTabBar && isMacOS()} />
                                     {widgetsSidebarVisible && !hideSidebar && <Widgets />}
                                 </div>
                             )}

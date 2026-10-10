@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -107,6 +107,8 @@ function computeBgColor(fullConfig: FullConfigType): string {
     }
 }
 
+export const SingleView = process.env.GENIETERM_LEGACY_TABVIEWS !== "1";
+
 const wcIdToWaveTabMap = new Map<number, WaveTabView>();
 
 export function getWaveTabViewByWebContentsId(webContentsId: number): WaveTabView {
@@ -167,6 +169,11 @@ export class WaveTabView extends WebContentsView {
             wcIdToWaveTabMap.delete(wcId);
             removeWaveTabView(this.waveTabId);
             this.isDestroyed = true;
+        });
+        this.webContents.on("render-process-gone", () => {
+            if (!this.isDestroyed && !this.webContents.isDestroyed()) {
+                this.webContents.reload();
+            }
         });
         this.setBackgroundColor(computeBgColor(fullConfig));
     }
@@ -240,7 +247,7 @@ const wcvCache = new Map<string, WaveTabView>();
 // so retention is the dominant renderer-memory lever. Cap it by available RAM so
 // low-memory machines don't hold a fleet of heavy renderers — this only ever lowers
 // the configured value, never raises it.
-function maxTabCacheCeiling(): number {
+export function maxTabCacheCeiling(): number {
     const ramGB = os.totalmem() / 1024 ** 3;
     if (ramGB <= 8) {
         return 4;
@@ -315,6 +322,10 @@ export function clearTabCache() {
     const wcVals = Array.from(wcvCache.values());
     for (let i = 0; i < wcVals.length; i++) {
         const tabView = wcVals[i];
+        if (SingleView) {
+            tabView.webContents.send("wave-clear-tab-cache");
+            continue;
+        }
         tryEvictEntry(tabView.waveTabId);
     }
 }
@@ -402,7 +413,9 @@ export function ensureHotSpareTab(fullConfig: FullConfigType) {
 }
 
 export function getSpareTab(fullConfig: FullConfigType): WaveTabView {
-    setTimeout(() => ensureHotSpareTab(fullConfig), 500);
+    if (!SingleView) {
+        setTimeout(() => ensureHotSpareTab(fullConfig), 500);
+    }
     if (HotSpareTab != null) {
         const rtn = HotSpareTab;
         HotSpareTab = null;

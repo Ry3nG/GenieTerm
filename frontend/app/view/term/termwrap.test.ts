@@ -182,6 +182,74 @@ describe("TermWrap deferred addons", () => {
     });
 });
 
+describe("TermWrap pane visibility", () => {
+    it("defers hidden resize and cancels delayed WebGL release on a quick return", () => {
+        vi.useFakeTimers();
+        try {
+            const { termWrap, terminal } = makeTermWrap();
+            Object.assign(termWrap, {
+                paneActive: true,
+                preferredRenderer: "webgl",
+                fitAddon: { fit: vi.fn() },
+            });
+            Object.assign(terminal, { rows: 24, refresh: vi.fn() });
+            const release = vi.spyOn(termWrap, "releaseWebGL").mockImplementation(() => {});
+            termWrap.setPaneActive(false);
+            termWrap.handleResize();
+            expect(termWrap.fitAddon.fit).not.toHaveBeenCalled();
+            expect(termWrap.pendingResize).toBe(true);
+            vi.advanceTimersByTime(9999);
+            expect(release).not.toHaveBeenCalled();
+            const resize = vi.spyOn(termWrap, "handleResize").mockImplementation(() => {});
+            const renderer = vi.spyOn(termWrap, "setTermRenderer").mockImplementation(() => {});
+            termWrap.setPaneActive(true);
+            expect(renderer).toHaveBeenCalledWith("webgl");
+            expect(resize).toHaveBeenCalledOnce();
+            expect(termWrap.pendingResize).toBe(false);
+            vi.advanceTimersByTime(10000);
+            expect(release).not.toHaveBeenCalled();
+            termWrap.setPaneActive(false);
+            vi.advanceTimersByTime(10000);
+            expect(release).toHaveBeenCalledOnce();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("captures the WebGL canvas behind the 2D link layer before disposing and losing its context", () => {
+        const { termWrap, terminal } = makeTermWrap();
+        const order: string[] = [];
+        const loseContext = vi.fn(() => order.push("lose"));
+        const context = { getExtension: vi.fn(() => ({ loseContext })) };
+        Object.assign(terminal, {
+            element: {
+                querySelectorAll: () => [
+                    { getContext: () => null },
+                    {
+                        getContext: () => {
+                            order.push("capture");
+                            return context;
+                        },
+                    },
+                ],
+            },
+        });
+        Object.assign(termWrap, {
+            preferredRenderer: "webgl",
+            webglEnabledAtom: jotai.atom(true),
+            webglContextLossDisposable: { dispose: () => order.push("unsubscribe") },
+            webglAddon: { dispose: () => order.push("dispose") },
+        });
+        termWrap.releaseWebGL();
+        expect(order).toEqual(["unsubscribe", "capture", "dispose", "lose"]);
+        expect(termWrap.webglAddon).toBeNull();
+        expect(globalStore.get(termWrap.webglEnabledAtom)).toBe(false);
+        expect(termWrap.preferredRenderer).toBe("webgl");
+        termWrap.releaseWebGL();
+        expect(loseContext).toHaveBeenCalledOnce();
+    });
+});
+
 function startPrompt(termWrap: TermWrap) {
     termWrap.onPromptStart(termWrap.makePromptMarker());
 }

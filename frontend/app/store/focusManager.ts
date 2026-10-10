@@ -4,8 +4,10 @@
 import { getBlockComponentModel } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
+import { getLayoutModelForTabById } from "@/layout/lib/layoutModelHooks";
 import { focusedBlockId } from "@/util/focusutil";
 import { Atom, atom, type PrimitiveAtom } from "jotai";
+import { activeTabIdAtom } from "./activetab";
 
 export type FocusStrType = "node";
 
@@ -17,7 +19,10 @@ export class FocusManager {
 
     private constructor() {
         this.blockFocusAtom = atom((get) => {
-            const layoutModel = getLayoutModelForStaticTab();
+            const layoutModel = getLayoutModelForTabById(get(activeTabIdAtom), get);
+            if (layoutModel == null) {
+                return null;
+            }
             const lnode = get(layoutModel.focusedNode);
             return lnode?.data?.blockId;
         });
@@ -53,6 +58,9 @@ export class FocusManager {
 
     refocusNode() {
         const layoutModel = getLayoutModelForStaticTab();
+        if (layoutModel == null) {
+            return;
+        }
         const lnode = globalStore.get(layoutModel.focusedNode);
         if (lnode == null || lnode.data?.blockId == null) {
             return;

@@ -80,6 +80,7 @@ function detectWebGLSupport(): boolean {
     try {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("webgl2");
+        ctx?.getExtension("WEBGL_lose_context")?.loseContext();
         return !!ctx;
     } catch (e) {
         return false;
@@ -88,6 +89,8 @@ function detectWebGLSupport(): boolean {
 
 export const WebGLSupported = detectWebGLSupport();
 let loggedWebGL = false;
+const WebGLTerminals = new Set<TermWrap>();
+const WebGLContextBudget = 12;
 
 // The shell reports the prompt cursor as a character (code-point) offset; convert
 // it to a JS string index (UTF-16 code units) so multibyte input maps correctly.
@@ -153,6 +156,10 @@ export class TermWrap {
     onSearchResultsDidChange?: (result: { resultIndex: number; resultCount: number }) => void;
     toDispose: TermTypes.IDisposable[] = [];
     webglAddon: WebglAddon | null = null;
+    paneActive = true;
+    pendingResize = false;
+    preferredRenderer: "webgl" | "dom" = "dom";
+    webglReleaseTimer: ReturnType<typeof setTimeout> = null;
     webglContextLossDisposable: TermTypes.IDisposable | null = null;
     webglEnabledAtom: jotai.PrimitiveAtom<boolean>;
     pasteActive: boolean = false;
@@ -463,7 +470,49 @@ export class TermWrap {
         this.terminal.options.scrollback = scrollback;
     }
 
+    setPaneActive(active: boolean) {
+        if (this.disposed || this.paneActive === active) {
+            return;
+        }
+        this.paneActive = active;
+        clearTimeout(this.webglReleaseTimer);
+        if (!active) {
+            this.webglReleaseTimer = setTimeout(() => this.releaseWebGL(), 10000);
+            return;
+        }
+        this.setTermRenderer(this.preferredRenderer);
+        if (this.pendingResize) {
+            this.pendingResize = false;
+            this.handleResize();
+        }
+        this.terminal.refresh(0, this.terminal.rows - 1);
+    }
+
+    releaseWebGL() {
+        this.webglContextLossDisposable?.dispose();
+        this.webglContextLossDisposable = null;
+        if (this.webglAddon == null) {
+            return;
+        }
+        // The addon removes its canvas on disposal without releasing the GPU context.
+        const canvases = this.terminal.element?.querySelectorAll<HTMLCanvasElement>(".xterm-screen canvas") ?? [];
+        const contexts = Array.from(canvases)
+            .map((canvas) => canvas.getContext("webgl2"))
+            .filter((context) => context != null);
+        this.webglAddon.dispose();
+        this.webglAddon = null;
+        WebGLTerminals.delete(this);
+        for (const context of contexts) {
+            context.getExtension("WEBGL_lose_context")?.loseContext();
+        }
+        globalStore.set(this.webglEnabledAtom, false);
+    }
+
     setTermRenderer(renderer: "webgl" | "dom") {
+        this.preferredRenderer = renderer;
+        if (this.disposed || (!this.paneActive && renderer === "webgl")) {
+            return;
+        }
         if (renderer === "webgl") {
             if (this.webglAddon != null) {
                 return;
@@ -477,19 +526,25 @@ export class TermWrap {
             }
         }
         if (this.webglAddon != null) {
-            this.webglContextLossDisposable?.dispose();
-            this.webglContextLossDisposable = null;
-            this.webglAddon.dispose();
-            this.webglAddon = null;
-            globalStore.set(this.webglEnabledAtom, false);
+            this.releaseWebGL();
         }
         if (renderer === "webgl") {
+            // Chromium otherwise force-loses the oldest context, which can belong to a visible terminal.
+            for (const term of WebGLTerminals) {
+                if (WebGLTerminals.size < WebGLContextBudget) {
+                    break;
+                }
+                if (!term.paneActive || term.connectElem.closest("[inert]") != null) {
+                    term.releaseWebGL();
+                }
+            }
             const addon = new WebglAddon();
             this.webglContextLossDisposable = addon.onContextLoss(() => {
                 this.setTermRenderer("dom");
             });
             this.terminal.loadAddon(addon);
             this.webglAddon = addon;
+            WebGLTerminals.add(this);
             globalStore.set(this.webglEnabledAtom, true);
             if (!loggedWebGL) {
                 console.log("loaded webgl!");
@@ -614,6 +669,8 @@ export class TermWrap {
     }
 
     dispose() {
+        clearTimeout(this.webglReleaseTimer);
+        this.releaseWebGL();
         this.disposed = true;
         this.loaded = false;
         if (this.cacheTimer != null) {
@@ -1043,6 +1100,10 @@ export class TermWrap {
     }
 
     handleResize() {
+        if (!this.paneActive) {
+            this.pendingResize = true;
+            return;
+        }
         const oldRows = this.terminal.rows;
         const oldCols = this.terminal.cols;
         this.fitAddon.fit();

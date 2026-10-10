@@ -27,12 +27,14 @@ import {
     CommandComposerDefaultBinding,
     isCommandComposerEnabled,
 } from "@/app/view/term/command-composer";
+import { TermViewModel } from "@/app/view/term/term-model";
 import { NavigateDirection } from "@/layout/index";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import * as keyutil from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { setActiveTab } from "./activetab";
 import { menuItemsToCommandPaletteCommands, type CommandPaletteCommand } from "./commandpalette";
 import type { KeybindingActionDef } from "./keybindings";
 import { modalsModel } from "./modalmodel";
@@ -76,7 +78,7 @@ export function keyboardMouseDownHandler(e: MouseEvent) {
 
 function getFocusedBlockInStaticTab(): string {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     return focusedNode?.data?.blockId;
 }
 
@@ -221,7 +223,7 @@ function switchTabAbs(index: number) {
         return;
     }
     const newActiveTabId = tabids[newTabIdx];
-    getApi().setActiveTab(newActiveTabId);
+    setActiveTab(newActiveTabId);
 }
 
 function switchTab(offset: number) {
@@ -241,7 +243,7 @@ function switchTab(offset: number) {
     }
     const newTabIdx = (tabIdx + offset + tabids.length) % tabids.length;
     const newActiveTabId = tabids[newTabIdx];
-    getApi().setActiveTab(newActiveTabId);
+    setActiveTab(newActiveTabId);
 }
 
 function handleCmdI() {
@@ -256,10 +258,10 @@ function globalRefocusWithTimeout(timeoutVal: number) {
 
 function globalRefocus() {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {
         // focus a node
-        layoutModel.focusFirstNode();
+        layoutModel?.focusFirstNode();
         return;
     }
     const blockId = focusedNode?.data?.blockId;
@@ -288,7 +290,7 @@ function getDefaultNewBlockDef(): BlockDef {
         },
     };
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode != null) {
         const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", focusedNode.data?.blockId));
         const blockData = globalStore.get(blockAtom);
@@ -311,7 +313,7 @@ async function handleCmdN() {
 
 async function handleSplitHorizontal(position: "before" | "after") {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {
         return;
     }
@@ -321,7 +323,7 @@ async function handleSplitHorizontal(position: "before" | "after") {
 
 async function handleSplitVertical(position: "before" | "after") {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {
         return;
     }
@@ -380,7 +382,7 @@ function appHandleKeyDown(waveEvent: WaveKeyboardEvent): boolean {
     }
     if (isTabWindow()) {
         const layoutModel = getLayoutModelForStaticTab();
-        const focusedNode = globalStore.get(layoutModel.focusedNode);
+        const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
         const blockId = focusedNode?.data?.blockId;
         if (blockId != null && shouldDispatchToBlock(waveEvent)) {
             const bcm = getBlockComponentModel(blockId);
@@ -422,7 +424,11 @@ function countTermBlocks(): number {
     const gsGetBound = globalStore.get.bind(globalStore);
     for (const bcm of allBCMs) {
         const viewModel = bcm.viewModel;
-        if (viewModel.viewType == "term" && viewModel.isBasicTerm?.(gsGetBound)) {
+        if (
+            viewModel.viewType == "term" &&
+            (viewModel as TermViewModel).tabModel.tabId === globalStore.get(atoms.staticTabId) &&
+            viewModel.isBasicTerm?.(gsGetBound)
+        ) {
             count++;
         }
     }
@@ -922,7 +928,7 @@ function registerGlobalKeys() {
             defaultBinding: "Cmd:m",
             handler: () => {
                 const layoutModel = getLayoutModelForStaticTab();
-                const focusedNode = globalStore.get(layoutModel.focusedNode);
+                const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
                 if (focusedNode != null) {
                     const ephemeralNode = globalStore.get(layoutModel.ephemeralNode);
                     if (ephemeralNode?.id === focusedNode.id) {

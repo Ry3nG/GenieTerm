@@ -4,7 +4,7 @@
 import { Tooltip } from "@/app/element/tooltip";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
+import { activeLayoutModelAtom } from "@/layout/lib/layoutModelHooks";
 import { createBlock, WOS } from "@/store/global";
 import { cn, fireAndForget, isBlank, makeIconClass, NullAtom } from "@/util/util";
 import { Atom, useAtomValue } from "jotai";
@@ -253,7 +253,10 @@ function formatRefLabel(ref: string): string {
         .replace(/^tag: refs\/tags\//, "tag: ");
 }
 
-export function fileDiffArgs(file: GitStatusFile, groupId: GitChangeGroupId): { args: string[]; allowExitCodes?: number[] } {
+export function fileDiffArgs(
+    file: GitStatusFile,
+    groupId: GitChangeGroupId
+): { args: string[]; allowExitCodes?: number[] } {
     const baseArgs = ["--no-pager", "diff", "--no-ext-diff", "--unified=8"];
     if (groupId === "staged") {
         return { args: [...baseArgs, "--cached", "--", file.path] };
@@ -887,7 +890,7 @@ interface GitPanelProps {
 }
 
 export function GitPanel({ open, onClose, previewData }: GitPanelProps) {
-    const layoutModel = getLayoutModelForStaticTab();
+    const layoutModel = useAtomValue(activeLayoutModelAtom);
     const focusedNode = useAtomValue(layoutModel?.focusedNode ?? (NullAtom as Atom<any>));
     const focusedBlockId = focusedNode?.data?.blockId ?? "";
     const blockAtom = React.useMemo(() => makeFocusedBlockAtom(focusedBlockId), [focusedBlockId]);

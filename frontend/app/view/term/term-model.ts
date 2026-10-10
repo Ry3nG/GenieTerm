@@ -6,6 +6,7 @@ import { appHandleKeyDown } from "@/app/store/keymodel";
 import { getLocalHomeDir } from "@/app/store/localhome";
 import { modalsModel } from "@/app/store/modalmodel";
 import type { TabModel } from "@/app/store/tab-model";
+import { modelsForTab } from "@/app/store/tabpaneutils";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { makeFeBlockRouteId } from "@/app/store/wshrouter";
@@ -547,7 +548,10 @@ export class TermViewModel implements ViewModel {
     }
 
     multiInputHandler(data: string) {
-        const tvms = getAllBasicTermModels();
+        if (!globalStore.get(this.tabModel.isActiveAtom)) {
+            return;
+        }
+        const tvms = getAllBasicTermModels(this.tabModel.tabId);
         for (const tvm of tvms) {
             if (tvm != this) {
                 tvm.sendDataToController(data);
@@ -1012,6 +1016,9 @@ export class TermViewModel implements ViewModel {
     }
 
     giveFocus(): boolean {
+        if (!globalStore.get(this.tabModel.isActiveAtom)) {
+            return false;
+        }
         if (this.searchAtoms && globalStore.get(this.searchAtoms.isOpen)) {
             console.log("search is open, not giving focus");
             return true;
@@ -1263,7 +1270,7 @@ export class TermViewModel implements ViewModel {
             cols: this.termRef.current?.terminal?.cols,
         };
         await RpcApi.ControllerResyncCommand(TabRpcClient, {
-            tabid: globalStore.get(atoms.staticTabId),
+            tabid: this.tabModel.tabId,
             blockid: this.blockId,
             forcerestart: true,
             rtopts: { termsize: termsize },
@@ -1281,7 +1288,7 @@ export class TermViewModel implements ViewModel {
             cols: this.termRef.current?.terminal?.cols,
         };
         await RpcApi.ControllerResyncCommand(TabRpcClient, {
-            tabid: globalStore.get(atoms.staticTabId),
+            tabid: this.tabModel.tabId,
             blockid: this.blockId,
             forcerestart: true,
             rtopts: { termsize: termsize },
@@ -1315,7 +1322,7 @@ export class TermViewModel implements ViewModel {
             cols: this.termRef.current?.terminal?.cols,
         };
         await RpcApi.ControllerResyncCommand(TabRpcClient, {
-            tabid: globalStore.get(atoms.staticTabId),
+            tabid: this.tabModel.tabId,
             blockid: this.blockId,
             forcerestart: true,
             rtopts: { termsize: termsize },
@@ -1854,7 +1861,7 @@ export class TermViewModel implements ViewModel {
     }
 }
 
-export function getAllBasicTermModels(): TermViewModel[] {
+export function getAllBasicTermModels(tabId: string): TermViewModel[] {
     const termModels: TermViewModel[] = [];
     const bcms = getAllBlockComponentModels();
     for (const bcm of bcms) {
@@ -1865,5 +1872,5 @@ export function getAllBasicTermModels(): TermViewModel[] {
             }
         }
     }
-    return termModels;
+    return modelsForTab(termModels, tabId);
 }

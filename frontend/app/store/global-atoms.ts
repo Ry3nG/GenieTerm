@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { activeTabIdAtom } from "./activetab";
 import { globalStore } from "./jotaiStore";
 import { setWaveWindowType } from "./windowtype";
 import * as WOS from "./wos";
@@ -12,12 +13,13 @@ const ConnStatusMapAtom = atom(new Map<string, PrimitiveAtom<ConnStatus>>());
 const orefAtomCache = new Map<string, Map<string, Atom<any>>>();
 
 function initGlobalAtoms(initOpts: GlobalInitOptions) {
+    globalStore.set(activeTabIdAtom, initOpts.tabId);
     const windowIdAtom = atom(initOpts.windowId) as PrimitiveAtom<string>;
     setWaveWindowType(initOpts.isPreview ? "preview" : "tab");
     const uiContextAtom = atom((get) => {
         const uiContext: UIContext = {
             windowid: initOpts.windowId,
-            activetabid: initOpts.tabId,
+            activetabid: get(activeTabIdAtom),
         };
         return uiContext;
     }) as Atom<UIContext>;
@@ -61,7 +63,8 @@ function initGlobalAtoms(initOpts: GlobalInitOptions) {
         return fullConfig?.configerrors != null && fullConfig.configerrors.length > 0;
     }) as Atom<boolean>;
     // this is *the* tab that this tabview represents.  it should never change.
-    const staticTabIdAtom: Atom<string> = atom(initOpts.tabId);
+    // In single-view windows this compatibility alias follows the active pane.
+    const staticTabIdAtom: Atom<string> = atom((get) => get(activeTabIdAtom));
     const controlShiftDelayAtom = atom(false);
     const updaterStatusAtom = atom<UpdaterStatus>("up-to-date") as PrimitiveAtom<UpdaterStatus>;
     try {

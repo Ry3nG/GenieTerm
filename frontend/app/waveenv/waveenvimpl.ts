@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { setActiveTab } from "@/app/store/activetab";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import {
     atoms,
@@ -23,7 +24,7 @@ import { isMacOS, isWindows, PLATFORM } from "@/util/platformutil";
 export function makeWaveEnvImpl(): WaveEnv {
     return {
         isMock: false,
-        electron: (window as any).api,
+        electron: { ...(window as any).api, setActiveTab },
         rpc: RpcApi,
         getSettingsKeyAtom,
         platform: PLATFORM,

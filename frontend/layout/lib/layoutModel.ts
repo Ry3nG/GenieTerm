@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { FocusManager } from "@/app/store/focusManager";
@@ -86,6 +86,7 @@ export class LayoutModel {
      * Reference to the tab atom for accessing WaveObject
      */
     private tabAtom: Atom<Tab>;
+    backendInitialized = false;
     /**
      * WaveObject atom for persistence
      */
@@ -356,6 +357,7 @@ export class LayoutModel {
 
     private initializeFromWaveObject() {
         const waveObjState = this.getter(this.waveObjectAtom);
+        this.backendInitialized = waveObjState != null;
 
         const initialState: LayoutTreeState = {
             rootNode: waveObjState?.rootnode,
@@ -377,6 +379,10 @@ export class LayoutModel {
     }
 
     onBackendUpdate() {
+        if (!this.backendInitialized) {
+            this.initializeFromWaveObject();
+            return;
+        }
         const waveObj = this.getter(this.waveObjectAtom);
         const pendingActions = waveObj?.pendingbackendactions;
         if (pendingActions?.length) {
@@ -823,9 +829,8 @@ export class LayoutModel {
             return resizeAction?.resizeOperations.find((op) => op.nodeId === node.id)?.size ?? node.size;
         }
 
-        const additionalProps: LayoutNodeAdditionalProps = node.id in additionalPropsMap
-            ? additionalPropsMap[node.id]
-            : { treeKey: "0" };
+        const additionalProps: LayoutNodeAdditionalProps =
+            node.id in additionalPropsMap ? additionalPropsMap[node.id] : { treeKey: "0" };
 
         const nodeRect: Dimensions = node.id === this.treeState.rootNode.id ? boundingRect : additionalProps.rect;
         const nodeIsRow = node.flexDirection === FlexDirection.Row;
@@ -1482,6 +1487,17 @@ export class LayoutModel {
         const ephemeralNode = this.getter(this.ephemeralNode);
         if (ephemeralNode?.data.blockId === blockId) {
             return ephemeralNode;
+        }
+        const nodes = [this.treeState.rootNode];
+        while (nodes.length > 0) {
+            const node = nodes.pop();
+            if (node == null) {
+                continue;
+            }
+            if (node.data?.blockId === blockId) {
+                return node;
+            }
+            nodes.push(...(node.children ?? []));
         }
         return null;
     }

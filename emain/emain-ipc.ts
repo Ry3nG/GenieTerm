@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as electron from "electron";
@@ -681,6 +681,10 @@ export function initIpcHandlers() {
                 }
             } else if (status === "wave-ready") {
                 tabView.waveReadyResolve();
+                const ww = getWaveWindowByWebContentsId(event.sender.id);
+                if (ww != null) {
+                    tabView.webContents.send("fullscreen-change", ww.isFullScreen());
+                }
             }
             return;
         }
