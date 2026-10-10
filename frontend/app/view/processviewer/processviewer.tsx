@@ -33,6 +33,22 @@ type SortCol = "pid" | "command" | "user" | "cpu" | "mem" | "status" | "threads"
 
 const RowHeight = 24;
 const OverscanRows = 100;
+const KeepAliveIntervalMs = 10000;
+
+function isDocumentHidden(): boolean {
+    return typeof document !== "undefined" && document.hidden;
+}
+
+function useDocumentVisible(): boolean {
+    const [visible, setVisible] = React.useState(() => !isDocumentHidden());
+    React.useEffect(() => {
+        if (typeof document === "undefined") return;
+        const handler = () => setVisible(!document.hidden);
+        document.addEventListener("visibilitychange", handler);
+        return () => document.removeEventListener("visibilitychange", handler);
+    }, []);
+    return visible;
+}
 
 // ---- format helpers ----
 
@@ -142,9 +158,12 @@ export class ProcessViewerViewModel implements ViewModel {
         this.startPolling();
         if (typeof document !== "undefined") {
             this.visibilityHandler = () => {
-                if (!document.hidden) {
-                    this.triggerRefresh();
+                if (document.hidden) {
+                    this.stopLoop();
+                    this.sendRelease();
+                    return;
                 }
+                this.restartLoop();
             };
             document.addEventListener("visibilitychange", this.visibilityHandler);
         }
@@ -155,7 +174,7 @@ export class ProcessViewerViewModel implements ViewModel {
     }
 
     async doOneFetch(lastPidOrder: boolean, cancelledFn?: () => boolean) {
-        if (this.disposed || (typeof document !== "undefined" && document.hidden)) return;
+        if (this.disposed || isDocumentHidden()) return;
         const epoch = ++this.fetchEpoch;
         const sortBy = globalStore.get(this.sortByAtom);
         const sortDesc = globalStore.get(this.sortDescAtom);
@@ -164,6 +183,7 @@ export class ProcessViewerViewModel implements ViewModel {
         const conn = globalStore.get(this.connection);
         const textSearch = globalStore.get(this.textSearchAtom);
         const connStatus = globalStore.get(this.connStatus);
+        const interval = globalStore.get(this.fetchIntervalAtom);
 
         if (!connStatus?.connected) {
             return;
@@ -184,6 +204,7 @@ export class ProcessViewerViewModel implements ViewModel {
                     limit,
                     textsearch: textSearch || undefined,
                     lastpidorder: lastPidOrder,
+                    interval,
                 },
                 { route }
             );
@@ -221,6 +242,34 @@ export class ProcessViewerViewModel implements ViewModel {
         }
     }
 
+    sendRelease() {
+        const connStatus = globalStore.get(this.connStatus);
+        if (!connStatus?.connected) {
+            return;
+        }
+        const route = makeConnRoute(globalStore.get(this.connection));
+        Promise.resolve(
+            this.env.rpc.RemoteProcessListCommand(TabRpcClient, { widgetid: this.blockId, release: true }, { route })
+        ).catch(() => {});
+    }
+
+    stopLoop() {
+        if (this.cancelPoll) {
+            this.cancelPoll();
+        }
+        this.cancelPoll = null;
+    }
+
+    restartLoop() {
+        this.stopLoop();
+        if (this.disposed || isDocumentHidden()) return;
+        if (globalStore.get(this.pausedAtom)) {
+            this.startKeepAlive();
+        } else {
+            this.startPolling();
+        }
+    }
+
     startPolling() {
         let cancelled = false;
         this.cancelPoll = () => {
@@ -228,7 +277,7 @@ export class ProcessViewerViewModel implements ViewModel {
         };
 
         const poll = async () => {
-            while (!cancelled && !this.disposed) {
+            while (!cancelled && !this.disposed && !isDocumentHidden()) {
                 await this.doOneFetch(false, () => cancelled);
 
                 if (cancelled || this.disposed) break;
@@ -261,13 +310,13 @@ export class ProcessViewerViewModel implements ViewModel {
         };
 
         const keepAliveLoop = async () => {
-            while (!cancelled && !this.disposed) {
+            while (!cancelled && !this.disposed && !isDocumentHidden()) {
                 await this.doKeepAlive();
 
                 if (cancelled || this.disposed) break;
 
                 await new Promise<void>((resolve) => {
-                    const timer = setTimeout(resolve, 10000);
+                    const timer = setTimeout(resolve, KeepAliveIntervalMs);
                     this.cancelPoll = () => {
                         clearTimeout(timer);
                         cancelled = true;
@@ -287,46 +336,26 @@ export class ProcessViewerViewModel implements ViewModel {
     }
 
     triggerRefresh() {
-        if (this.cancelPoll) {
-            this.cancelPoll();
+        if (globalStore.get(this.pausedAtom)) {
+            return;
         }
-        this.cancelPoll = null;
-        if (!globalStore.get(this.pausedAtom)) {
-            this.startPolling();
-        }
+        this.restartLoop();
     }
 
     forceRefreshOnConnectionChange() {
-        if (this.cancelPoll) {
-            this.cancelPoll();
-        }
-        this.cancelPoll = null;
+        this.stopLoop();
         globalStore.set(this.dataAtom, null);
         globalStore.set(this.loadingAtom, true);
         globalStore.set(this.errorAtom, null);
         if (globalStore.get(this.pausedAtom)) {
             this.doOneFetch(false);
-            this.startKeepAlive();
-        } else {
-            this.startPolling();
         }
+        this.restartLoop();
     }
 
     setPaused(paused: boolean) {
         globalStore.set(this.pausedAtom, paused);
-        if (paused) {
-            if (this.cancelPoll) {
-                this.cancelPoll();
-            }
-            this.cancelPoll = null;
-            this.startKeepAlive();
-        } else {
-            if (this.cancelPoll) {
-                this.cancelPoll();
-            }
-            this.cancelPoll = null;
-            this.startPolling();
-        }
+        this.restartLoop();
     }
 
     setTextSearch(text: string) {
@@ -478,10 +507,8 @@ export class ProcessViewerViewModel implements ViewModel {
             document.removeEventListener("visibilitychange", this.visibilityHandler);
             this.visibilityHandler = null;
         }
-        if (this.cancelPoll) {
-            this.cancelPoll();
-            this.cancelPoll = null;
-        }
+        this.stopLoop();
+        this.sendRelease();
     }
 }
 
@@ -528,13 +555,15 @@ const StatusIndicator = React.memo(function StatusIndicator({ model }: { model: 
     const paused = jotai.useAtomValue(model.pausedAtom);
     const error = jotai.useAtomValue(model.errorAtom);
     const lastSuccess = jotai.useAtomValue(model.lastSuccessAtom);
+    const visible = useDocumentVisible();
     const [now, setNow] = React.useState(() => Date.now());
 
     React.useEffect(() => {
-        if (paused) return;
+        if (paused || !visible) return;
+        setNow(Date.now());
         const id = setInterval(() => setNow(Date.now()), 1000);
         return () => clearInterval(id);
-    }, [paused]);
+    }, [paused, visible]);
 
     if (paused) {
         const tooltipContent = (

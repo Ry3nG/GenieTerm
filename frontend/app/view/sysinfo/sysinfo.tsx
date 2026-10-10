@@ -31,6 +31,8 @@ export type SysinfoEnv = WaveEnvSubset<{
 }>;
 
 const DefaultNumPoints = 120;
+// must stay well under the backend's 15s watcher expiry
+const SysInfoWatchRenewMs = 5000;
 
 type DataItem = {
     ts: number;
@@ -381,9 +383,30 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
     React.useEffect(() => {
         const route = makeConnRoute(connName);
         const watch = model.env.rpc.RemoteSysInfoWatchCommand.bind(model.env.rpc);
-        Promise.resolve(watch(TabRpcClient, { active: true }, { route })).catch((err) => {
-            console.log("Error starting sysinfo sampling", err);
-        });
+        const sendWatch = (active: boolean) => {
+            Promise.resolve(watch(TabRpcClient, { watcherid: blockId, active }, { route })).catch((err) => {
+                console.log("Error updating sysinfo sampling", err);
+            });
+        };
+        let renewTimer: ReturnType<typeof setInterval> = null;
+        const stopRenew = () => {
+            if (renewTimer == null) {
+                return;
+            }
+            clearInterval(renewTimer);
+            renewTimer = null;
+        };
+        const syncWatch = () => {
+            stopRenew();
+            if (document.hidden) {
+                sendWatch(false);
+                return;
+            }
+            sendWatch(true);
+            renewTimer = setInterval(() => sendWatch(true), SysInfoWatchRenewMs);
+        };
+        syncWatch();
+        document.addEventListener("visibilitychange", syncWatch);
         const unsubFn = waveEventSubscribeSingle({
             eventType: "sysinfo",
             scope: connName,
@@ -411,11 +434,11 @@ function SysinfoView({ model, blockId }: SysinfoViewProps) {
         console.log("subscribe to sysinfo", connName);
         return () => {
             unsubFn();
-            Promise.resolve(watch(TabRpcClient, { active: false }, { route })).catch((err) => {
-                console.log("Error stopping sysinfo sampling", err);
-            });
+            document.removeEventListener("visibilitychange", syncWatch);
+            stopRenew();
+            sendWatch(false);
         };
-    }, [connName, addContinuousData, model]);
+    }, [connName, addContinuousData, model, blockId]);
     if (connStatus?.status != "connected") {
         return null;
     }

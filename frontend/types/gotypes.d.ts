@@ -496,6 +496,8 @@ declare global {
         textsearch?: string;
         lastpidorder?: boolean;
         keepalive?: boolean;
+        release?: boolean;
+        interval?: number;
     };
 
     // wshrpc.CommandRemoteProcessSignalData
@@ -536,6 +538,7 @@ declare global {
 
     // wshrpc.CommandRemoteSysInfoWatchData
     type CommandRemoteSysInfoWatchData = {
+        watcherid?: string;
         active: boolean;
     };
 

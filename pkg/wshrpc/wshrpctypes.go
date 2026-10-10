@@ -1016,8 +1016,13 @@ type CommandRemoteProcessListData struct {
 	// LastPidOrder, when set, ignores SortBy/SortDesc/TextSearch and returns processes in the order
 	// they were returned in the previous request for this WidgetId (with Gone=true for dead pids).
 	LastPidOrder bool `json:"lastpidorder,omitempty"`
-	// KeepAlive, when set, overrides all other fields and simply keeps the backend cache alive (returns nil).
+	// KeepAlive, when set, overrides all other fields and only keeps this WidgetId's pid order from
+	// expiring (returns nil). It does not keep background sampling running.
 	KeepAlive bool `json:"keepalive,omitempty"`
+	// Release, when set, drops this WidgetId's sampling lease and pid order (returns nil).
+	Release bool `json:"release,omitempty"`
+	// Interval is the widget's refresh interval in ms; the backend samples at the smallest live interval.
+	Interval int `json:"interval,omitempty"`
 }
 
 type CommandRemoteProcessSignalData struct {
@@ -1026,5 +1031,6 @@ type CommandRemoteProcessSignalData struct {
 }
 
 type CommandRemoteSysInfoWatchData struct {
-	Active bool `json:"active"`
+	WatcherId string `json:"watcherid,omitempty"`
+	Active    bool   `json:"active"`
 }

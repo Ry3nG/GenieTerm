@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
@@ -26,26 +26,49 @@ import (
 
 const BYTES_PER_GB = 1073741824
 
-var sysInfoWatchers atomic.Int32
+// watchers re-send active every few seconds, so a renderer that reloads or crashes
+// without sending active:false stops sampling once its lease lapses
+const SysInfoWatchExpiry = 15 * time.Second
+const SysInfoSampleInterval = 1 * time.Second
+const SysInfoIdleCheckInterval = 5 * time.Second
 
-func SetSysInfoWatchActive(active bool) {
-	if active {
-		sysInfoWatchers.Add(1)
+var sysInfoWatchLock sync.Mutex
+var sysInfoWatchers = make(map[string]time.Time)
+var sysInfoWake = make(chan struct{}, 1)
+
+func SetSysInfoWatchActive(watcherId string, active bool) {
+	if !setSysInfoWatcher(watcherId, active) {
 		return
 	}
-	for {
-		current := sysInfoWatchers.Load()
-		if current <= 0 {
-			return
-		}
-		if sysInfoWatchers.CompareAndSwap(current, current-1) {
-			return
-		}
+	select {
+	case sysInfoWake <- struct{}{}:
+	default:
 	}
 }
 
+// returns true if this call added a new watcher
+func setSysInfoWatcher(watcherId string, active bool) bool {
+	sysInfoWatchLock.Lock()
+	defer sysInfoWatchLock.Unlock()
+	if !active {
+		delete(sysInfoWatchers, watcherId)
+		return false
+	}
+	_, existed := sysInfoWatchers[watcherId]
+	sysInfoWatchers[watcherId] = time.Now()
+	return !existed
+}
+
 func sysInfoHasWatchers() bool {
-	return sysInfoWatchers.Load() > 0
+	sysInfoWatchLock.Lock()
+	defer sysInfoWatchLock.Unlock()
+	now := time.Now()
+	for id, lastSeen := range sysInfoWatchers {
+		if now.Sub(lastSeen) >= SysInfoWatchExpiry {
+			delete(sysInfoWatchers, id)
+		}
+	}
+	return len(sysInfoWatchers) > 0
 }
 
 func getCpuData(values map[string]float64) {
@@ -214,14 +237,19 @@ func RunSysInfoLoop(client *wshutil.WshRpc, connName string) {
 	for {
 		if sysInfoHasWatchers() {
 			generateSingleServerData(client, connName, netState)
-			time.Sleep(1 * time.Second)
+			time.Sleep(SysInfoSampleInterval)
 			continue
 		}
-		time.Sleep(5 * time.Second)
+		// a rate computed across an idle gap would be misleading
+		netState.hasPrev = false
+		select {
+		case <-sysInfoWake:
+		case <-time.After(SysInfoIdleCheckInterval):
+		}
 	}
 }
 
 func (impl *ServerImpl) RemoteSysInfoWatchCommand(ctx context.Context, data wshrpc.CommandRemoteSysInfoWatchData) error {
-	SetSysInfoWatchActive(data.Active)
+	SetSysInfoWatchActive(data.WatcherId, data.Active)
 	return nil
 }
