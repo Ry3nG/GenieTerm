@@ -54,9 +54,7 @@ describe("makeFileCompletionProvider", () => {
         const items = await provider.provideCompletions(makeContext({ searchTerm: "src/u" }));
 
         expect(listDirectory).toHaveBeenCalledWith("/repo/src", expect.anything());
-        expect(items).toEqual([
-            { label: "util/", insertText: "src/util/", kind: "folder", score: 900 },
-        ]);
+        expect(items).toEqual([{ label: "util/", insertText: "src/util/", kind: "folder", score: 900 }]);
     });
 
     it("lists absolute directories without prefixing cwd", async () => {
