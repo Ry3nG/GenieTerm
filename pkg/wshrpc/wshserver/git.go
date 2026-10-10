@@ -6,8 +6,6 @@ package wshserver
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -23,8 +21,6 @@ import (
 
 const GitStatusDefaultTimeoutMs = 5000
 const GitStatusMaxTimeoutMs = 15000
-const GitGraphDefaultLimit = 80
-const GitGraphMaxLimit = 200
 
 func (ws *WshServer) GitStatusCommand(ctx context.Context, data wshrpc.CommandGitStatusData) (*wshrpc.GitStatusResponse, error) {
 	timeoutMs := data.TimeoutMs
@@ -43,72 +39,9 @@ func (ws *WshServer) GitStatusCommand(ctx context.Context, data wshrpc.CommandGi
 	return rtn, nil
 }
 
-func (ws *WshServer) GitGraphCommand(ctx context.Context, data wshrpc.CommandGitGraphData) (*wshrpc.GitGraphResponse, error) {
-	timeoutMs := data.TimeoutMs
-	if timeoutMs <= 0 || timeoutMs > GitStatusMaxTimeoutMs {
-		timeoutMs = GitStatusDefaultTimeoutMs
-	}
-	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
-	defer cancel()
-
-	stdout, stderr, exitCode, supported := runGitCommand(runCtx, data.ConnName, data.Cwd, gitGraphArgs(data.Limit))
-	rtn := parseGitGraph(stdout)
-	rtn.Stdout = stdout
-	rtn.Stderr = stderr
-	rtn.ExitCode = exitCode
-	rtn.Supported = supported
-	return rtn, nil
-}
-
-func (ws *WshServer) GitRunCommand(ctx context.Context, data wshrpc.CommandGitRunData) (*wshrpc.GitRunResponse, error) {
-	if len(data.Args) == 0 {
-		return nil, errors.New("git args are required")
-	}
-	timeoutMs := data.TimeoutMs
-	if timeoutMs <= 0 || timeoutMs > GitStatusMaxTimeoutMs {
-		timeoutMs = GitStatusDefaultTimeoutMs
-	}
-	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
-	defer cancel()
-
-	stdout, stderr, exitCode, supported := runGitCommand(runCtx, data.ConnName, data.Cwd, data.Args)
-	return &wshrpc.GitRunResponse{
-		Stdout:    stdout,
-		Stderr:    stderr,
-		ExitCode:  exitCode,
-		Supported: supported,
-	}, nil
-}
-
 func gitStatusArgs() []string {
-	return []string{"-c", "color.status=false", "status", "--porcelain=v1", "-z", "-b", "--untracked-files=all"}
-}
-
-func gitGraphArgs(limit int) []string {
-	limit = normalizeGitGraphLimit(limit)
-	return []string{
-		"-c",
-		"color.ui=false",
-		"--no-pager",
-		"log",
-		"--graph",
-		"--all",
-		"--date-order",
-		"--decorate=short",
-		"--date=short",
-		fmt.Sprintf("--max-count=%d", limit),
-		"--pretty=format:%x1f%H%x1f%h%x1f%P%x1f%D%x1f%an%x1f%ar%x1f%ct%x1f%s",
-	}
-}
-
-func normalizeGitGraphLimit(limit int) int {
-	if limit <= 0 {
-		limit = GitGraphDefaultLimit
-	}
-	if limit > GitGraphMaxLimit {
-		return GitGraphMaxLimit
-	}
-	return limit
+	// --no-optional-locks keeps a background refresh from taking index.lock while the user runs git in a terminal.
+	return []string{"--no-optional-locks", "-c", "color.status=false", "status", "--porcelain=v1", "-z", "-b", "--untracked-files=normal"}
 }
 
 func runGitCommand(ctx context.Context, connName string, cwd string, args []string) (string, string, int, bool) {
@@ -175,7 +108,7 @@ func parseGitStatusPorcelain(stdout string) *wshrpc.GitStatusResponse {
 			continue
 		}
 		if strings.HasPrefix(record, "## ") {
-			rtn.Branch = strings.TrimPrefix(record, "## ")
+			parseGitBranchHeader(rtn, strings.TrimPrefix(record, "## "))
 			continue
 		}
 		if len(record) < 4 {
@@ -195,44 +128,40 @@ func parseGitStatusPorcelain(stdout string) *wshrpc.GitStatusResponse {
 	return rtn
 }
 
-func parseGitGraph(stdout string) *wshrpc.GitGraphResponse {
-	rtn := &wshrpc.GitGraphResponse{Commits: []wshrpc.GitGraphCommit{}}
-	if stdout == "" {
-		return rtn
+// parseGitBranchHeader reads the "## ..." line of `git status --porcelain=v1 -b`:
+// "main...origin/main [ahead 1, behind 2]", "main", "HEAD (no branch)", "No commits yet on main".
+func parseGitBranchHeader(rtn *wshrpc.GitStatusResponse, header string) {
+	if header == "HEAD (no branch)" {
+		rtn.Detached = true
+		return
 	}
-	for _, line := range strings.Split(stdout, "\n") {
-		sepIdx := strings.Index(line, "\x1f")
-		if sepIdx < 0 {
+	for _, prefix := range []string{"No commits yet on ", "Initial commit on "} {
+		if strings.HasPrefix(header, prefix) {
+			rtn.Branch = strings.TrimPrefix(header, prefix)
+			return
+		}
+	}
+	tracking := ""
+	if idx := strings.Index(header, " ["); idx >= 0 && strings.HasSuffix(header, "]") {
+		tracking = header[idx+2 : len(header)-1]
+		header = header[:idx]
+	}
+	branch, upstream, _ := strings.Cut(header, "...")
+	rtn.Branch = branch
+	rtn.Upstream = upstream
+	for _, part := range strings.Split(tracking, ",") {
+		fields := strings.Fields(part)
+		if len(fields) != 2 {
 			continue
 		}
-		fields := strings.Split(line[sepIdx:], "\x1f")
-		if len(fields) < 9 {
+		count, err := strconv.Atoi(fields[1])
+		if err != nil {
 			continue
 		}
-		timestamp, _ := strconv.ParseInt(fields[7], 10, 64)
-		rtn.Commits = append(rtn.Commits, wshrpc.GitGraphCommit{
-			Hash:      fields[1],
-			ShortHash: fields[2],
-			Parents:   strings.Fields(fields[3]),
-			Refs:      parseGitRefs(fields[4]),
-			Subject:   fields[8],
-			Author:    fields[5],
-			RelDate:   fields[6],
-			Timestamp: timestamp,
-			Graph:     strings.TrimRight(line[:sepIdx], " "),
-		})
-	}
-	return rtn
-}
-
-func parseGitRefs(refs string) []string {
-	rtn := []string{}
-	for _, ref := range strings.Split(refs, ",") {
-		ref = strings.TrimSpace(ref)
-		if ref == "" {
-			continue
+		if fields[0] == "ahead" {
+			rtn.Ahead = count
+		} else if fields[0] == "behind" {
+			rtn.Behind = count
 		}
-		rtn = append(rtn, ref)
 	}
-	return rtn
 }

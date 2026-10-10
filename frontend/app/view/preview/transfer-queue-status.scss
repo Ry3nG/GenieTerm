@@ -83,48 +83,50 @@
     .transfer-queue-list {
         display: flex;
         flex-direction: column;
-        gap: 4px;
     }
 
     .transfer-queue-row {
+        --tone-color: var(--accent-color);
         display: grid;
-        grid-template-columns: 16px minmax(0, 1fr) auto;
-        gap: 7px;
-        align-items: start;
+        grid-template-columns: 22px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
         min-width: 0;
-        padding: 5px 6px;
-        border: 1px solid rgb(from var(--main-text-color) r g b / 0.08);
-        border-radius: 5px;
-        background: rgb(from var(--main-bg-color) r g b / 0.38);
+        padding: 7px 6px;
+        border-radius: 6px;
+        transition: background-color 120ms ease;
+
+        & + .transfer-queue-row {
+            box-shadow: 0 -1px 0 rgb(from var(--main-text-color) r g b / 0.06);
+        }
+
+        &:hover {
+            background: rgb(from var(--main-text-color) r g b / 0.04);
+        }
+
+        &[data-tone="success"] {
+            --tone-color: var(--success-color);
+        }
+
+        &[data-tone="danger"] {
+            --tone-color: var(--error-color);
+        }
+
+        &[data-tone="muted"] {
+            --tone-color: var(--secondary-text-color);
+        }
     }
 
     .transfer-queue-row-icon {
-        margin-top: 1px;
-        width: 14px;
-        text-align: center;
-        font-size: 12px;
-        line-height: 14px;
-    }
-
-    .transfer-queue-row[data-tone="active"] .transfer-queue-row-icon,
-    .transfer-queue-row[data-tone="active"] .transfer-queue-row-status {
-        color: var(--accent-color);
-    }
-
-    .transfer-queue-row[data-tone="success"] .transfer-queue-row-icon,
-    .transfer-queue-row[data-tone="success"] .transfer-queue-row-status {
-        color: var(--success-color);
-    }
-
-    .transfer-queue-row[data-tone="danger"] .transfer-queue-row-icon,
-    .transfer-queue-row[data-tone="danger"] .transfer-queue-row-status,
-    .transfer-queue-row-error {
-        color: var(--error-color);
-    }
-
-    .transfer-queue-row[data-tone="muted"] .transfer-queue-row-icon,
-    .transfer-queue-row[data-tone="muted"] .transfer-queue-row-status {
-        color: var(--secondary-text-color);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        font-size: 10px;
+        color: var(--tone-color);
+        background: rgb(from var(--tone-color) r g b / 0.14);
     }
 
     .transfer-queue-row-main {
@@ -139,8 +141,8 @@
         align-items: center;
         gap: 8px;
         min-width: 0;
-        font-size: 11px;
-        line-height: 14px;
+        font-size: 12px;
+        line-height: 16px;
     }
 
     .transfer-queue-row-label {
@@ -155,53 +157,113 @@
     .transfer-queue-row-status {
         flex: 0 0 auto;
         margin-left: auto;
+        padding: 1px 7px;
+        border-radius: 999px;
         font-size: 10px;
-        line-height: 13px;
+        line-height: 14px;
+        font-weight: 500;
         white-space: nowrap;
+        color: var(--tone-color);
+        background: rgb(from var(--tone-color) r g b / 0.12);
     }
 
     .transfer-queue-row-detail,
-    .transfer-queue-row-subdetail,
-    .transfer-queue-row-error,
     .transfer-queue-more {
+        display: flex;
+        gap: 6px;
+        min-width: 0;
+        font-size: 11px;
+        line-height: 14px;
+        color: var(--secondary-text-color);
+    }
+
+    .transfer-queue-row-detail-text {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 11px;
-        line-height: 14px;
     }
 
-    .transfer-queue-row-detail,
-    .transfer-queue-row-subdetail,
-    .transfer-queue-more {
-        color: var(--secondary-text-color);
+    .transfer-queue-row-percent {
+        flex: 0 0 auto;
+        color: var(--main-text-color);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .transfer-queue-row-error {
+        color: var(--error-color);
+    }
+
+    .transfer-queue-row-progress {
+        position: relative;
+        height: 3px;
+        margin-top: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgb(from var(--main-text-color) r g b / 0.08);
+
+        span {
+            position: absolute;
+            inset: 0 auto 0 0;
+            border-radius: inherit;
+            background: var(--accent-color);
+            transition: width 240ms ease;
+        }
+
+        &[data-indeterminate] span {
+            width: 30%;
+            animation: transfer-queue-indeterminate 1.4s ease-in-out infinite;
+        }
     }
 
     .transfer-queue-more {
-        padding: 0 6px;
+        padding: 6px 6px 0;
     }
 
     .transfer-queue-row-actions {
         display: flex;
-        flex-direction: column;
-        gap: 4px;
-        align-items: stretch;
+        gap: 2px;
+        align-items: center;
     }
 
     .transfer-queue-row-action {
-        border: 1px solid rgb(from var(--main-text-color) r g b / 0.12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 6px;
         background: transparent;
-        color: var(--main-text-color);
-        border-radius: 4px;
-        padding: 2px 6px;
-        font-size: 10px;
-        line-height: 13px;
-        white-space: nowrap;
+        color: var(--secondary-text-color);
+        font-size: 11px;
+        transition:
+            background-color 120ms ease,
+            color 120ms ease;
 
-        &:hover {
+        &:hover,
+        &:focus-visible {
+            color: var(--main-text-color);
             background: rgb(from var(--main-text-color) r g b / 0.08);
         }
+    }
+}
+
+@keyframes transfer-queue-indeterminate {
+    0% {
+        left: -30%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .transfer-queue-status .transfer-queue-row-progress[data-indeterminate] span {
+        animation: none;
+        width: 100%;
+        opacity: 0.4;
     }
 }
 

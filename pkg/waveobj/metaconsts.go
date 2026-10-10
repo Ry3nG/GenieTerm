@@ -74,6 +74,9 @@ const (
 
 	MetaKey_SysinfoType = "sysinfo:type"
 
+	MetaKey_HostClear = "host:*"
+	MetaKey_HostTab   = "host:tab"
+
 	MetaKey_TabFlagColor  = "tab:flagcolor"
 	MetaKey_TabBackground = "tab:background"
 
@@ -107,6 +110,7 @@ const (
 	MetaKey_TermConnDebug           = "term:conndebug"
 	MetaKey_TermBellSound           = "term:bellsound"
 	MetaKey_TermBellIndicator       = "term:bellindicator"
+	MetaKey_TermNotifyAfter         = "term:notifyafter"
 	MetaKey_TermOsc52               = "term:osc52"
 	MetaKey_TermDurable             = "term:durable"
 	MetaKey_TermDurablePrompted     = "term:durableprompted"

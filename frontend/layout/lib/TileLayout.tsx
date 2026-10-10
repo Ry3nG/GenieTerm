@@ -30,7 +30,14 @@ import {
 } from "./types";
 import { determineDropDirection } from "./utils";
 
-const tileItemType = "TILE_ITEM";
+const TileItemTypes = new WeakMap<LayoutModel, symbol>();
+
+function getTileItemType(layoutModel: LayoutModel): symbol {
+    if (!TileItemTypes.has(layoutModel)) {
+        TileItemTypes.set(layoutModel, Symbol("TILE_ITEM"));
+    }
+    return TileItemTypes.get(layoutModel);
+}
 
 export interface TileLayoutProps {
     /**
@@ -55,6 +62,7 @@ const DragPreviewHeight = 300;
 
 function TileLayoutComponent({ tabAtom, contents, getCursorPoint }: TileLayoutProps) {
     const layoutModel = useTileLayout(tabAtom, contents);
+    const tileItemType = getTileItemType(layoutModel);
     const overlayTransform = useAtomValue(layoutModel.overlayTransform);
     const setActiveDrag = useSetAtom(layoutModel.activeDrag);
     const setReady = useSetAtom(layoutModel.ready);
@@ -222,6 +230,7 @@ interface DisplayNodeProps {
  */
 const DisplayNode = ({ layoutModel, node }: DisplayNodeProps) => {
     const nodeModel = useNodeModel(layoutModel, node);
+    const tileItemType = getTileItemType(layoutModel);
     const tileNodeRef = useRef<HTMLDivElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
     const addlProps = useAtomValue(nodeModel.additionalProps);
@@ -357,6 +366,7 @@ interface OverlayNodeProps {
  */
 const OverlayNode = memo(({ node, layoutModel }: OverlayNodeProps) => {
     const nodeModel = useNodeModel(layoutModel, node);
+    const tileItemType = getTileItemType(layoutModel);
     const additionalProps = useAtomValue(nodeModel.additionalProps);
     const overlayRef = useRef<HTMLDivElement>(null);
 

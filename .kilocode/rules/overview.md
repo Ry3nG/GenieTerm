@@ -1,154 +1,105 @@
-# Wave Terminal - High Level Architecture Overview
+# GenieTerm - High Level Architecture Overview
 
 ## Project Description
 
-Wave Terminal is an open-source AI-native terminal built for seamless workflows. It's an Electron application that serves as a command line terminal host (it hosts CLI applications rather than running inside a CLI). The application combines a React frontend with a Go backend server to provide a modern terminal experience with advanced features.
+GenieTerm is an open-source, local-first semantic terminal for people who live in SSH. It is a soft fork of Wave Terminal: an Electron app with a React frontend and a Go backend server (`wavesrv`). The product is three things together: command blocks over a single xterm.js runtime, durable local and remote sessions, and remote files in the same workspace. The only AI feature is natural language → a proposed command. Internal names (`Wave*`, `wshrpc`, `WAVETERM_*`, `.waveterm`) are kept on purpose.
+
+See `docs/GENIETERM-ROADMAP.md` for product scope and `docs/leftovers.md` for what was removed from Wave.
 
 ## Top-Level Directory Structure
 
 ```
-waveterm/
-├── emain/              # Electron main process code
+GenieTerm/
+├── emain/              # Electron main process
 ├── frontend/           # React application (renderer process)
-├── cmd/                # Go command-line applications
-├── pkg/                # Go packages/modules
-├── db/                 # Database migrations
-├── docs/               # Documentation (Docusaurus)
-├── build/              # Build configuration and assets
-├── assets/             # Application assets (icons, images)
-├── public/             # Static public assets
-├── tests/              # Test files
-├── .github/            # GitHub workflows and configuration
-└── Configuration files (package.json, tsconfig.json, etc.)
+├── cmd/                # Go binaries (wavesrv, the genie/wsh CLI, code generators)
+├── pkg/                # Go packages
+├── db/                 # SQLite migrations (wstore, filestore)
+├── schema/             # Generated JSON schemas for config files
+├── docs/               # Product docs, release gates, release notes, performance notes
+├── aiprompts/          # Inherited architecture notes for contributors and agents
+├── scripts/            # Release gate, packaging verifiers, preview QA, perf benchmark
+├── build/, assets/, public/  # Packaging resources and static assets
+└── Taskfile.yml, package.json, electron-builder.config.cjs
 ```
 
 ## Architecture Components
 
 ### 1. Electron Main Process (`emain/`)
 
-The Electron main process handles the native desktop application layer:
+- `emain.ts` - entry point and app lifecycle (starts wavesrv, restores windows, updater)
+- `emain-window.ts` - `WaveBrowserWindow`: tabs, tab switching, close confirmations
+- `emain-tabview.ts` - `WaveTabView`: the window's WebContentsView. One renderer per window shows every tab (`frontend/app/tab/tabpanestack.tsx` keeps an LRU of mounted tab panes); `GENIETERM_LEGACY_TABVIEWS=1` restores one view per tab
+- `emain-wavesrv.ts` - launches and supervises the Go backend
+- `emain-ipc.ts`, `preload.ts` - IPC between renderer and main
+- `transfer/` - folder downloads (rsync/scp) and the persisted transfer queue
+- `updater.ts`, `mac-update-installer.ts` - auto-update (the macOS installer swaps the app bundle and relaunches)
 
-**Key Files:**
-
-- [`emain.ts`](emain/emain.ts) - Main entry point, application lifecycle management
-- [`emain-window.ts`](emain/emain-window.ts) - Window management (`WaveBrowserWindow` class)
-- [`emain-tabview.ts`](emain/emain-tabview.ts) - Tab view management (`WaveTabView` class)
-- [`emain-wavesrv.ts`](emain/emain-wavesrv.ts) - Go backend server integration
-- [`emain-wsh.ts`](emain/emain-wsh.ts) - WSH (Wave Shell) client integration
-- [`emain-ipc.ts`](emain/emain-ipc.ts) - IPC handlers for frontend ↔ main process communication
-- [`emain-menu.ts`](emain/emain-menu.ts) - Application menu system
-- [`updater.ts`](emain/updater.ts) - Auto-update functionality
-- [`preload.ts`](emain/preload.ts) - Preload script for renderer security
-- [`preload-webview.ts`](emain/preload-webview.ts) - Webview preload script
-
-### 2. Frontend React Application (`frontend/`)
-
-The React application runs in the Electron renderer process:
-
-**Structure:**
+### 2. Frontend (`frontend/`)
 
 ```
 frontend/
-├── app/                # Main application code
-│   ├── app.tsx         # Root App component
-│   ├── aipanel/        # AI panel UI
-│   ├── block/          # Block-based UI components
+├── app/
+│   ├── block/          # Block frame, header, connection button, block registry
 │   ├── element/        # Reusable UI elements
-│   ├── hook/           # Custom React hooks
-│   ├── modals/         # Modal components
-│   ├── store/          # State management (Jotai)
-│   ├── tab/            # Tab components
-│   ├── view/           # Different view types
-│   │   ├── codeeditor/ # Code editor (Monaco)
-│   │   ├── preview/    # File preview
-│   │   ├── sysinfo/    # System info view
-│   │   ├── term/       # Terminal view
-│   │   ├── tsunami/    # Tsunami builder view
-│   │   ├── vdom/       # Virtual DOM view
-│   │   ├── waveai/     # AI chat integration
-│   │   ├── waveconfig/ # Config editor view
-│   │   └── webview/    # Web view
-│   └── workspace/      # Workspace management
-├── builder/            # Builder app entry
-├── layout/             # Layout system
-├── preview/            # Standalone preview renderer
-├── types/              # TypeScript type definitions
-└── util/               # Utility functions
+│   ├── modals/         # Modals (command palette, connections, settings) - loaded on demand
+│   ├── onboarding/     # First-run onboarding and feature tour
+│   ├── store/          # Jotai state, RPC client, keybindings (keymodel.ts), global atoms
+│   ├── tab/            # Tab bar
+│   ├── view/
+│   │   ├── term/          # Terminal: TermWrap (xterm.js), command blocks, completion, composer
+│   │   ├── preview/       # Files: directory browser, previews, transfers
+│   │   ├── codeeditor/    # Monaco editor (lazy)
+│   │   ├── processviewer/ # Process viewer
+│   │   ├── sysinfo/       # System info charts
+│   │   ├── waveconfig/    # Config editor
+│   │   ├── webview/       # Web view
+│   │   └── vdom/          # VDom widget protocol view
+│   └── workspace/      # Workspace layout, widget rail, git panel
+├── layout/             # Tiling layout system
+├── preview/            # Standalone preview server used by visual/interaction QA
+├── types/              # TypeScript types (gotypes.d.ts is generated)
+└── util/               # Utilities
 ```
 
-**Key Technologies:**
+Startup only loads what the first terminal needs; non-terminal views, modals and heavy libraries (Monaco, Mermaid, Shiki, Plot) are loaded with dynamic `import()` when first used. Keep it that way.
 
-- Electron (desktop application shell)
-- React 19 with TypeScript
-- Jotai for state management
-- Monaco Editor for code editing
-- XTerm.js for terminal emulation
-- Tailwind CSS v4 for styling
-- SCSS for additional styling (deprecated, new components should use Tailwind)
-- Vite / electron-vite for bundling
-- Task (Taskfile.yml) for build and code generation commands
+Technologies: Electron, React 19 + TypeScript, Jotai, xterm.js (WebGL renderer), Monaco, Tailwind CSS v4 (SCSS only in older components), electron-vite, Task.
 
-### 3. Go Backend Server (`cmd/server/`)
+### 3. Go Backend (`cmd/server/`, `pkg/`)
 
-The Go backend server handles all heavy lifting operations:
+Key packages:
 
-**Entry Point:** [`main-server.go`](cmd/server/main-server.go)
+- `wshrpc/`, `wshutil/` - RPC types, server implementation, router
+- `blockcontroller/` - shell controllers, PTY I/O (output is coalesced before it is published)
+- `jobcontroller/`, `jobmanager/`, `streamclient/` - durable sessions: a job manager on the remote host streams PTY output with flow control
+- `remote/` - SSH connections, reconnect, helper install; `remote/fileshare/` - remote file system (wsh, with an SFTP fallback for hosts without the helper)
+- `wslconn/` - WSL connections
+- `filestore/`, `wstore/` - block files (terminal output) and object storage
+- `wconfig/` - configuration; `waveobj/` - core objects and metadata keys
+- `wps/` - pub/sub events; `web/` - HTTP and WebSocket server
+- `aiusechat/` - the natural-language command composer only
+- `telemetry/` - no-op stubs; GenieTerm records and sends no telemetry
 
-### 4. Go Packages (`pkg/`)
+### 4. Command Line Tools (`cmd/`)
 
-The Go codebase is organized into modular packages:
-
-**Key Packages:**
-
-- `wstore/` - Database and storage layer
-- `wconfig/` - Configuration management
-- `wcore/` - Core business logic
-- `wshrpc/` - RPC communication system
-- `wshutil/` - WSH (Wave Shell) utilities
-- `blockcontroller/` - Block execution management
-- `remote/` - Remote connection handling
-- `filestore/` - File storage system
-- `web/` - Web server and WebSocket handling
-- `telemetry/` - Usage analytics and telemetry
-- `waveobj/` - Core data objects
-- `service/` - Service layer
-- `wps/` - Wave PubSub event system
-- `waveai/` - AI functionality
-- `shellexec/` - Shell execution
-- `util/` - Common utilities
-
-### 5. Command Line Tools (`cmd/`)
-
-Key Go command-line utilities:
-
-- `wsh/` - Wave Shell command-line tool
-- `server/` - Main backend server
-- `generatego/` - Code generation
-- `generateschema/` - Schema generation
-- `generatets/` - TypeScript generation
+- `wsh/` - the CLI, shipped as both `genie` and `wsh`
+- `server/` - wavesrv
+- `generatego/`, `generatets/`, `generateschema/` - code generation (`task generate`)
 
 ## Communication Architecture
 
-The core communication system is built around the **WSH RPC (Wave Shell RPC)** system, which provides a unified interface for all inter-process communication: frontend ↔ Go backend, Electron main process ↔ backend, and backend ↔ remote systems (SSH, WSL).
+All inter-process communication goes through WSH RPC (`pkg/wshrpc/`): frontend ↔ wavesrv over WebSocket, Electron main ↔ wavesrv, and wavesrv ↔ remote hosts (SSH, WSL) through the remote helper.
 
-### WSH RPC System (`pkg/wshrpc/`)
+- `pkg/wshrpc/wshrpctypes.go` - source of truth for RPC commands and types
+- `pkg/wshrpc/wshserver/` - server implementations; `pkg/wshrpc/wshremote/` - remote-side implementations
+- `pkg/wshrpc/wshclient/` - generated Go client; `frontend/app/store/wshclientapi.ts` - generated TypeScript client
 
-The WSH RPC system is the backbone of Wave Terminal's communication architecture:
-
-**Key Components:**
-
-- [`wshrpctypes.go`](pkg/wshrpc/wshrpctypes.go) - Core RPC interface and type definitions (source of truth for all RPC commands)
-- [`wshserver/`](pkg/wshrpc/wshserver/) - Server-side RPC implementation
-- [`wshremote/`](pkg/wshrpc/wshremote/) - Remote connection handling
-- [`wshclient.go`](pkg/wshrpc/wshclient.go) - Go client for making RPC calls
-- [`frontend/app/store/wshclientapi.ts`](frontend/app/store/wshclientapi.ts) - Generated TypeScript RPC client
-
-**Routing:** Callers address RPC calls using _routes_ (e.g. a block ID, connection name, or `"waveapp"`) rather than caring about the underlying transport. The RPC layer resolves the route to the correct transport (WebSocket, Unix socket, SSH tunnel, stdio) automatically. This means the same RPC interface works whether the target is local or a remote SSH connection.
+Callers address RPCs by route (a block id, a connection, the main server); the router picks the transport.
 
 ## Development Notes
 
-- **Build commands** - Use `task` (Taskfile.yml) for all build, generate, and packaging commands
-- **Code generation** - Run `task generate` after modifying Go types in `pkg/wshrpc/wshrpctypes.go`, `pkg/wconfig/settingsconfig.go`, or `pkg/waveobj/wtypemeta.go`
-- **Testing** - Vitest for frontend unit tests; standard `go test` for Go packages
-- **Database migrations** - SQL migration files in `db/migrations-wstore/` and `db/migrations-filestore/`
-- **Documentation** - Docusaurus site in `docs/`
+- Use `task` for build, generate and packaging commands; `task v1:gate` is the merge gate
+- Run `task generate` after changing Go types in `pkg/wshrpc/wshrpctypes.go`, `pkg/wconfig/settingsconfig.go` or `pkg/waveobj/wtypemeta.go`
+- Tests: Vitest for TypeScript, `go test` for Go; `scripts/perf-bench.mjs` benchmarks a packaged app
+- Database migrations live in `db/migrations-wstore/` and `db/migrations-filestore/`

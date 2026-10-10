@@ -13,16 +13,13 @@ This gate uses Playwright against the standalone preview server. It is a fast ba
 ## Covered Interactions
 
 - Preview index navigation to and from a named preview.
-- GitPanel changes-to-graph tab switching.
-- GitPanel graph filtering, empty filtered state, and filter reset.
-- GitPanel detached-checkout warning cancellation.
-- GitPanel uncommitted-changes row switching back to changes.
 - Transfer queue keyboard smoke and status visibility.
+- Host: GPU cards render, system listeners fold under Other listeners and expand, Forward & open turns a row into Open with its local address, the Forward a port form validates input, and the Processes tab shows the process list.
 - Files upload drop affordance pointer smoke and file-table visibility.
 
 ## Safety Boundary
 
-The gate intentionally avoids mutating Git actions such as stage, commit, checkout, pull, push, and fetch. Those flows need RPC-level parameter assertions or installed-app tests with disposable repositories before they can be automated safely.
+Port forwarding runs against mocked RPCs here. Real forwarding is covered by the Go integration tests in `pkg/remote/portforward` (a real SSH client against an in-process SSH server) and by the installed-app gate.
 
 ## Failure Conditions
 

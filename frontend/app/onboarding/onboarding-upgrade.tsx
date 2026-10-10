@@ -9,8 +9,9 @@ import {
     isOnboardingCurrent,
     OnboardingGradientBg,
 } from "@/app/onboarding/onboarding-common";
+import { FeatureItem, FeatureRow } from "@/app/onboarding/onboarding-tour";
 import { ClientModel } from "@/app/store/client-model";
-import { globalStore } from "@/app/store/global";
+import { getApi, globalStore } from "@/app/store/global";
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
 import * as WOS from "@/app/store/wos";
@@ -19,27 +20,42 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 
+const ReleaseNotesUrl = "https://github.com/Ry3nG/GenieTerm/releases/tag/v1.0.0";
+
+const UpgradeHighlights: FeatureItem[] = [
+    {
+        icon: "fa-server",
+        title: "Host: GPUs, processes and ports",
+        description: "One view per machine, from this Mac to a GPU box over SSH. Find it on the widget rail.",
+    },
+    {
+        icon: "fa-arrow-right-to-bracket",
+        title: "Port forwarding without ssh -L",
+        description: "Forward & open puts Jupyter, TensorBoard or a dev server on localhost in one click.",
+    },
+    {
+        icon: "fa-bell",
+        title: "Know when it's done",
+        description: "Long commands notify you when they finish while you're looking elsewhere.",
+    },
+    {
+        icon: "fa-location-dot",
+        title: "Knows where you are",
+        description: "Headers show the folder and git branch; click the folder to open it in Files.",
+    },
+    {
+        icon: "fa-feather",
+        title: "Much lighter",
+        description: "Tabs share one renderer per window. Five tabs use under 700 MB instead of 1.2 GB.",
+    },
+];
+
 function UpgradeNotes() {
     return (
-        <div className="flex flex-col gap-4 text-secondary leading-6">
-            <div className="flex items-start gap-3">
-                <i className="fa-solid fa-layer-group text-accent mt-1" />
-                <p>
-                    Commands render as blocks with status, duration, copy, and re-run. Classic xterm stays in Settings.
-                </p>
-            </div>
-            <div className="flex items-start gap-3">
-                <i className="fa-solid fa-shield text-accent mt-1" />
-                <p>Durable SSH sessions survive laptop sleep and app restarts. Look for the shield on a connection.</p>
-            </div>
-            <div className="flex items-start gap-3">
-                <i className="fa-solid fa-folder text-accent mt-1" />
-                <p>
-                    Preview, edit, upload, and download local or remote files. Typed helper is{" "}
-                    <span className="font-mono text-foreground">genie</span>; <span className="font-mono">wsh</span>{" "}
-                    still works.
-                </p>
-            </div>
+        <div className="flex flex-col gap-5">
+            {UpgradeHighlights.map((item) => (
+                <FeatureRow key={item.title} size="lg" {...item} />
+            ))}
         </div>
     );
 }
@@ -92,14 +108,25 @@ const UpgradeOnboardingModal = () => {
             <OnboardingGradientBg />
             <div className="relative z-10 flex flex-col w-full gap-6">
                 <header className="flex flex-col gap-2 items-center unselectable">
-                    <Logo />
-                    <div className="text-[25px] font-normal text-foreground">What's in GenieTerm</div>
+                    <div className="mb-2.5">
+                        <Logo />
+                    </div>
+                    <div className="text-[25px] font-normal text-foreground">GenieTerm 1.0</div>
+                    <div className="text-[14px] text-secondary">What's new since your last update.</div>
                 </header>
                 <UpgradeNotes />
-                <footer className="flex justify-center">
-                    <Button className="font-[600] cursor-pointer" onClick={handleClose}>
-                        Continue
-                    </Button>
+                <footer className="flex flex-col items-center gap-3 unselectable">
+                    <div className="[&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm">
+                        <Button className="font-[600] cursor-pointer" onClick={handleClose}>
+                            Continue
+                        </Button>
+                    </div>
+                    <button
+                        className="cursor-pointer text-[12px] text-muted transition-colors hover:text-foreground"
+                        onClick={() => getApi().openExternal(ReleaseNotesUrl)}
+                    >
+                        Read the release notes
+                    </button>
                 </footer>
             </div>
         </FlexiModal>

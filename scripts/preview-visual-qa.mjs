@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { strict as assert } from "node:assert";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -20,19 +21,12 @@ const CleanupTimeoutMs = 5000;
 
 const PreviewCases = [
   {
-    name: "gitpanel",
-    path: "/?preview=gitpanel",
-    checks: [
-      "SOURCE CONTROL",
-      "Changes",
-      "Graph",
-      "Detached HEAD checkout",
-      "Files Changed",
-      "fatal: not a git repository",
-    ],
+    name: "commandpalette",
+    path: "/?preview=commandpalette",
+    checks: ["Recent", "Terminal", "Split Block Right", "↑↓ navigate · ↵ run · esc close"],
     viewports: [
-      { name: "desktop", width: 1800, height: 1180 },
-      { name: "narrow", width: 960, height: 1100 },
+      { name: "desktop", width: 1180, height: 820 },
+      { name: "narrow", width: 390, height: 740 },
     ],
   },
   {
@@ -54,12 +48,12 @@ const PreviewCases = [
     ],
   },
   {
-    name: "sysinfo",
-    path: "/?preview=sysinfo",
-    checks: ["full sysinfo block", "CPU", "Memory"],
+    name: "host",
+    path: "/?preview=host",
+    checks: ["gpu-01", "Overview", "GPUs", "NVIDIA H100 80GB HBM3", "Load average", "Ports", "tensorboard"],
     viewports: [
-      { name: "desktop", width: 1180, height: 900 },
-      { name: "narrow", width: 760, height: 900 },
+      { name: "desktop", width: 1300, height: 1900 },
+      { name: "narrow", width: 760, height: 1900 },
     ],
   },
   {
@@ -69,6 +63,37 @@ const PreviewCases = [
     viewports: [
       { name: "desktop", width: 1240, height: 900 },
       { name: "narrow", width: 760, height: 900 },
+    ],
+  },
+  {
+    name: "onboarding",
+    path: "/?preview=onboarding",
+    checks: [
+      "Welcome to GenieTerm",
+      "Sessions that outlive the connection",
+      "Every command, kept together",
+      "Remote files, next to your shell",
+      "The machine, not just the shell",
+      "GenieTerm 1.0",
+    ],
+    viewports: [{ name: "desktop", width: 1300, height: 900 }],
+  },
+  {
+    name: "settings",
+    path: "/?preview=waveconfig",
+    checks: ["Appearance", "Terminal font size", "Command presentation", "Durable SSH sessions", "Automatic updates"],
+    viewports: [
+      { name: "desktop", width: 1300, height: 1000 },
+      { name: "narrow", width: 640, height: 1000 },
+    ],
+  },
+  {
+    name: "files-directory",
+    path: "/?preview=files-directory",
+    checks: ["Name", "Last Modified", "TypeScript", "Folder"],
+    viewports: [
+      { name: "desktop", width: 1500, height: 800 },
+      { name: "narrow", width: 760, height: 800 },
     ],
   },
   {
@@ -266,6 +291,65 @@ async function assertNoHorizontalDocumentOverflow(page, caseName, viewportName) 
   throw new Error(`${caseName}/${viewportName} has ${documentOverflow.overflow}px horizontal document overflow`);
 }
 
+async function assertPaletteInteractions(page) {
+  const input = page.getByRole("combobox", { name: "Search commands" });
+  const options = page.getByRole("option");
+  const selected = page.locator('[role="option"][aria-selected="true"]');
+  const assertSelection = async (option) => {
+    assert.equal(await selected.getAttribute("id"), await option.getAttribute("id"));
+    assert.equal(await input.getAttribute("aria-activedescendant"), await option.getAttribute("id"));
+  };
+  await input.press("ArrowUp");
+  await assertSelection(options.last());
+  await input.press("ArrowDown");
+  await assertSelection(options.first());
+  await input.press("Control+n");
+  await assertSelection(options.nth(1));
+  await input.press("Control+p");
+  await assertSelection(options.first());
+  await input.press("End");
+  await assertSelection(options.last());
+  assert(
+    await selected.evaluate((element) => {
+      const row = element.getBoundingClientRect();
+      const list = element.closest('[role="listbox"]').getBoundingClientRect();
+      return row.top >= list.top && row.bottom <= list.bottom + 1;
+    })
+  );
+  await input.press("Home");
+  await assertSelection(options.first());
+  await input.press("Tab");
+  assert(await input.evaluate((element) => element === document.activeElement));
+  await input.fill("ssh");
+  await page.getByRole("group", { name: "Results", exact: true }).waitFor();
+  assert.equal(await page.getByRole("group", { name: "Recent", exact: true }).count(), 0);
+  assert.equal(await options.count(), 3);
+  await input.fill("no-such-command-zzzzz");
+  await page.getByRole("status").filter({ hasText: "No matching commands" }).waitFor();
+  assert.equal(await input.getAttribute("aria-activedescendant"), null);
+  await input.press("Enter");
+  assert.equal(await page.getByRole("dialog").count(), 1);
+  await input.fill("cls");
+  await input.press("Enter");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await page.locator("output").filter({ hasText: "Clear Terminal" }).waitFor();
+  const reopen = page.getByRole("button", { name: "Open command palette" });
+  await reopen.click();
+  assert.match(await selected.innerText(), /Clear Terminal/);
+  await input.fill("copy");
+  assert((await options.first().locator(".font-medium").count()) > 0);
+  await options.last().hover();
+  await assertSelection(options.last());
+  await options.last().click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await reopen.click();
+  await input.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  assert(await reopen.evaluate((element) => element === document.activeElement));
+  await page.keyboard.press("ArrowDown");
+  assert(await reopen.evaluate((element) => element === document.activeElement));
+}
+
 async function runPreviewCase(browser, baseUrl, previewCase) {
   for (const viewport of previewCase.viewports) {
     const page = await browser.newPage({
@@ -319,6 +403,10 @@ async function runPreviewCase(browser, baseUrl, previewCase) {
     await page.screenshot({ path: screenshotPath, fullPage: true });
     assertScreenshotHasContent(screenshotPath);
     log(`captured ${path.relative(RepoRoot, screenshotPath)}`);
+    if (previewCase.name === "commandpalette") {
+      await assertPaletteInteractions(page);
+      assert.deepEqual(consoleErrors, []);
+    }
     await page.close();
   }
 }

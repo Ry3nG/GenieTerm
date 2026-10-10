@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -26,6 +26,7 @@ import {
     NullAtom,
 } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { setActiveTab } from "./activetab";
 import { setupBadgesSubscription } from "./badge";
 import { atoms, blockComponentModelMap, ConnStatusMapAtom, initGlobalAtoms, orefAtomCache } from "./global-atoms";
 import { globalStore } from "./jotaiStore";
@@ -645,10 +646,6 @@ function getConnStatusAtom(conn: string): PrimitiveAtom<ConnStatus> {
 
 function createTab() {
     getApi().createTab();
-}
-
-function setActiveTab(tabId: string) {
-    getApi().setActiveTab(tabId);
 }
 
 // GenieTerm records no telemetry; kept as a no-op so call sites don't send a pointless RPC

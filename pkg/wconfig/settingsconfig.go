@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wconfig
@@ -75,6 +75,7 @@ type SettingsType struct {
 	TermCursorBlink            *bool    `json:"term:cursorblink,omitempty"`
 	TermBellSound              *bool    `json:"term:bellsound,omitempty"`
 	TermBellIndicator          *bool    `json:"term:bellindicator,omitempty"`
+	TermNotifyAfter            *float64 `json:"term:notifyafter,omitempty"`
 	TermOsc52                  string   `json:"term:osc52,omitempty" jsonschema:"enum=focus,enum=always"`
 	TermDurable                *bool    `json:"term:durable,omitempty"`
 	TermShowSplitButtons       bool     `json:"term:showsplitbuttons,omitempty"`

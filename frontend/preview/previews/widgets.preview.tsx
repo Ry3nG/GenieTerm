@@ -21,22 +21,6 @@ const mockWidgets: { [key: string]: WidgetConfigType } = {
         "display:order": 0,
         blockdef: { meta: { view: "term", controller: "shell" } },
     },
-    "defwidget@editor": {
-        icon: "code",
-        color: "#60a5fa",
-        label: "Editor",
-        description: "Open a code editor",
-        "display:order": 1,
-        blockdef: { meta: { view: "codeeditor" } },
-    },
-    "defwidget@web": {
-        icon: "globe",
-        color: "#f472b6",
-        label: "Web",
-        description: "Open a web browser",
-        "display:order": 2,
-        blockdef: { meta: { view: "web", url: "https://waveterm.dev" } },
-    },
     "defwidget@files": {
         icon: "folder",
         color: "#fbbf24",
@@ -45,13 +29,12 @@ const mockWidgets: { [key: string]: WidgetConfigType } = {
         "display:order": 3,
         blockdef: { meta: { view: "preview", connection: "local" } },
     },
-    "defwidget@sysinfo": {
-        icon: "chart-line",
-        color: "#34d399",
-        label: "Sysinfo",
-        description: "Open system info",
+    "defwidget@host": {
+        icon: "server",
+        label: "Host",
+        description: "CPU, memory, GPUs, processes and ports",
         "display:order": 4,
-        blockdef: { meta: { view: "sysinfo" } },
+        blockdef: { meta: { view: "host" } },
     },
 };
 

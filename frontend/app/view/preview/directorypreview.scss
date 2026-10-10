@@ -1,4 +1,4 @@
-// Copyright 2024, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 .dir-table-container {
@@ -7,14 +7,19 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-    --min-row-width: 35rem;
 
     .dir-table {
+        --min-row-width: calc(
+            (
+                    var(--col-logo-size) + var(--col-name-size) + var(--col-modestr-size) + var(--col-modtime-size) +
+                        var(--col-size-size) + var(--col-mimetype-size)
+                ) *
+                1px + 12px
+        );
         flex: 1 1 0;
         min-height: 0;
         height: auto;
         width: 100%;
-        --col-size-size: 0.2rem;
         display: flex;
         flex-direction: column;
 
@@ -41,60 +46,67 @@
             .dir-table-head-row {
                 display: flex;
                 min-width: var(--min-row-width);
-                padding: 4px 6px;
-                font-size: 0.75rem;
+                padding: 0 6px;
+                height: 32px;
+                font-size: 11px;
+                font-weight: 500;
+                color: var(--secondary-text-color);
 
                 .dir-table-head-cell {
+                    position: relative;
                     flex: 0 0 auto;
+                    min-width: 0;
                     user-select: none;
                 }
-                .dir-table-head-cell:not(:first-child) {
-                    position: relative;
+
+                .dir-table-head-cell-content {
                     display: flex;
-                    white-space: nowrap;
+                    align-items: center;
+                    gap: 6px;
+                    height: 100%;
+                    padding: 0 8px;
                     overflow: hidden;
+                    white-space: nowrap;
 
-                    .dir-table-head-cell-content {
-                        padding: 2px 4px;
-                        display: flex;
-                        gap: 0.3rem;
-                        flex: 1 1 auto;
-                        overflow-x: hidden;
-                        letter-spacing: -0.12px;
+                    .dir-table-head-direction {
+                        font-size: 8px;
+                    }
+                }
 
-                        .dir-table-head-direction {
-                            margin-right: 0.2rem;
-                            margin-top: 0.2rem;
-                        }
+                .col-size .dir-table-head-cell-content {
+                    justify-content: flex-end;
+                }
 
-                        .dir-table-head-size {
-                            align-self: flex-end;
-                        }
+                .col-size .dir-table-head-direction {
+                    order: -1;
+                }
+
+                .dir-table-head-resize-box {
+                    position: absolute;
+                    right: -4px;
+                    top: 0;
+                    bottom: 0;
+                    width: 8px;
+                    z-index: 1;
+
+                    &::before {
+                        content: "";
+                        position: absolute;
+                        left: 4px;
+                        top: 9px;
+                        bottom: 9px;
+                        width: 1px;
+                        background-color: var(--border-color);
+                        pointer-events: none;
                     }
 
-                    .dir-table-head-resize-box {
-                        width: 12px;
-                        display: flex;
-                        justify-content: center;
-                        flex: 0 0 auto;
-                        position: relative;
-                        &::before {
-                            content: "";
-                            position: absolute;
-                            left: 50%;
-                            top: 10%;
-                            height: 80%;
-                            width: 1px;
-                            background-color: var(--border-color);
-                            pointer-events: none;
-                        }
-                        .dir-table-head-resize {
-                            cursor: col-resize;
-                            user-select: none;
-                            -webkit-user-select: none;
-                            touch-action: none;
-                            width: 4px;
-                        }
+                    .dir-table-head-resize {
+                        cursor: col-resize;
+                        user-select: none;
+                        -webkit-user-select: none;
+                        touch-action: none;
+                        width: 100%;
+                        height: 100%;
                     }
                 }
             }
@@ -103,7 +115,8 @@
         .dir-table-body {
             display: flex;
             flex-direction: column;
-            padding: 0 5px 5px 5px;
+            min-width: var(--min-row-width);
+            padding-bottom: 6px;
 
             .dir-table-body-scroll-box {
                 position: relative;
@@ -114,74 +127,44 @@
                 .dir-table-body-row {
                     display: flex;
                     align-items: center;
+                    height: 30px;
                     border-radius: 5px;
                     padding: 0 6px;
                     min-width: var(--min-row-width);
 
-                    &.focused {
-                        background-color: rgb(from var(--accent-color) r g b / 0.5);
-                        color: var(--main-text-color);
-
-                        .dir-table-body-cell {
-                            .dir-table-lastmod,
-                            .dir-table-modestr,
-                            .dir-table-size,
-                            .dir-table-type {
-                                color: var(--main-text-color);
-                            }
-                        }
+                    &.focused,
+                    &:focus-visible {
+                        background-color: rgb(from var(--accent-color) r g b / 0.12);
+                        box-shadow: inset 0 0 0 1px rgb(from var(--accent-color) r g b / 0.5);
                     }
 
-                    &:focus {
-                        background-color: rgb(from var(--accent-color) r g b / 0.5);
-                        color: var(--main-text-color);
-
-                        .dir-table-body-cell {
-                            .dir-table-lastmod,
-                            .dir-table-modestr,
-                            .dir-table-size,
-                            .dir-table-type {
-                                color: var(--main-text-color);
-                            }
-                        }
-                    }
-
-                    &:nth-child(odd):not(.focused):not(:focus) {
-                        background-color: rgba(255, 255, 255, 0.06);
-                    }
-
-                    &:hover:not(:focus):not(.focused) {
-                        background-color: var(--highlight-bg-color);
+                    &:hover:not(:focus-visible):not(.focused) {
+                        background-color: rgb(from var(--main-text-color) r g b / 0.04);
                     }
 
                     .dir-table-body-cell {
                         overflow: hidden;
                         white-space: nowrap;
-                        padding: 0.25rem;
-                        cursor: default;
+                        text-overflow: ellipsis;
+                        padding: 0 8px;
                         font-size: 12px;
+                        line-height: 20px;
                         flex: 0 0 auto;
+                        min-width: 0;
+                        color: var(--secondary-text-color);
+                        font-variant-numeric: tabular-nums;
 
                         &.col-size {
                             text-align: right;
                         }
 
-                        .dir-table-lastmod,
-                        .dir-table-modestr,
-                        .dir-table-type {
-                            color: var(--secondary-text-color);
-                            margin-right: 12px;
-                        }
-
-                        .dir-table-modestr,
-                        .dir-table-size,
-                        .dir-table-lastmod {
-                            color: var(--secondary-text-color);
-                            font-family: Hack;
+                        .dir-table-modestr {
+                            font-family: Hack, monospace;
                             font-size: 11px;
                         }
 
                         .dir-table-name {
+                            color: var(--main-text-color);
                             font-weight: 500;
                         }
                     }

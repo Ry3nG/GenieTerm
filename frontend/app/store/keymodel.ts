@@ -27,12 +27,15 @@ import {
     CommandComposerDefaultBinding,
     isCommandComposerEnabled,
 } from "@/app/view/term/command-composer";
+import { TermViewModel } from "@/app/view/term/term-model";
+import { makeWidgetBlockDef } from "@/app/workspace/widgetblockdef";
 import { NavigateDirection } from "@/layout/index";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import * as keyutil from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { setActiveTab } from "./activetab";
 import { menuItemsToCommandPaletteCommands, type CommandPaletteCommand } from "./commandpalette";
 import type { KeybindingActionDef } from "./keybindings";
 import { modalsModel } from "./modalmodel";
@@ -76,7 +79,7 @@ export function keyboardMouseDownHandler(e: MouseEvent) {
 
 function getFocusedBlockInStaticTab(): string {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     return focusedNode?.data?.blockId;
 }
 
@@ -221,7 +224,7 @@ function switchTabAbs(index: number) {
         return;
     }
     const newActiveTabId = tabids[newTabIdx];
-    getApi().setActiveTab(newActiveTabId);
+    setActiveTab(newActiveTabId);
 }
 
 function switchTab(offset: number) {
@@ -241,7 +244,7 @@ function switchTab(offset: number) {
     }
     const newTabIdx = (tabIdx + offset + tabids.length) % tabids.length;
     const newActiveTabId = tabids[newTabIdx];
-    getApi().setActiveTab(newActiveTabId);
+    setActiveTab(newActiveTabId);
 }
 
 function handleCmdI() {
@@ -256,10 +259,10 @@ function globalRefocusWithTimeout(timeoutVal: number) {
 
 function globalRefocus() {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {
         // focus a node
-        layoutModel.focusFirstNode();
+        layoutModel?.focusFirstNode();
         return;
     }
     const blockId = focusedNode?.data?.blockId;
@@ -288,7 +291,7 @@ function getDefaultNewBlockDef(): BlockDef {
         },
     };
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode != null) {
         const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", focusedNode.data?.blockId));
         const blockData = globalStore.get(blockAtom);
@@ -311,7 +314,7 @@ async function handleCmdN() {
 
 async function handleSplitHorizontal(position: "before" | "after") {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {
         return;
     }
@@ -321,7 +324,7 @@ async function handleSplitHorizontal(position: "before" | "after") {
 
 async function handleSplitVertical(position: "before" | "after") {
     const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
+    const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {
         return;
     }
@@ -380,7 +383,7 @@ function appHandleKeyDown(waveEvent: WaveKeyboardEvent): boolean {
     }
     if (isTabWindow()) {
         const layoutModel = getLayoutModelForStaticTab();
-        const focusedNode = globalStore.get(layoutModel.focusedNode);
+        const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
         const blockId = focusedNode?.data?.blockId;
         if (blockId != null && shouldDispatchToBlock(waveEvent)) {
             const bcm = getBlockComponentModel(blockId);
@@ -422,7 +425,11 @@ function countTermBlocks(): number {
     const gsGetBound = globalStore.get.bind(globalStore);
     for (const bcm of allBCMs) {
         const viewModel = bcm.viewModel;
-        if (viewModel.viewType == "term" && viewModel.isBasicTerm?.(gsGetBound)) {
+        if (
+            viewModel.viewType == "term" &&
+            (viewModel as TermViewModel).tabModel.tabId === globalStore.get(atoms.staticTabId) &&
+            viewModel.isBasicTerm?.(gsGetBound)
+        ) {
             count++;
         }
     }
@@ -572,6 +579,12 @@ function getFocusedBlockMenuCommands(): CommandPaletteCommand[] {
     if (vm == null) {
         return [];
     }
+    const terminalCommands: CommandPaletteCommand[] = [];
+    if (vm.viewType === "term") {
+        terminalCommands.push(
+            makePaletteCommand("term:clear", "Clear Terminal", () => vm.termRef.current?.clearTerminal(), "Cmd:k")
+        );
+    }
     let menuItems: ContextMenuItem[] = null;
     if (typeof vm.getCommandPaletteItems === "function") {
         menuItems = vm.getCommandPaletteItems();
@@ -581,10 +594,13 @@ function getFocusedBlockMenuCommands(): CommandPaletteCommand[] {
         menuItems = vm.getSettingsMenuItems();
     }
     if (!menuItems?.length) {
-        return [];
+        return terminalCommands;
     }
     const viewLabel = vm.viewType === "term" ? "Terminal" : "Block";
-    return menuItemsToCommandPaletteCommands(`block:${blockId}`, menuItems, { prefix: viewLabel });
+    return [
+        ...terminalCommands,
+        ...menuItemsToCommandPaletteCommands(`block:${blockId}`, menuItems, { prefix: viewLabel }),
+    ];
 }
 
 function getCurrentTabCommands(): CommandPaletteCommand[] {
@@ -644,7 +660,7 @@ function toggleWidgetsBar() {
         return;
     }
     const oref = WOS.makeORef("workspace", workspaceId);
-    const current = globalStore.get(getOrefMetaKeyAtom(oref, "layout:widgetsvisible")) ?? false;
+    const current = globalStore.get(getOrefMetaKeyAtom(oref, "layout:widgetsvisible")) ?? true;
     fireAndForget(() => RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: { "layout:widgetsvisible": !current } }));
 }
 
@@ -683,22 +699,30 @@ function getAppCommands(): CommandPaletteCommand[] {
     ];
 }
 
+function openOnFocusedConnection(meta: MetaType) {
+    const blockId = getFocusedBlockInStaticTab();
+    const focusedMeta =
+        blockId == null ? null : globalStore.get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)))?.meta;
+    fireAndForget(() => createBlock(makeWidgetBlockDef({ meta }, focusedMeta)));
+}
+
 function getNewBlockCommands(): CommandPaletteCommand[] {
     return [
         makePaletteCommand("block:new-terminal", "New Terminal", () =>
             fireAndForget(() => createBlock({ meta: { view: "term", controller: "shell" } }))
         ),
-        makePaletteCommand("block:new-files", "New Files", () =>
-            fireAndForget(() => createBlock({ meta: { view: "preview", file: "~" } }))
+        makePaletteCommand("block:new-files", "Open Files", () =>
+            openOnFocusedConnection({ view: "preview", file: "~" })
+        ),
+        makePaletteCommand("block:new-host", "Open Host", () => openOnFocusedConnection({ view: "host" })),
+        makePaletteCommand("block:new-host-processes", "Host: Processes", () =>
+            openOnFocusedConnection({ view: "host", "host:tab": "processes" })
+        ),
+        makePaletteCommand("block:new-host-ports", "Host: Ports and Forwarding", () =>
+            openOnFocusedConnection({ view: "host", "host:tab": "ports" })
         ),
         makePaletteCommand("block:new-web", "New Web", () =>
             fireAndForget(() => createBlock({ meta: { view: "web" } }))
-        ),
-        makePaletteCommand("block:new-sysinfo", "New System Info", () =>
-            fireAndForget(() => createBlock({ meta: { view: "sysinfo" } }))
-        ),
-        makePaletteCommand("block:new-processes", "New Processes", () =>
-            fireAndForget(() => createBlock({ meta: { view: "processviewer" } }))
         ),
     ];
 }
@@ -913,7 +937,7 @@ function registerGlobalKeys() {
             defaultBinding: "Cmd:m",
             handler: () => {
                 const layoutModel = getLayoutModelForStaticTab();
-                const focusedNode = globalStore.get(layoutModel.focusedNode);
+                const focusedNode = layoutModel == null ? null : globalStore.get(layoutModel.focusedNode);
                 if (focusedNode != null) {
                     const ephemeralNode = globalStore.get(layoutModel.ephemeralNode);
                     if (ephemeralNode?.id === focusedNode.id) {

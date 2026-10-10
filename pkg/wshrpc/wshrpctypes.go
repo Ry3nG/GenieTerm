@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // types and methods for wsh rpc calls
@@ -88,8 +88,9 @@ type WshRpcInterface interface {
 	DisposeSuggestionsCommand(ctx context.Context, widgetId string) error
 	RunCompletionGenCommand(ctx context.Context, data CommandRunCompletionGenData) (CommandRunCompletionGenRtnData, error)
 	GitStatusCommand(ctx context.Context, data CommandGitStatusData) (*GitStatusResponse, error)
-	GitGraphCommand(ctx context.Context, data CommandGitGraphData) (*GitGraphResponse, error)
-	GitRunCommand(ctx context.Context, data CommandGitRunData) (*GitRunResponse, error)
+	PortForwardStartCommand(ctx context.Context, data CommandPortForwardStartData) (*PortForwardInfo, error)
+	PortForwardStopCommand(ctx context.Context, data CommandPortForwardStopData) error
+	PortForwardListCommand(ctx context.Context, data CommandPortForwardListData) ([]PortForwardInfo, error)
 	UpdateTabNameCommand(ctx context.Context, tabId string, newName string) error
 	UpdateWorkspaceTabIdsCommand(ctx context.Context, workspaceId string, tabIds []string) error
 	GetAllBadgesCommand(ctx context.Context) ([]baseds.BadgeEvent, error)
@@ -124,6 +125,8 @@ type WshRpcInterface interface {
 	RemoteProcessListCommand(ctx context.Context, data CommandRemoteProcessListData) (*ProcessListResponse, error)
 	RemoteProcessSignalCommand(ctx context.Context, data CommandRemoteProcessSignalData) error
 	RemoteSysInfoWatchCommand(ctx context.Context, data CommandRemoteSysInfoWatchData) error
+	RemoteHostInfoCommand(ctx context.Context) (*HostInfo, error)
+	RemoteListeningPortsCommand(ctx context.Context) (*ListeningPortsResponse, error)
 
 	// emain
 	WebSelectorCommand(ctx context.Context, data CommandWebSelectorData) ([]string, error)
@@ -368,10 +371,66 @@ type DiskUsageData struct {
 	Percent float64 `json:"percent"`
 }
 
+// TimeSeriesData is one sysinfo sample. Values keys: cpu, cpu:<n>, mem:total|available|used|free (GB),
+// swap:total|used (GB), load:1|5|15, net:up|down (bytes/s).
 type TimeSeriesData struct {
 	Ts     int64              `json:"ts"`
 	Values map[string]float64 `json:"values"`
 	Disks  []DiskUsageData    `json:"disks,omitempty"`
+	Gpus   []GpuData          `json:"gpus,omitempty"`
+}
+
+// GpuData fields are -1 when the driver does not report them.
+type GpuData struct {
+	Index      int              `json:"index"`
+	Name       string           `json:"name"`
+	Util       float64          `json:"util"`       // percent
+	MemUsed    float64          `json:"memused"`    // bytes
+	MemTotal   float64          `json:"memtotal"`   // bytes
+	Temp       float64          `json:"temp"`       // celsius
+	Power      float64          `json:"power"`      // watts
+	PowerLimit float64          `json:"powerlimit"` // watts
+	MemUtil    float64          `json:"memutil"`    // percent of time the memory controller was busy
+	Fan        float64          `json:"fan"`        // percent; -1 for passively cooled cards
+	ClockSm    float64          `json:"clocksm"`    // MHz
+	ClockSmMax float64          `json:"clocksmmax"` // MHz
+	ClockMem   float64          `json:"clockmem"`   // MHz
+	Pstate     string           `json:"pstate,omitempty"`
+	Processes  []GpuProcessInfo `json:"processes,omitempty"`
+}
+
+type GpuProcessInfo struct {
+	Pid     int32   `json:"pid"`
+	Command string  `json:"command,omitempty"`
+	User    string  `json:"user,omitempty"`
+	MemUsed float64 `json:"memused"` // bytes
+}
+
+type HostInfo struct {
+	Hostname    string `json:"hostname"`
+	Os          string `json:"os"`     // e.g. "Ubuntu 22.04.4 LTS", "macOS 15.1"
+	Kernel      string `json:"kernel"` // e.g. "6.5.0-41-generic", "Darwin 24.1.0"
+	Arch        string `json:"arch"`
+	CpuModel    string `json:"cpumodel,omitempty"`
+	NumCpu      int    `json:"numcpu"`
+	MemTotal    uint64 `json:"memtotal"` // bytes
+	BootTime    int64  `json:"boottime"` // unix seconds
+	GpuDriver   string `json:"gpudriver,omitempty"`
+	CudaVersion string `json:"cudaversion,omitempty"`
+}
+
+type ListeningPort struct {
+	Port    int    `json:"port"`
+	Address string `json:"address"` // bind address: 127.0.0.1, 0.0.0.0, ::, ::1, or a specific interface
+	Pid     int32  `json:"pid,omitempty"`
+	Command string `json:"command,omitempty"`
+	User    string `json:"user,omitempty"`
+}
+
+type ListeningPortsResponse struct {
+	Ports    []ListeningPort `json:"ports"`
+	Platform string          `json:"platform"`
+	Partial  bool            `json:"partial,omitempty"` // owners of some sockets could not be read
 }
 
 type MetaSettingsType struct {
@@ -439,9 +498,11 @@ type BlockInfoData struct {
 }
 
 type WaveNotificationOptions struct {
-	Title  string `json:"title,omitempty"`
-	Body   string `json:"body,omitempty"`
-	Silent bool   `json:"silent,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Body    string `json:"body,omitempty"`
+	Silent  bool   `json:"silent,omitempty"`
+	TabId   string `json:"tabid,omitempty"`
+	BlockId string `json:"blockid,omitempty"`
 }
 
 type VDomUrlRequestData struct {
@@ -602,6 +663,10 @@ type GitStatusFile struct {
 
 type GitStatusResponse struct {
 	Branch    string          `json:"branch,omitempty"`
+	Upstream  string          `json:"upstream,omitempty"`
+	Ahead     int             `json:"ahead,omitempty"`
+	Behind    int             `json:"behind,omitempty"`
+	Detached  bool            `json:"detached,omitempty"`
 	Files     []GitStatusFile `json:"files"`
 	Stdout    string          `json:"stdout,omitempty"`
 	Stderr    string          `json:"stderr,omitempty"`
@@ -609,45 +674,37 @@ type GitStatusResponse struct {
 	Supported bool            `json:"supported"`
 }
 
-type CommandGitGraphData struct {
-	ConnName  string `json:"connname,omitempty"`
-	Cwd       string `json:"cwd,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
-	TimeoutMs int    `json:"timeoutms,omitempty"`
+const (
+	PortForwardStatus_Active  = "active"
+	PortForwardStatus_Waiting = "waiting"
+	PortForwardStatus_Error   = "error"
+)
+
+type CommandPortForwardStartData struct {
+	ConnName   string `json:"connname"`
+	RemoteHost string `json:"remotehost,omitempty"` // host as seen from the remote machine; default 127.0.0.1
+	RemotePort int    `json:"remoteport"`
+	LocalPort  int    `json:"localport,omitempty"` // 0 = RemotePort when free on this machine, otherwise any free port
 }
 
-type GitGraphCommit struct {
-	Hash      string   `json:"hash"`
-	ShortHash string   `json:"shorthash"`
-	Parents   []string `json:"parents"`
-	Refs      []string `json:"refs"`
-	Subject   string   `json:"subject"`
-	Author    string   `json:"author"`
-	RelDate   string   `json:"reldate"`
-	Timestamp int64    `json:"timestamp"`
-	Graph     string   `json:"graph"`
+type CommandPortForwardStopData struct {
+	Id string `json:"id"`
 }
 
-type GitGraphResponse struct {
-	Commits   []GitGraphCommit `json:"commits"`
-	Stdout    string           `json:"stdout,omitempty"`
-	Stderr    string           `json:"stderr,omitempty"`
-	ExitCode  int              `json:"exitcode"`
-	Supported bool             `json:"supported"`
+type CommandPortForwardListData struct {
+	ConnName string `json:"connname,omitempty"` // empty = all connections
 }
 
-type CommandGitRunData struct {
-	ConnName  string   `json:"connname,omitempty"`
-	Cwd       string   `json:"cwd,omitempty"`
-	Args      []string `json:"args"`
-	TimeoutMs int      `json:"timeoutms,omitempty"`
-}
-
-type GitRunResponse struct {
-	Stdout    string `json:"stdout,omitempty"`
-	Stderr    string `json:"stderr,omitempty"`
-	ExitCode  int    `json:"exitcode"`
-	Supported bool   `json:"supported"`
+type PortForwardInfo struct {
+	Id          string `json:"id"`
+	ConnName    string `json:"connname"`
+	RemoteHost  string `json:"remotehost"`
+	RemotePort  int    `json:"remoteport"`
+	LocalPort   int    `json:"localport"`
+	Status      string `json:"status"` // PortForwardStatus_*
+	Error       string `json:"error,omitempty"`
+	ActiveConns int    `json:"activeconns"`
+	CreatedTs   int64  `json:"createdts"`
 }
 
 type SuggestionType struct {

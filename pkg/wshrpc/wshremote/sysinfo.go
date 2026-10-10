@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wshremote
@@ -14,12 +14,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/shirou/gopsutil/v4/common"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
 	gopsnet "github.com/shirou/gopsutil/v4/net"
 )
@@ -99,6 +102,22 @@ func getMemData(values map[string]float64) {
 	values["mem:free"] = float64(memData.Free) / BYTES_PER_GB
 }
 
+func getSwapLoadData(values map[string]float64) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if swap, err := mem.SwapMemoryWithContext(ctx); err == nil {
+		values["swap:total"] = float64(swap.Total) / BYTES_PER_GB
+		values["swap:used"] = float64(swap.Used) / BYTES_PER_GB
+	}
+	if runtime.GOOS != "windows" {
+		if avg, err := load.AvgWithContext(ctx); err == nil {
+			values["load:1"] = avg.Load1
+			values["load:5"] = avg.Load5
+			values["load:15"] = avg.Load15
+		}
+	}
+}
+
 // diskRoot returns the mountpoint to report disk usage for, per the OS this
 // code runs on (which is the remote host for SSH connections).
 func diskRoot() string {
@@ -120,13 +139,23 @@ var pseudoFsTypes = map[string]bool{
 	"mqueue": true, "debugfs": true, "tracefs": true, "securityfs": true,
 	"pstore": true, "bpf": true, "configfs": true, "hugetlbfs": true,
 	"binfmt_misc": true, "nsfs": true, "fusectl": true, "fuse.snapfuse": true,
-	"fuse.gvfsd-fuse": true, "fuse.portal": true,
+	"fuse.gvfsd-fuse": true, "fuse.portal": true, "fuse.lxcfs": true,
+	"devpts": true, "rpc_pipefs": true, "nfsd": true, "selinuxfs": true,
 }
+
+// kernel trees that never hold user data, even when a real filesystem is bound into them
+var pseudoMountPrefixes = []string{"/proc/", "/sys/", "/dev/"}
+
+// a hung network mount blocks statfs indefinitely; never let it stall sampling
+const diskStatTimeout = 1500 * time.Millisecond
 
 // isRealDiskPartition keeps only physical-backed filesystems worth showing:
 // drops pseudo filesystems, loop/snap mounts, boot partitions, and macOS
-// synthetic system volumes.
+// synthetic system volumes. A container's overlay root is its disk, so it stays.
 func isRealDiskPartition(p disk.PartitionStat) bool {
+	if p.Mountpoint == "/" {
+		return true
+	}
 	if pseudoFsTypes[strings.ToLower(p.Fstype)] {
 		return false
 	}
@@ -139,33 +168,47 @@ func isRealDiskPartition(p disk.PartitionStat) bool {
 	if strings.HasPrefix(p.Mountpoint, "/System/Volumes/") {
 		return false
 	}
+	for _, prefix := range pseudoMountPrefixes {
+		if strings.HasPrefix(p.Mountpoint, prefix) {
+			return false
+		}
+	}
 	return true
 }
 
-// getDiskData reports usage for every real physical disk. It also keeps the root
-// mount under the disk:* keys for back-compat with clients that read a single disk.
-func getDiskData(values map[string]float64) []wshrpc.DiskUsageData {
-	if usage, err := disk.Usage(diskRoot()); err == nil {
-		values["disk:total"] = float64(usage.Total) / BYTES_PER_GB
-		values["disk:used"] = float64(usage.Used) / BYTES_PER_GB
-		values["disk:free"] = float64(usage.Free) / BYTES_PER_GB
-		values["disk:percent"] = usage.UsedPercent
+func isBindMount(p disk.PartitionStat) bool {
+	for _, opt := range p.Opts {
+		if opt == "bind" {
+			return true
+		}
 	}
-	parts, err := disk.Partitions(false)
-	if err != nil {
-		return nil
-	}
+	return false
+}
+
+// selectDisks lists each filesystem once. All partitions are considered, not just
+// block-device-backed ones, so NFS/FUSE shares and a container's bind-mounted volumes
+// appear; a bind mount only counts when its filesystem isn't listed already, and
+// stat drops file binds such as /etc/hosts.
+func selectDisks(parts []disk.PartitionStat, stat func(mount string) *disk.UsageStat) []wshrpc.DiskUsageData {
+	ordered := make([]disk.PartitionStat, len(parts))
+	copy(ordered, parts)
+	sort.SliceStable(ordered, func(i, j int) bool { return !isBindMount(ordered[i]) && isBindMount(ordered[j]) })
 	var disks []wshrpc.DiskUsageData
-	seen := make(map[string]bool)
-	for _, p := range parts {
-		if !isRealDiskPartition(p) || seen[p.Mountpoint] {
+	seenMount := make(map[string]bool)
+	seenDevice := make(map[string]bool)
+	for _, p := range ordered {
+		if !isRealDiskPartition(p) || seenMount[p.Mountpoint] {
 			continue
 		}
-		usage, err := disk.Usage(p.Mountpoint)
-		if err != nil || usage.Total == 0 {
+		if isBindMount(p) && seenDevice[p.Device] {
 			continue
 		}
-		seen[p.Mountpoint] = true
+		usage := stat(p.Mountpoint)
+		if usage == nil || usage.Total == 0 {
+			continue
+		}
+		seenMount[p.Mountpoint] = true
+		seenDevice[p.Device] = true
 		disks = append(disks, wshrpc.DiskUsageData{
 			Mount:   p.Mountpoint,
 			Total:   float64(usage.Total) / BYTES_PER_GB,
@@ -176,6 +219,74 @@ func getDiskData(values map[string]float64) []wshrpc.DiskUsageData {
 	}
 	sort.Slice(disks, func(i, j int) bool { return disks[i].Mount < disks[j].Mount })
 	return disks
+}
+
+var diskStatLock sync.Mutex
+var diskStatInflight = make(map[string]bool)
+
+func beginDiskStat(mount string) bool {
+	diskStatLock.Lock()
+	defer diskStatLock.Unlock()
+	if diskStatInflight[mount] {
+		return false
+	}
+	diskStatInflight[mount] = true
+	return true
+}
+
+func endDiskStat(mount string) {
+	diskStatLock.Lock()
+	defer diskStatLock.Unlock()
+	delete(diskStatInflight, mount)
+}
+
+// statMountDir returns nil for mounts that aren't directories or don't answer in time.
+// A stuck mount keeps at most one goroutine waiting on it and is skipped until it returns.
+func statMountDir(mount string) *disk.UsageStat {
+	if !beginDiskStat(mount) {
+		return nil
+	}
+	result := make(chan *disk.UsageStat, 1)
+	go func() {
+		defer func() { panichandler.PanicHandler("statMountDir", recover()) }()
+		defer endDiskStat(mount)
+		info, err := os.Stat(mount)
+		if err != nil || !info.IsDir() {
+			result <- nil
+			return
+		}
+		usage, err := disk.Usage(mount)
+		if err != nil {
+			result <- nil
+			return
+		}
+		result <- usage
+	}()
+	select {
+	case usage := <-result:
+		return usage
+	case <-time.After(diskStatTimeout):
+		return nil
+	}
+}
+
+// getDiskData reports usage for every real disk. It also keeps the root
+// mount under the disk:* keys for back-compat with clients that read a single disk.
+func getDiskData(values map[string]float64) []wshrpc.DiskUsageData {
+	if usage := statMountDir(diskRoot()); usage != nil {
+		values["disk:total"] = float64(usage.Total) / BYTES_PER_GB
+		values["disk:used"] = float64(usage.Used) / BYTES_PER_GB
+		values["disk:free"] = float64(usage.Free) / BYTES_PER_GB
+		values["disk:percent"] = usage.UsedPercent
+	}
+	// gopsutil reads PID 1's mounts by default; inside a container or pod PID 1 can live in
+	// another mount namespace, so ask for the mounts this helper (and the user's shell) sees.
+	ctx := context.WithValue(context.Background(), common.EnvKey, common.EnvMap{common.HostProcMountinfo: "/proc/self/mountinfo"})
+	parts, err := disk.PartitionsWithContext(ctx, true)
+	if err != nil {
+		return nil
+	}
+	return selectDisks(parts, statMountDir)
 }
 
 // netSampler tracks the previous cumulative network counters so per-second
@@ -217,9 +328,10 @@ func generateSingleServerData(client *wshutil.WshRpc, connName string, netState 
 	values := make(map[string]float64)
 	getCpuData(values)
 	getMemData(values)
+	getSwapLoadData(values)
 	disks := getDiskData(values)
 	netState.getNetData(values, now)
-	tsData := wshrpc.TimeSeriesData{Ts: now.UnixMilli(), Values: values, Disks: disks}
+	tsData := wshrpc.TimeSeriesData{Ts: now.UnixMilli(), Values: values, Disks: disks, Gpus: gpuCache.latest(time.Now())}
 	event := wps.WaveEvent{
 		Event:   wps.Event_SysInfo,
 		Scopes:  []string{connName},
@@ -230,12 +342,15 @@ func generateSingleServerData(client *wshutil.WshRpc, connName string, netState 
 }
 
 func RunSysInfoLoop(client *wshutil.WshRpc, connName string) {
+	defer gpuCache.setActive(false)
 	defer func() {
 		log.Printf("sysinfo loop ended conn:%s\n", connName)
 	}()
 	netState := &netSampler{}
 	for {
-		if sysInfoHasWatchers() {
+		active := sysInfoHasWatchers()
+		gpuCache.setActive(active)
+		if active {
 			generateSingleServerData(client, connName, netState)
 			time.Sleep(SysInfoSampleInterval)
 			continue

@@ -6,6 +6,7 @@ import { InitPage } from "@/app/onboarding/onboarding";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { DurableSessionPage } from "@/app/onboarding/onboarding-durable";
 import { CommandBlocksPage, FilesPage } from "@/app/onboarding/onboarding-features";
+import { HostPage } from "@/app/onboarding/onboarding-host";
 import { UpgradeNotes } from "@/app/onboarding/onboarding-upgrade";
 
 function OnboardingModalWrapper({ width, children }: { width: string; children: React.ReactNode }) {
@@ -24,14 +25,17 @@ function OnboardingFeaturesV() {
             <OnboardingModalWrapper width="w-[560px]">
                 <InitPage isCompact={false} />
             </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[800px]">
+            <OnboardingModalWrapper width="w-[820px]">
                 <DurableSessionPage onNext={noop} onSkip={noop} onPrev={noop} />
             </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[800px]">
+            <OnboardingModalWrapper width="w-[820px]">
                 <CommandBlocksPage onNext={noop} onSkip={noop} onPrev={noop} />
             </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[800px]">
-                <FilesPage onFinish={noop} onPrev={noop} />
+            <OnboardingModalWrapper width="w-[820px]">
+                <FilesPage onNext={noop} onSkip={noop} onPrev={noop} />
+            </OnboardingModalWrapper>
+            <OnboardingModalWrapper width="w-[820px]">
+                <HostPage onFinish={noop} onPrev={noop} />
             </OnboardingModalWrapper>
         </div>
     );
@@ -42,7 +46,8 @@ function UpgradeNotesV() {
         <OnboardingModalWrapper width="w-[560px]">
             <header className="flex flex-col gap-2 items-center unselectable mb-6">
                 <Logo />
-                <div className="text-[25px] font-normal text-foreground">What's in GenieTerm</div>
+                <div className="text-[25px] font-normal text-foreground">GenieTerm 1.0</div>
+                <div className="text-[14px] text-secondary">What's new since your last update.</div>
             </header>
             <UpgradeNotes />
         </OnboardingModalWrapper>

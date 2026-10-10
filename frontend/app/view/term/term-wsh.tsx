@@ -1,7 +1,7 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { atoms, globalStore } from "@/app/store/global";
+import { globalStore } from "@/app/store/global";
 import { makeORef, splitORef } from "@/app/store/wos";
 import { RpcResponseHelper, WshClient } from "@/app/store/wshclient";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -29,7 +29,7 @@ export class TermWshClient extends WshClient {
             throw new Error("source cannot be blank");
         }
         console.log("vdom-create", source, data);
-        const tabId = globalStore.get(atoms.staticTabId);
+        const tabId = this.model.tabModel.tabId;
         if (data.target?.newblock) {
             const oref = await RpcApi.CreateBlockCommand(this, {
                 tabid: tabId,

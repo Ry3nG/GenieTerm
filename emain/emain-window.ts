@@ -20,7 +20,13 @@ import { getAppIconPath } from "./app-icon";
 import { getGlobalIsQuitting, getGlobalIsRelaunching, setGlobalIsRelaunching } from "./emain-activity";
 import { log } from "./emain-log";
 import { isDev, unamePlatform } from "./emain-platform";
-import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
+import {
+    getOrCreateWebViewForTab,
+    getWaveTabViewByWebContentsId,
+    maxTabCacheCeiling,
+    SingleView,
+    WaveTabView,
+} from "./emain-tabview";
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
 import { updater } from "./updater";
@@ -129,6 +135,7 @@ type WindowActionQueueEntry =
           tabId: string;
           setInBackend: boolean;
           primaryStartupTab?: boolean;
+          fromRenderer?: boolean;
       }
     | {
           op: "createtab";
@@ -173,6 +180,7 @@ export class WaveBrowserWindow extends BaseWindow {
     workspaceId: string;
     allLoadedTabViews: Map<string, WaveTabView>;
     activeTabView: WaveTabView;
+    activeTabId: string;
     private canClose: boolean;
     private deleteAllowed: boolean;
     private actionQueue: WindowActionQueueEntry[];
@@ -404,6 +412,8 @@ export class WaveBrowserWindow extends BaseWindow {
     }
 
     private removeAllChildViews() {
+        this.activeTabView = null;
+        this.activeTabId = null;
         for (const tabView of this.allLoadedTabViews.values()) {
             if (!this.isDestroyed()) {
                 this.contentView.removeChildView(tabView);
@@ -435,7 +445,7 @@ export class WaveBrowserWindow extends BaseWindow {
         await this._queueActionInternal({ op: "switchworkspace", workspaceId });
     }
 
-    async setActiveTab(tabId: string, setInBackend: boolean, primaryStartupTab = false) {
+    async setActiveTab(tabId: string, setInBackend: boolean, primaryStartupTab = false, fromRenderer = false) {
         console.log(
             "setActiveTab",
             tabId,
@@ -444,7 +454,7 @@ export class WaveBrowserWindow extends BaseWindow {
             setInBackend,
             primaryStartupTab ? "(primary startup)" : ""
         );
-        await this._queueActionInternal({ op: "switchtab", tabId, setInBackend, primaryStartupTab });
+        await this._queueActionInternal({ op: "switchtab", tabId, setInBackend, primaryStartupTab, fromRenderer });
     }
 
     private async initializeTab(tabView: WaveTabView, primaryStartupTab: boolean) {
@@ -458,6 +468,8 @@ export class WaveBrowserWindow extends BaseWindow {
             clientId: clientId,
             windowId: this.waveWindowId,
             activate: true,
+            singleView: SingleView,
+            tabCacheCeiling: maxTabCacheCeiling(),
         };
         if (primaryStartupTab) {
             initOpts.primaryTabStartup = true;
@@ -572,6 +584,9 @@ export class WaveBrowserWindow extends BaseWindow {
     }
 
     private removeTabViewLater(tabId: string, delayMs: number) {
+        if (SingleView) {
+            return;
+        }
         setTimeout(() => {
             this.removeTabView(tabId, false);
         }, delayMs);
@@ -596,7 +611,7 @@ export class WaveBrowserWindow extends BaseWindow {
                         break;
                     case "switchtab":
                         tabId = entry.tabId;
-                        if (this.activeTabView?.waveTabId == tabId) {
+                        if (this.activeTabId == tabId) {
                             continue;
                         }
                         if (entry.setInBackend) {
@@ -643,11 +658,22 @@ export class WaveBrowserWindow extends BaseWindow {
                 if (tabId == null) {
                     return;
                 }
+                this.activeTabId = tabId;
+                if (SingleView && this.activeTabView != null) {
+                    this.activeTabView.savedInitOpts.tabId = tabId;
+                    if (entry.op !== "switchtab" || !entry.fromRenderer) {
+                        this.activeTabView.webContents.send("wave-switch-tab", tabId);
+                    }
+                    continue;
+                }
                 const [tabView, tabInitialized] = await getOrCreateWebViewForTab(this.waveWindowId, tabId);
                 const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
                 await this.setTabViewIntoWindow(tabView, tabInitialized, primaryStartupTabFlag);
             } catch (e) {
                 console.log("error caught in processActionQueue", e);
+                if (SingleView && this.actionQueue.length === 1 && this.activeTabView?.savedInitOpts != null) {
+                    this.activeTabView.webContents.send("wave-switch-tab", this.activeTabView.savedInitOpts.tabId);
+                }
             } finally {
                 this.actionQueue.shift();
             }
@@ -671,6 +697,9 @@ export class WaveBrowserWindow extends BaseWindow {
     }
 
     removeTabView(tabId: string, force: boolean) {
+        if (SingleView && !force) {
+            return;
+        }
         if (!force && this.activeTabView?.waveTabId == tabId) {
             console.log("cannot remove active tab", tabId, this.waveWindowId);
             return;
@@ -709,7 +738,7 @@ export function getWaveWindowByWebContentsId(webContentsId: number): WaveBrowser
     if (tabView == null) {
         return null;
     }
-    return getWaveWindowByTabId(tabView.waveTabId);
+    return getWaveWindowById(tabView.waveWindowId);
 }
 
 export function getWaveWindowById(windowId: string): WaveBrowserWindow {
@@ -770,7 +799,7 @@ export async function createBrowserWindow(
 ipcMain.on("set-active-tab", async (event, tabId) => {
     const ww = getWaveWindowByWebContentsId(event.sender.id);
     console.log("set-active-tab", tabId, ww?.waveWindowId);
-    await ww?.setActiveTab(tabId, true);
+    await ww?.setActiveTab(tabId, true, false, true);
 });
 
 ipcMain.on("create-tab", async (event, _opts) => {

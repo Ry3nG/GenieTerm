@@ -14,9 +14,8 @@ Wave Terminal uses a hierarchical configuration system with:
 1. **Go Struct Definitions** - Type-safe configuration structure in `pkg/wconfig/settingsconfig.go`
 2. **JSON Schema** - Auto-generated validation schema in `schema/settings.json`
 3. **Default Values** - Built-in defaults in `pkg/wconfig/defaultconfig/settings.json`
-4. **User Configuration** - User overrides in `~/.config/waveterm/settings.json`
+4. **User Configuration** - User overrides in `~/.config/genieterm/settings.json`
 5. **Block Metadata** - Block-level overrides in `pkg/waveobj/wtypemeta.go`
-6. **Documentation** - User-facing docs in `docs/docs/config.mdx`
 
 Settings cascade from defaults → user settings → connection config → block overrides.
 
@@ -116,26 +115,9 @@ If your setting should have a default value, add it to `pkg/wconfig/defaultconfi
 - Keep defaults conservative and safe
 - Boolean settings often don't need defaults if `false` is the correct default
 
-### Step 3: Update Documentation
+### Step 3: Describe the Setting
 
-Add your new setting to the configuration table in `docs/docs/config.mdx`:
-
-```markdown
-| Key Name            | Type     | Function                                  |
-| ------------------- | -------- | ----------------------------------------- |
-| mynew:setting       | string   | Description of what this setting controls |
-| mynew:boolsetting   | bool     | Enable/disable some feature               |
-| mynew:numbersetting | float    | Numeric setting for some parameter        |
-| mynew:intsetting    | int      | Integer setting for some configuration    |
-| mynew:arraysetting  | string[] | Array of strings for multiple values      |
-```
-
-**Documentation Guidelines:**
-
-- Provide clear, concise descriptions
-- For new settings in upcoming releases, add `<VersionBadge version="v0.14" />`
-- Update the default configuration example if you added defaults
-- Explain what values are valid and what they do
+There is no separate settings page to update. `task generate` regenerates `schema/settings.json` from the Go struct, and that schema drives completion and validation when users edit `settings.json`, so the key name and type are what users see. Pick a self-explanatory key, keep a sensible default in `pkg/wconfig/defaultconfig/settings.json`, and mention user-visible settings in the release notes (`docs/releases/`).
 
 ### Step 4: Regenerate Schema and TypeScript Types
 
@@ -216,6 +198,8 @@ if fullConfig.Settings.MyIntSetting != nil {
 
 ### Example 1: Simple Boolean Setting (No Block Override)
 
+The key names in these examples are hypothetical.
+
 **Use case:** Add a setting to hide the AI button globally
 
 #### 1. Go Struct (`pkg/wconfig/settingsconfig.go`)
@@ -223,7 +207,7 @@ if fullConfig.Settings.MyIntSetting != nil {
 ```go
 type SettingsType struct {
     // ... existing fields ...
-    AppHideAiButton bool `json:"app:hideaibutton,omitempty"`
+    AppCompactTabs bool `json:"app:compacttabs,omitempty"`
 }
 ```
 
@@ -231,31 +215,25 @@ type SettingsType struct {
 
 ```json
 {
-  "app:hideaibutton": false
+  "app:compacttabs": false
 }
 ```
 
-#### 3. Documentation (`docs/docs/config.mdx`)
-
-```markdown
-| app:hideaibutton <VersionBadge version="v0.14" /> | bool | Hide the AI button in the tab bar (defaults to false) |
-```
-
-#### 4. Generate Types
+#### 3. Generate Types
 
 ```bash
 task generate
 ```
 
-#### 5. Frontend Usage
+#### 4. Frontend Usage
 
 ```typescript
 import { getSettingsKeyAtom } from "@/store/global";
 
 const TabBar = () => {
-    const hideAiButton = useAtomValue(getSettingsKeyAtom("app:hideaibutton"));
+    const compactTabs = useAtomValue(getSettingsKeyAtom("app:compacttabs"));
 
-    if (hideAiButton) {
+    if (compactTabs) {
         return null; // Don't render AI button
     }
 
@@ -263,15 +241,15 @@ const TabBar = () => {
 };
 ```
 
-#### 6. Usage Examples
+#### 5. Usage Examples
 
 ```bash
 # Set in settings file
-wsh setconfig app:hideaibutton=true
+wsh setconfig app:compacttabs=true
 
-# Or edit ~/.config/waveterm/settings.json
+# Or edit ~/.config/genieterm/settings.json
 {
-  "app:hideaibutton": true
+  "app:compacttabs": true
 }
 ```
 
@@ -284,7 +262,7 @@ wsh setconfig app:hideaibutton=true
 ```go
 type SettingsType struct {
     // ... existing fields ...
-    TermBellSound string `json:"term:bellsound,omitempty"`
+    TermExampleSound string `json:"term:examplesound,omitempty"`
 }
 ```
 
@@ -293,7 +271,7 @@ type SettingsType struct {
 ```go
 type MetaTSType struct {
     // ... existing fields ...
-    TermBellSound *string `json:"term:bellsound,omitempty"`  // Pointer for optional override
+    TermExampleSound *string `json:"term:examplesound,omitempty"`  // Pointer for optional override
 }
 ```
 
@@ -301,31 +279,25 @@ type MetaTSType struct {
 
 ```json
 {
-  "term:bellsound": "default"
+  "term:examplesound": "default"
 }
 ```
 
-#### 4. Documentation (`docs/docs/config.mdx`)
-
-```markdown
-| term:bellsound <VersionBadge version="v0.14" /> | string | Sound to play for terminal bell ("default", "none", or custom sound file path) |
-```
-
-#### 5. Generate Types
+#### 4. Generate Types
 
 ```bash
 task generate
 ```
 
-#### 6. Frontend Usage
+#### 5. Frontend Usage
 
 ```typescript
 import { getOverrideConfigAtom } from "@/store/global";
 
 const TerminalView = ({ blockId }: { blockId: string }) => {
     // Use override config for hierarchical resolution
-    const bellSoundAtom = getOverrideConfigAtom(blockId, "term:bellsound");
-    const bellSound = useAtomValue(bellSoundAtom) ?? "default";
+    const exampleSoundAtom = getOverrideConfigAtom(blockId, "term:examplesound");
+    const bellSound = useAtomValue(exampleSoundAtom) ?? "default";
 
     const playBellSound = () => {
         if (bellSound === "none") return;
@@ -336,21 +308,21 @@ const TerminalView = ({ blockId }: { blockId: string }) => {
 };
 ```
 
-#### 7. Usage Examples
+#### 6. Usage Examples
 
 ```bash
 # Set globally in settings file
-wsh setconfig term:bellsound="custom.wav"
+wsh setconfig term:examplesound="custom.wav"
 
 # Set for current block only
-wsh setmeta term:bellsound="none"
+wsh setmeta term:examplesound="none"
 
 # Set for specific block
-wsh setmeta --block BLOCK_ID term:bellsound="beep"
+wsh setmeta --block BLOCK_ID term:examplesound="beep"
 
-# Or edit ~/.config/waveterm/settings.json
+# Or edit ~/.config/genieterm/settings.json
 {
-  "term:bellsound": "custom.wav"
+  "term:examplesound": "custom.wav"
 }
 ```
 
@@ -460,12 +432,11 @@ When adding a new configuration setting:
 - [ ] Add field to `SettingsType` in `pkg/wconfig/settingsconfig.go`
 - [ ] Add field to `MetaTSType` in `pkg/waveobj/wtypemeta.go` (if block override needed)
 - [ ] Add default to `pkg/wconfig/defaultconfig/settings.json` (if needed)
-- [ ] Document in `docs/docs/config.mdx`
 - [ ] Run `task generate` to update TypeScript types
 - [ ] Use appropriate atom (`getOverrideConfigAtom` or `getSettingsKeyAtom`) in frontend
 
 ## Related Documentation
 
-- **User Documentation**: `docs/docs/config.mdx` - User-facing configuration docs
 - **Type Definitions**: `pkg/wconfig/settingsconfig.go` - Go struct definitions
 - **Metadata Types**: `pkg/waveobj/wtypemeta.go` - Block metadata definitions
+

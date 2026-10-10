@@ -8,13 +8,15 @@ The living tracker is [`docs/GENIETERM-ROADMAP.md`](docs/GENIETERM-ROADMAP.md). 
 
 ## Now
 
-- Pass `docs/v1-release-gate.md` on a real Mac and tag 1.0.0 (macOS-only stable).
+1.0.0 is the current macOS stable release.
+
 - Smoke-test the Windows x64 preview and PowerShell command blocks on real Windows hardware.
 
 ## Next
 
 - Signed Windows x64 builds on the stable channel.
 - Multi-select remote file transfers.
+- Offer to forward a port when a remote terminal prints a localhost URL.
 
 ## Later
 

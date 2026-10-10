@@ -27,7 +27,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var userHostRe = regexp.MustCompile(`^([a-zA-Z0-9][a-zA-Z0-9._@\\-]*@)?([a-zA-Z0-9][a-zA-Z0-9.-]*)(?::([0-9]+))?$`)
+// ssh config Host aliases often contain underscores (e.g. "lab_gpu"), so the host part allows them.
+var userHostRe = regexp.MustCompile(`^([a-zA-Z0-9][a-zA-Z0-9._@\\-]*@)?([a-zA-Z0-9][a-zA-Z0-9._-]*)(?::([0-9]+))?$`)
 
 func ParseOpts(input string) (*SSHOpts, error) {
 	m := userHostRe.FindStringSubmatch(input)
@@ -93,10 +94,14 @@ func GetClientPlatformFromOsArchStr(ctx context.Context, osArchStr string) (stri
 // The helper binary is gzip-compressed on the wire (Go binaries shrink ~60-70%),
 // which is the difference between landing and timing out on slow/proxied links.
 // gzip/gunzip are effectively universal on the remotes we support.
+// Interrupted copies used to leave a temp file behind on every attempt; failures now remove
+// theirs, and temp files over an hour old (from earlier versions) are pruned. A concurrent
+// install's fresh temp file is never touched.
 var installTemplateRawDefault = strings.TrimSpace(`
 mkdir -p {{.installDir}} || exit 1;
-gzip -dc > {{.tempPath}} || exit 1;
-mv {{.tempPath}} {{.installPath}} || exit 1;
+find {{.installDir}} -maxdepth 1 -name {{.tempGlob}} -mmin +60 -exec rm -f {} + 2>/dev/null || true;
+gzip -dc > {{.tempPath}} || { rm -f {{.tempPath}}; exit 1; };
+mv {{.tempPath}} {{.installPath}} || { rm -f {{.tempPath}}; exit 1; };
 chmod a+x {{.installPath}} || exit 1;
 `)
 var installTemplate = template.Must(template.New("wsh-install-template").Parse(installTemplateRawDefault))
@@ -134,6 +139,7 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 		// a lingering earlier attempt's write and leave a corrupt binary.
 		"tempPath":    shellutil.SoftQuote(fmt.Sprintf("%s.temp.%d", remotePath, time.Now().UnixNano())),
 		"installPath": shellutil.SoftQuote(remotePath),
+		"tempGlob":    shellutil.HardQuote(filepath.Base(remotePath) + ".temp*"),
 	}
 	var installCmd bytes.Buffer
 	if err := installTemplate.Execute(&installCmd, installWords); err != nil {

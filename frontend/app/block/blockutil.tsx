@@ -29,8 +29,8 @@ export function blockViewToIcon(view: string): string {
     if (view == "web") {
         return "globe";
     }
-    if (view == "processviewer") {
-        return "microchip";
+    if (view == "host" || view == "sysinfo" || view == "processviewer") {
+        return "server";
     }
     return "square";
 }
@@ -48,8 +48,8 @@ export function blockViewToName(view: string): string {
     if (view == "web") {
         return "Web";
     }
-    if (view == "processviewer") {
-        return "Processes";
+    if (view == "host" || view == "sysinfo" || view == "processviewer") {
+        return "Host";
     }
     return view;
 }
@@ -210,8 +210,14 @@ export const HeaderTextElem = React.memo(({ elem, preview }: { elem: HeaderElem;
         return <Input decl={elem} className={clsx("block-frame-input", elem.className)} preview={preview} />;
     } else if (elem.elemtype == "text") {
         return (
-            <div className={clsx("block-frame-text ellipsis", elem.className, { "flex-nogrow": elem.noGrow })}>
-                <span ref={preview ? null : elem.ref} onClick={(e) => elem?.onClick(e)}>
+            <div
+                className={clsx("block-frame-text ellipsis", elem.className, {
+                    "flex-nogrow": elem.noGrow,
+                    "cursor-pointer": elem.onClick != null,
+                })}
+                title={elem.title}
+            >
+                <span ref={preview ? null : elem.ref} onClick={(e) => elem.onClick?.(e)}>
                     &lrm;{elem.text}
                 </span>
             </div>

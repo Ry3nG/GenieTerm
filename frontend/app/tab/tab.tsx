@@ -3,18 +3,20 @@
 
 import { getTabBadgeAtom } from "@/app/store/badge";
 import { refocusNode } from "@/app/store/global";
+import { getLocalHomeDir } from "@/app/store/localhome";
 import { getTabModelByTabId } from "@/app/store/tab-model";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { WaveEnv, WaveEnvSubset, useWaveEnv } from "@/app/waveenv/waveenv";
+import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { Button } from "@/element/button";
 import { validateCssColor } from "@/util/color-validator";
-import { fireAndForget } from "@/util/util";
+import { getTabDisplayName, isDefaultTabName } from "@/util/pathlabel";
+import { fireAndForget, isLocalConnName, NullAtom } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { makeORef } from "../store/wos";
-import { TabBadges } from "./tabbadges";
 import "./tab.scss";
+import { TabBadges } from "./tabbadges";
 import { buildTabContextMenu } from "./tabcontextmenu";
 
 export type TabEnv = WaveEnvSubset<{
@@ -238,6 +240,16 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
     const env = useWaveEnv<TabEnv>();
     const [tabData, _] = env.wos.useWaveObjectValue<Tab>(makeORef("tab", id));
     const badges = useAtomValue(getTabBadgeAtom(id, env));
+    const firstBlockId = tabData?.blockids?.[0];
+    const firstBlock = useAtomValue(
+        firstBlockId ? env.wos.getWaveObjectAtom<Block>(makeORef("block", firstBlockId)) : NullAtom
+    ) as Block;
+    const firstBlockConn = firstBlock?.meta?.connection as string;
+    const tabDisplayName = getTabDisplayName(
+        tabData?.name,
+        firstBlock?.meta,
+        isLocalConnName(firstBlockConn) ? getLocalHomeDir() : null
+    );
 
     const rawFlagColor = tabData?.meta?.["tab:flagcolor"];
     let flagColor: string | null = null;
@@ -286,17 +298,21 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
 
     const handleRename = useCallback(
         (newName: string) => {
-            fireAndForget(() => env.rpc.UpdateTabNameCommand(TabRpcClient, id, newName));
             setTimeout(() => refocusNode(null), 10);
+            // leaving the auto label untouched must not freeze it as a manual name
+            if (newName === tabDisplayName && isDefaultTabName(tabData?.name)) {
+                return;
+            }
+            fireAndForget(() => env.rpc.UpdateTabNameCommand(TabRpcClient, id, newName));
         },
-        [id, env]
+        [id, env, tabDisplayName, tabData?.name]
     );
 
     return (
         <TabV
             ref={ref}
             tabId={id}
-            tabName={tabData?.name ?? ""}
+            tabName={tabDisplayName}
             active={active}
             showDivider={showDivider}
             isDragging={isDragging}

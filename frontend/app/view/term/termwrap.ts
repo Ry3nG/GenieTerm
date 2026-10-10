@@ -3,6 +3,8 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { setBadge } from "@/app/store/badge";
+import { getLocalHomeDir } from "@/app/store/localhome";
+import { getTabModelByTabId } from "@/app/store/tab-model";
 import { getFileSubject } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -41,6 +43,7 @@ import {
     type CmdBlock,
     type CmdBlockIndexSnapshot,
 } from "./cmdblocks";
+import { formatCommandNotification, shouldNotifyCommandDone } from "./cmdnotify";
 import {
     getInlineAICommandPrompt,
     shouldAutoComposeInlineAI,
@@ -80,6 +83,7 @@ function detectWebGLSupport(): boolean {
     try {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("webgl2");
+        ctx?.getExtension("WEBGL_lose_context")?.loseContext();
         return !!ctx;
     } catch (e) {
         return false;
@@ -88,6 +92,8 @@ function detectWebGLSupport(): boolean {
 
 export const WebGLSupported = detectWebGLSupport();
 let loggedWebGL = false;
+const WebGLTerminals = new Set<TermWrap>();
+const WebGLContextBudget = 12;
 
 // The shell reports the prompt cursor as a character (code-point) offset; convert
 // it to a JS string index (UTF-16 code units) so multibyte input maps correctly.
@@ -153,6 +159,10 @@ export class TermWrap {
     onSearchResultsDidChange?: (result: { resultIndex: number; resultCount: number }) => void;
     toDispose: TermTypes.IDisposable[] = [];
     webglAddon: WebglAddon | null = null;
+    paneActive = true;
+    pendingResize = false;
+    preferredRenderer: "webgl" | "dom" = "dom";
+    webglReleaseTimer: ReturnType<typeof setTimeout> = null;
     webglContextLossDisposable: TermTypes.IDisposable | null = null;
     webglEnabledAtom: jotai.PrimitiveAtom<boolean>;
     pasteActive: boolean = false;
@@ -171,6 +181,8 @@ export class TermWrap {
     currentInputBufferAtom: jotai.PrimitiveAtom<TermInputBuffer | null>;
     pendingCmdBlock: CmdBlock | null = null;
     cmdBlockIdCounter = 0;
+    lastCommandNotificationMs: number = null;
+    notifyAfterAtom: jotai.Atom<number>;
     publishCmdBlocks: () => void;
     // Warp-style command-block chrome: one xterm decoration per finished command,
     // drawn behind the live text (no extraction, no double-render).
@@ -216,6 +228,7 @@ export class TermWrap {
         this.loaded = false;
         this.tabId = tabId;
         this.blockId = blockId;
+        this.notifyAfterAtom = getOverrideConfigAtom(blockId, "term:notifyafter");
         this.sendDataHandler = waveOptions.sendDataHandler;
         this.onInlineAIRequest = waveOptions.onInlineAIRequest;
         this.onInlineAIDismiss = waveOptions.onInlineAIDismiss;
@@ -272,7 +285,7 @@ export class TermWrap {
         // Register OSC handlers
         this.terminal.parser.registerOscHandler(7, (data: string) => {
             try {
-                return handleOsc7Command(data, this.blockId, this.loaded);
+                return handleOsc7Command(data, this.blockId, this.isProcessingLiveData());
             } catch (e) {
                 console.error("[termwrap] osc 7 handler error", this.blockId, e);
                 return false;
@@ -280,7 +293,7 @@ export class TermWrap {
         });
         this.terminal.parser.registerOscHandler(52, (data: string) => {
             try {
-                return handleOsc52Command(data, this.blockId, this.loaded, this);
+                return handleOsc52Command(data, this.blockId, this.isProcessingLiveData(), this);
             } catch (e) {
                 console.error("[termwrap] osc 52 handler error", this.blockId, e);
                 return false;
@@ -463,7 +476,49 @@ export class TermWrap {
         this.terminal.options.scrollback = scrollback;
     }
 
+    setPaneActive(active: boolean) {
+        if (this.disposed || this.paneActive === active) {
+            return;
+        }
+        this.paneActive = active;
+        clearTimeout(this.webglReleaseTimer);
+        if (!active) {
+            this.webglReleaseTimer = setTimeout(() => this.releaseWebGL(), 10000);
+            return;
+        }
+        this.setTermRenderer(this.preferredRenderer);
+        if (this.pendingResize) {
+            this.pendingResize = false;
+            this.handleResize();
+        }
+        this.terminal.refresh(0, this.terminal.rows - 1);
+    }
+
+    releaseWebGL() {
+        this.webglContextLossDisposable?.dispose();
+        this.webglContextLossDisposable = null;
+        if (this.webglAddon == null) {
+            return;
+        }
+        // The addon removes its canvas on disposal without releasing the GPU context.
+        const canvases = this.terminal.element?.querySelectorAll<HTMLCanvasElement>(".xterm-screen canvas") ?? [];
+        const contexts = Array.from(canvases)
+            .map((canvas) => canvas.getContext("webgl2"))
+            .filter((context) => context != null);
+        this.webglAddon.dispose();
+        this.webglAddon = null;
+        WebGLTerminals.delete(this);
+        for (const context of contexts) {
+            context.getExtension("WEBGL_lose_context")?.loseContext();
+        }
+        globalStore.set(this.webglEnabledAtom, false);
+    }
+
     setTermRenderer(renderer: "webgl" | "dom") {
+        this.preferredRenderer = renderer;
+        if (this.disposed || (!this.paneActive && renderer === "webgl")) {
+            return;
+        }
         if (renderer === "webgl") {
             if (this.webglAddon != null) {
                 return;
@@ -477,19 +532,25 @@ export class TermWrap {
             }
         }
         if (this.webglAddon != null) {
-            this.webglContextLossDisposable?.dispose();
-            this.webglContextLossDisposable = null;
-            this.webglAddon.dispose();
-            this.webglAddon = null;
-            globalStore.set(this.webglEnabledAtom, false);
+            this.releaseWebGL();
         }
         if (renderer === "webgl") {
+            // Chromium otherwise force-loses the oldest context, which can belong to a visible terminal.
+            for (const term of WebGLTerminals) {
+                if (WebGLTerminals.size < WebGLContextBudget) {
+                    break;
+                }
+                if (!term.paneActive || term.connectElem.closest("[inert]") != null) {
+                    term.releaseWebGL();
+                }
+            }
             const addon = new WebglAddon();
             this.webglContextLossDisposable = addon.onContextLoss(() => {
                 this.setTermRenderer("dom");
             });
             this.terminal.loadAddon(addon);
             this.webglAddon = addon;
+            WebGLTerminals.add(this);
             globalStore.set(this.webglEnabledAtom, true);
             if (!loggedWebGL) {
                 console.log("loaded webgl!");
@@ -614,6 +675,8 @@ export class TermWrap {
     }
 
     dispose() {
+        clearTimeout(this.webglReleaseTimer);
+        this.releaseWebGL();
         this.disposed = true;
         this.loaded = false;
         if (this.cacheTimer != null) {
@@ -1043,6 +1106,10 @@ export class TermWrap {
     }
 
     handleResize() {
+        if (!this.paneActive) {
+            this.pendingResize = true;
+            return;
+        }
         const oldRows = this.terminal.rows;
         const oldCols = this.terminal.cols;
         this.fitAddon.fit();
@@ -1303,6 +1370,7 @@ export class TermWrap {
             return;
         }
         const block = this.pendingCmdBlock;
+        const canNotify = block.state === "running" && !block.interrupted;
         block.exitCode = exitCode;
         block.state = "done";
         block.interrupted = false;
@@ -1314,6 +1382,9 @@ export class TermWrap {
         }
         if (!replaying) {
             this.cmdBlocksCacheDirty = true;
+            if (canNotify) {
+                this.notifyCommandDone(block);
+            }
         }
         const inlineAIPrompt = getInlineAICommandPrompt(block);
         const commandComposerEnabled = globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
@@ -1322,6 +1393,31 @@ export class TermWrap {
         }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
+    }
+
+    notifyCommandDone(block: CmdBlock) {
+        const nowMs = performance.now();
+        if (
+            !shouldNotifyCommandDone({
+                block,
+                thresholdSeconds: globalStore.get(this.notifyAfterAtom) ?? 10,
+                windowFocused: document.hasFocus(),
+                tabActive: globalStore.get(getTabModelByTabId(this.tabId).isActiveAtom),
+                blockFocused: this.nodeModel != null && globalStore.get(this.nodeModel.isFocused),
+                nowMs,
+                lastNotificationMs: this.lastCommandNotificationMs,
+            })
+        ) {
+            return;
+        }
+        this.lastCommandNotificationMs = nowMs;
+        const connection = globalStore.get(getBlockMetaKeyAtom(this.blockId, "connection"));
+        const opts = {
+            ...formatCommandNotification(block, connection, getLocalHomeDir()),
+            tabid: this.tabId,
+            blockid: this.blockId,
+        };
+        fireAndForget(() => RpcApi.NotifyCommand(TabRpcClient, opts, { route: "electron", timeout: 5000 }));
     }
 
     // A block whose command never reported D (shell killed, exec'd, or restarted) must

@@ -666,6 +666,10 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const termModeRef = React.useRef(termMode);
 
     const tabModel = useTabModel();
+    const paneActive = jotai.useAtomValue(tabModel.isActiveAtom);
+    React.useEffect(() => {
+        termWrapInst?.setPaneActive(paneActive);
+    }, [termWrapInst, paneActive]);
     const termFontSize = jotai.useAtomValue(model.fontSizeAtom);
     const fullConfig = globalStore.get(atoms.fullConfigAtom);
     const connFontFamily = fullConfig.connections?.[blockData?.meta?.connection]?.["term:fontfamily"];
@@ -779,6 +783,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             }
         );
         (window as any).term = termWrap;
+        termWrap.setPaneActive(globalStore.get(tabModel.isActiveAtom));
         model.termRef.current = termWrap;
         setTermWrapInst(termWrap);
         const rszObs = new ResizeObserver(() => {
@@ -789,6 +794,9 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             globalStore.set(searchProps.resultsIndex, results.resultIndex);
             globalStore.set(searchProps.resultsCount, results.resultCount);
         };
+        const unsubCmdBlocks = globalStore.sub(termWrap.cmdBlocksAtom, () =>
+            model.noteCmdBlocks(globalStore.get(termWrap.cmdBlocksAtom))
+        );
         fireAndForget(termWrap.initTerminal.bind(termWrap));
         if (wasFocused) {
             setTimeout(() => {
@@ -796,6 +804,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             }, 10);
         }
         return () => {
+            unsubCmdBlocks();
             termWrap.dispose();
             rszObs.disconnect();
             setTermWrapInst(null);
@@ -830,7 +839,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     }, [termMode]);
 
     React.useEffect(() => {
-        if (isMI && isBasicTerm && isFocused && model.termRef.current != null) {
+        if (paneActive && isMI && isBasicTerm && isFocused && model.termRef.current != null) {
             model.termRef.current.multiInputCallback = (data: string) => {
                 model.multiInputHandler(data);
             };
@@ -839,7 +848,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
                 model.termRef.current.multiInputCallback = null;
             }
         }
-    }, [isMI, isBasicTerm, isFocused]);
+    }, [paneActive, isMI, isBasicTerm, isFocused, termWrapInst]);
 
     const stickerConfig = {
         charWidth: 8,

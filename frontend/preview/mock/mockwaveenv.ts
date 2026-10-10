@@ -11,7 +11,7 @@ import { PlatformLinux, PlatformMacOS, PlatformWindows } from "@/util/platformut
 import { NullAtom } from "@/util/util";
 import { Atom, atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { showPreviewContextMenu } from "../preview-contextmenu";
-import { MockSysinfoConnection } from "../previews/sysinfo.preview-util";
+import { MockSshConnection } from "../previews/host.preview-util";
 import { DefaultFullConfig } from "./defaultconfig";
 import { DefaultMockFilesystem } from "./mockfilesystem";
 import { previewElectronApi } from "./preview-electron-api";
@@ -23,6 +23,7 @@ export const PreviewClientId = crypto.randomUUID();
 export const WebBlockId = crypto.randomUUID();
 export const SysinfoBlockId = crypto.randomUUID();
 export const ProcessViewerBlockId = crypto.randomUUID();
+export const HostPortsBlockId = crypto.randomUUID();
 
 // What works "out of the box" in the mock environment (no MockEnv overrides needed):
 //
@@ -384,7 +385,7 @@ export function makeMockWaveEnv(mockEnv?: MockEnv): MockWaveEnv {
             oid: PreviewTabId,
             version: 1,
             name: "Preview Tab",
-            blockids: [WebBlockId, SysinfoBlockId, ProcessViewerBlockId],
+            blockids: [WebBlockId, SysinfoBlockId, ProcessViewerBlockId, HostPortsBlockId],
             meta: {},
         } as Tab,
         [`block:${WebBlockId}`]: {
@@ -400,10 +401,19 @@ export function makeMockWaveEnv(mockEnv?: MockEnv): MockWaveEnv {
             oid: SysinfoBlockId,
             version: 1,
             meta: {
-                view: "sysinfo",
-                connection: MockSysinfoConnection,
-                "sysinfo:type": "CPU + Mem",
-                "graph:numpoints": 90,
+                view: "host",
+                connection: MockSshConnection,
+                "host:tab": "overview",
+            },
+        } as Block,
+        [`block:${HostPortsBlockId}`]: {
+            otype: "block",
+            oid: HostPortsBlockId,
+            version: 1,
+            meta: {
+                view: "host",
+                connection: MockSshConnection,
+                "host:tab": "ports",
             },
         } as Block,
         [`block:${ProcessViewerBlockId}`]: {

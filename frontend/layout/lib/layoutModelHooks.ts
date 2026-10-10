@@ -1,14 +1,17 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useOnResize } from "@/app/hook/useDimensions";
+import { activeTabIdAtom } from "@/app/store/activetab";
 import { atoms, globalStore, WOS } from "@/app/store/global";
 import { fireAndForget } from "@/util/util";
-import { Atom, useAtomValue } from "jotai";
+import { atom, Atom, Getter, useAtomValue } from "jotai";
 import { CSSProperties, useCallback, useEffect, useState } from "react";
 import { getLayoutStateAtomFromTab } from "./layoutAtom";
 import { LayoutModel } from "./layoutModel";
 import { LayoutNode, NodeModel, TileLayoutContents } from "./types";
+
+const LayoutSubscriptions = new Map<string, () => void>();
 
 const layoutModelMap: Map<string, LayoutModel> = new Map();
 
@@ -23,24 +26,28 @@ function getLayoutModelForTab(tabAtom: Atom<Tab>): LayoutModel {
         }
     }
     const layoutModel = new LayoutModel(tabAtom, globalStore.get, globalStore.set);
-    
-    const staticTabId = globalStore.get(atoms.staticTabId);
-    if (tabId === staticTabId) {
-        const layoutStateAtom = getLayoutStateAtomFromTab(tabAtom, globalStore.get);
-        globalStore.sub(layoutStateAtom, () => {
-            layoutModel.onBackendUpdate();
-        });
-    }
-    
+
+    const layoutStateAtom = getLayoutStateAtomFromTab(tabAtom, globalStore.get);
+    LayoutSubscriptions.set(
+        tabId,
+        globalStore.sub(layoutStateAtom, () => layoutModel.onBackendUpdate())
+    );
+
     layoutModelMap.set(tabId, layoutModel);
     return layoutModel;
 }
 
-function getLayoutModelForTabById(tabId: string) {
+export function getLayoutModelForTabById(tabId: string, get: Getter = globalStore.get) {
+    if (!tabId) {
+        return null;
+    }
     const tabOref = WOS.makeORef("tab", tabId);
     const tabAtom = WOS.getWaveObjectAtom<Tab>(tabOref);
+    get(tabAtom);
     return getLayoutModelForTab(tabAtom);
 }
+
+export const activeLayoutModelAtom = atom((get) => getLayoutModelForTabById(get(activeTabIdAtom), get));
 
 export function getLayoutModelForStaticTab() {
     const tabId = globalStore.get(atoms.staticTabId);
@@ -48,6 +55,8 @@ export function getLayoutModelForStaticTab() {
 }
 
 export function deleteLayoutModelForTab(tabId: string) {
+    LayoutSubscriptions.get(tabId)?.();
+    LayoutSubscriptions.delete(tabId);
     if (layoutModelMap.has(tabId)) layoutModelMap.delete(tabId);
 }
 

@@ -82,3 +82,11 @@ describe("cmdblockdisplay", () => {
         );
     });
 });
+
+describe("cmdblockdisplay interrupts", () => {
+    it("shows a Ctrl-C exit as interrupted rather than an error", () => {
+        const status = getCmdBlockStatus(makeBlock({ state: "done", exitCode: 130, doneTs: 2_000 }));
+        expect(status).toMatchObject({ label: "Interrupted", tone: "unknown" });
+        expect(getCmdBlockStatus(makeBlock({ state: "done", exitCode: 1, doneTs: 2_000 })).tone).toBe("error");
+    });
+});

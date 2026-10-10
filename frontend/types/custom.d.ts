@@ -59,6 +59,8 @@ declare global {
     };
 
     type WaveInitOpts = {
+        singleView?: boolean;
+        tabCacheCeiling?: number;
         tabId: string;
         clientId: string;
         windowId: string;
@@ -118,6 +120,8 @@ declare global {
         createTab: () => void; // create-tab
         closeTab: (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>; // close-tab
         setWindowInitStatus: (status: "ready" | "wave-ready") => void; // set-window-init-status
+        onClearTabCache: (callback: () => void) => void; // wave-clear-tab-cache
+        onSwitchTab: (callback: (tabId: string) => void) => void; // wave-switch-tab
         onWaveInit: (callback: (initOpts: WaveInitOpts) => void) => void; // wave-init
         sendLog: (log: string) => void; // fe-log
         onQuicklook: (filePath: string) => void; // quicklook
@@ -228,6 +232,7 @@ declare global {
         text: string;
         ref?: React.RefObject<HTMLDivElement>;
         className?: string;
+        title?: string;
         noGrow?: boolean;
         onClick?: (e: React.MouseEvent<any>) => void;
     };

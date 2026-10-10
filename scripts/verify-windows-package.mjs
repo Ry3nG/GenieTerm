@@ -210,7 +210,7 @@ async function windowSmoke(executablePath) {
             .catch(() => false))
         ) {
           await candidate.getByRole("button", { name: "Continue", exact: true }).click();
-          const skipTour = candidate.getByRole("button", { name: /Skip Feature Tour/ });
+          const skipTour = candidate.getByRole("button", { name: "Skip tour", exact: true });
           await skipTour.waitFor({ state: "visible", timeout: 15000 });
           await skipTour.click();
           onboardingCompleted.add(candidate);

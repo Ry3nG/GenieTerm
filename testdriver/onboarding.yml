@@ -7,7 +7,7 @@ steps:
         description: button to complete onboarding
         action: click
       - command: hover-text
-        text: Get Started
+        text: Start using GenieTerm
         description: button to complete onboarding
         action: click
       - command: assert

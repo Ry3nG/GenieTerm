@@ -13,7 +13,7 @@ vi.mock("@/app/view/vdom/vdom-model", () => ({
 }));
 
 import { RpcApi } from "@/app/store/wshclientapi";
-import { globalStore } from "@/store/global";
+import { globalStore, registerBlockComponentModel, unregisterBlockComponentModel } from "@/store/global";
 import * as jotai from "jotai";
 import type { CmdBlock } from "./cmdblocks";
 import {
@@ -71,6 +71,7 @@ function makeKeydownEvent(key: string): KeyboardEvent {
 function makeTermModel(input: TermInputBuffer = { text: "cd GenieTerm/", cursorIndex: 13 }): TermViewModel {
     const model = Object.create(TermViewModel.prototype) as TermViewModel;
     model.blockId = "block-1";
+    model.tabModel = { tabId: "tab-1", isActiveAtom: jotai.atom(true) } as any;
     model.termRef = {
         current: { currentInputBufferAtom: jotai.atom(input), scheduleCmdDecorationSync: vi.fn() } as any,
     };
@@ -116,6 +117,33 @@ function deferredCompose() {
 }
 
 describe("TermViewModel completion key handling", () => {
+    it("broadcasts only to basic terminals owned by the active source tab", () => {
+        const source = makeTermModel();
+        const sameTab = makeTermModel();
+        const otherTab = makeTermModel();
+        otherTab.tabModel = { tabId: "tab-2", isActiveAtom: jotai.atom(false) } as any;
+        const command = makeTermModel();
+        const models = [source, sameTab, otherTab, command];
+        models.forEach((model, index) => {
+            model.viewType = "term";
+            model.isBasicTerm = () => model !== command;
+            model.sendDataToController = vi.fn();
+            registerBlockComponentModel(`multi-${index}`, { viewModel: model });
+        });
+        try {
+            source.multiInputHandler("hello");
+            expect(sameTab.sendDataToController).toHaveBeenCalledWith("hello");
+            expect(source.sendDataToController).not.toHaveBeenCalled();
+            expect(otherTab.sendDataToController).not.toHaveBeenCalled();
+            expect(command.sendDataToController).not.toHaveBeenCalled();
+            otherTab.multiInputHandler("hidden");
+            expect(source.sendDataToController).not.toHaveBeenCalled();
+            expect(sameTab.sendDataToController).toHaveBeenCalledOnce();
+        } finally {
+            models.forEach((_, index) => unregisterBlockComponentModel(`multi-${index}`));
+        }
+    });
+
     it("delivers rapid terminal input to the controller in keystroke order", async () => {
         const pending: Array<() => void> = [];
         const send = vi

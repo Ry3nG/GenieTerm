@@ -113,16 +113,12 @@ describe("Wave AI chat retirement", () => {
 
     it("teaches command blocks and genie, not Wave magnify or wsh copy", () => {
         const features = readAppFile("onboarding/onboarding-features.tsx");
-        const commands = readAppFile("onboarding/onboarding-command.tsx");
 
         expect(features).toContain("Command Blocks");
         expect(features).toContain("genie view [filename]");
+        expect(features).toContain("genie edit [filename]");
         expect(features).not.toContain("Magnify Blocks");
         expect(features).not.toContain("wsh view");
         expect(features).not.toContain("wsh edit");
-        expect(commands).toContain("genie view");
-        expect(commands).toContain("genie edit");
-        expect(commands).not.toContain("wsh view");
-        expect(commands).not.toContain("wsh edit");
     });
 });

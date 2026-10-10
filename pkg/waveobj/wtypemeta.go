@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package waveobj
@@ -75,6 +75,9 @@ type MetaTSType struct {
 
 	SysinfoType string `json:"sysinfo:type,omitempty"`
 
+	HostClear bool   `json:"host:*,omitempty"`
+	HostTab   string `json:"host:tab,omitempty"` // overview, processes, ports
+
 	// for tabs
 	TabFlagColor        string  `json:"tab:flagcolor,omitempty"`
 	TabBackground       string  `json:"tab:background,omitempty"`
@@ -109,6 +112,7 @@ type MetaTSType struct {
 	TermConnDebug           string   `json:"term:conndebug,omitempty"` // null, info, debug
 	TermBellSound           *bool    `json:"term:bellsound,omitempty"`
 	TermBellIndicator       *bool    `json:"term:bellindicator,omitempty"`
+	TermNotifyAfter         *float64 `json:"term:notifyafter,omitempty"`
 	TermOsc52               string   `json:"term:osc52,omitempty"`
 	TermDurable             *bool    `json:"term:durable,omitempty"`
 	TermDurablePrompted     *bool    `json:"term:durableprompted,omitempty"`

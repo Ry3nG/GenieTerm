@@ -94,6 +94,8 @@ const BlockSubBlock = memo(({ nodeModel, viewModel }: FullSubBlockProps) => {
 const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
     counterInc("render-BlockFull");
     const waveEnv = useWaveEnv<BlockEnv>();
+    const tabModel = useTabModel();
+    const paneActive = useAtomValue(tabModel.isActiveAtom);
     const focusElemRef = useRef<HTMLInputElement>(null);
     const blockRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -123,7 +125,7 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
     }, [isFocused]);
 
     useLayoutEffect(() => {
-        if (!blockClicked) {
+        if (!blockClicked || !paneActive) {
             return;
         }
         setBlockClicked(false);
@@ -134,7 +136,7 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
         if (!isFocused) {
             nodeModel.focusNode();
         }
-    }, [blockClicked, isFocused]);
+    }, [blockClicked, isFocused, paneActive]);
 
     const setBlockClickedTrue = useCallback(() => {
         setBlockClicked(true);
@@ -183,6 +185,9 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
     );
 
     const setFocusTarget = useCallback(() => {
+        if (!paneActive) {
+            return;
+        }
         if (pendingFocusRafRef.current != null) {
             cancelAnimationFrame(pendingFocusRafRef.current);
             pendingFocusRafRef.current = null;
@@ -198,7 +203,7 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
                 viewModel?.giveFocus?.();
             }
         });
-    }, [viewModel]);
+    }, [viewModel, paneActive]);
 
     const focusFromPointerEnter = useCallback(
         (event: React.PointerEvent<HTMLDivElement>) => {

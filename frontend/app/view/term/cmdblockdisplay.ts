@@ -6,6 +6,13 @@ import type { ShellIntegrationStatus } from "./osc-handlers";
 
 export type CmdBlockStatusTone = "running" | "success" | "error" | "unknown";
 
+// 128 + SIGINT: the user pressed Ctrl-C, which is not a failure worth flagging in red
+const SigIntExitCode = 130;
+
+export function isUserInterruptExit(exitCode: number): boolean {
+    return exitCode === SigIntExitCode;
+}
+
 export type CmdBlockStatusDisplay = {
     label: string;
     tone: CmdBlockStatusTone;
@@ -39,7 +46,7 @@ export function getCmdBlockStatus(block: CmdBlock): CmdBlockStatusDisplay {
             iconClass: "fa-solid fa-spinner fa-spin",
         };
     }
-    if (block.interrupted) {
+    if (block.interrupted || isUserInterruptExit(block.exitCode)) {
         return {
             label: "Interrupted",
             tone: "unknown",

@@ -3,8 +3,10 @@
 
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import { appHandleKeyDown } from "@/app/store/keymodel";
+import { getLocalHomeDir } from "@/app/store/localhome";
 import { modalsModel } from "@/app/store/modalmodel";
 import type { TabModel } from "@/app/store/tab-model";
+import { modelsForTab } from "@/app/store/tabpaneutils";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { makeFeBlockRouteId } from "@/app/store/wshrouter";
@@ -33,8 +35,9 @@ import {
 } from "@/store/global";
 import * as services from "@/store/services";
 import * as keyutil from "@/util/keyutil";
+import { formatCwdLabel } from "@/util/pathlabel";
 import { isMacOS, isWindows } from "@/util/platformutil";
-import { fireAndForget, stringToBase64 } from "@/util/util";
+import { fireAndForget, isLocalConnName, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { blockEndLine, blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
@@ -55,6 +58,7 @@ import {
 import { LLMCommandComposerBackend } from "./command-composer-llm";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
+import { makeGitChip } from "./gitchip";
 import { getBlockingCommand } from "./shellblocking";
 import {
     computeTheme,
@@ -121,6 +125,11 @@ export class TermViewModel implements ViewModel {
     >;
     commandComposerBackend: CommandComposerBackend = new LLMCommandComposerBackend();
     completionModel = new TermCompletionModel();
+    gitStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<GitStatusResponse>;
+    gitRefreshEpoch = 0;
+    gitRefreshTimer: ReturnType<typeof setTimeout> = null;
+    gitCwdUnsubFn: () => void;
+    lastDoneBlockCount = 0;
     commandComposerRequestCounter = 0;
     inlineCommandAIRequestCounter = 0;
 
@@ -191,6 +200,31 @@ export class TermViewModel implements ViewModel {
                 });
             }
             const isCmd = get(this.isCmdController);
+            if (!isCmd) {
+                const blockMeta = get(this.blockAtom)?.meta;
+                const cwd = blockMeta?.["cmd:cwd"] as string;
+                const cwdLabel = formatCwdLabel(cwd, isLocalConnName(blockMeta?.connection) ? getLocalHomeDir() : null);
+                if (cwdLabel) {
+                    rtn.push({
+                        elemtype: "text",
+                        text: cwdLabel,
+                        noGrow: true,
+                        className: "term-cwd-link",
+                        title: "Open this folder in Files",
+                        onClick: () => this.openCwdInFiles(),
+                    });
+                }
+                const gitChip = makeGitChip(get(this.gitStatusAtom));
+                if (cwdLabel && gitChip) {
+                    rtn.push({
+                        elemtype: "text",
+                        text: gitChip.label,
+                        noGrow: true,
+                        className: gitChip.dirty ? "term-git-chip is-dirty" : "term-git-chip",
+                        title: gitChip.title,
+                    });
+                }
+            }
             if (isCmd) {
                 const blockMeta = get(this.blockAtom)?.meta;
                 let cmdText = blockMeta?.["cmd"];
@@ -436,6 +470,8 @@ export class TermViewModel implements ViewModel {
                 this.termRef.current.setCursorBlink(globalStore.get(termCursorBlinkAtom) ?? false);
             }
         });
+        this.gitCwdUnsubFn = globalStore.sub(getBlockMetaKeyAtom(blockId, "cmd:cwd"), () => this.scheduleGitRefresh());
+        this.scheduleGitRefresh();
     }
 
     getShellIntegrationIconButton(get: jotai.Getter): IconButtonDecl | null {
@@ -537,7 +573,10 @@ export class TermViewModel implements ViewModel {
     }
 
     multiInputHandler(data: string) {
-        const tvms = getAllBasicTermModels();
+        if (!globalStore.get(this.tabModel.isActiveAtom)) {
+            return;
+        }
+        const tvms = getAllBasicTermModels(this.tabModel.tabId);
         for (const tvm of tvms) {
             if (tvm != this) {
                 tvm.sendDataToController(data);
@@ -992,7 +1031,63 @@ export class TermViewModel implements ViewModel {
         return bcm.viewModel as VDomModel;
     }
 
+    openCwdInFiles() {
+        const meta = globalStore.get(this.blockAtom)?.meta;
+        const cwd = meta?.["cmd:cwd"] as string;
+        if (!cwd) {
+            return;
+        }
+        const blockMeta: MetaType = { view: "preview", file: cwd };
+        if (!isLocalConnName(meta?.connection)) {
+            blockMeta.connection = meta.connection;
+        }
+        fireAndForget(() => createBlock({ meta: blockMeta }));
+    }
+
+    scheduleGitRefresh(delayMs = 300) {
+        clearTimeout(this.gitRefreshTimer);
+        this.gitRefreshTimer = setTimeout(() => fireAndForget(() => this.refreshGitStatus()), delayMs);
+    }
+
+    async refreshGitStatus() {
+        const meta = globalStore.get(this.blockAtom)?.meta;
+        const epoch = ++this.gitRefreshEpoch;
+        const cwd = meta?.["cmd:cwd"] as string;
+        if (!cwd || meta?.controller === "cmd") {
+            globalStore.set(this.gitStatusAtom, null);
+            return;
+        }
+        try {
+            const status = await RpcApi.GitStatusCommand(TabRpcClient, {
+                connname: meta?.connection || "local",
+                cwd,
+                timeoutms: 3000,
+            });
+            if (epoch !== this.gitRefreshEpoch) {
+                return;
+            }
+            globalStore.set(this.gitStatusAtom, status?.exitcode === 0 ? status : null);
+        } catch {
+            if (epoch === this.gitRefreshEpoch) {
+                globalStore.set(this.gitStatusAtom, null);
+            }
+        }
+    }
+
+    // Branch and dirty state change when a command finishes (git checkout, commit, edits), not on a timer.
+    noteCmdBlocks(blocks: CmdBlock[]) {
+        const done = blocks.filter((b) => b.state === "done").length;
+        if (done === this.lastDoneBlockCount) {
+            return;
+        }
+        this.lastDoneBlockCount = done;
+        this.scheduleGitRefresh();
+    }
+
     dispose() {
+        clearTimeout(this.gitRefreshTimer);
+        this.gitRefreshEpoch++;
+        this.gitCwdUnsubFn?.();
         DefaultRouter.unregisterRoute(makeFeBlockRouteId(this.blockId));
         this.shellProcStatusUnsubFn?.();
         this.blockJobStatusUnsubFn?.();
@@ -1002,6 +1097,9 @@ export class TermViewModel implements ViewModel {
     }
 
     giveFocus(): boolean {
+        if (!globalStore.get(this.tabModel.isActiveAtom)) {
+            return false;
+        }
         if (this.searchAtoms && globalStore.get(this.searchAtoms.isOpen)) {
             console.log("search is open, not giving focus");
             return true;
@@ -1253,7 +1351,7 @@ export class TermViewModel implements ViewModel {
             cols: this.termRef.current?.terminal?.cols,
         };
         await RpcApi.ControllerResyncCommand(TabRpcClient, {
-            tabid: globalStore.get(atoms.staticTabId),
+            tabid: this.tabModel.tabId,
             blockid: this.blockId,
             forcerestart: true,
             rtopts: { termsize: termsize },
@@ -1271,7 +1369,7 @@ export class TermViewModel implements ViewModel {
             cols: this.termRef.current?.terminal?.cols,
         };
         await RpcApi.ControllerResyncCommand(TabRpcClient, {
-            tabid: globalStore.get(atoms.staticTabId),
+            tabid: this.tabModel.tabId,
             blockid: this.blockId,
             forcerestart: true,
             rtopts: { termsize: termsize },
@@ -1305,7 +1403,7 @@ export class TermViewModel implements ViewModel {
             cols: this.termRef.current?.terminal?.cols,
         };
         await RpcApi.ControllerResyncCommand(TabRpcClient, {
-            tabid: globalStore.get(atoms.staticTabId),
+            tabid: this.tabModel.tabId,
             blockid: this.blockId,
             forcerestart: true,
             rtopts: { termsize: termsize },
@@ -1844,7 +1942,7 @@ export class TermViewModel implements ViewModel {
     }
 }
 
-export function getAllBasicTermModels(): TermViewModel[] {
+export function getAllBasicTermModels(tabId: string): TermViewModel[] {
     const termModels: TermViewModel[] = [];
     const bcms = getAllBlockComponentModels();
     for (const bcm of bcms) {
@@ -1855,5 +1953,5 @@ export function getAllBasicTermModels(): TermViewModel[] {
             }
         }
     }
-    return termModels;
+    return modelsForTab(termModels, tabId);
 }

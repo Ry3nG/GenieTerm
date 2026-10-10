@@ -2,86 +2,67 @@
   <img alt="GenieTerm logo" src="./assets/genieterm-logo.png" width="128">
 </p>
 
-# GenieTerm
+<h1 align="center">GenieTerm</h1>
 
-GenieTerm is a semantic, remote-native terminal for command blocks, durable sessions, and file workflows.
+<p align="center">The terminal for people who live in SSH.</p>
 
-## Downloads
+GenieTerm is a macOS terminal built around four things that usually live in separate tools:
 
-Official installers and update packages are published on the [GitHub Releases page](https://github.com/Ry3nG/GenieTerm/releases). Stable releases are macOS-only, with ad-hoc signed Apple Silicon and Intel builds. Windows x64 is an unsigned preview published only on prerelease tags; use the NSIS `.exe` installer for normal installation or the ZIP for a portable unpacked copy. Windows ARM64 and Linux packages are not shipped.
+- **Command blocks.** GenieTerm follows your shell's prompts, so every command keeps its status, duration and output together. Copy a command or its output, re-run it, or jump between commands with ⇧⌘↑ / ⇧⌘↓. Underneath it is an ordinary xterm session; switch to the classic grid in Settings whenever you like.
+- **Durable SSH.** A durable session keeps running on the host through sleep, network changes and app restarts, then reattaches and streams back whatever it printed while you were away.
+- **Remote files.** Browse folders on this Mac or any connected host, preview Markdown, images and code, edit with atomic saves, drag files in, and download whole folders, all next to the shell that's using them.
+- **Host.** See what a machine is doing: CPU, memory, every NVIDIA GPU and the processes holding it, the process list, and the ports its servers listen on. On an SSH host, Forward & open puts Jupyter, TensorBoard or a dev server on `localhost` in one click.
 
-Release files should be downloaded from that repository's Release page. The Windows release criteria and installation checks are in [`docs/windows-release-gate.md`](docs/windows-release-gate.md).
+Long commands notify you when they finish while you're looking elsewhere, and every terminal header shows the folder and git branch it's in.
 
-Windows folder downloads use the Windows [OpenSSH Client](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse). If `scp.exe` is unavailable, enable that optional Windows feature before downloading remote folders.
+It runs on your machine. There is no account and no usage data. The one AI feature is optional: press ⇧⌘Space, describe what you want, and GenieTerm proposes a command for you to review. It never runs one on its own.
 
-It is built on the Wave Terminal codebase and keeps Wave's runtime: durable remote sessions, inline previews, built-in editing, the `genie`/`wsh` helper, and cross-platform Electron/Go packaging. The product is narrower: the terminal understands command boundaries, status, output, duration, and remote file identity on that same session path.
+## Install
 
-## Current Focus
+Download the latest release from the [Releases page](https://github.com/Ry3nG/GenieTerm/releases) (Apple Silicon and Intel). The app is ad-hoc signed and not notarized, so the first launch is blocked by Gatekeeper: move it to `/Applications`, try to open it once, then choose **Open Anyway** in System Settings → Privacy & Security. GenieTerm updates itself after that.
 
-- Semantic command blocks as the default presentation; classic xterm is a compatibility mode over the same `TerminalView` / `TermWrap` runtime.
-- Inline completion from the Fig spec corpus, history, and paths.
-- Optional natural-language command composer (propose a command; never auto-run). No AI chat panel.
-- Dark, Apple-inspired visual identity.
-- Remote file and transfer flows. Remote paths display as `genie://`; `wsh://` is still accepted.
+A Windows x64 build is published as an unsigned preview on prerelease tags; see [`docs/windows-release-gate.md`](docs/windows-release-gate.md). Linux is not shipped.
 
-## Product Direction
+## The `genie` helper
 
-See [`docs/GENIETERM-ROADMAP.md`](docs/GENIETERM-ROADMAP.md). Short version:
+Inside any GenieTerm terminal, local or remote:
 
-- Command blocks with gutter, status, duration, copy, re-run, and jump.
-- Durable local and remote sessions that stay ordinary xterm sessions underneath.
-- Remote inspect, preview, upload, download, and a transfer queue.
-- Additive `genie` / `genie://` aliases that do not break `wsh` / `wsh://`.
-- Wave AI chat and the app builder are removed.
+```sh
+genie view README.md      # preview a file in a block
+genie edit ~/.zshrc       # open it in the editor
+```
 
-Version 1.0 is terminal + durable remote + files — not a Wave-sized surface.
-
-## Relationship To Wave
-
-GenieTerm is based on [Wave Terminal](https://github.com/wavetermdev/waveterm), an Apache-2.0 open-source terminal.
-
-This fork keeps the upstream license and acknowledgements while developing an independent product direction.
+GenieTerm installs the helper on a host the first time you connect (it asks first). Without it, Files still works over SFTP. `wsh` and `wsh://` remain as aliases for `genie` and `genie://`.
 
 ## Development
 
-Install dependencies:
-
 ```sh
-task init
+task init           # install dependencies
+task electron:dev   # run the app in development
+task v1:gate        # the merge gate: typecheck, lint, tests, Go checks, audits, visual QA
 ```
 
-Run the baseline quality gate before merging release-bound work:
+Build and install a local macOS package (build outside File Provider-managed folders such as iCloud Drive):
 
 ```sh
-task v1:gate
+GENIETERM_BUILD_OUTPUT=/private/tmp/genieterm-make task package -- --mac zip --arm64
+rm -rf /Applications/GenieTerm.app
+ditto --norsrc /private/tmp/genieterm-make/mac-arm64/GenieTerm.app /Applications/GenieTerm.app
 ```
 
-Run targeted tests for a quick GenieTerm transfer-slice regression:
-
-```sh
-npm test -- frontend/util/transferutil.test.ts emain/transfer/download-folder.test.ts frontend/util/previewutil.test.ts --run
-```
-
-Build a local macOS package outside File Provider-managed folders:
-
-```sh
-GENIETERM_BUILD_OUTPUT=/private/tmp/genieterm-make task package
-```
-
-On Windows x64, build and check an unpacked app and release packages on a native machine with Node 22, Go, Task, and Zig installed:
+On Windows x64, with Node 22, Go, Task and Zig installed:
 
 ```powershell
 task package -- --win --x64
 node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
 ```
 
-Install the arm64 app locally:
+Product scope and what comes next are in [`docs/GENIETERM-ROADMAP.md`](docs/GENIETERM-ROADMAP.md); release gates are in [`docs/v1-release-gate.md`](docs/v1-release-gate.md).
 
-```sh
-rm -rf /Applications/GenieTerm.app
-ditto --norsrc /private/tmp/genieterm-make/mac-arm64/GenieTerm.app /Applications/GenieTerm.app
-```
+## Relationship to Wave
+
+GenieTerm is a fork of [Wave Terminal](https://github.com/wavetermdev/waveterm). It keeps Wave's runtime (durable remote sessions, previews, the editor, the helper, Electron/Go packaging) and narrows the product to the terminal, durable remote sessions and files. Wave AI chat and the app builder are removed. Internal names still say Wave so the code reads like upstream.
 
 ## License
 
-GenieTerm is licensed under Apache-2.0. See [LICENSE](./LICENSE) and [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).
+Apache-2.0. See [LICENSE](./LICENSE) and [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).

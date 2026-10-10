@@ -1,7 +1,14 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-export type CommandPaletteCommand = { id: string; label: string; binding: string; run: () => void };
+export type CommandPaletteCommand = {
+    id: string;
+    label: string;
+    binding: string;
+    hint?: string;
+    keywords?: string;
+    run: () => void;
+};
 
 type MenuCommandBuildOpts = {
     prefix?: string;

@@ -17,9 +17,15 @@ import (
 const (
 	systemLibPath   = "/usr/lib/libSystem.B.dylib"
 	procPidInfoSym  = "proc_pidinfo"
+	procPidPathSym  = "proc_pidpath"
 	machTimebaseSym = "mach_timebase_info"
 	procPidTaskInfo = 4
 	kernSuccess     = 0
+
+	// PROC_PIDPATHINFO_MAXSIZE from libproc.h
+	procPidPathMaxSize = 4096
+	// The kernel keeps at most MAXCOMLEN (16) bytes of the command name in p_comm.
+	darwinCommMaxLen = 16
 )
 
 // From <mach/mach_time.h>
@@ -57,11 +63,13 @@ var (
 	darwinProcInitErr  error
 	darwinLibHandle    uintptr
 	darwinProcPidInfo  procPidInfoFunc
+	darwinProcPidPath  procPidPathFunc
 	darwinMachTimebase machTimebaseInfoFunc
 	darwinTimeScale    float64 // mach absolute time units -> nanoseconds
 )
 
 type procPidInfoFunc func(pid, flavor int32, arg uint64, buffer uintptr, bufferSize int32) int32
+type procPidPathFunc func(pid int32, buffer uintptr, bufferSize uint32) int32
 type machTimebaseInfoFunc func(info uintptr) int32
 
 func MakeGlobalSnapshot() (any, error) {
@@ -86,6 +94,7 @@ func GetProcInfo(ctx context.Context, _ any, pid int32) (*ProcInfo, error) {
 		Command: unix.ByteSliceToString(k.Proc.P_comm[:]),
 		Uid:     k.Eproc.Ucred.Uid,
 	}
+	info.Command = expandDarwinCommand(pid, info.Command)
 
 	info.CpuUser = -1
 	info.CpuSys = -1
@@ -113,6 +122,7 @@ func initDarwinProcFuncs() error {
 		darwinLibHandle = handle
 
 		purego.RegisterLibFunc(&darwinProcPidInfo, darwinLibHandle, procPidInfoSym)
+		purego.RegisterLibFunc(&darwinProcPidPath, darwinLibHandle, procPidPathSym)
 		purego.RegisterLibFunc(&darwinMachTimebase, darwinLibHandle, machTimebaseSym)
 
 		var tb machTimebaseInfo
@@ -150,4 +160,29 @@ func getDarwinProcTaskInfo(pid int32) (*procTaskInfo, error) {
 		return nil, fmt.Errorf("proc_pidinfo(pid=%d) short read: got=%d want=%d", pid, ret, unsafe.Sizeof(ti))
 	}
 	return &ti, nil
+}
+
+// expandDarwinCommand replaces a p_comm name cut at MAXCOMLEN ("Google Chrome He") with the
+// executable's file name, the way Activity Monitor shows it.
+func expandDarwinCommand(pid int32, comm string) string {
+	if len(comm) < darwinCommMaxLen {
+		return comm
+	}
+	path, err := getDarwinProcPath(pid)
+	if err != nil {
+		return comm
+	}
+	return expandTruncatedCommand(comm, path, darwinCommMaxLen)
+}
+
+func getDarwinProcPath(pid int32) (string, error) {
+	if err := initDarwinProcFuncs(); err != nil {
+		return "", err
+	}
+	buf := make([]byte, procPidPathMaxSize)
+	ret := darwinProcPidPath(pid, uintptr(unsafe.Pointer(&buf[0])), uint32(len(buf)))
+	if ret <= 0 {
+		return "", fmt.Errorf("proc_pidpath(pid=%d) returned %d", pid, ret)
+	}
+	return string(buf[:ret]), nil
 }

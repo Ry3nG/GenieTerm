@@ -23,6 +23,12 @@ import (
 
 // set by main-server.go
 var WaveVersion = "0.0.0"
+
+// HelperProtocol is bumped whenever the genie helper gains RPCs the app depends on. The connect
+// check compares it as well as the version, so a helper rebuilt under the same version number
+// (prereleases, local builds) is still replaced. 2: Host view (host info, GPUs, listening ports).
+const HelperProtocol = 2
+
 var BuildTime = "0"
 
 const (

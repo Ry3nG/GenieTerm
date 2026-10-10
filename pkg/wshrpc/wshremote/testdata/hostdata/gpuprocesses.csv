@@ -1,0 +1,6 @@
+GPU-a, 123, 100
+GPU-b, 42, [N/A]
+GPU-a, 124, 200
+GPU-a, 123, 150
+GPU-missing, 125, 999
+GPU-a, nope, 1

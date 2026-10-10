@@ -1,4 +1,4 @@
-Wave Terminal is a modern terminal which provides graphical blocks, dynamic layout, workspaces, and SSH connection management. It is cross platform and built on electron.
+GenieTerm is a semantic, remote-native terminal built on the Wave Terminal codebase (a soft fork: internals keep their Wave names). It provides command blocks, durable SSH sessions, remote files, dynamic layout and workspaces, and is built on Electron.
 
 ### Project Structure
 
@@ -55,7 +55,7 @@ It has a TypeScript/React frontend and a Go backend. They talk together over `ws
 
 To define a new RPC call, add the new definition to `pkg/wshrpc/wshrpctypes.go` including any input/output data that is required. After modifying wshrpctypes.go run `task generate` to generate the client APIs.
 
-For normal "server" RPCs (where a frontend client is calling the main server) you should implement the RPC call in `pkg/wshrpc/wshserver.go`.
+For normal "server" RPCs (where a frontend client is calling the main server) you should implement the RPC call in `pkg/wshrpc/wshserver/wshserver.go`.
 
 ### Electron API
 
@@ -82,12 +82,12 @@ The full API is defined in custom.d.ts as type ElectronApi.
 ### Notes
 
 - **CRITICAL: Completion format MUST be: "Done: [one-line description]"**
-- After completing a code change or bug fix, bump the patch version in `package.json` and `package-lock.json`, commit, and push unless explicitly told not to.
+- After completing a code change or bug fix, commit and push unless explicitly told not to. Bump the version only when preparing a release (tags must match `package.json`; see RELEASES.md).
 - **Keep your Task Completed summaries VERY short**
 - **No lengthy pre-completion summaries** - Do not provide detailed explanations of implementation before using attempt_completion
 - **No recaps of changes** - Skip explaining what was done before completion
 - **Go directly to completion** - After making changes, proceed directly to attempt_completion without summarizing
-- The project is currently an un-released POC / MVP. Do not worry about backward compatibility when making changes
+- GenieTerm ships auto-updates to existing installs. Keep settings, the database, saved workspaces, and the remote helper/job-manager protocol compatible across versions (a running remote job manager keeps its old binary after an update).
 - With React hooks, always complete all hook calls at the top level before any conditional returns (including jotai hook calls useAtom and useAtomValue); when a user explicitly tells you a function handles null inputs, trust them and stop trying to "protect" it with unnecessary checks or workarounds.
 - **Match response length to question complexity** - For simple, direct questions in Ask mode (especially those that can be answered in 1-2 sentences), provide equally brief answers. Save detailed explanations for complex topics or when explicitly requested.
 - **CRITICAL** - useAtomValue and useAtom are React HOOKS. They cannot be used inline in JSX code, they must appear at the top of a component in the hooks area of the react code.

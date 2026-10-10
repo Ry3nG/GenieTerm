@@ -317,10 +317,11 @@
         flex: 0 0 auto;
         border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
         border-radius: 999px;
-        padding: 1px 7px;
+        padding: 1px 8px;
         color: var(--secondary-text-color);
-        font: var(--fixed-font);
-        font-size: 10px;
+        font: var(--base-font);
+        font-size: 11px;
+        font-weight: 500;
         line-height: 1.45;
 
         i {
@@ -471,6 +472,37 @@
     .term-command-composer-iconbtn:hover {
         color: var(--main-text-color);
         background: var(--hover-bg-color);
+    }
+
+    .term-command-composer-examples {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 12px;
+    }
+
+    .term-command-composer-examples-label {
+        color: var(--secondary-text-color);
+        font-size: 12px;
+        margin-right: 2px;
+    }
+
+    .term-command-composer-example {
+        padding: 3px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--main-text-color);
+        font-size: 12px;
+        transition:
+            background-color 120ms ease,
+            border-color 120ms ease;
+
+        &:hover {
+            background: var(--hover-bg-color, rgba(255, 255, 255, 0.06));
+            border-color: var(--accent-color);
+        }
     }
 
     .term-command-composer-empty,

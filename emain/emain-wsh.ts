@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { WindowService } from "@/app/store/services";
@@ -10,7 +10,11 @@ import { unamePlatform } from "./emain-platform";
 import { getWebContentsByBlockId, webGetSelector } from "./emain-web";
 import { createBrowserWindow, getWaveWindowById, getWaveWindowByWorkspaceId } from "./emain-window";
 
+const MaxRetainedNotifications = 100;
+
 export class ElectronWshClientType extends WshClient {
+    notifications = new Set<Notification>();
+
     constructor() {
         super("electron");
     }
@@ -32,11 +36,52 @@ export class ElectronWshClientType extends WshClient {
     }
 
     async handle_notify(rh: RpcResponseHelper, notificationOptions: WaveNotificationOptions) {
-        new Notification({
+        const notification = new Notification({
             title: notificationOptions.title,
             body: notificationOptions.body,
             silent: notificationOptions.silent,
-        }).show();
+        });
+        const release = () => this.notifications.delete(notification);
+        notification.once("close", release);
+        notification.once("failed", release);
+        notification.once("click", () => {
+            release();
+            if (notificationOptions.tabid) {
+                this.focusNotification(notificationOptions).catch((e) => console.log("notification focus failed", e));
+            }
+        });
+        // Electron must retain the native notification's JS wrapper for click handlers to survive.
+        this.notifications.add(notification);
+        if (this.notifications.size > MaxRetainedNotifications) {
+            const oldest = this.notifications.values().next().value;
+            oldest.close();
+            this.notifications.delete(oldest);
+        }
+        try {
+            notification.show();
+        } catch (e) {
+            release();
+            throw e;
+        }
+    }
+
+    async focusNotification({ tabid, blockid }: WaveNotificationOptions) {
+        // Shared renderers only register their initial tab in allLoadedTabViews.
+        const workspaces = await RpcApi.WorkspaceListCommand(this, { timeout: 5000 });
+        const owner = workspaces?.find((entry) => entry.workspacedata?.tabids?.includes(tabid));
+        const ww = owner?.windowid ? getWaveWindowById(owner.windowid) : null;
+        if (ww == null || ww.isDestroyed()) {
+            return;
+        }
+        if (ww.isMinimized()) {
+            ww.restore();
+        }
+        ww.show();
+        ww.focus();
+        await ww.setActiveTab(tabid, true);
+        if (blockid) {
+            await RpcApi.SetBlockFocusCommand(this, blockid, { route: `tab:${tabid}`, timeout: 2000 });
+        }
     }
 
     async handle_getupdatechannel(rh: RpcResponseHelper): Promise<string> {

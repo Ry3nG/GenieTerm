@@ -1,7 +1,8 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { App } from "@/app/app";
+import { activeTabIdAtom, configureTabMode, SingleView, tabCacheVersionAtom } from "@/app/store/activetab";
 import { loadBadges } from "@/app/store/badge";
 import { GlobalModel } from "@/app/store/global-model";
 import {
@@ -11,10 +12,12 @@ import {
     registerGlobalKeys,
 } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
+import { tabAfterClose } from "@/app/store/tabpaneutils";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { makeTabRouteId } from "@/app/store/wshrouter";
-import { initWshrpc, TabRpcClient } from "@/app/store/wshrpcutil";
+import { initWshrpc, syncTabRoutes, TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
+import { deleteLayoutModelForTab } from "@/layout/lib/layoutModelHooks";
 import { countersClear, countersPrint } from "@/store/counters";
 import {
     atoms,
@@ -25,11 +28,12 @@ import {
     loadConnStatus,
     subscribeToConnEvents,
 } from "@/store/global";
-import { activeTabIdAtom } from "@/store/tab-model";
+import { deleteTabModel, getTabModelByTabId } from "@/store/tab-model";
 import * as WOS from "@/store/wos";
 import { loadFonts } from "@/util/fontutil";
 import { setKeyUtilPlatform } from "@/util/keyutil";
 import { isMacOS, setMacOSVersion } from "@/util/platformutil";
+import { atom } from "jotai";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -136,8 +140,63 @@ function loadAllWorkspaceTabs(ws: Workspace) {
     });
 }
 
+function initializeTabTracking() {
+    const titleAtom = atom((get) => {
+        const tabId = get(activeTabIdAtom);
+        if (!tabId) {
+            return null;
+        }
+        return get(getTabModelByTabId(tabId).tabAtom)?.name;
+    });
+    const updateTitle = () => {
+        const name = globalStore.get(titleAtom);
+        document.title = name ? `GenieTerm - ${name}` : "GenieTerm";
+    };
+    globalStore.sub(titleAtom, updateTitle);
+    updateTitle();
+    if (!SingleView) {
+        return;
+    }
+    getApi().onClearTabCache(() => {
+        globalStore.set(tabCacheVersionAtom, (version) => version + 1);
+    });
+    let previousTabs = globalStore.get(atoms.workspace)?.tabids ?? [];
+    const syncWorkspace = () => {
+        const workspace = globalStore.get(atoms.workspace);
+        if (workspace == null) {
+            return;
+        }
+        const tabs = workspace.tabids ?? [];
+        const active = globalStore.get(activeTabIdAtom);
+        if (!tabs.includes(active)) {
+            globalStore.set(activeTabIdAtom, tabAfterClose(previousTabs, tabs, active));
+        }
+        syncTabRoutes(tabs);
+        for (const id of previousTabs) {
+            if (!tabs.includes(id)) {
+                deleteTabModel(id);
+                deleteLayoutModelForTab(id);
+            }
+        }
+        previousTabs = [...tabs];
+    };
+    globalStore.sub(atoms.workspace, syncWorkspace);
+    syncWorkspace();
+    let focusTimer: ReturnType<typeof setTimeout>;
+    globalStore.sub(activeTabIdAtom, () => {
+        clearTimeout(focusTimer);
+        focusTimer = setTimeout(globalRefocus, 50);
+    });
+    getApi().onSwitchTab((id) => {
+        if (id !== globalStore.get(activeTabIdAtom)) {
+            globalStore.set(activeTabIdAtom, id);
+        }
+    });
+}
+
 async function initWave(initOpts: WaveInitOpts) {
     getApi().sendLog("Init GenieTerm " + JSON.stringify(initOpts));
+    configureTabMode(initOpts.singleView ?? false, initOpts.tabCacheCeiling);
     const globalInitOpts: GlobalInitOptions = {
         tabId: initOpts.tabId,
         clientId: initOpts.clientId,
@@ -153,7 +212,9 @@ async function initWave(initOpts: WaveInitOpts) {
     (window as any).globalAtoms = atoms;
 
     // Init WPS event handlers
-    const globalWS = initWshrpc(makeTabRouteId(initOpts.tabId));
+    const globalWS = initWshrpc(
+        SingleView ? `fe:${initOpts.windowId}:${crypto.randomUUID().slice(0, 8)}` : makeTabRouteId(initOpts.tabId)
+    );
     (window as any).globalWS = globalWS;
     (window as any).TabRpcClient = TabRpcClient;
 
@@ -183,6 +244,7 @@ async function initWave(initOpts: WaveInitOpts) {
         console.error("Failed initialization error", e);
         getApi().sendLog("Error in initialization (wave.ts, loading required objects) " + e.message + "\n" + e.stack);
     }
+    initializeTabTracking();
     registerGlobalKeys();
     registerElectronReinjectKeyHandler();
     registerControlShiftStateUpdateHandler();

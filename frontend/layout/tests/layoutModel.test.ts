@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { globalStore } from "@/app/store/jotaiStore";
-import * as WOS from "@/app/store/wos";
 import { setWaveWindowType } from "@/app/store/windowtype";
+import * as WOS from "@/app/store/wos";
 import { atom } from "jotai";
 import { afterEach, assert, beforeEach, test } from "vitest";
 import { LayoutModel } from "../lib/layoutModel";
@@ -48,4 +48,25 @@ test("getNodeByBlockId finds ephemeral nodes", () => {
 
     assert.equal(model.getNodeByBlockId("regular-block")?.id, regularNode.id);
     assert.equal(model.getNodeByBlockId("ephemeral-block")?.id, ephemeralNode.id);
+});
+
+test("a cold pane adopts its persisted layout when it arrives after model creation", async () => {
+    WOS.mockObjectForPreview(`layout:${TestLayoutStateId}`, null);
+    await WOS.reloadWaveObject(`layout:${TestLayoutStateId}`);
+    const model = makeLayoutModel();
+    assert.equal(model.backendInitialized, false);
+    const root = newLayoutNode(FlexDirection.Row, undefined, undefined, { blockId: "persisted-block" });
+    WOS.mockObjectForPreview(`layout:${TestLayoutStateId}`, {
+        otype: "layout",
+        oid: TestLayoutStateId,
+        version: 2,
+        rootnode: root,
+        focusednodeid: root.id,
+    } as LayoutState);
+    await WOS.reloadWaveObject(`layout:${TestLayoutStateId}`);
+    model.onBackendUpdate();
+    assert.equal(model.backendInitialized, true);
+    assert.equal(model.treeState.rootNode.id, root.id);
+    assert.equal(model.getNodeByBlockId("persisted-block")?.id, root.id);
+    assert.equal(globalStore.get(model.focusedNode)?.data?.blockId, "persisted-block");
 });
