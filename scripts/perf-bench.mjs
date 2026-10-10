@@ -23,13 +23,15 @@ const ThroughputLines = 200000;
 const EchoSamples = 25;
 
 function parseArgs(argv) {
-  const opts = { app: null, out: null, tabs: 3, settings: null };
+  const opts = { app: null, out: null, tabs: 3, settings: null, startupRuns: 0 };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--out") {
       opts.out = argv[++i];
     } else if (arg === "--tabs") {
       opts.tabs = Number(argv[++i]);
+    } else if (arg === "--startup-runs") {
+      opts.startupRuns = Number(argv[++i]);
     } else if (arg === "--settings") {
       opts.settings = JSON.parse(argv[++i]);
     } else if (!opts.app) {
@@ -182,21 +184,39 @@ async function connect(session) {
   for (let i = 0; i < 300 && !session.wsUrl; i++) {
     await sleep(50);
   }
+  if (!session.wsUrl) {
+    throw new Error("GenieTerm did not expose a DevTools endpoint");
+  }
   session.browser = await chromium.connectOverCDP(session.wsUrl);
   return session.browser;
 }
 
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// helpers and wavesrv are reparented once the main process exits, so remember their pids up front and wait for
+// every one of them: a survivor keeps Chromium's profile lock and the next launch on this data dir would bail out
 async function stopApp(session) {
+  const pids = processTree(session.app.pid).map((row) => row.pid);
   await session.browser?.close().catch(() => {});
-  for (const row of processTree(session.app.pid)) {
+  for (const pid of pids) {
     try {
-      process.kill(row.pid, "SIGTERM");
+      process.kill(pid, "SIGTERM");
     } catch {
       // already exited
     }
   }
-  for (let i = 0; i < 100 && processTree(session.app.pid).length > 0; i++) {
+  for (let i = 0; i < 100 && pids.some(isAlive); i++) {
     await sleep(100);
+  }
+  for (const pid of pids.filter(isAlive)) {
+    process.kill(pid, "SIGKILL");
   }
 }
 
@@ -297,6 +317,12 @@ async function measureSession(opts, dataDir, report) {
     report.extraTabs = opts.tabs;
     report.rendererPagesAdded = browser.contexts().flatMap((context) => context.pages()).length - pagesBefore;
     report.withTabs = await sampleProcesses(session.app.pid, 5000);
+    // an attached DevTools client keeps every page "visible", so detach before measuring background tabs; they
+    // stop rendering and release their WebGL renderers after a delay
+    await browser.close().catch(() => {});
+    session.browser = null;
+    await sleep(30000);
+    report.withTabsSettled = await sampleProcesses(session.app.pid, 5000);
   } finally {
     await stopApp(session);
   }
@@ -312,9 +338,57 @@ async function measureRelaunch(opts, dataDir, report) {
     report.relaunchToWindowMs = Date.now() - session.launchTs;
     await page.locator(".xterm-helper-textarea").first().waitFor({ timeout: 30000 });
     report.relaunchToTerminalMs = Date.now() - session.launchTs;
+    await browser.close().catch(() => {});
+    session.browser = null;
+    await sleep(15000);
+    report.relaunchIdle = await sampleProcesses(session.app.pid, 10000);
   } finally {
     await stopApp(session);
   }
+}
+
+// startup only: complete onboarding once, then relaunch N times on the warm data dir and report the spread
+async function measureStartupRuns(opts, dataDir, report) {
+  const first = launchApp(opts.app, dataDir);
+  try {
+    const page = await visibleAppPage(await connect(first), 30000);
+    for (const label of ["Continue", "Skip Feature Tour"]) {
+      const button = page.getByText(label, { exact: true });
+      await button
+        .first()
+        .waitFor({ timeout: 8000 })
+        .catch(() => {});
+      if (await button.count()) {
+        await button.first().click();
+        await sleep(800);
+      }
+    }
+    await sleep(3000);
+  } finally {
+    await stopApp(first);
+  }
+  const windowMs = [];
+  const terminalMs = [];
+  for (let i = 0; i < opts.startupRuns; i++) {
+    progress(`startup run ${i + 1}/${opts.startupRuns}`);
+    const session = launchApp(opts.app, dataDir);
+    try {
+      const page = await visibleAppPage(await connect(session), 30000);
+      windowMs.push(Date.now() - session.launchTs);
+      await page.locator(".xterm-helper-textarea").first().waitFor({ timeout: 30000 });
+      terminalMs.push(Date.now() - session.launchTs);
+      await sleep(3000);
+    } finally {
+      await stopApp(session);
+    }
+  }
+  report.startupRuns = opts.startupRuns;
+  report.relaunchToWindowMs = { p50: percentile(windowMs, 50), min: Math.min(...windowMs), max: Math.max(...windowMs) };
+  report.relaunchToTerminalMs = {
+    p50: percentile(terminalMs, 50),
+    min: Math.min(...terminalMs),
+    max: Math.max(...terminalMs),
+  };
 }
 
 async function main() {
@@ -328,8 +402,12 @@ async function main() {
   );
   const report = { app: opts.app, settings: opts.settings ?? {} };
   try {
-    await measureSession(opts, dataDir, report);
-    await measureRelaunch(opts, dataDir, report);
+    if (opts.startupRuns > 0) {
+      await measureStartupRuns(opts, dataDir, report);
+    } else {
+      await measureSession(opts, dataDir, report);
+      await measureRelaunch(opts, dataDir, report);
+    }
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }
