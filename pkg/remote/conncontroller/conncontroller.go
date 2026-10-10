@@ -96,6 +96,11 @@ type SSHConn struct {
 	Monitor            *ConnMonitor // will not be nil
 	wshInstalling      atomic.Bool  // guards a single background wsh install at a time
 	installCancel      context.CancelFunc
+	connectAbort       context.CancelFunc // non-nil while a Connect attempt is in flight
+	reconnect          *reconnectLoop     // non-nil while an automatic reconnect loop is running
+	Reconnecting       bool
+	ReconnectAttempt   int
+	NextReconnectTs    int64
 }
 
 func IsLocalConnName(connName string) bool {
@@ -142,15 +147,20 @@ func getConnectionSnapshot() []*SSHConn {
 	return connections
 }
 
+// NotifySystemResume probes every live connection right away (a connection that slept
+// through a network change is usually dead but looks fine until TCP times out) and
+// skips the backoff wait of any pending automatic reconnect.
 func NotifySystemResume() int {
 	connections := getConnectionSnapshot()
 	notified := 0
 	for _, conn := range connections {
+		conn.kickAutoReconnect()
 		monitor := conn.GetMonitor()
 		if monitor == nil {
 			continue
 		}
 		monitor.NotifyCheck()
+		monitor.ProbeAfterResume()
 		notified++
 	}
 	return notified
@@ -193,6 +203,9 @@ func (conn *SSHConn) DeriveConnStatus() wshrpc.ConnStatus {
 		ConnHealthStatus:              conn.ConnHealthStatus,
 		LastActivityBeforeStalledTime: lastActivityBeforeStalledTime,
 		KeepAliveSentTime:             keepAliveSentTime,
+		Reconnecting:                  conn.Reconnecting,
+		ReconnectAttempt:              conn.ReconnectAttempt,
+		NextReconnectTs:               conn.NextReconnectTs,
 	}
 }
 
@@ -218,19 +231,39 @@ func (conn *SSHConn) FireConnChangeEvent() {
 	wps.Broker.Publish(event)
 }
 
+// Close is the user-facing disconnect: it stops any automatic reconnect loop and aborts an
+// in-flight connect attempt (so a hung handshake can't block the disconnect behind
+// lifecycleLock) before tearing the connection down.
 func (conn *SSHConn) Close() error {
+	wasReconnecting := conn.stopAutoReconnect()
+	conn.abortConnectAttempt()
 	conn.lifecycleLock.Lock()
 	defer conn.lifecycleLock.Unlock()
 
 	defer conn.FireConnChangeEvent()
 	conn.WithLock(func() {
-		if conn.Status == Status_Connected || conn.Status == Status_Connecting {
+		if conn.Status == Status_Connected || conn.Status == Status_Connecting || wasReconnecting {
 			// if status is init, disconnected, or error don't change it
 			conn.Status = Status_Disconnected
 		}
 	})
 	conn.closeInternal_withlifecyclelock()
 	return nil
+}
+
+func (conn *SSHConn) setConnectAbort(abortFn context.CancelFunc) {
+	conn.lock.Lock()
+	defer conn.lock.Unlock()
+	conn.connectAbort = abortFn
+}
+
+func (conn *SSHConn) abortConnectAttempt() {
+	abortFn := WithLockRtn(conn, func() context.CancelFunc {
+		return conn.connectAbort
+	})
+	if abortFn != nil {
+		abortFn()
+	}
 }
 
 func (conn *SSHConn) closeInternal_withlifecyclelock() {
@@ -286,7 +319,7 @@ func (conn *SSHConn) closeInternal_withlifecyclelock() {
 
 func closeDetachedSSHHandles(connName string, client *ssh.Client, listener net.Listener, controller *ssh.Session) {
 	if client != nil {
-		closeClientOwnedSSHHandles(connName, client, listener, controller)
+		closeClientOwnedSSHHandles(connName, clientChainCloser{client: client}, listener, controller)
 		return
 	}
 	if listener != nil {
@@ -302,6 +335,15 @@ func closeClientOwnedSSHHandles(connName string, client io.Closer, _ io.Closer, 
 	// closed, invoking protocol-level child Close methods can block forever in
 	// older x/crypto versions and cannot provide any additional cleanup.
 	closeWithLog(connName, "Client.Close()", client)
+}
+
+// closes the client together with any ProxyJump clients it was tunneled through
+type clientChainCloser struct {
+	client *ssh.Client
+}
+
+func (c clientChainCloser) Close() error {
+	return remote.CloseClientChain(c.client)
 }
 
 func closeWithLog(connName string, label string, closer io.Closer) {
@@ -353,6 +395,9 @@ func (conn *SSHConn) OpenDomainSocketListener(ctx context.Context) error {
 		return fmt.Errorf("cannot open domain socket for %q when status is %q", conn.GetName(), conn.GetStatus())
 	}
 	client := conn.GetClient()
+	if client == nil {
+		return fmt.Errorf("cannot open domain socket for %q: ssh client is not connected", conn.GetName())
+	}
 	randStr, err := utilfn.RandomHexString(16) // 64-bits of randomness
 	if err != nil {
 		return fmt.Errorf("error generating random string: %w", err)
@@ -361,7 +406,7 @@ func (conn *SSHConn) OpenDomainSocketListener(ctx context.Context) error {
 	conn.Infof(ctx, "generated domain socket name %s\n", sockName)
 	listener, err := client.ListenUnix(sockName)
 	if err != nil {
-		return fmt.Errorf("unable to request connection domain socket: %v", err)
+		return fmt.Errorf("unable to request connection domain socket: %w (the server may have AllowStreamLocalForwarding disabled in sshd_config)", err)
 	}
 	conn.WithLock(func() {
 		conn.DomainSockName = sockName
@@ -372,10 +417,7 @@ func (conn *SSHConn) OpenDomainSocketListener(ctx context.Context) error {
 		defer func() {
 			panichandler.PanicHandler("conncontroller:OpenDomainSocketListener", recover())
 		}()
-		defer conn.WithLock(func() {
-			conn.DomainSockListener = nil
-			conn.DomainSockName = ""
-		})
+		defer clearDomainSocketIfCurrent(conn, listener)
 		monitor := conn.GetMonitor()
 		var updateCallback func()
 		if monitor != nil {
@@ -384,6 +426,17 @@ func (conn *SSHConn) OpenDomainSocketListener(ctx context.Context) error {
 		wshutil.RunWshRpcOverListener(listener, updateCallback)
 	}()
 	return nil
+}
+
+// only clears listener's own state; a reconnect may already have installed a newer listener
+func clearDomainSocketIfCurrent(conn *SSHConn, listener net.Listener) {
+	conn.lock.Lock()
+	defer conn.lock.Unlock()
+	if conn.DomainSockListener != listener {
+		return
+	}
+	conn.DomainSockListener = nil
+	conn.DomainSockName = ""
 }
 
 // expects the output of `wsh version` which looks like `wsh v0.10.4` or "not-installed [os] [arch]"
@@ -533,6 +586,9 @@ func (conn *SSHConn) StartConnServer(ctx context.Context, afterUpdate bool, useR
 		return false, "", "", fmt.Errorf("cannot start conn server for %q when status is %q", conn.GetName(), conn.GetStatus())
 	}
 	client := conn.GetClient()
+	if client == nil {
+		return false, "", "", fmt.Errorf("cannot start conn server for %q: ssh client is not connected", conn.GetName())
+	}
 	wshPath := conn.getWshPath()
 	fallbackWshPath := conn.getFallbackWshPath()
 	sockName := conn.GetDomainSocketName()
@@ -628,19 +684,13 @@ func (conn *SSHConn) StartConnServer(ctx context.Context, afterUpdate bool, useR
 			panichandler.PanicHandler("conncontroller:sshSession.Wait", recover())
 		}()
 		// wait for termination, clear the controller
-		var waitErr error
-		defer conn.WithLock(func() {
-			if conn.ConnController != nil {
-				conn.WshEnabled.Store(false)
-				conn.NoWshReason = "connserver terminated"
-				if waitErr != nil {
-					conn.WshError = fmt.Sprintf("connserver terminated unexpectedly with error: %v", waitErr)
-				}
-			}
-			conn.ConnController = nil
-		})
-		waitErr = sshSession.Wait()
+		waitErr := sshSession.Wait()
 		log.Printf("conn controller (%q) terminated: %v", conn.GetName(), waitErr)
+		if conn.clearConnController(sshSession, waitErr) {
+			// durable jobs depend on the connserver route; let listeners (jobcontroller,
+			// UI) see wshenabled flip to false
+			conn.FireConnChangeEvent()
+		}
 	}()
 	go func() {
 		defer func() {
@@ -683,6 +733,22 @@ func (conn *SSHConn) StartConnServer(ctx context.Context, afterUpdate bool, useR
 	return false, clientVersion, "", nil
 }
 
+// returns true if session was the current controller (and wsh was marked disabled)
+func (conn *SSHConn) clearConnController(session *ssh.Session, waitErr error) bool {
+	conn.lock.Lock()
+	defer conn.lock.Unlock()
+	if conn.ConnController != session {
+		return false
+	}
+	conn.ConnController = nil
+	conn.WshEnabled.Store(false)
+	conn.NoWshReason = "connserver terminated"
+	if waitErr != nil {
+		conn.WshError = fmt.Sprintf("connserver terminated unexpectedly with error: %v", waitErr)
+	}
+	return true
+}
+
 type WshInstallOpts struct {
 	Force        bool
 	NoUserPrompt bool
@@ -703,7 +769,7 @@ func (conn *SSHConn) UpdateWsh(ctx context.Context, clientDisplayName string, re
 	if client == nil {
 		return fmt.Errorf("cannot update wsh: ssh client is not connected")
 	}
-	err := remote.CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch)
+	err := remote.CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch, conn.getWshPath())
 	if err != nil {
 		return fmt.Errorf("error installing wsh to remote: %w", err)
 	}
@@ -776,7 +842,7 @@ func (conn *SSHConn) InstallWsh(ctx context.Context, osArchStr string) error {
 		return fmt.Errorf("error detecting client platform: %w", err)
 	}
 	conn.Infof(ctx, "detected remote platform os:%s arch:%s\n", clientOs, clientArch)
-	err = remote.CpWshToRemote(ctx, client, clientOs, clientArch)
+	err = remote.CpWshToRemote(ctx, client, clientOs, clientArch, conn.getWshPath())
 	if err != nil {
 		conn.Infof(ctx, "ERROR copying wsh binary to remote: %v\n", err)
 		return fmt.Errorf("error copying wsh binary to remote: %w", err)
@@ -843,12 +909,30 @@ func (conn *SSHConn) Connect(ctx context.Context, connFlags *wconfig.ConnKeyword
 	}
 	conn.Infof(ctx, "trying to connect to %q...\n", conn.GetName())
 	conn.FireConnChangeEvent()
-	err := conn.connectInternal(ctx, connFlags)
+	// abortCtx is cancelled by Close() (user disconnect); connCtx additionally carries the
+	// caller's deadline. Close() must not wait behind lifecycleLock for a hung handshake.
+	abortCtx, abortFn := context.WithCancel(context.Background())
+	defer abortFn()
+	conn.setConnectAbort(abortFn)
+	defer conn.setConnectAbort(nil)
+	connCtx, connCancel := context.WithCancel(ctx)
+	defer connCancel()
+	stopAbortWatch := context.AfterFunc(abortCtx, connCancel)
+	defer stopAbortWatch()
+	err := conn.connectInternal(connCtx, abortCtx, connFlags)
+	if err == nil && abortCtx.Err() != nil {
+		err = fmt.Errorf("connection attempt to %q was cancelled", conn.GetName())
+	}
 	if err != nil {
 		errorCode, subCode := remote.ClassifyConnError(err)
 		isContextError := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 		conn.Infof(ctx, "ERROR [%s] %v\n\n", errorCode, err)
+		aborted := abortCtx.Err() != nil
 		conn.WithLock(func() {
+			if aborted {
+				conn.Status = Status_Disconnected
+				return
+			}
 			conn.Status = Status_Error
 			conn.Error = err.Error()
 		})
@@ -891,25 +975,15 @@ func (conn *SSHConn) Connect(ctx context.Context, connFlags *wconfig.ConnKeyword
 
 	// logic for saving connection and potential flags (we only save once a connection has been made successfully)
 	// at the moment, identity files is the only saved flag
-	var identityFiles []string
+	var existingIdentityFiles []string
 	existingConnection, ok := conn.getConnectionConfig()
 	if ok {
-		identityFiles = existingConnection.SshIdentityFile
-	}
-	if err != nil {
-		// i do not consider this a critical failure
-		log.Printf("config read error: unable to save connection %s: %v", conn.GetName(), err)
+		existingIdentityFiles = existingConnection.SshIdentityFile
 	}
 
 	meta := make(map[string]any)
-	if connFlags.SshIdentityFile != nil {
-		for _, identityFile := range connFlags.SshIdentityFile {
-			if utilfn.ContainsStr(identityFiles, identityFile) {
-				continue
-			}
-			identityFiles = append(identityFiles, connFlags.SshIdentityFile...)
-		}
-		meta["ssh:identityfile"] = identityFiles
+	if connFlags != nil && connFlags.SshIdentityFile != nil {
+		meta["ssh:identityfile"] = mergeIdentityFiles(existingIdentityFiles, connFlags.SshIdentityFile)
 	}
 	err = wconfig.SetConnectionsConfigValue(conn.GetName(), meta)
 	if err != nil {
@@ -917,6 +991,18 @@ func (conn *SSHConn) Connect(ctx context.Context, connFlags *wconfig.ConnKeyword
 		log.Printf("config write error: unable to save connection %s: %v", conn.GetName(), err)
 	}
 	return nil
+}
+
+// appends the new identity files that aren't already present, preserving order
+func mergeIdentityFiles(existing []string, added []string) []string {
+	merged := append([]string{}, existing...)
+	for _, identityFile := range added {
+		if utilfn.ContainsStr(merged, identityFile) {
+			continue
+		}
+		merged = append(merged, identityFile)
+	}
+	return merged
 }
 
 func (conn *SSHConn) WithLock(fn func()) {
@@ -968,6 +1054,9 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 	if !enableWsh {
 		return WshCheckResult{NoWshReason: "conn:wshenabled set to false", NoWshCode: NoWshCode_Disabled}
 	}
+	if askBeforeInstall && remote.IsNoUserInputContext(ctx) {
+		return WshCheckResult{NoWshReason: "wsh install needs confirmation; skipped during automatic reconnect", NoWshCode: NoWshCode_PermissionError}
+	}
 	if askBeforeInstall {
 		allowInstall, err := conn.getPermissionToInstallWsh(ctx, clientDisplayName)
 		if err != nil {
@@ -1005,7 +1094,11 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 			conn.startBackgroundWshInstall(osArchStr)
 			return WshCheckResult{NoWshReason: "installing wsh in background", NoWshCode: NoWshCode_InstallingBackground}
 		}
-		needsInstall, clientVersion, _, err = conn.StartConnServer(ctx, true, true)
+		// the install may have consumed most of the caller's (RPC) deadline; give the
+		// post-install start its own budget
+		startCtx, startCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		needsInstall, clientVersion, _, err = conn.StartConnServer(startCtx, true, true)
+		startCancel()
 		if err != nil {
 			conn.Infof(ctx, "ERROR starting conn server (after install): %v\n", err)
 			err = fmt.Errorf("error starting conn server (after install): %w", err)
@@ -1036,7 +1129,9 @@ func (conn *SSHConn) startBackgroundWshInstall(osArchStr string) {
 	bgCtx, bgCancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	conn.WithLock(func() { conn.installCancel = bgCancel })
 	go func() {
-		defer panichandler.PanicHandler("startBackgroundWshInstall", recover())
+		defer func() {
+			panichandler.PanicHandler("startBackgroundWshInstall", recover())
+		}()
 		defer conn.wshInstalling.Store(false)
 		// Self-cancel this attempt's context on return. We intentionally do NOT clear
 		// conn.installCancel here — a later reconnect may have overwritten it with its
@@ -1104,7 +1199,7 @@ func (conn *SSHConn) persistWshInstalled(ctx context.Context, result WshCheckRes
 }
 
 // returns (connect-error)
-func (conn *SSHConn) connectInternal(ctx context.Context, connFlags *wconfig.ConnKeywords) error {
+func (conn *SSHConn) connectInternal(ctx context.Context, abortCtx context.Context, connFlags *wconfig.ConnKeywords) error {
 	conn.Infof(ctx, "connectInternal %s\n", conn.GetName())
 	client, _, err := remote.ConnectToClient(ctx, conn.Opts, nil, 0, connFlags)
 	if err != nil {
@@ -1112,6 +1207,13 @@ func (conn *SSHConn) connectInternal(ctx context.Context, connFlags *wconfig.Con
 		log.Printf("error: failed to connect to client %s: %s\n", conn.GetName(), err)
 		return err
 	}
+	// a user disconnect during the post-handshake setup (wsh install, connserver start)
+	// closes the client so every pending remote operation fails fast and releases
+	// lifecycleLock
+	stopCloseOnAbort := context.AfterFunc(abortCtx, func() {
+		remote.CloseClientChain(client)
+	})
+	defer stopCloseOnAbort()
 	conn.WithLock(func() {
 		if conn.Monitor != nil {
 			conn.Monitor.Close()
@@ -1125,7 +1227,7 @@ func (conn *SSHConn) connectInternal(ctx context.Context, connFlags *wconfig.Con
 		defer func() {
 			panichandler.PanicHandler("conncontroller:waitForDisconnect", recover())
 		}()
-		conn.waitForDisconnect()
+		conn.waitForDisconnect(client)
 	}()
 	fmtAddr := knownhosts.Normalize(fmt.Sprintf("%s@%s", client.User(), client.RemoteAddr().String()))
 	conn.Infof(ctx, "normalized knownhosts address: %s\n", fmtAddr)
@@ -1150,9 +1252,9 @@ func (conn *SSHConn) connectInternal(ctx context.Context, connFlags *wconfig.Con
 	return nil
 }
 
-func (conn *SSHConn) waitForDisconnect() {
-	defer conn.FireConnChangeEvent()
-	client := conn.GetClient()
+// waitForDisconnect only tears down state that still belongs to client: by the time Wait()
+// returns, a user Close() or a newer Connect may already own the connection.
+func (conn *SSHConn) waitForDisconnect(client *ssh.Client) {
 	if client == nil {
 		return
 	}
@@ -1162,20 +1264,38 @@ func (conn *SSHConn) waitForDisconnect() {
 	} else {
 		log.Printf("[conn:%s] client.Wait() completed (clean disconnect)", conn.GetName())
 	}
+	if !conn.handleClientDisconnect(client, err) {
+		log.Printf("[conn:%s] client.Wait() returned for a superseded client, ignoring", conn.GetName())
+		return
+	}
+	conn.FireConnChangeEvent()
+	conn.maybeStartAutoReconnect("connection lost")
+}
+
+// returns false if client is no longer the connection's current client
+func (conn *SSHConn) handleClientDisconnect(client *ssh.Client, waitErr error) bool {
 	conn.lifecycleLock.Lock()
 	defer conn.lifecycleLock.Unlock()
-	conn.WithLock(func() {
+	isCurrent := WithLockRtn(conn, func() bool {
+		if conn.Client != client {
+			return false
+		}
 		// disconnects happen for a variety of reasons (like network, etc. and are typically transient)
 		// so we just set the status to "disconnected" here (not error)
 		// don't overwrite any existing error (or error status)
-		if err != nil && conn.Error == "" {
-			conn.Error = err.Error()
+		if waitErr != nil && conn.Error == "" {
+			conn.Error = waitErr.Error()
 		}
 		if conn.Status != Status_Error {
 			conn.Status = Status_Disconnected
 		}
+		return true
 	})
+	if !isCurrent {
+		return false
+	}
 	conn.closeInternal_withlifecyclelock()
+	return true
 }
 
 func (conn *SSHConn) SetWshError(err error) {

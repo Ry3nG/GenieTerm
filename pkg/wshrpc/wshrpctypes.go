@@ -203,6 +203,7 @@ type WshRpcInterface interface {
 	JobControllerDetachJobCommand(ctx context.Context, jobId string) error
 	JobControllerGetAllJobManagerStatusCommand(ctx context.Context) ([]*JobManagerStatusUpdate, error)
 	BlockJobStatusCommand(ctx context.Context, blockId string) (*BlockJobStatusData, error)
+	DurableJobCountCommand(ctx context.Context, data CommandDurableJobCountData) (int, error)
 }
 
 // for frontend
@@ -447,6 +448,9 @@ type ConnStatus struct {
 	WshVersion                    string `json:"wshversion,omitempty"`
 	LastActivityBeforeStalledTime int64  `json:"lastactivitybeforestalledtime,omitempty"`
 	KeepAliveSentTime             int64  `json:"keepalivesenttime,omitempty"`
+	Reconnecting                  bool   `json:"reconnecting,omitempty"`
+	ReconnectAttempt              int    `json:"reconnectattempt,omitempty"`
+	NextReconnectTs               int64  `json:"nextreconnectts,omitempty"`
 }
 
 type WebSelectorOpts struct {
@@ -942,6 +946,12 @@ type CommandBadgeWatchPidData struct {
 	Pid     int          `json:"pid"`
 	ORef    waveobj.ORef `json:"oref"`
 	BadgeId string       `json:"badgeid"`
+}
+
+// counts running durable sessions attached to the given workspace's blocks and/or the given blocks
+type CommandDurableJobCountData struct {
+	WorkspaceId string   `json:"workspaceid,omitempty"`
+	BlockIds    []string `json:"blockids,omitempty"`
 }
 
 type BlockJobStatusData struct {

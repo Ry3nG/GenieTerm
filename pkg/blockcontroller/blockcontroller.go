@@ -130,6 +130,7 @@ func getAllControllers() map[string]Controller {
 }
 
 func InitBlockController() {
+	conncontroller.SetAutoReconnectPolicy(shouldAutoReconnectConn)
 	rpcClient := wshclient.GetBareRpcClient()
 	rpcClient.EventListener.On(wps.Event_BlockClose, handleBlockCloseEvent)
 	wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{
