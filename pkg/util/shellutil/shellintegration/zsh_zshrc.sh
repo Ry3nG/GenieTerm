@@ -1,11 +1,11 @@
 # add GenieTerm helper to path, source dynamic script from genie token
 WAVETERM_WSHBINDIR={{.WSHBINDIR}}
 export PATH="$WAVETERM_WSHBINDIR:$PATH"
-source <({{.HELPERCMD}} token "$WAVETERM_SWAPTOKEN" zsh 2>/dev/null)
+source <({{.HELPERCMD}} token "${WAVETERM_SWAPTOKEN:-}" zsh 2>/dev/null)
 unset WAVETERM_SWAPTOKEN
 
 # Source the original zshrc only if ZDOTDIR has not been changed
-if [ "$ZDOTDIR" = "$WAVETERM_ZDOTDIR" ]; then
+if [ "${ZDOTDIR:-}" = "$WAVETERM_ZDOTDIR" ]; then
   [ -f ~/.zshrc ] && source ~/.zshrc
 fi
 
@@ -19,7 +19,7 @@ if [[ -n ${_comps+x} ]]; then
 fi
 
 # fix history (macos)
-if [[ "$HISTFILE" == "$WAVETERM_ZDOTDIR/.zsh_history" ]]; then
+if [[ "${HISTFILE:-}" == "$WAVETERM_ZDOTDIR/.zsh_history" ]]; then
   HISTFILE="$HOME/.zsh_history"
 fi
 
@@ -27,7 +27,7 @@ typeset -g _WAVETERM_SI_FIRSTPRECMD=1
 
 # shell integration
 _waveterm_si_blocked() {
-  [[ -n "$TMUX" || -n "$STY" || "$TERM" == tmux* || "$TERM" == screen* ]]
+  [[ -n "${TMUX:-}" || -n "${STY:-}" || "${TERM:-}" == tmux* || "${TERM:-}" == screen* ]]
 }
 
 _waveterm_si_urlencode() {
@@ -85,7 +85,7 @@ _waveterm_si_precmd() {
     local uname_info=$(uname -smr 2>/dev/null)
     local omz=false
     local comp=$(_waveterm_si_compmode)
-    [[ -n "$ZSH" && -r "$ZSH/oh-my-zsh.sh" ]] && omz=true
+    [[ -n "${ZSH:-}" && -r "${ZSH:-}/oh-my-zsh.sh" ]] && omz=true
     printf '\033]16162;M;{"shell":"zsh","shellversion":"%s","uname":"%s","integration":true,"omz":%s,"comp":"%s"}\007' "$ZSH_VERSION" "$uname_info" "$omz" "$comp"
     # OSC 7 only sent on first prompt - chpwd hook handles directory changes
     _waveterm_si_osc7
@@ -96,7 +96,7 @@ _waveterm_si_precmd() {
 
 _waveterm_si_preexec() {
   _waveterm_si_blocked && return
-  local cmd="$1"
+  local cmd="${1:-}"
   local cmd_length=${#cmd}
   if [ "$cmd_length" -gt 8192 ]; then
     cmd=$(printf '# command too large (%d bytes)' "$cmd_length")
