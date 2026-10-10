@@ -63,7 +63,6 @@ type BlockControllerRuntimeStatus struct {
 	ShellProcStatus   string `json:"shellprocstatus,omitempty"`
 	ShellProcConnName string `json:"shellprocconnname,omitempty"`
 	ShellProcExitCode int    `json:"shellprocexitcode"`
-	TsunamiPort       int    `json:"tsunamiport,omitempty"`
 }
 
 // Controller interface that all block controllers must implement

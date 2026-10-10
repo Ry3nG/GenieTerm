@@ -5,30 +5,6 @@
 
 declare global {
 
-    // wconfig.AIModeConfigType
-    type AIModeConfigType = {
-        "display:name": string;
-        "display:order"?: number;
-        "display:icon"?: string;
-        "display:description"?: string;
-        "ai:provider"?: string;
-        "ai:apitype"?: string;
-        "ai:model"?: string;
-        "ai:thinkinglevel"?: string;
-        "ai:verbosity"?: string;
-        "ai:endpoint"?: string;
-        "ai:proxyurl"?: string;
-        "ai:azureapiversion"?: string;
-        "ai:apitoken"?: string;
-        "ai:apitokensecretname"?: string;
-        "ai:azureresourcename"?: string;
-        "ai:azuredeployment"?: string;
-        "ai:capabilities"?: string[];
-        "ai:switchcompat"?: string[];
-        "waveai:cloud"?: boolean;
-        "waveai:premium"?: boolean;
-    };
-
     // wshrpc.ActivityDisplayType
     type ActivityDisplayType = {
         width: number;
@@ -42,8 +18,6 @@ declare global {
         fgminutes?: number;
         activeminutes?: number;
         openminutes?: number;
-        waveaifgminutes?: number;
-        waveaiactiveminutes?: number;
         numtabs?: number;
         newtab?: number;
         numblocks?: number;
@@ -55,7 +29,6 @@ declare global {
         nummagnify?: number;
         termcommandsrun?: number;
         numpanics?: number;
-        numaireqs?: number;
         startup?: number;
         shutdown?: number;
         settabtheme?: number;
@@ -134,7 +107,6 @@ declare global {
         shellprocstatus?: string;
         shellprocconnname?: string;
         shellprocexitcode: number;
-        tsunamiport?: number;
     };
 
     // waveobj.BlockDef
@@ -860,7 +832,6 @@ declare global {
         termthemes: {[key: string]: TermThemeType};
         connections: {[key: string]: ConnKeywords};
         bookmarks: {[key: string]: WebBookmark};
-        waveai: {[key: string]: AIModeConfigType};
         configerrors: ConfigError[];
         version: string;
         buildtime: string;
@@ -1016,19 +987,6 @@ declare global {
         "cmd:initscript.zsh"?: string;
         "cmd:initscript.pwsh"?: string;
         "cmd:initscript.fish"?: string;
-        "ai:*"?: boolean;
-        "ai:preset"?: string;
-        "ai:apitype"?: string;
-        "ai:baseurl"?: string;
-        "ai:apitoken"?: string;
-        "ai:name"?: string;
-        "ai:model"?: string;
-        "ai:orgid"?: string;
-        "ai:apiversion"?: string;
-        "ai:maxtokens"?: number;
-        "ai:timeoutms"?: number;
-        "aifilediff:chatid"?: string;
-        "aifilediff:toolcallid"?: string;
         "editor:*"?: boolean;
         "editor:minimapenabled"?: boolean;
         "editor:stickyscrollenabled"?: boolean;
@@ -1048,11 +1006,6 @@ declare global {
         "bg:activebordercolor"?: string;
         "layout:vtabbarwidth"?: number;
         "layout:widgetsvisible"?: boolean;
-        "waveai:panelopen"?: boolean;
-        "waveai:panelwidth"?: number;
-        "waveai:model"?: string;
-        "waveai:chatid"?: string;
-        "waveai:widgetcontext"?: boolean;
         "term:*"?: boolean;
         "term:fontsize"?: number;
         "term:fontfamily"?: string;
@@ -1082,12 +1035,6 @@ declare global {
         "web:useragenttype"?: string;
         "markdown:fontsize"?: number;
         "markdown:fixedfontsize"?: number;
-        "tsunami:*"?: boolean;
-        "tsunami:sdkreplacepath"?: string;
-        "tsunami:apppath"?: string;
-        "tsunami:appid"?: string;
-        "tsunami:scaffoldpath"?: string;
-        "tsunami:env"?: {[key: string]: string};
         "vdom:*"?: boolean;
         "vdom:initialized"?: boolean;
         "vdom:correlationid"?: string;
@@ -1116,8 +1063,6 @@ declare global {
 
     // waveobj.ObjRTInfo
     type ObjRTInfo = {
-        "tsunami:appmeta"?: AppMeta;
-        "tsunami:schemas"?: any;
         "shell:hascurcwd"?: boolean;
         "shell:state"?: string;
         "shell:type"?: string;
@@ -1129,12 +1074,6 @@ declare global {
         "shell:inputempty"?: boolean;
         "shell:lastcmd"?: string;
         "shell:lastcmdexitcode"?: number;
-        "builder:layout"?: {[key: string]: number};
-        "builder:appid"?: string;
-        "builder:env"?: {[key: string]: string};
-        "waveai:chatid"?: string;
-        "waveai:mode"?: string;
-        "waveai:maxoutputtokens"?: number;
     };
 
     // wshrpc.PathCommandData
@@ -1245,7 +1184,6 @@ declare global {
         "app:showoverlayblocknums"?: boolean;
         "app:ctrlvpaste"?: boolean;
         "app:confirmquit"?: boolean;
-        "app:hideaibutton"?: boolean;
         "app:disablectrlshiftarrows"?: boolean;
         "app:disablectrlshiftdisplay"?: boolean;
         "app:focusfollowscursor"?: string;
@@ -1256,23 +1194,6 @@ declare global {
         "app:hidetabbar"?: boolean;
         "app:hidesidebar"?: boolean;
         "app:rightclickpaste"?: boolean;
-        "feature:waveappbuilder"?: boolean;
-        "ai:*"?: boolean;
-        "ai:preset"?: string;
-        "ai:apitype"?: string;
-        "ai:baseurl"?: string;
-        "ai:apitoken"?: string;
-        "ai:name"?: string;
-        "ai:model"?: string;
-        "ai:orgid"?: string;
-        "ai:apiversion"?: string;
-        "ai:maxtokens"?: number;
-        "ai:timeoutms"?: number;
-        "ai:proxyurl"?: string;
-        "ai:fontsize"?: number;
-        "ai:fixedfontsize"?: number;
-        "waveai:showcloudmodes"?: boolean;
-        "waveai:defaultmode"?: string;
         "term:*"?: boolean;
         "term:fontsize"?: number;
         "term:fontfamily"?: string;
@@ -1348,11 +1269,6 @@ declare global {
         "debug:pprofport"?: number;
         "debug:pprofmemprofilerate"?: number;
         "debug:webglstatus"?: boolean;
-        "tsunami:*"?: boolean;
-        "tsunami:scaffoldpath"?: string;
-        "tsunami:sdkreplacepath"?: string;
-        "tsunami:sdkversion"?: string;
-        "tsunami:gopath"?: string;
     };
 
     // waveobj.StickerClickOptsType
@@ -1437,16 +1353,12 @@ declare global {
         "loc:countrycode"?: string;
         "loc:regioncode"?: string;
         "settings:customwidgets"?: number;
-        "settings:customaipresets"?: number;
         "settings:customsettings"?: number;
-        "settings:customaimodes"?: number;
         "settings:secretscount"?: number;
         "settings:transparent"?: boolean;
         "activity:activeminutes"?: number;
         "activity:fgminutes"?: number;
         "activity:openminutes"?: number;
-        "activity:waveaiactiveminutes"?: number;
-        "activity:waveaifgminutes"?: number;
         "activity:termcommandsrun"?: number;
         "activity:termcommands:remote"?: number;
         "activity:termcommands:durable"?: number;
@@ -1459,8 +1371,6 @@ declare global {
         "block:view"?: string;
         "block:controller"?: string;
         "block:subblock"?: boolean;
-        "ai:backendtype"?: string;
-        "ai:local"?: boolean;
         "wsh:cmd"?: string;
         "wsh:errorcount"?: number;
         "wsh:count"?: number;
@@ -1487,33 +1397,6 @@ declare global {
         "count:jobs"?: number;
         "count:jobsconnected"?: number;
         "count:views"?: {[key: string]: number};
-        "waveai:apitype"?: string;
-        "waveai:model"?: string;
-        "waveai:chatid"?: string;
-        "waveai:stepnum"?: number;
-        "waveai:inputtokens"?: number;
-        "waveai:outputtokens"?: number;
-        "waveai:nativewebsearchcount"?: number;
-        "waveai:requestcount"?: number;
-        "waveai:toolusecount"?: number;
-        "waveai:tooluseerrorcount"?: number;
-        "waveai:tooldetail"?: {[key: string]: number};
-        "waveai:premiumreq"?: number;
-        "waveai:proxyreq"?: number;
-        "waveai:haderror"?: boolean;
-        "waveai:imagecount"?: number;
-        "waveai:pdfcount"?: number;
-        "waveai:textdoccount"?: number;
-        "waveai:textlen"?: number;
-        "waveai:firstbytems"?: number;
-        "waveai:requestdurms"?: number;
-        "waveai:widgetaccess"?: boolean;
-        "waveai:thinkinglevel"?: string;
-        "waveai:mode"?: string;
-        "waveai:provider"?: string;
-        "waveai:islocal"?: boolean;
-        "waveai:feedback"?: "good" | "bad";
-        "waveai:action"?: string;
         "job:donereason"?: string;
         "job:kind"?: string;
         $set?: TEventUserProps;
@@ -1539,9 +1422,7 @@ declare global {
         "loc:countrycode"?: string;
         "loc:regioncode"?: string;
         "settings:customwidgets"?: number;
-        "settings:customaipresets"?: number;
         "settings:customsettings"?: number;
-        "settings:customaimodes"?: number;
         "settings:secretscount"?: number;
         "settings:transparent"?: boolean;
     };

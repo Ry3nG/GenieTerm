@@ -4,7 +4,6 @@
     "app:theme": "dark",
     "app:icon": "default",
     "app:confirmquit": true,
-    "app:hideaibutton": true,
     "app:hidetabbar": false,
     "app:hidesidebar": false,
     "app:rightclickpaste": true,

@@ -39,9 +39,9 @@ type WshRpcInterface interface {
 	AuthenticateTokenVerifyCommand(ctx context.Context, data CommandAuthenticateTokenData) (CommandAuthenticateRtnData, error) // (special) validates token without binding, root router only
 	AuthenticateJobManagerCommand(ctx context.Context, data CommandAuthenticateJobManagerData) error
 	AuthenticateJobManagerVerifyCommand(ctx context.Context, data CommandAuthenticateJobManagerData) error // (special) validates job auth token without binding, root router only
-	RouteAnnounceCommand(ctx context.Context) error               // (special) announces a new route to the main router
-	RouteUnannounceCommand(ctx context.Context) error             // (special) unannounces a route to the main router
-	ControlGetRouteIdCommand(ctx context.Context) (string, error) // (special) gets the route for the link that we're on
+	RouteAnnounceCommand(ctx context.Context) error                                                        // (special) announces a new route to the main router
+	RouteUnannounceCommand(ctx context.Context) error                                                      // (special) unannounces a route to the main router
+	ControlGetRouteIdCommand(ctx context.Context) (string, error)                                          // (special) gets the route for the link that we're on
 	SetPeerInfoCommand(ctx context.Context, peerInfo string) error
 	GetJwtPublicKeyCommand(ctx context.Context) (string, error) // (special) gets the public JWT signing key
 
@@ -479,43 +479,6 @@ type BlocksListEntry struct {
 	Meta        waveobj.MetaMapType `json:"meta"`
 }
 
-type AiMessageData struct {
-	Message string `json:"message,omitempty"`
-}
-
-type CommandGetWaveAIChatData struct {
-	ChatId string `json:"chatid"`
-}
-
-type CommandWaveAIToolApproveData struct {
-	ToolCallId string `json:"toolcallid"`
-	Approval   string `json:"approval,omitempty"`
-}
-
-type AIAttachedFile struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Size   int    `json:"size"`
-	Data64 string `json:"data64"`
-}
-
-type CommandWaveAIAddContextData struct {
-	Files   []AIAttachedFile `json:"files,omitempty"`
-	Text    string           `json:"text,omitempty"`
-	Submit  bool             `json:"submit,omitempty"`
-	NewChat bool             `json:"newchat,omitempty"`
-}
-
-type CommandWaveAIGetToolDiffData struct {
-	ChatId     string `json:"chatid"`
-	ToolCallId string `json:"toolcallid"`
-}
-
-type CommandWaveAIGetToolDiffRtnData struct {
-	OriginalContents64 string `json:"originalcontents64"`
-	ModifiedContents64 string `json:"modifiedcontents64"`
-}
-
 type CommandVarData struct {
 	Key      string `json:"key"`
 	Val      string `json:"val,omitempty"`
@@ -555,32 +518,29 @@ type ActivityDisplayType struct {
 }
 
 type ActivityUpdate struct {
-	FgMinutes           int                   `json:"fgminutes,omitempty"`
-	ActiveMinutes       int                   `json:"activeminutes,omitempty"`
-	OpenMinutes         int                   `json:"openminutes,omitempty"`
-	WaveAIFgMinutes     int                   `json:"waveaifgminutes,omitempty"`
-	WaveAIActiveMinutes int                   `json:"waveaiactiveminutes,omitempty"`
-	NumTabs             int                   `json:"numtabs,omitempty"`
-	NewTab              int                   `json:"newtab,omitempty"`
-	NumBlocks           int                   `json:"numblocks,omitempty"`
-	NumWindows          int                   `json:"numwindows,omitempty"`
-	NumWS               int                   `json:"numws,omitempty"`
-	NumWSNamed          int                   `json:"numwsnamed,omitempty"`
-	NumSSHConn          int                   `json:"numsshconn,omitempty"`
-	NumWSLConn          int                   `json:"numwslconn,omitempty"`
-	NumMagnify          int                   `json:"nummagnify,omitempty"`
-	TermCommandsRun     int                   `json:"termcommandsrun,omitempty"`
-	NumPanics           int                   `json:"numpanics,omitempty"`
-	NumAIReqs           int                   `json:"numaireqs,omitempty"`
-	Startup             int                   `json:"startup,omitempty"`
-	Shutdown            int                   `json:"shutdown,omitempty"`
-	SetTabTheme         int                   `json:"settabtheme,omitempty"`
-	BuildTime           string                `json:"buildtime,omitempty"`
-	Displays            []ActivityDisplayType `json:"displays,omitempty"`
-	Renderers           map[string]int        `json:"renderers,omitempty"`
-	Blocks              map[string]int        `json:"blocks,omitempty"`
-	WshCmds             map[string]int        `json:"wshcmds,omitempty"`
-	Conn                map[string]int        `json:"conn,omitempty"`
+	FgMinutes       int                   `json:"fgminutes,omitempty"`
+	ActiveMinutes   int                   `json:"activeminutes,omitempty"`
+	OpenMinutes     int                   `json:"openminutes,omitempty"`
+	NumTabs         int                   `json:"numtabs,omitempty"`
+	NewTab          int                   `json:"newtab,omitempty"`
+	NumBlocks       int                   `json:"numblocks,omitempty"`
+	NumWindows      int                   `json:"numwindows,omitempty"`
+	NumWS           int                   `json:"numws,omitempty"`
+	NumWSNamed      int                   `json:"numwsnamed,omitempty"`
+	NumSSHConn      int                   `json:"numsshconn,omitempty"`
+	NumWSLConn      int                   `json:"numwslconn,omitempty"`
+	NumMagnify      int                   `json:"nummagnify,omitempty"`
+	TermCommandsRun int                   `json:"termcommandsrun,omitempty"`
+	NumPanics       int                   `json:"numpanics,omitempty"`
+	Startup         int                   `json:"startup,omitempty"`
+	Shutdown        int                   `json:"shutdown,omitempty"`
+	SetTabTheme     int                   `json:"settabtheme,omitempty"`
+	BuildTime       string                `json:"buildtime,omitempty"`
+	Displays        []ActivityDisplayType `json:"displays,omitempty"`
+	Renderers       map[string]int        `json:"renderers,omitempty"`
+	Blocks          map[string]int        `json:"blocks,omitempty"`
+	WshCmds         map[string]int        `json:"wshcmds,omitempty"`
+	Conn            map[string]int        `json:"conn,omitempty"`
 }
 
 type ConnExtData struct {

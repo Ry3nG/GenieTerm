@@ -13,7 +13,6 @@ const (
 	ConfigKey_AppShowOverlayBlockNums       = "app:showoverlayblocknums"
 	ConfigKey_AppCtrlVPaste                 = "app:ctrlvpaste"
 	ConfigKey_AppConfirmQuit                = "app:confirmquit"
-	ConfigKey_AppHideAiButton               = "app:hideaibutton"
 	ConfigKey_AppDisableCtrlShiftArrows     = "app:disablectrlshiftarrows"
 	ConfigKey_AppDisableCtrlShiftDisplay    = "app:disablectrlshiftdisplay"
 	ConfigKey_AppFocusFollowsCursor         = "app:focusfollowscursor"
@@ -24,26 +23,6 @@ const (
 	ConfigKey_AppHideTabBar                 = "app:hidetabbar"
 	ConfigKey_AppHideSidebar                = "app:hidesidebar"
 	ConfigKey_AppRightClickPaste            = "app:rightclickpaste"
-
-	ConfigKey_FeatureWaveAppBuilder = "feature:waveappbuilder"
-
-	ConfigKey_AiClear         = "ai:*"
-	ConfigKey_AiPreset        = "ai:preset"
-	ConfigKey_AiApiType       = "ai:apitype"
-	ConfigKey_AiBaseURL       = "ai:baseurl"
-	ConfigKey_AiApiToken      = "ai:apitoken"
-	ConfigKey_AiName          = "ai:name"
-	ConfigKey_AiModel         = "ai:model"
-	ConfigKey_AiOrgID         = "ai:orgid"
-	ConfigKey_AIApiVersion    = "ai:apiversion"
-	ConfigKey_AiMaxTokens     = "ai:maxtokens"
-	ConfigKey_AiTimeoutMs     = "ai:timeoutms"
-	ConfigKey_AiProxyUrl      = "ai:proxyurl"
-	ConfigKey_AiFontSize      = "ai:fontsize"
-	ConfigKey_AiFixedFontSize = "ai:fixedfontsize"
-
-	ConfigKey_WaveAiShowCloudModes = "waveai:showcloudmodes"
-	ConfigKey_WaveAiDefaultMode    = "waveai:defaultmode"
 
 	ConfigKey_TermClear                  = "term:*"
 	ConfigKey_TermFontSize               = "term:fontsize"
@@ -130,10 +109,4 @@ const (
 	ConfigKey_DebugPprofPort           = "debug:pprofport"
 	ConfigKey_DebugPprofMemProfileRate = "debug:pprofmemprofilerate"
 	ConfigKey_DebugWebGlStatus         = "debug:webglstatus"
-
-	ConfigKey_TsunamiClear          = "tsunami:*"
-	ConfigKey_TsunamiScaffoldPath   = "tsunami:scaffoldpath"
-	ConfigKey_TsunamiSdkReplacePath = "tsunami:sdkreplacepath"
-	ConfigKey_TsunamiSdkVersion     = "tsunami:sdkversion"
-	ConfigKey_TsunamiGoPath         = "tsunami:gopath"
 )
