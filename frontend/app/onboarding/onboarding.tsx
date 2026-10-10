@@ -6,6 +6,7 @@ import { Button } from "@/app/element/button";
 import { FlexiModal } from "@/app/modals/modal";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { OnboardingFeatures } from "@/app/onboarding/onboarding-features";
+import { FeatureItem, FeatureRow } from "@/app/onboarding/onboarding-tour";
 import { ClientModel } from "@/app/store/client-model";
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
@@ -18,7 +19,7 @@ import { debounce } from "throttle-debounce";
 
 type PageName = "init" | "features";
 
-const WelcomePillars = [
+const WelcomePillars: FeatureItem[] = [
     {
         icon: "fa-layer-group",
         title: "Command blocks",
@@ -66,15 +67,7 @@ const InitPage = ({ isCompact }: { isCompact: boolean }) => {
             >
                 <div className="flex flex-col gap-5 w-full mb-5 unselectable">
                     {WelcomePillars.map((pillar) => (
-                        <div key={pillar.title} className="flex w-full items-start gap-4">
-                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
-                                <i className={`fa-solid ${pillar.icon} text-[15px]`} aria-hidden="true" />
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                                <div className="text-[14px] font-semibold text-foreground">{pillar.title}</div>
-                                <div className="text-[13px] leading-5 text-secondary">{pillar.description}</div>
-                            </div>
-                        </div>
+                        <FeatureRow key={pillar.title} size="lg" {...pillar} />
                     ))}
                 </div>
             </OverlayScrollbarsComponent>
@@ -165,7 +158,7 @@ const NewInstallOnboardingModal = () => {
     }
 
     const paddingClass = isCompact ? "!py-3 !px-[30px]" : "!p-[30px]";
-    const widthClass = pageName === "features" ? "w-[800px]" : "w-[560px]";
+    const widthClass = pageName === "features" ? "w-[820px]" : "w-[560px]";
 
     return (
         <FlexiModal className={`${widthClass} rounded-[10px] ${paddingClass} relative overflow-hidden`} ref={modalRef}>

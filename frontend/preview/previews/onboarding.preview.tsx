@@ -24,13 +24,13 @@ function OnboardingFeaturesV() {
             <OnboardingModalWrapper width="w-[560px]">
                 <InitPage isCompact={false} />
             </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[800px]">
+            <OnboardingModalWrapper width="w-[820px]">
                 <DurableSessionPage onNext={noop} onSkip={noop} onPrev={noop} />
             </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[800px]">
+            <OnboardingModalWrapper width="w-[820px]">
                 <CommandBlocksPage onNext={noop} onSkip={noop} onPrev={noop} />
             </OnboardingModalWrapper>
-            <OnboardingModalWrapper width="w-[800px]">
+            <OnboardingModalWrapper width="w-[820px]">
                 <FilesPage onFinish={noop} onPrev={noop} />
             </OnboardingModalWrapper>
         </div>
@@ -42,7 +42,8 @@ function UpgradeNotesV() {
         <OnboardingModalWrapper width="w-[560px]">
             <header className="flex flex-col gap-2 items-center unselectable mb-6">
                 <Logo />
-                <div className="text-[25px] font-normal text-foreground">What's in GenieTerm</div>
+                <div className="text-[25px] font-normal text-foreground">GenieTerm 1.0</div>
+                <div className="text-[14px] text-secondary">What's new since your last update.</div>
             </header>
             <UpgradeNotes />
         </OnboardingModalWrapper>

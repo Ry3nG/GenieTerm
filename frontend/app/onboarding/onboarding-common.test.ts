@@ -7,7 +7,8 @@ import { CurrentOnboardingVersion, isOnboardingCurrent } from "./onboarding-comm
 describe("isOnboardingCurrent", () => {
     it("treats the current GenieTerm onboarding version as done", () => {
         expect(isOnboardingCurrent(CurrentOnboardingVersion)).toBe(true);
-        expect(isOnboardingCurrent("v0.4.80")).toBe(true);
+        expect(isOnboardingCurrent("v1.0.0")).toBe(true);
+        expect(isOnboardingCurrent("v1.2.0")).toBe(true);
     });
 
     it("treats Wave-era leftover lastversion values as already onboarded", () => {
@@ -18,6 +19,7 @@ describe("isOnboardingCurrent", () => {
     it("still shows notes for earlier GenieTerm versions after the fork reset", () => {
         expect(isOnboardingCurrent("v0.0.0")).toBe(false);
         expect(isOnboardingCurrent("v0.2.0")).toBe(false);
-        expect(isOnboardingCurrent("v0.4.79")).toBe(false);
+        expect(isOnboardingCurrent("v0.4.80")).toBe(false);
+        expect(isOnboardingCurrent("v0.5.0")).toBe(false);
     });
 });

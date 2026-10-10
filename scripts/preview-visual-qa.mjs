@@ -82,6 +82,18 @@ const PreviewCases = [
     ],
   },
   {
+    name: "onboarding",
+    path: "/?preview=onboarding",
+    checks: [
+      "Welcome to GenieTerm",
+      "Sessions that outlive the connection",
+      "Every command, kept together",
+      "Remote files, next to your shell",
+      "GenieTerm 1.0",
+    ],
+    viewports: [{ name: "desktop", width: 1300, height: 900 }],
+  },
+  {
     name: "files-upload-drop",
     path: "/?preview=files-upload-drop",
     checks: ["Files upload drop affordance", "reports", "release notes.txt"],
