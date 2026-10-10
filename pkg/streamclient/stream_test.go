@@ -365,12 +365,12 @@ func TestOutOfOrderWithDuplicates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read failed: %v", err)
 	}
-	
+
 	// Should get all 15 bytes (3 packets * 5 bytes)
 	if n != 15 {
 		t.Fatalf("Expected to read 15 bytes, got %d", n)
 	}
-	
+
 	// Should be "aaaaaxxxxxccccc" (first packet received for each seq wins)
 	expected := "aaaaaxxxxxccccc"
 	if string(buf[:n]) != expected {
@@ -406,7 +406,7 @@ func TestOutOfOrderWithGaps(t *testing.T) {
 	reader.RecvData(packet0)
 	reader.RecvData(packet40) // Way ahead - should be buffered
 	reader.RecvData(packet20) // Still ahead - should be buffered
-	
+
 	// Read first packet
 	buf := make([]byte, 10)
 	n, err := reader.Read(buf)
@@ -509,7 +509,7 @@ func TestOutOfOrderWithEOF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read failed: %v", err)
 	}
-	
+
 	expected := "firstsecondthird"
 	if string(buf[:n]) != expected {
 		t.Fatalf("Expected %q, got %q", expected, string(buf[:n]))

@@ -23,7 +23,6 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
-	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wslconn"
@@ -63,7 +62,6 @@ type BlockControllerRuntimeStatus struct {
 	ShellProcStatus   string `json:"shellprocstatus,omitempty"`
 	ShellProcConnName string `json:"shellprocconnname,omitempty"`
 	ShellProcExitCode int    `json:"shellprocexitcode"`
-	TsunamiPort       int    `json:"tsunamiport,omitempty"`
 }
 
 // Controller interface that all block controllers must implement
@@ -130,6 +128,7 @@ func getAllControllers() map[string]Controller {
 }
 
 func InitBlockController() {
+	conncontroller.SetAutoReconnectPolicy(shouldAutoReconnectConn)
 	rpcClient := wshclient.GetBareRpcClient()
 	rpcClient.EventListener.On(wps.Event_BlockClose, handleBlockCloseEvent)
 	wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{
@@ -366,21 +365,23 @@ func getTermSize(bdata *waveobj.Block) waveobj.TermSize {
 func HandleAppendBlockFile(blockId string, blockFile string, data []byte) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancelFn()
-	offset, err := filestore.WFS.AppendDataWithOffset(ctx, blockId, blockFile, data)
+	offset, fileEpoch, err := filestore.WFS.AppendDataWithOffsetAndEpoch(ctx, blockId, blockFile, data)
 	if err != nil {
 		return fmt.Errorf("error appending to blockfile: %w", err)
 	}
+	// published outside the file lock, so it can arrive after a newer truncate; FileEpoch lets readers drop it
 	wps.Broker.Publish(wps.WaveEvent{
 		Event: wps.Event_BlockFile,
 		Scopes: []string{
 			waveobj.MakeORef(waveobj.OType_Block, blockId).String(),
 		},
 		Data: &wps.WSFileEventData{
-			ZoneId:   blockId,
-			FileName: blockFile,
-			FileOp:   wps.FileOp_Append,
-			Data64:   base64.StdEncoding.EncodeToString(data),
-			Offset:   offset,
+			ZoneId:    blockId,
+			FileName:  blockFile,
+			FileOp:    wps.FileOp_Append,
+			Data64:    base64.StdEncoding.EncodeToString(data),
+			Offset:    offset,
+			FileEpoch: fileEpoch,
 		},
 	})
 	return nil
@@ -392,14 +393,13 @@ func HandleTruncateBlockFile(blockId string) error {
 	defer lock.Unlock()
 	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
 	defer cancelFn()
-	termFile, err := filestore.WFS.Stat(ctx, blockId, wavebase.BlockFile_Term)
+	_, err := filestore.WFS.Stat(ctx, blockId, wavebase.BlockFile_Term)
 	if err == fs.ErrNotExist {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("error reading blockfile before truncate: %w", err)
 	}
-	fileEpoch := filestore.TerminalFileEpoch(termFile.Meta) + 1
 	err = filestore.WFS.DeleteFile(ctx, blockId, wavebase.BlockFile_Cache)
 	if err == fs.ErrNotExist {
 		err = nil
@@ -407,29 +407,23 @@ func HandleTruncateBlockFile(blockId string) error {
 	if err != nil {
 		return fmt.Errorf("error deleting terminal cache before truncate: %w", err)
 	}
-	termMeta := make(wshrpc.FileMeta)
-	for key, value := range termFile.Meta {
-		termMeta[key] = value
-	}
-	termMeta["fileepoch"] = fileEpoch
-	if err := filestore.WFS.WriteMeta(ctx, blockId, wavebase.BlockFile_Term, termMeta, false); err != nil {
-		return fmt.Errorf("error updating terminal generation: %w", err)
-	}
-	if err := filestore.WFS.WriteFile(ctx, blockId, wavebase.BlockFile_Term, nil); err != nil {
+	_, err = filestore.WFS.TruncateWithEpoch(ctx, blockId, wavebase.BlockFile_Term, func(fileEpoch int64) {
+		// published under the file lock: every append tagged with fileEpoch is published after this event
+		wps.Broker.Publish(wps.WaveEvent{
+			Event:  wps.Event_BlockFile,
+			Scopes: []string{waveobj.MakeORef(waveobj.OType_Block, blockId).String()},
+			Data: &wps.WSFileEventData{
+				ZoneId:    blockId,
+				FileName:  wavebase.BlockFile_Term,
+				FileOp:    wps.FileOp_Truncate,
+				FileEpoch: fileEpoch,
+			},
+		})
+	})
+	if err != nil {
 		return fmt.Errorf("error truncating blockfile: %w", err)
 	}
-	wps.Broker.Publish(wps.WaveEvent{
-		Event:  wps.Event_BlockFile,
-		Scopes: []string{waveobj.MakeORef(waveobj.OType_Block, blockId).String()},
-		Data: &wps.WSFileEventData{
-			ZoneId:    blockId,
-			FileName:  wavebase.BlockFile_Term,
-			FileOp:    wps.FileOp_Truncate,
-			FileEpoch: fileEpoch,
-		},
-	})
 	return nil
-
 }
 
 func debugLog(ctx context.Context, fmtStr string, args ...interface{}) {

@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package jobmanager
@@ -9,15 +9,17 @@ import (
 	"io"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
 const (
-	CwndSize      = 64 * 1024       // 64 KB window for connected mode
-	CirBufSize    = 2 * 1024 * 1024 // 2 MB max buffer size
-	DisconnReadSz = 4 * 1024        // 4 KB read chunks when disconnected
-	MaxPacketSize = 4 * 1024        // 4 KB max data per packet
+	CwndSize           = 2 * 1024 * 1024 // 2 MB window for connected mode
+	CirBufSize         = 2 * 1024 * 1024 // 2 MB max buffer size
+	DisconnReadSz      = 4 * 1024        // 4 KB read chunks when disconnected
+	MaxPacketSize      = 64 * 1024       // 64 KB max data per packet
+	SendCoalesceWindow = 4 * time.Millisecond
 )
 
 type DataSender interface {
@@ -60,6 +62,9 @@ type StreamManager struct {
 	// terminal state - once true, stream is complete
 	terminalEventAcked bool
 	closed             bool
+	coalesceUntil      time.Time
+	coalesceTimer      *time.Timer
+	doneCh             chan struct{}
 }
 
 func MakeStreamManager() *StreamManager {
@@ -69,6 +74,7 @@ func MakeStreamManager() *StreamManager {
 func MakeStreamManagerWithSizes(cwndSize, cirbufSize int) *StreamManager {
 	sm := &StreamManager{
 		buf:      MakeCirBuf(cirbufSize, true),
+		doneCh:   make(chan struct{}),
 		eofPos:   -1,
 		cwndSize: cwndSize,
 		rwndSize: cwndSize,
@@ -130,6 +136,7 @@ func (sm *StreamManager) ClientConnected(streamId string, dataSender DataSender,
 	sm.connected = true
 	sm.rwndSize = rwndSize
 	sm.sentNotAcked = 0
+	sm.coalesceUntil = time.Time{}
 	effectiveWindow := sm.cwndSize
 	if sm.rwndSize < effectiveWindow {
 		effectiveWindow = sm.rwndSize
@@ -272,7 +279,14 @@ func (sm *StreamManager) SetRwndSize(rwndSize int) error {
 func (sm *StreamManager) Close() {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
+	if sm.closed {
+		return
+	}
 	sm.closed = true
+	close(sm.doneCh)
+	if sm.coalesceTimer != nil {
+		sm.coalesceTimer.Stop()
+	}
 	sm.drainCond.Signal()
 }
 
@@ -280,12 +294,10 @@ func (sm *StreamManager) Close() {
 func (sm *StreamManager) readLoop() {
 	readBuf := make([]byte, MaxPacketSize)
 	for {
-		sm.lock.Lock()
-		closed := sm.closed
-		sm.lock.Unlock()
-
-		if closed {
+		select {
+		case <-sm.doneCh:
 			return
+		default:
 		}
 
 		n, err := sm.reader.Read(readBuf)
@@ -312,15 +324,23 @@ func (sm *StreamManager) handleReadData(data []byte) {
 		offset += n
 
 		if n > 0 {
-			sm.lock.Lock()
-			sm.drainCond.Signal()
-			sm.lock.Unlock()
+			sm.wakeSender()
 		}
 
 		if waitCh != nil {
-			<-waitCh
+			select {
+			case <-waitCh:
+			case <-sm.doneCh:
+				return
+			}
 		}
 	}
+}
+
+func (sm *StreamManager) wakeSender() {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+	sm.drainCond.Signal()
 }
 
 func (sm *StreamManager) handleEOF() {
@@ -390,12 +410,23 @@ func (sm *StreamManager) prepareNextPacket() (done bool, pkt *wshrpc.CommandStre
 		return false, nil, nil
 	}
 
-	peekSize := int(availableToSend)
-	if peekSize > MaxPacketSize {
-		peekSize = MaxPacketSize
+	unsent := available - int(sm.sentNotAcked)
+	if unsent <= 0 {
+		sm.drainCond.Wait()
+		return false, nil, nil
 	}
-	if peekSize > available {
-		peekSize = available
+	peekSize := min(int(availableToSend), MaxPacketSize, unsent)
+	// Full packets and a window's last bytes must not wait for a coalescing timer.
+	if peekSize < MaxPacketSize && int64(peekSize) < availableToSend && sm.terminalEvent == nil {
+		if wait := time.Until(sm.coalesceUntil); wait > 0 {
+			if sm.coalesceTimer == nil {
+				sm.coalesceTimer = time.AfterFunc(wait, sm.wakeSender)
+			} else {
+				sm.coalesceTimer.Reset(wait)
+			}
+			sm.drainCond.Wait()
+			return false, nil, nil
+		}
 	}
 
 	data := make([]byte, peekSize)
@@ -408,6 +439,7 @@ func (sm *StreamManager) prepareNextPacket() (done bool, pkt *wshrpc.CommandStre
 
 	seq := sm.buf.HeadPos() + sm.sentNotAcked
 	sm.sentNotAcked += int64(n)
+	sm.coalesceUntil = time.Now().Add(SendCoalesceWindow)
 
 	return false, &wshrpc.CommandStreamData{
 		Id:     sm.streamId,

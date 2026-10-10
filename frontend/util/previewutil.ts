@@ -1,5 +1,6 @@
 import { createBlock, getApi } from "@/app/store/global";
 import { makeNativeLabel } from "./platformutil";
+import { isWslConnection } from "./transferutil";
 import { fireAndForget } from "./util";
 import { formatRemoteUri } from "./waveutil";
 
@@ -38,6 +39,12 @@ export function addOpenMenuItems(
                 },
             });
         }
+    } else if (finfo.isdir && isWslConnection(conn)) {
+        // Folder downloads shell out to system rsync/scp over SSH, which cannot reach a WSL distro.
+        menu.push({
+            label: "Download Folder (not available for WSL)",
+            enabled: false,
+        });
     } else {
         menu.push({
             label: finfo.isdir ? "Download Folder" : "Download File",

@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { app, dialog, ipcMain, Notification } from "electron";
+import { app, dialog, ipcMain, Notification, shell } from "electron";
 import type { UpdateDownloadedEvent, UpdateInfo } from "electron-updater";
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "fs";
@@ -12,18 +12,39 @@ import { isDev } from "../frontend/util/isdev";
 import { fireAndForget } from "../frontend/util/util";
 import { setUserConfirmedQuit } from "./emain-activity";
 import { delay } from "./emain-util";
+import { getWaveSrvProc } from "./emain-wavesrv";
 import { focusedWaveWindow, getAllWaveWindows } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import {
     getDownloadedUpdateSha512,
     getMacAppBundlePath,
+    getMacInstallLocationProblem,
     hasDeveloperIdSignature,
     isMacCodeSignatureError,
     launchMacUpdateInstaller,
 } from "./mac-update-installer";
 import { formatReleaseNotes } from "./update-release-notes";
 
+const ReleasesUrl = "https://github.com/Ry3nG/GenieTerm/releases";
+const ChannelFileNotFoundCode = "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND";
+
 export let updater: Updater;
+
+function isChannelFileNotFoundError(error: unknown): boolean {
+    return (error as { code?: string })?.code == ChannelFileNotFoundCode;
+}
+
+async function checkMacDeveloperIdSignature(): Promise<boolean> {
+    if (process.platform != "darwin") {
+        return false;
+    }
+    try {
+        return await hasDeveloperIdSignature(getMacAppBundlePath(process.execPath));
+    } catch (error) {
+        console.warn("unable to check the macOS code signature", error);
+        return false;
+    }
+}
 
 function getUpdateChannel(settings: SettingsType): string {
     const updaterConfigPath = path.join(process.resourcesPath!, "app-update.yml");
@@ -41,6 +62,10 @@ function getUpdateChannel(settings: SettingsType): string {
         retVal = updaterChannel;
     }
     console.log("Update channel:", retVal);
+    if (retVal != "latest") {
+        // The feed only serves the latest stable GitHub Release; its channel metadata points at the stable build.
+        console.log(`Prereleases are not served on the ${retVal} channel; install them manually from ${ReleasesUrl}.`);
+    }
     return retVal;
 }
 
@@ -54,6 +79,9 @@ export class Updater {
     availableUpdateFilePath: string | null;
     availableUpdateSha512: string | null;
     installPromptInProgress: boolean;
+    installOnQuitSetting: boolean;
+    macDeveloperIdSigned: Promise<boolean>;
+    squirrelRejectedUpdate: boolean;
     private _status: UpdaterStatus;
     lastUpdateCheck: Date;
 
@@ -72,11 +100,30 @@ export class Updater {
         this.availableUpdateFilePath = null;
         this.availableUpdateSha512 = null;
         this.installPromptInProgress = false;
+        this.installOnQuitSetting = settings["autoupdate:installonquit"];
+        this.squirrelRejectedUpdate = false;
 
         autoUpdater.autoDownload = true;
-        autoUpdater.autoInstallOnAppQuit = settings["autoupdate:installonquit"];
+        // On macOS, install-on-quit goes through Squirrel.Mac, which rejects builds without a Developer ID
+        // signature. Keep it off until the signature check below confirms Squirrel can be used.
+        autoUpdater.autoInstallOnAppQuit = process.platform != "darwin" && this.installOnQuitSetting;
         console.log("Download update automatically:", autoUpdater.autoDownload);
-        console.log("Install update on quit:", settings["autoupdate:installonquit"]);
+        this.macDeveloperIdSigned = checkMacDeveloperIdSignature();
+        if (process.platform == "darwin") {
+            fireAndForget(async () => {
+                const signed = await this.macDeveloperIdSigned;
+                if (signed) {
+                    autoUpdater.autoInstallOnAppQuit = this.installOnQuitSetting;
+                    console.log("Install update on quit:", this.installOnQuitSetting);
+                    return;
+                }
+                console.log(
+                    "Install update on quit: unavailable (no Developer ID signature); updates install via Restart Now"
+                );
+            });
+        } else {
+            console.log("Install update on quit:", this.installOnQuitSetting);
+        }
 
         // Only update the release channel if it's specified, otherwise use the one configured in the updater.
         autoUpdater.channel = getUpdateChannel(settings);
@@ -87,10 +134,23 @@ export class Updater {
         autoUpdater.on("error", (err) => {
             console.log("updater error");
             console.log(err);
-            if (isMacCodeSignatureError(err) && this.availableUpdateFilePath) {
-                console.warn("macOS rejected the unsigned update; the verified fallback installer will be used.");
-                if (this.status != "installing") {
-                    this.status = "ready";
+            if (process.platform == "darwin" && isMacCodeSignatureError(err)) {
+                this.squirrelRejectedUpdate = true;
+                if (!this.availableUpdateFilePath) {
+                    return;
+                }
+                console.warn("Squirrel.Mac rejected the update; the verified fallback installer will be used.");
+                const wasInstalling = this.status == "installing";
+                this.status = "ready";
+                if (wasInstalling) {
+                    fireAndForget(this.installUpdate.bind(this));
+                }
+                return;
+            }
+            if (isChannelFileNotFoundError(err)) {
+                console.log("the latest release has no update metadata for this platform and channel");
+                if (this.status != "ready" && this.status != "installing") {
+                    this.status = "up-to-date";
                 }
                 return;
             }
@@ -221,12 +281,25 @@ export class Updater {
             (this.autoCheckInterval &&
                 (!this.lastUpdateCheck || Math.abs(now.getTime() - this.lastUpdateCheck.getTime()) > this.intervalms))
         ) {
-            const result = await autoUpdater.checkForUpdates();
+            let result: Awaited<ReturnType<typeof autoUpdater.checkForUpdates>>;
+            try {
+                result = await autoUpdater.checkForUpdates();
+            } catch (error) {
+                if (!isChannelFileNotFoundError(error)) {
+                    throw error;
+                }
+                result = null;
+            }
 
             if (userInput && !result?.isUpdateAvailable) {
+                const channel = autoUpdater.channel ?? "latest";
                 const dialogOpts: Electron.MessageBoxOptions = {
                     type: "info",
                     message: "There are currently no updates available.",
+                    detail:
+                        channel == "latest"
+                            ? undefined
+                            : `Automatic updates on the ${channel} channel deliver stable releases. Prereleases are installed manually from ${ReleasesUrl}.`,
                 };
                 if (focusedWaveWindow) {
                     dialog.showMessageBox(focusedWaveWindow, dialogOpts);
@@ -296,6 +369,10 @@ export class Updater {
 
         const releaseTitle = this.availableUpdateReleaseName ?? "A GenieTerm update";
         const releaseNotes = this.availableUpdateReleaseNotes ? `\n\n${this.availableUpdateReleaseNotes}` : "";
+        const installOnQuitAvailable = autoUpdater.autoInstallOnAppQuit && !this.squirrelRejectedUpdate;
+        const laterNote = installOnQuitAvailable
+            ? " If you choose Later, it installs when you quit GenieTerm."
+            : " If you choose Later, GenieTerm will ask again; this build does not install updates on quit.";
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "info",
             buttons: ["Restart Now", "Later"],
@@ -303,7 +380,7 @@ export class Updater {
             cancelId: 1,
             title: "GenieTerm Update",
             message: `${releaseTitle} is ready to install.`,
-            detail: `Restart GenieTerm now to finish installing the update.${releaseNotes}`,
+            detail: `Restart GenieTerm now to finish installing the update.${laterNote}${releaseNotes}`,
         };
 
         try {
@@ -327,46 +404,94 @@ export class Updater {
         if (this.status != "ready") {
             return;
         }
+        if (process.platform == "darwin" && (this.squirrelRejectedUpdate || !(await this.macDeveloperIdSigned))) {
+            await this.installMacUpdateWithHelper();
+            return;
+        }
 
         this.status = "installing";
-
         try {
-            if (process.platform == "darwin") {
-                const appPath = getMacAppBundlePath(process.execPath);
-                if (!hasDeveloperIdSignature(appPath)) {
-                    if (
-                        !this.availableUpdateFilePath ||
-                        !this.availableUpdateInfo?.version ||
-                        !this.availableUpdateSha512
-                    ) {
-                        throw new Error("The downloaded macOS update is missing required installer metadata.");
-                    }
-                    await launchMacUpdateInstaller({
-                        execPath: process.execPath,
-                        updateZipPath: this.availableUpdateFilePath,
-                        expectedVersion: this.availableUpdateInfo.version,
-                        expectedSha512: this.availableUpdateSha512,
-                        logPath: path.join(app.getPath("logs"), "updater-helper.log"),
-                    });
-                    autoUpdater.autoInstallOnAppQuit = false;
-                    setUserConfirmedQuit(true);
-                    app.quit();
-                    return;
-                }
-            }
-
             await delay(1000);
             setUserConfirmedQuit(true);
             autoUpdater.quitAndInstall();
         } catch (error) {
-            console.error("unable to launch update installer", error);
-            this.status = "ready";
-            await dialog.showMessageBox({
-                type: "error",
-                title: "GenieTerm Update",
-                message: "GenieTerm could not start the update installer.",
-                detail: "The update is still downloaded. Try Restart Now again or install the latest release manually.",
+            await this.showInstallerLaunchError(error);
+        }
+    }
+
+    /**
+     * Installs a downloaded macOS update without Squirrel.Mac, which requires a Developer ID signature.
+     * GenieTerm only quits once the app location is known to be replaceable and the helper is running.
+     */
+    async installMacUpdateWithHelper() {
+        let appPath: string;
+        try {
+            appPath = getMacAppBundlePath(process.execPath);
+        } catch (error) {
+            await this.showManualInstallDialog(String(error));
+            return;
+        }
+        const locationProblem = getMacInstallLocationProblem(appPath);
+        if (locationProblem) {
+            await this.showManualInstallDialog(locationProblem);
+            return;
+        }
+
+        this.status = "installing";
+        try {
+            if (!this.availableUpdateFilePath || !this.availableUpdateInfo?.version || !this.availableUpdateSha512) {
+                throw new Error("The downloaded macOS update is missing required installer metadata.");
+            }
+            await launchMacUpdateInstaller({
+                execPath: process.execPath,
+                updateZipPath: this.availableUpdateFilePath,
+                expectedVersion: this.availableUpdateInfo.version,
+                expectedSha512: this.availableUpdateSha512,
+                logPath: path.join(app.getPath("logs"), "updater-helper.log"),
+                waveSrvPid: getWaveSrvProc()?.pid,
             });
+            autoUpdater.autoInstallOnAppQuit = false;
+            setUserConfirmedQuit(true);
+            app.quit();
+        } catch (error) {
+            await this.showInstallerLaunchError(error);
+        }
+    }
+
+    async showInstallerLaunchError(error: unknown) {
+        console.error("unable to launch update installer", error);
+        this.status = "ready";
+        await dialog.showMessageBox({
+            type: "error",
+            title: "GenieTerm Update",
+            message: "GenieTerm could not start the update installer.",
+            detail: "The update is still downloaded. Try Restart Now again or install the latest release manually.",
+        });
+    }
+
+    async showManualInstallDialog(reason: string) {
+        console.warn("macOS update cannot be installed in place:", reason);
+        const version = this.availableUpdateInfo?.version;
+        const releasePageUrl = version ? `${ReleasesUrl}/tag/v${version}` : `${ReleasesUrl}/latest`;
+        const canRevealDownload = this.availableUpdateFilePath != null;
+        const buttons = canRevealDownload
+            ? ["Open Release Page", "Show Downloaded Update", "Cancel"]
+            : ["Open Release Page", "Cancel"];
+        const { response } = await dialog.showMessageBox({
+            type: "warning",
+            buttons,
+            defaultId: 0,
+            cancelId: buttons.length - 1,
+            title: "GenieTerm Update",
+            message: "GenieTerm can't install this update automatically.",
+            detail: `${reason}\n\nGenieTerm is still running. To install manually, download the macOS zip from the release page, quit GenieTerm, and replace GenieTerm.app with the one in the zip.`,
+        });
+        if (response == 0) {
+            await shell.openExternal(releasePageUrl);
+            return;
+        }
+        if (canRevealDownload && response == 1) {
+            shell.showItemInFolder(this.availableUpdateFilePath);
         }
     }
 }

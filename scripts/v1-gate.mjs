@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -9,6 +9,7 @@ const args = new Set(process.argv.slice(2));
 const shouldPackage = args.has("--package");
 const shouldVerifyInstalled = args.has("--installed");
 const isDarwin = process.platform === "darwin";
+const DefaultPackageOutput = "/private/tmp/genieterm-v1-gate";
 
 function run(label, command, commandArgs, options = {}) {
   const start = Date.now();
@@ -21,13 +22,28 @@ function run(label, command, commandArgs, options = {}) {
   });
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   if (result.error) {
-    console.error(`[v1-gate] failed to start ${command}: ${result.error.message}`);
+    console.error(`[v1-gate] failed to run ${command}: ${result.error.message}`);
   }
   if (result.status !== 0) {
     console.error(`[v1-gate] failed: ${label} (${elapsed}s)`);
     process.exit(result.status ?? 1);
   }
   console.log(`[v1-gate] passed: ${label} (${elapsed}s)`);
+}
+
+function checkGoFormat() {
+  console.log("\n[v1-gate] Go format check");
+  const files = spawnSync("git", ["ls-files", "*.go"], { encoding: "utf8" });
+  if (files.status !== 0) {
+    fail("Go format check: could not list Go files");
+  }
+  const goFiles = files.stdout.split("\n").filter(Boolean);
+  const result = spawnSync("gofmt", ["-l", ...goFiles], { encoding: "utf8" });
+  if (result.status !== 0 || result.stdout.trim() !== "") {
+    console.error(result.stdout + (result.stderr ?? ""));
+    fail("Go format check (run `gofmt -w` on the files above)");
+  }
+  console.log("[v1-gate] passed: Go format check");
 }
 
 function fail(message) {
@@ -62,14 +78,22 @@ run("Runtime dependency audit", "npm", ["audit", "--omit=dev", "--audit-level=mo
 run("ESLint", "npm", ["run", "lint"]);
 run("Format check", "npm", ["run", "format:check"]);
 run("Vitest suite", "npm", ["test", "--", "--run"]);
+checkGoFormat();
+run("Go vet", "go", ["vet", "./..."]);
 run("Go test suite", "go", ["test", "./..."]);
+run("Go vulnerability scan", "go", ["run", "golang.org/x/vuln/cmd/govulncheck@v1.8.0", "./..."]);
 run("Production build", "npm", ["run", "build:prod"]);
 run("Preview build", "npx", ["vite", "build"], { cwd: "frontend/preview" });
-run("Preview visual QA", "npm", ["run", "visual:preview"]);
-run("Preview interaction QA", "npm", ["run", "interaction:preview"]);
+run("Preview visual QA", "npm", ["run", "visual:preview"], { timeout: 6 * 60 * 1000 });
+run("Preview interaction QA", "npm", ["run", "interaction:preview"], { timeout: 4 * 60 * 1000 });
 
 if (shouldPackage) {
-  const packageOutput = process.env.GENIETERM_BUILD_OUTPUT || "/private/tmp/genieterm-v1-gate";
+  const packageOutput = process.env.GENIETERM_BUILD_OUTPUT || DefaultPackageOutput;
+  // electron-builder never removes older artifacts, and the artifact check requires every zip to be listed in
+  // the update metadata, so start the gate's own output directory empty.
+  if (packageOutput === DefaultPackageOutput) {
+    rmSync(packageOutput, { recursive: true, force: true });
+  }
   run("macOS arm64 package", "task", ["package", "--", "--mac", "zip", "--arm64"], {
     env: {
       ...process.env,

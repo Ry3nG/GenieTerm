@@ -102,15 +102,25 @@ export function verifyMacAppBundle(scope, appPath) {
   const binDir = path.join(appPath, "Contents", "Resources", "app.asar.unpacked", "dist", "bin");
   verifyDirectory(scope, binDir, "unpacked helper binary directory");
   verifyHelperBinaries(scope, binDir);
+  verifyMacCodeSignature(scope, appPath);
+}
+
+export function describeMacSignature(signatureDetails) {
+  if (/^Signature=adhoc$/m.test(signatureDetails)) {
+    return "ad-hoc";
+  }
+  const authority = signatureDetails.match(/^Authority=(.+)$/m)?.[1];
+  return authority ?? "unknown";
+}
+
+// Release builds without a Developer ID are ad-hoc signed; both kinds must still pass strict verification so
+// Gatekeeper offers "Open Anyway" instead of reporting the bundle as damaged.
+export function verifyMacCodeSignature(scope, appPath) {
   const signingResult = runResult("codesign", ["--verify", "--deep", "--strict", appPath]);
-  if (signingResult.status === 0) {
-    return;
+  if (signingResult.status !== 0) {
+    fail(scope, `codesign --verify --deep --strict ${appPath} failed: ${signingResult.stderr || signingResult.stdout}`);
   }
-  if (process.env.GENIETERM_ALLOW_UNSIGNED_MAC === "1") {
-    console.warn(
-      `[${scope}] warning: macOS app is not signed; bundle identity and packaged contents were verified only`
-    );
-    return;
-  }
-  fail(scope, `codesign --verify --deep --strict ${appPath} failed: ${signingResult.stderr || signingResult.stdout}`);
+  const details = runResult("codesign", ["-d", "--verbose=2", appPath]);
+  const signature = describeMacSignature(`${details.stdout ?? ""}\n${details.stderr ?? ""}`);
+  console.log(`[${scope}] ${appPath} signature: ${signature}`);
 }

@@ -19,6 +19,7 @@ import { loadable } from "jotai/utils";
 import type * as MonacoTypes from "monaco-editor";
 import { createRef, lazy } from "react";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
+import { hasRemoteFileChanged, makeSaveBaseline, makeSaveConflictMessage, type SaveBaseline } from "./preview-save";
 import type { PreviewEnv } from "./previewenv";
 
 // TODO drive this using config
@@ -168,6 +169,8 @@ export class PreviewModel implements ViewModel {
     refreshVersion: PrimitiveAtom<number>;
     directorySearchActive: PrimitiveAtom<boolean>;
     refreshCallback: () => void;
+    // stat of the file version the editor content is based on, keyed by meta file path
+    saveBaseline: { filePath: string; baseline: SaveBaseline };
     directoryKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
     codeEditKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
     env: PreviewEnv;
@@ -448,6 +451,7 @@ export class PreviewModel implements ViewModel {
                         path,
                     },
                 });
+                this.recordLoadedSaveBaseline(fileName, file?.info);
                 return file;
             } catch (e) {
                 const errorStatus: ErrorMsg = {
@@ -664,7 +668,22 @@ export class PreviewModel implements ViewModel {
         await this.env.services.object.UpdateObjectMeta(blockOref, { ...blockMeta, edit });
     }
 
-    async handleFileSave() {
+    recordLoadedSaveBaseline(filePath: string, info: FileInfo) {
+        // a refetch while there are unsaved or saved-over edits must not move the baseline the edits are based on
+        if (globalStore.get(this.newFileContent) != null || globalStore.get(this.fileContentSaved) != null) {
+            return;
+        }
+        this.saveBaseline = { filePath, baseline: makeSaveBaseline(info) };
+    }
+
+    getSaveBaseline(filePath: string): SaveBaseline {
+        if (this.saveBaseline == null || this.saveBaseline.filePath !== filePath) {
+            return null;
+        }
+        return this.saveBaseline.baseline;
+    }
+
+    async handleFileSave(opts?: { force?: boolean }) {
         const filePath = await globalStore.get(this.statFilePath);
         if (filePath == null) {
             return;
@@ -674,16 +693,32 @@ export class PreviewModel implements ViewModel {
             console.log("not saving file, newFileContent is null");
             return;
         }
+        const metaFilePath = globalStore.get(this.metaFilePath);
         try {
+            const remotePath = await this.formatRemoteUri(filePath, globalStore.get);
+            if (!opts?.force) {
+                const currentInfo = await this.env.rpc.FileInfoCommand(TabRpcClient, { info: { path: remotePath } });
+                if (hasRemoteFileChanged(this.getSaveBaseline(metaFilePath), currentInfo)) {
+                    globalStore.set(
+                        this.errorMsgAtom,
+                        makeSaveConflictMessage(filePath, currentInfo, {
+                            overwrite: () => fireAndForget(() => this.handleFileSave({ force: true })),
+                            reload: () => fireAndForget(() => this.handleFileReload()),
+                        })
+                    );
+                    return;
+                }
+            }
             await this.env.rpc.FileWriteCommand(TabRpcClient, {
                 info: {
-                    path: await this.formatRemoteUri(filePath, globalStore.get),
+                    path: remotePath,
                 },
                 data64: stringToBase64(newFileContent),
             });
             globalStore.set(this.fileContent, newFileContent);
             globalStore.set(this.newFileContent, null);
             console.log("saved file", filePath);
+            await this.recordSavedBaseline(metaFilePath, remotePath);
         } catch (e) {
             const errorStatus: ErrorMsg = {
                 status: "Save Failed",
@@ -691,6 +726,26 @@ export class PreviewModel implements ViewModel {
             };
             globalStore.set(this.errorMsgAtom, errorStatus);
         }
+    }
+
+    async recordSavedBaseline(metaFilePath: string, remotePath: string) {
+        try {
+            const info = await this.env.rpc.FileInfoCommand(TabRpcClient, { info: { path: remotePath } });
+            this.saveBaseline = { filePath: metaFilePath, baseline: makeSaveBaseline(info) };
+        } catch (e) {
+            console.warn("cannot stat file after save", remotePath, e);
+            this.saveBaseline = null;
+        }
+    }
+
+    async handleFileReload() {
+        this.saveBaseline = null;
+        globalStore.set(this.fileContentSaved, null);
+        globalStore.set(this.newFileContent, null);
+        globalStore.set(this.refreshVersion, (v) => v + 1);
+        const fileContent = await globalStore.get(this.fileContent);
+        this.monacoRef.current?.setValue(fileContent);
+        globalStore.set(this.newFileContent, null);
     }
 
     async handleFileRevert() {

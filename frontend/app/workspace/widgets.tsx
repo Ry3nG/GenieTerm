@@ -8,8 +8,9 @@ import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { GitPanel } from "./gitpanel";
+import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from "react";
+
+const GitPanel = lazy(() => import("./gitpanel").then((m) => ({ default: m.GitPanel })));
 
 export type WidgetsEnv = WaveEnvSubset<{
     isDev: WaveEnv["isDev"];
@@ -216,6 +217,13 @@ const Widgets = memo(() => {
     const widgets = sortByDisplayOrder(filteredWidgets);
 
     const [activeTool, setActiveTool] = useState<"git" | null>(null);
+    const [gitLoaded, setGitLoaded] = useState(false);
+
+    useEffect(() => {
+        if (activeTool === "git") {
+            setGitLoaded(true);
+        }
+    }, [activeTool]);
 
     const openSettings = useCallback(() => {
         modalsModel.pushModal("SettingsModal");
@@ -293,7 +301,11 @@ const Widgets = memo(() => {
 
     return (
         <>
-            <GitPanel open={activeTool === "git"} onClose={() => setActiveTool(null)} />
+            {(gitLoaded || activeTool === "git") && (
+                <Suspense fallback={null}>
+                    <GitPanel open={activeTool === "git"} onClose={() => setActiveTool(null)} />
+                </Suspense>
+            )}
             <div
                 ref={containerRef}
                 className="flex flex-col w-12 overflow-hidden py-1 -ml-1 select-none shrink-0"

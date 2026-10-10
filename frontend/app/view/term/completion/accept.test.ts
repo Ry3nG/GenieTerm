@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { makeCompletionAcceptSequence } from "./accept";
+import { applyPromptInputData } from "./input-mirror";
 import type { CompletionContext, CompletionItem } from "./types";
 
 function makeItem(insertText: string): CompletionItem {
@@ -49,7 +50,26 @@ describe("makeCompletionAcceptSequence", () => {
                 }),
                 makeItem("checkout")
             )
-        ).toBe("\x1b[3~\x1b[3~\x1b[3~\x1b[3~\x1b[3~\x7f\x7fcheckout");
+        ).toBe("\x1b[C".repeat(5) + "\x7f".repeat(7) + "checkout");
+    });
+
+    it("never relies on forward-delete, which a stock zsh inserts as a literal tilde", () => {
+        const ctx = makeContext({
+            inputText: "git chekout main",
+            cursorIndex: 6,
+            tokens: [
+                { text: "git", start: 0, end: 3 },
+                { text: "chekout", start: 4, end: 11 },
+            ],
+            searchTerm: "ch",
+        });
+        const sequence = makeCompletionAcceptSequence(ctx, makeItem("checkout"));
+
+        expect(sequence).not.toContain("\x1b[3~");
+        expect(applyPromptInputData({ text: ctx.inputText, cursorIndex: ctx.cursorIndex }, sequence)).toEqual({
+            text: "git checkout main",
+            cursorIndex: 12,
+        });
     });
 
     it("inserts into an empty fresh token without deleting anything", () => {

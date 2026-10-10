@@ -3,7 +3,6 @@
 
 import { type WebSocket, newWebSocket } from "@/util/wsutil";
 import debug from "debug";
-import { sprintf } from "sprintf-js";
 
 const AuthKeyHeader = "X-AuthKey";
 
@@ -118,7 +117,7 @@ class WSControl {
             timeout = 1;
         }
         if (timeout > 0) {
-            dlog(sprintf("sleeping %ds", timeout));
+            dlog(`sleeping ${timeout}s`);
         }
         setTimeout(() => {
             this.connectNow(String(this.reconnectTimes));

@@ -17,9 +17,7 @@ type TransferQueueStatusProps = {
     onRetry?: (jobId: string) => void;
 };
 
-type UploadRetryResult = { ok: true } | { ok: false; errorText: string; retryable: boolean; canceled?: boolean };
-
-function DirectoryTransferQueueStatus({ onRetryUpload }: { onRetryUpload?: (job: TransferJob) => Promise<UploadRetryResult> }) {
+function DirectoryTransferQueueStatus({ onRetryUpload }: { onRetryUpload?: (job: TransferJob) => Promise<void> }) {
     const env = useWaveEnv<PreviewEnv>();
     const [queue, setQueue] = useState<TransferQueue>(() => createTransferQueue());
     const [bridgeError, setBridgeError] = useState<string>(null);
@@ -90,34 +88,20 @@ function DirectoryTransferQueueStatus({ onRetryUpload }: { onRetryUpload?: (job:
                     setQueue(nextQueue ?? createTransferQueue());
                     setBridgeError(null);
                     const retriedJob = nextQueue?.jobs.find((job) => job.id === jobId);
-                    if (retriedJob?.operation !== "upload" || retriedJob.status !== "running") {
+                    if (retriedJob?.operation !== "upload" || retriedJob.status !== "queued") {
                         return;
                     }
-                    if (!onRetryUpload) {
-                        await env.electron.finishTransferJob(jobId, {
-                            status: "failed",
-                            error: { code: "upload_retry_unavailable", message: "Open Files to retry this upload.", retryable: true },
-                        });
+                    if (onRetryUpload) {
+                        await onRetryUpload(retriedJob);
                         return;
                     }
-                    let result: UploadRetryResult;
-                    try {
-                        result = await onRetryUpload(retriedJob);
-                    } catch (error) {
-                        result = { ok: false, errorText: String(error), retryable: true };
-                    }
-                    if (result.ok === true) {
-                        await env.electron.finishTransferJob(jobId, { status: "completed" });
-                    } else if (result.canceled) {
-                        await env.electron.finishTransferJob(jobId, { status: "canceled" });
-                    } else {
+                    if (await env.electron.beginTransferJob(jobId)) {
                         await env.electron.finishTransferJob(jobId, {
                             status: "failed",
                             error: {
-                                code: "upload_failed",
-                                message: "Upload failed.",
-                                detail: result.errorText,
-                                retryable: result.retryable,
+                                code: "upload_retry_unavailable",
+                                message: "Open Files to retry this upload.",
+                                retryable: true,
                             },
                         });
                     }

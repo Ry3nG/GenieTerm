@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { applyPromptInputData, emptyPromptInputBuffer } from "./input-mirror";
+import { applyPromptInputData, emptyPromptInputBuffer, isTypeaheadInput } from "./input-mirror";
 
 describe("applyPromptInputData", () => {
     it("inserts printable text at the cursor", () => {
@@ -52,6 +52,22 @@ describe("applyPromptInputData", () => {
     it("returns null when shell-side editing may have changed the line invisibly", () => {
         expect(applyPromptInputData(emptyPromptInputBuffer(), "\t")).toBeNull();
         expect(applyPromptInputData(emptyPromptInputBuffer(), "\x1b[A")).toBeNull();
+    });
+
+    it("returns null for control keys bound to edits the mirror can't reproduce", () => {
+        const buffer = { text: "git sttaus", cursorIndex: 6 };
+        for (const key of ["\x02", "\x06", "\x04", "\x14", "\x19", "\x1f", "\x18", "\x16", "\x07", "\x00"]) {
+            expect(applyPromptInputData(buffer, key)).toBeNull();
+        }
+        expect(applyPromptInputData(buffer, "\x0c")).toEqual(buffer);
+    });
+
+    it("classifies input typed while a command runs as typeahead unless it is only signals or Enter", () => {
+        expect(isTypeaheadInput("git status")).toBe(true);
+        expect(isTypeaheadInput("y\r")).toBe(true);
+        expect(isTypeaheadInput("\x03")).toBe(false);
+        expect(isTypeaheadInput("\x1a")).toBe(false);
+        expect(isTypeaheadInput("\r")).toBe(false);
     });
 
     it("moves by word for ctrl/option arrow sequences", () => {

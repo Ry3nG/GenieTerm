@@ -1100,14 +1100,13 @@ func DrainChannelSafe[T any](ch <-chan T, debugName string) {
 	}()
 }
 
-
 func IsBinaryContent(data []byte) bool {
 	if len(data) == 0 {
 		return false
 	}
 	sampleSize := min(8192, len(data))
 	sample := data[:sampleSize]
-	
+
 	nullCount := 0
 	for _, b := range sample {
 		if b == 0 {
@@ -1117,18 +1116,18 @@ func IsBinaryContent(data []byte) bool {
 	if float64(nullCount)/float64(len(sample)) > 0.01 {
 		return true
 	}
-	
+
 	if !utf8.Valid(sample) {
 		return true
 	}
-	
+
 	return false
 }
 
 func FormatRelativeTime(modTime time.Time) string {
 	now := time.Now()
 	diff := now.Sub(modTime)
-	
+
 	if diff < time.Minute {
 		return "just now"
 	}

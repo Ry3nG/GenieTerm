@@ -10,10 +10,10 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
+	"github.com/fsnotify/fsnotify"
 )
 
 var instance *Watcher

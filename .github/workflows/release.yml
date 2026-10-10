@@ -1,8 +1,14 @@
 name: Release
 
-# Push a version-matching tag to build and publish macOS and Windows packages.
-# Code-signing and notarization are OPTIONAL: they activate only when the matching
-# repo secrets are present, so the pipeline produces unsigned builds until you add them.
+# Push a version-matching tag to build, verify, and publish a GitHub Release.
+#
+# - Stable tags (vX.Y.Z) publish macOS arm64 + x64 only. The macOS app is ad-hoc signed and not notarized
+#   (no Apple Developer ID is configured), so users approve the first launch in Gatekeeper.
+# - Windows x64 is deferred from stable until a code-signing certificate exists. It ships as an unsigned
+#   preview on prerelease tags (vX.Y.Z-beta.N). To ship it on stable, configure the WIN_CSC_LINK /
+#   WIN_CSC_KEY_PASSWORD secrets and set the repository variable GENIETERM_WINDOWS_STABLE=signed.
+# - Linux is not built or published.
+# - workflow_dispatch builds and verifies everything without publishing.
 on:
     push:
         tags:
@@ -10,7 +16,7 @@ on:
     workflow_dispatch:
 
 permissions:
-    contents: write
+    contents: read
 
 concurrency:
     group: release-${{ github.ref }}
@@ -24,22 +30,33 @@ jobs:
     preflight:
         name: Release preflight
         runs-on: ubuntu-latest
-        timeout-minutes: 30
-        permissions:
-            contents: read
+        timeout-minutes: 40
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-            - uses: actions/setup-node@v6
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@v5
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
               with:
                   go-version-file: ${{ env.GO_VERSION_FILE }}
                   cache-dependency-path: go.sum
+
+            - name: Verify tag matches package version
+              if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+              run: |
+                  VERSION="$(node -p "require('./package.json').version")"
+                  if [ "v${VERSION}" != "${GITHUB_REF_NAME}" ]; then
+                    echo "Tag ${GITHUB_REF_NAME} does not match package version v${VERSION}" >&2
+                    exit 1
+                  fi
+                  if ! [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
+                    echo "Release versions must be X.Y.Z or X.Y.Z-beta.N (got ${VERSION})" >&2
+                    exit 1
+                  fi
 
             - name: Force Git dependencies to HTTPS
               run: |
@@ -52,97 +69,34 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Runtime dependency audit
-              run: npm audit --omit=dev --audit-level=moderate
+            # Same gate as CI (scripts/v1-gate.mjs is the single source of truth for the check list).
+            - name: V1 gate
+              run: node scripts/v1-gate.mjs
 
-            - name: Verify font asset references
-              run: npm run assets:verify
-
-            - name: Verify tag matches package version
-              if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-              run: |
-                  VERSION="$(node -p "require('./package.json').version")"
-                  if [ "v${VERSION}" != "${GITHUB_REF_NAME}" ]; then
-                    echo "Tag ${GITHUB_REF_NAME} does not match package version v${VERSION}" >&2
-                    exit 1
-                  fi
-
-            - name: TypeScript typecheck
-              run: npm exec tsc -- --noEmit
-
-            - name: ESLint
-              run: npm run lint
-
-            - name: Format check
-              run: npm run format:check
-
-            - name: Vitest suite
-              run: npm test -- --run
-
-            - name: Go test suite
-              run: go test ./...
-
-            - name: Production build
-              run: npm run build:prod
-
-            - name: Preview build
-              working-directory: frontend/preview
-              run: npx vite build
-
-            - name: Preview visual QA
-              timeout-minutes: 6
-              run: npm run visual:preview
-
-            - name: Preview interaction QA
-              timeout-minutes: 4
-              run: npm run interaction:preview
-
-    build:
-        name: Build ${{ matrix.platform }}
+    build-macos:
+        name: Build macOS (arm64 + x64)
         needs: preflight
-        runs-on: ${{ matrix.runner }}
-        strategy:
-            # Don't let one platform's failure abort releases for the others.
-            fail-fast: false
-            matrix:
-                include:
-                    - platform: macos
-                      runner: macos-latest
-                    - platform: windows
-                      runner: windows-latest
+        runs-on: macos-latest
+        timeout-minutes: 90
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-            - uses: actions/setup-node@v6
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@v5
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
               with:
                   go-version-file: ${{ env.GO_VERSION_FILE }}
                   cache-dependency-path: go.sum
 
             - name: Install Task
-              uses: arduino/setup-task@v2
+              uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
               with:
                   version: 3.x
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-            # Linux and Windows wavesrv are cross-compiled with `zig cc` (see Taskfile
-            # build:server:linux / build:server:windows). macOS uses the native clang.
-            - name: Install Zig (CGO toolchain)
-              if: matrix.platform != 'macos'
-              uses: mlugg/setup-zig@v1
-              with:
-                  version: 0.13.0
-
-            # electron-builder's pacman target shells out to fpm -> bsdtar to build the
-            # Arch package; bsdtar isn't on the ubuntu runner by default.
-            - name: Install libarchive-tools (Linux pacman packaging)
-              if: matrix.platform == 'linux'
-              run: sudo apt-get update && sudo apt-get install -y libarchive-tools
 
             - name: Force Git dependencies to HTTPS
               run: |
@@ -156,42 +110,117 @@ jobs:
                   GIT_TERMINAL_PROMPT: "0"
 
             - name: Build and package macOS
-              if: matrix.platform == 'macos'
-              # `task package` builds wavesrv + wsh/genie + tsunamiscaffold + frontend, then runs
-              # electron-builder. Publishing happens in a separate job after every platform has built.
+              # `task package` builds wavesrv + wsh/genie + frontend, then runs electron-builder for arm64 and
+              # x64 (zip + dmg). Publishing happens in a separate job after the builds are verified.
               run: task package -- --publish never
               env:
                   # The production vite bundle is large; the default ~2GB Node heap OOMs.
                   NODE_OPTIONS: "--max-old-space-size=6144"
-                  # Snap packaging requires snapcraft and store credentials. Keep GitHub Release
-                  # builds on installable file artifacts until Snap publishing is configured.
-                  GENIETERM_LINUX_TARGETS: ${{ matrix.platform == 'linux' && 'zip,deb,rpm,AppImage,pacman' || '' }}
                   # macOS code-signing env (CSC_LINK / APPLE_*) is intentionally NOT set here:
                   # an undefined secret expands to "", and electron-builder treats CSC_LINK=""
-                  # as a cert path -> resolves to the repo root -> "<repo> not a file". Builds
-                  # are ad-hoc signed (unsigned). To ship signed later, add a step that exports
-                  # CSC_LINK / CSC_KEY_PASSWORD / APPLE_* only when those secrets are non-empty.
+                  # as a cert path -> resolves to the repo root -> "<repo> not a file". Without
+                  # CSC_LINK, electron-builder.config.cjs ad-hoc signs the bundle. To ship signed
+                  # later, add a step that exports CSC_LINK / CSC_KEY_PASSWORD / APPLE_* only when
+                  # those secrets are non-empty.
+
+            - name: Verify macOS packages, signatures, and update metadata
+              run: task package:verify -- make --require-arch arm64,x64
+
+            - name: Launch packaged arm64 app (window smoke)
+              run: node scripts/verify-installed-app.mjs --window-smoke make/mac-arm64/GenieTerm.app
+
+            - name: Verify packaging left the checkout unchanged
+              run: |
+                  CHANGES="$(git status --porcelain --untracked-files=all)"
+                  if [ -n "${CHANGES}" ]; then
+                    echo "::error::Packaging modified the checkout, so the artifacts would not match ${GITHUB_SHA}"
+                    echo "${CHANGES}"
+                    git diff --stat
+                    exit 1
+                  fi
+
+            - name: Upload package artifacts
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: genieterm-macos
+                  if-no-files-found: error
+                  path: |
+                      make/*.dmg
+                      make/*.zip
+                      make/*.blockmap
+                      make/*-mac.yml
+
+    build-windows:
+        name: Build Windows x64 (${{ github.event_name == 'push' && !contains(github.ref_name, '-') && 'signed' || 'unsigned preview' }})
+        needs: preflight
+        # Windows stays off the stable channel until signing is configured; prerelease tags and manual runs
+        # build an unsigned preview.
+        if: >-
+            github.event_name == 'workflow_dispatch' ||
+            contains(github.ref_name, '-') ||
+            vars.GENIETERM_WINDOWS_STABLE == 'signed'
+        runs-on: windows-latest
+        timeout-minutes: 90
+        env:
+            WINDOWS_SIGNED_RELEASE: ${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
+            - name: Install Task
+              uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # Windows wavesrv is cross-compiled with `zig cc` (see Taskfile build:server:windows).
+            # setup-zig v2 still declares node20 (there is no node24 release yet); the runner executes it on node24.
+            - name: Install Zig (CGO toolchain)
+              uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+              with:
+                  version: 0.13.0
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
 
             - name: Build unsigned Windows x64 preview
-              if: matrix.platform == 'windows' && (github.event_name == 'workflow_dispatch' || contains(github.ref_name, '-'))
+              if: env.WINDOWS_SIGNED_RELEASE != 'true'
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
             - name: Require Windows signing credentials
-              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
+              if: env.WINDOWS_SIGNED_RELEASE == 'true'
               shell: pwsh
               env:
                   WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
                   WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
               run: |
                   if (!$env:WIN_CSC_LINK -or !$env:WIN_CSC_KEY_PASSWORD) {
-                      throw "Stable Windows releases require WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD secrets."
+                      throw "GENIETERM_WINDOWS_STABLE=signed requires the WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD secrets."
                   }
 
             - name: Build signed Windows x64 release
-              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
+              if: env.WINDOWS_SIGNED_RELEASE == 'true'
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
@@ -199,107 +228,133 @@ jobs:
                   WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
                   WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
-            - name: Verify macOS package artifact
-              if: matrix.platform == 'macos'
-              run: task package:verify -- make
-              env:
-                  GENIETERM_ALLOW_UNSIGNED_MAC: "1"
-
             - name: Verify Windows package artifact
-              if: matrix.platform == 'windows'
               run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
 
             - name: Verify Windows release signatures
-              if: matrix.platform == 'windows' && github.event_name == 'push' && !contains(github.ref_name, '-')
+              if: env.WINDOWS_SIGNED_RELEASE == 'true'
               run: node scripts/verify-windows-package.mjs make --require-signature
 
+            - name: Verify packaging left the checkout unchanged
+              shell: bash
+              run: |
+                  # setup-zig keeps its cache in the workspace (.zig-cache), which is not part of the source.
+                  CHANGES="$(git status --porcelain --untracked-files=all -- . ':(exclude).zig-cache')"
+                  if [ -n "${CHANGES}" ]; then
+                    echo "::error::Packaging modified the checkout, so the artifacts would not match ${GITHUB_SHA}"
+                    echo "${CHANGES}"
+                    git diff --stat
+                    exit 1
+                  fi
+
             - name: Upload package artifacts
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
-                  name: genieterm-${{ matrix.platform }}
+                  name: genieterm-windows
                   if-no-files-found: error
                   path: |
-                      make/*.AppImage
-                      make/*.blockmap
-                      make/*.deb
-                      make/*.dmg
                       make/*.exe
-                      make/*.pacman
-                      make/*.rpm
-                      make/alpha*.yml
-                      make/beta*.yml
-                      make/latest*.yml
                       make/*.zip
+                      make/*.blockmap
+                      make/alpha.yml
+                      make/beta.yml
+                      make/latest.yml
 
     publish:
         name: Verify and publish GitHub Release
-        needs: build
+        needs: [build-macos, build-windows]
+        # build-windows is skipped on stable tags until Windows signing is configured; macOS must always succeed.
+        if: >-
+            !cancelled() &&
+            needs.build-macos.result == 'success' &&
+            (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped')
         runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: write
+        env:
+            WINDOWS_BUILT: ${{ needs.build-windows.result == 'success' }}
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-            - uses: actions/download-artifact@v4
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install verification dependencies
+              run: npm ci --ignore-scripts --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  pattern: genieterm-*
                   path: release-artifacts
 
+            # Checks the exact asset set (Windows assets only when build-windows succeeded, so a macOS-only
+            # stable release can never carry a stale Windows latest.yml) and every update manifest's
+            # version, size, and sha512 against the payloads.
             - name: Verify release assets
               run: |
                   set -euo pipefail
-                  DUPLICATE_NAMES="$(find release-artifacts -type f -exec basename {} \; | sort | uniq -d)"
-                  if [ -n "${DUPLICATE_NAMES}" ]; then
-                    echo "Duplicate release asset names found:" >&2
-                    echo "${DUPLICATE_NAMES}" >&2
-                    exit 1
+                  VERIFY_FLAGS=()
+                  if [ "${WINDOWS_BUILT}" = "true" ]; then
+                    VERIFY_FLAGS+=(--windows)
                   fi
-                  mapfile -t ASSETS < <(find release-artifacts -type f | sort)
-                  if [ "${#ASSETS[@]}" -eq 0 ]; then
-                    echo "No release assets were downloaded" >&2
-                    exit 1
-                  fi
+                  node scripts/verify-release-assets.mjs release-artifacts "${VERIFY_FLAGS[@]}"
 
-                  VERSION="$(node -p "require('./package.json').version")"
-                  CHANNEL="${VERSION#*-}"
-                  CHANNEL="${CHANNEL%%.*}"
-                  if [ "${CHANNEL}" = "${VERSION}" ]; then
-                    CHANNEL=latest
-                  fi
-                  for EXPECTED in \
-                    "GenieTerm-win32-x64-${VERSION}.exe" \
-                    "GenieTerm-win32-x64-${VERSION}.zip" \
-                    "GenieTerm-darwin-arm64-${VERSION}.dmg" \
-                    "GenieTerm-darwin-x64-${VERSION}.dmg" \
-                    "${CHANNEL}.yml" \
-                    "${CHANNEL}-mac.yml"; do
-                    if ! find release-artifacts -type f -name "${EXPECTED}" -print -quit | grep -q .; then
-                      echo "Missing release asset: ${EXPECTED}" >&2
-                      exit 1
-                    fi
-                  done
-
-            - name: Publish release assets
+            - name: Publish release
               if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
               run: |
                   set -euo pipefail
                   TAG_NAME="${GITHUB_REF_NAME}"
                   mapfile -t ASSETS < <(find release-artifacts -type f | sort)
+                  case "${TAG_NAME}" in
+                    *-*) PUBLISH_FLAGS=(--prerelease --latest=false) ;;
+                    *) PUBLISH_FLAGS=(--prerelease=false --latest) ;;
+                  esac
 
-                  if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+                  if IS_DRAFT="$(gh release view "${TAG_NAME}" --json isDraft --jq .isDraft 2>/dev/null)"; then
+                    if [ "${IS_DRAFT}" != "true" ]; then
+                      echo "::error::Release ${TAG_NAME} is already published; refusing to replace its assets."
+                      exit 1
+                    fi
+                    echo "Uploading to the existing draft release ${TAG_NAME}"
                     gh release upload "${TAG_NAME}" "${ASSETS[@]}" --clobber
                   else
-                    RELEASE_FLAGS=()
-                    if [[ "${TAG_NAME}" == *-* ]]; then
-                      RELEASE_FLAGS+=(--prerelease)
-                    fi
+                    NOTES_FLAGS=()
                     RELEASE_NOTES="docs/releases/${TAG_NAME}.md"
                     if [ -f "${RELEASE_NOTES}" ]; then
-                      RELEASE_FLAGS+=(--notes-file "${RELEASE_NOTES}")
+                      NOTES_FLAGS+=(--notes-file "${RELEASE_NOTES}")
                     else
-                      RELEASE_FLAGS+=(--generate-notes)
+                      NOTES_FLAGS+=(--generate-notes)
                     fi
                     gh release create "${TAG_NAME}" "${ASSETS[@]}" \
-                      --target "${GITHUB_SHA}" \
+                      --draft \
+                      --verify-tag \
                       --title "${TAG_NAME}" \
-                      "${RELEASE_FLAGS[@]}"
+                      "${NOTES_FLAGS[@]}"
                   fi
+
+                  EXPECTED="$(for ASSET in "${ASSETS[@]}"; do
+                    printf '%s\t%s\tsha256:%s\n' "$(basename "${ASSET}")" "$(stat -c %s "${ASSET}")" "$(sha256sum "${ASSET}" | cut -d' ' -f1)"
+                  done | sort)"
+                  UPLOADED="$(gh release view "${TAG_NAME}" --json assets \
+                    --jq '.assets[] | select(.state == "uploaded") | "\(.name)\t\(.size)\t\(.digest)"' | sort)"
+                  if [ "${EXPECTED}" != "${UPLOADED}" ]; then
+                    echo "::error::Draft release ${TAG_NAME} assets do not match the verified build artifacts."
+                    diff <(echo "${EXPECTED}") <(echo "${UPLOADED}") || true
+                    exit 1
+                  fi
+
+                  gh release edit "${TAG_NAME}" --draft=false "${PUBLISH_FLAGS[@]}"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

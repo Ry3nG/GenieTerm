@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/remote"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/conncontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/shellexec"
@@ -25,6 +24,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshserver"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
+	"github.com/google/uuid"
 )
 
 func setupWaveEnvVars() error {

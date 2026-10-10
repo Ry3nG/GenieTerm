@@ -97,9 +97,60 @@ describe("TermCompletionModel", () => {
         const sendData = vi.fn();
         await model.requestCompletions(service, makeContext());
 
-        expect(model.acceptSelected(sendData)).toBe(true);
+        expect(model.acceptSelected(sendData, { text: "git ch", cursorIndex: 6 })).toBe(true);
 
         expect(sendData).toHaveBeenCalledWith("\x7f\x7fcheckout");
         expect(globalStore.get(model.openAtom)).toBe(false);
+    });
+
+    it("refuses to accept against input that changed since the completions were computed", async () => {
+        const model = new TermCompletionModel();
+        const service = { provideCompletions: vi.fn(async () => [item("checkout")]) };
+        const sendData = vi.fn();
+        await model.requestCompletions(service, makeContext());
+
+        expect(model.acceptSelected(sendData, { text: "git che", cursorIndex: 7 })).toBe(false);
+        expect(sendData).not.toHaveBeenCalled();
+        expect(globalStore.get(model.openAtom)).toBe(false);
+
+        await model.requestCompletions(service, makeContext());
+        expect(model.acceptSelected(sendData, null)).toBe(false);
+        expect(sendData).not.toHaveBeenCalled();
+    });
+
+    it("drops results of a request that was invalidated by an input change", async () => {
+        const model = new TermCompletionModel();
+        let resolve: (items: CompletionItem[]) => void = null;
+        const service = {
+            provideCompletions: vi.fn(() => new Promise<CompletionItem[]>((presolve) => (resolve = presolve))),
+        };
+        const pending = model.requestCompletions(service, makeContext());
+
+        model.invalidate();
+        resolve([item("checkout")]);
+        await pending;
+
+        expect(globalStore.get(model.openAtom)).toBe(false);
+        expect(globalStore.get(model.itemsAtom)).toEqual([]);
+    });
+
+    it("only lets ArrowRight accept at the end of the line when the item extends the typed text", async () => {
+        const model = new TermCompletionModel();
+        const service = { provideCompletions: vi.fn(async () => [item("checkout")]) };
+        await model.requestCompletions(service, makeContext());
+
+        expect(model.canAcceptWithArrowRight({ text: "git ch", cursorIndex: 6 })).toBe(true);
+        expect(model.canAcceptWithArrowRight({ text: "git ch", cursorIndex: 5 })).toBe(false);
+        expect(model.canAcceptWithArrowRight(null)).toBe(false);
+
+        await model.requestCompletions(
+            service,
+            makeContext({ inputText: "git ch main", cursorIndex: 6, tokens: makeContext().tokens })
+        );
+        expect(model.canAcceptWithArrowRight({ text: "git ch main", cursorIndex: 6 })).toBe(false);
+
+        const fuzzyService = { provideCompletions: vi.fn(async () => [item("cherry-pick")]) };
+        await model.requestCompletions(fuzzyService, makeContext({ searchTerm: "ry" }));
+        expect(model.canAcceptWithArrowRight({ text: "git ch", cursorIndex: 6 })).toBe(false);
     });
 });

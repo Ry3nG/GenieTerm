@@ -1,8 +1,6 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
 import {
     getLayoutModelForStaticTab,
     LayoutTreeActionType,
@@ -653,13 +651,8 @@ function setActiveTab(tabId: string) {
     getApi().setActiveTab(tabId);
 }
 
-function recordTEvent(event: string, props?: TEventProps) {
-    if (isPreviewWindow()) return;
-    if (props == null) {
-        props = {};
-    }
-    RpcApi.RecordTEventCommand(TabRpcClient, { event, props }, { noresponse: true });
-}
+// GenieTerm records no telemetry; kept as a no-op so call sites don't send a pointless RPC
+function recordTEvent(_event: string, _props?: TEventProps) {}
 
 export {
     atoms,
@@ -673,7 +666,6 @@ export {
     getBlockComponentModel,
     getBlockMetaKeyAtom,
     getBlockTermDurableAtom,
-    getTabMetaKeyAtom,
     getConfigBackgroundAtom,
     getConnConfigKeyAtom,
     getConnStatusAtom,
@@ -685,6 +677,7 @@ export {
     getOverrideConfigAtom,
     getSettingsKeyAtom,
     getSettingsPrefixAtom,
+    getTabMetaKeyAtom,
     getUserName,
     globalPrimaryTabStartup,
     globalStore,

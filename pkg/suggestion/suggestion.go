@@ -14,14 +14,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/junegunn/fzf/src/algo"
-	"github.com/junegunn/fzf/src/util"
 	"github.com/Ry3nG/GenieTerm/pkg/faviconcache"
 	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/junegunn/fzf/src/algo"
+	"github.com/junegunn/fzf/src/util"
 )
 
 const MaxSuggestions = 50

@@ -10,7 +10,7 @@ WAVETERM_WSHBINDIR={{.WSHBINDIR}}
 export PATH="$WAVETERM_WSHBINDIR:$PATH"
 
 # Source the dynamic script from genie token
-eval "$({{.HELPERCMD}} token "$WAVETERM_SWAPTOKEN" bash 2> /dev/null)"
+eval "$({{.HELPERCMD}} token "${WAVETERM_SWAPTOKEN:-}" bash 2> /dev/null)"
 unset WAVETERM_SWAPTOKEN
 
 # Source the first of ~/.bash_profile, ~/.bash_login, or ~/.profile that exists
@@ -54,10 +54,12 @@ if [ -z "${bash_preexec_imported:-}" ]; then
 fi
 
 _WAVETERM_SI_FIRSTPROMPT=1
+_WAVETERM_SI_PROMPTHISTNUM=
+_WAVETERM_SI_HISTNUM_OUT=
 
 # GenieTerm Shell Integration
 _waveterm_si_blocked() {
-    [[ -n "$TMUX" || -n "$STY" || "$TERM" == tmux* || "$TERM" == screen* ]]
+    [[ -n "${TMUX:-}" || -n "${STY:-}" || "${TERM:-}" == tmux* || "${TERM:-}" == screen* ]]
 }
 
 _waveterm_si_urlencode() {
@@ -93,12 +95,39 @@ _waveterm_si_precmd() {
     _waveterm_si_osc7
     printf '\033]16162;A\007'
     _WAVETERM_SI_FIRSTPROMPT=0
+    _waveterm_si_readhistnum
+    _WAVETERM_SI_PROMPTHISTNUM="$_WAVETERM_SI_HISTNUM_OUT"
+}
+
+# sets _WAVETERM_SI_HISTNUM_OUT to the number of the newest history entry (empty if there is none);
+# assigns a global instead of printing so callers don't pay for a second subshell
+_waveterm_si_readhistnum() {
+    local h
+    h=$(LC_ALL=C HISTTIMEFORMAT='' builtin history 1 2>/dev/null)
+    h="${h#"${h%%[![:space:]]*}"}"
+    _WAVETERM_SI_HISTNUM_OUT="${h%%[!0-9]*}"
+}
+
+# ignoredups also leaves the history number unchanged, so a genuine repeat looks like a stale entry.
+# BASH_COMMAND (first simple command of the line, re-serialized by bash) tells them apart; whitespace
+# is dropped because bash normalizes it in BASH_COMMAND but not in history.
+_waveterm_si_isrepeat() {
+    local hist="${1//[[:space:]]/}"
+    local cur="${BASH_COMMAND:-}"
+    cur="${cur//[[:space:]]/}"
+    [[ -n "$cur" && "$hist" == "$cur"* ]]
 }
 
 _waveterm_si_preexec() {
     _waveterm_si_blocked && return
-    
-    local cmd="$1"
+
+    local cmd="${1:-}"
+    _waveterm_si_readhistnum
+    if [[ -n "$_WAVETERM_SI_HISTNUM_OUT" && "$_WAVETERM_SI_HISTNUM_OUT" == "${_WAVETERM_SI_PROMPTHISTNUM:-}" ]] && ! _waveterm_si_isrepeat "$cmd"; then
+        # no history entry was added (ignorespace/HISTIGNORE/set +o history), so bash-preexec handed us
+        # the previous command's text; report the command without text rather than the wrong one
+        cmd=""
+    fi
     local cmd_length=${#cmd}
     if [ "$cmd_length" -gt 8192 ]; then
         cmd=$(printf '# command too large (%d bytes)' "$cmd_length")

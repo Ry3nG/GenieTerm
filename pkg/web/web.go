@@ -18,8 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	"github.com/Ry3nG/GenieTerm/pkg/authkey"
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
@@ -30,6 +28,8 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 )
 
 type WebFnType = func(http.ResponseWriter, *http.Request)
@@ -156,6 +156,7 @@ func handleWaveFile(w http.ResponseWriter, r *http.Request) {
 		offset, err = strconv.ParseInt(offsetStr, 10, 64)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("invalid offset: %v", err), http.StatusBadRequest)
+			return
 		}
 	}
 	if _, err := uuid.Parse(zoneId); err != nil {
@@ -179,6 +180,7 @@ func handleWaveFile(w http.ResponseWriter, r *http.Request) {
 	jsonFileBArr, err := json.Marshal(file)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("error serializing file info: %v", err), http.StatusInternalServerError)
+		return
 	}
 	// can make more efficient by checking modtime + If-Modified-Since headers to allow caching
 	dataStartIdx := file.DataStartIdx()
@@ -193,19 +195,51 @@ func handleWaveFile(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	for offset := dataStartIdx; offset < file.Size; offset += filestore.DefaultPartDataSize {
-		_, data, err := filestore.WFS.ReadAt(r.Context(), zoneId, name, offset, filestore.DefaultPartDataSize)
-		if err != nil {
-			if offset == 0 {
-				http.Error(w, fmt.Sprintf("error reading file: %v", err), http.StatusInternalServerError)
-			} else {
-				// nothing to do, the headers have already been sent
-				log.Printf("error reading file %s/%s @ %d: %v\n", zoneId, name, offset, err)
-			}
+	readAt := func(readOffset int64, size int64) (int64, []byte, error) {
+		return filestore.WFS.ReadAt(r.Context(), zoneId, name, readOffset, size)
+	}
+	nw, err := writeWaveFileRange(w, readAt, dataStartIdx, file.Size)
+	if err != nil {
+		if nw == 0 {
+			http.Error(w, fmt.Sprintf("error reading file: %v", err), http.StatusInternalServerError)
 			return
 		}
-		w.Write(data)
+		// nothing to do, the headers have already been sent
+		log.Printf("error reading file %s/%s @ %d: %v\n", zoneId, name, dataStartIdx+nw, err)
 	}
+}
+
+type waveFileReadAtFn func(offset int64, size int64) (int64, []byte, error)
+
+// Serves exactly [startIdx, endIdx) of the Stat snapshot. The file keeps growing while terminal output
+// is active, and writing more than the advertised Content-Length makes net/http fail the response
+// (ErrContentLength), which the frontend sees as a rejected fetch. Returns the number of bytes written.
+func writeWaveFileRange(w io.Writer, readAt waveFileReadAtFn, startIdx int64, endIdx int64) (int64, error) {
+	var written int64
+	for offset := startIdx; offset < endIdx; {
+		readSize := min(int64(filestore.DefaultPartDataSize), endIdx-offset)
+		rtnOffset, data, err := readAt(offset, readSize)
+		if err != nil {
+			return written, err
+		}
+		if rtnOffset != offset {
+			// circular file wrapped past offset since the Stat, the bytes no longer line up with the headers
+			return written, fmt.Errorf("data at offset %d no longer available (now starts at %d)", offset, rtnOffset)
+		}
+		if len(data) == 0 {
+			return written, fmt.Errorf("short read at offset %d (file truncated?)", offset)
+		}
+		if int64(len(data)) > readSize {
+			data = data[:readSize]
+		}
+		nw, err := w.Write(data)
+		written += int64(nw)
+		if err != nil {
+			return written, err
+		}
+		offset += int64(len(data))
+	}
+	return written, nil
 }
 
 func serveTransparentGIF(w http.ResponseWriter) {

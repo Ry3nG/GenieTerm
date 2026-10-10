@@ -36,7 +36,7 @@ import * as jotai from "jotai";
 import { menuItemsToCommandPaletteCommands, type CommandPaletteCommand } from "./commandpalette";
 import type { KeybindingActionDef } from "./keybindings";
 import { modalsModel } from "./modalmodel";
-import { isBuilderWindow, isTabWindow } from "./windowtype";
+import { isTabWindow } from "./windowtype";
 
 export type { CommandPaletteCommand } from "./commandpalette";
 
@@ -199,7 +199,7 @@ function switchBlockByBlockNum(index: number) {
 
 function switchBlockInDirection(direction: NavigateDirection) {
     const layoutModel = getLayoutModelForStaticTab();
-    const navResult = layoutModel.switchNodeFocusInDirection(direction, false);
+    const navResult = layoutModel.switchNodeFocusInDirection(direction);
     if (navResult.atLeft) {
         return;
     }
@@ -255,10 +255,6 @@ function globalRefocusWithTimeout(timeoutVal: number) {
 }
 
 function globalRefocus() {
-    if (isBuilderWindow()) {
-        return;
-    }
-
     const layoutModel = getLayoutModelForStaticTab();
     const focusedNode = globalStore.get(layoutModel.focusedNode);
     if (focusedNode == null) {

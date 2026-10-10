@@ -2,9 +2,9 @@
 
 # GenieTerm Roadmap
 
-Living tracker. Release scope last reviewed against `package.json` **0.4.94-beta.2** on 2026-09-24.
+Living tracker. Release scope last reviewed on the `release/1.0.0` branch on 2026-10-10 (`package.json` **0.4.94-beta.2**).
 
-If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/`, this file wins.
+If a sentence here disagrees with older plans under `docs/plans/` or `docs/superpowers/` (historical, superseded), this file wins.
 
 ## Product identity
 
@@ -18,7 +18,7 @@ It is not Ghostty (speed), not Warp (closed + login), not VS Code Remote (an IDE
 
 **AI rule:** no chat panel, no agent launcher, no me-too coding agent. The only first-class AI is **natural language → a proposed command** (insert/copy, never auto-run).
 
-**Soft-fork rule:** user-facing name is GenieTerm; internals stay `Wave*` / `wshrpc` / `WAVETERM_*` / `.waveterm` so Wave cherry-picks stay cheap. Do not rename those to "finish the rebrand."
+**Soft-fork rule:** user-facing name is GenieTerm; internals stay `Wave*` / `wshrpc` / `WAVETERM_*` / `.waveterm` so the code still reads like upstream and existing user data keeps working. Do not rename those to "finish the rebrand." The Go module path is already `github.com/Ry3nG/GenieTerm`, so an upstream cherry-pick needs its imports rewritten.
 
 **xterm ceiling:** decorations can draw cards, gutters, and overlays. They cannot fold or hide buffer lines. Do not promise Warp-style collapse. "Jump past output" is the substitute.
 
@@ -28,7 +28,7 @@ It is not Ghostty (speed), not Warp (closed + login), not VS Code Remote (an IDE
 
 See `docs/v1-release-gate.md`.
 
-## Shipped (through 0.4.91)
+## Shipped (through 0.4.94-beta.2)
 
 - Semantic presentation default (`term:presentation: semantic`); classic xterm is the same `TermWrap` with decorations off
 - Command-block data from OSC 16162 A/C/D; gutter card; last-command status / duration / copy / re-run / Fix with AI
@@ -36,21 +36,35 @@ See `docs/v1-release-gate.md`.
 - Fig / history / path / file completion; ArrowRight accepts the highlighted item
 - Command composer (`Cmd:Shift:Space`) + inline NL compose; Wave AI chat panel removed from the default UX
 - Public `genie` CLI + `wsh` compatibility binary; remotes prefer `~/.genieterm/bin/genie`
-- Parser accepts `genie://` and `wsh://` (new formatted URIs still emit `wsh://`)
+- Parser accepts `genie://` and `wsh://`; formatted URIs emit `genie://`
 - Files: folder download, drag-drop upload, transfer queue model + status list
 - Git sidebar; command palette; editable keybindings
-- Widget rail opt-in; WaveAI chat and Tsunami/builder removed from the tree; telemetry / wcloud endpoints empty
+- Widget rail opt-in; WaveAI chat and Tsunami/builder removed from the tree
 - Apple-dark visual system; GenieTerm branding and data directories
 - 0.4.87: completion input mirror follows ctrl/option word-jump arrows and alt-delete; completion providers time out instead of blocking the popup; `genie://conn/` root paths parse and `tryParseRemoteUri`/`isRemoteUri` simplify URI handling
 - 0.4.91: command blocks and their output boundaries restore from terminal checkpoints and raw shell markers; terminal input is sent in order, and recovery deduplicates concurrent output by file offset
 - 0.4.91: helperless SSH connections use SFTP for file browsing, preview, editing, and transfer; transfer jobs survive app restarts with interrupted downloads available for retry
 - 0.4.91: large directory lists render incrementally with virtual rows; connection JSON editing detects disk changes; terminal and process views reduce background work; editor modules load on demand and release packages omit source maps
 
-## Gaps vs the daily-driver bar
+- 0.4.92–0.4.94-beta.2: Windows x64 NSIS/ZIP preview (unsigned, prerelease tags only), native Windows CI packaging and installer smoke, release asset validation
 
-- Process viewer still polls on its own interval
-- macOS installed-app smoke remains a release-machine gate, not a substitute for daily use
-- Windows x64 package, installed-app, remote-session, file-transfer, update, and signing checks remain release gates
+## Release hardening (`release/1.0.0`, unreleased)
+
+- Terminal: Enter always reaches the shell (no natural-language interception; the exit-127 proposal and `Cmd:Shift:Space` composer stay); re-run and inline "Run" refuse to type into a running program; blocks without a `D` finish as "Interrupted"; stale completion popups never apply; history completion matches the whole typed prefix; `Cmd+K` keeps the next block; settings changes no longer rebuild the terminal; cache snapshots record scrollback
+- Shell integration: PowerShell command blocks (A/C/D, untested on Windows hardware), fish base64 fix, nounset-safe bash/zsh hooks, `$?` preserved for prompt frameworks, appends tagged with the terminal file epoch
+- Remote: SSH auto-reconnect with backoff after drops and sleep/wake, handshake timeouts, keepalives for helperless hosts, ProxyJump/agent cleanup, durable-session confirmations on window close / workspace delete / connection switch, actionable host-key errors
+- Files: atomic, symlink-preserving saves and copies; no 32 MB cap; folder upload; save conflict detection; delete always confirms and names the path; cancel no longer quits the app; retry works for every transfer type; rsync/scp honor ports and GenieTerm connection settings and quote remote paths
+- Platform: telemetry and Wave cloud endpoints removed; process viewer and sysinfo sample only under a live lease; dead RPCs, events, config keys and Electron leftovers removed
+- Release: macOS-only stable channel (ad-hoc signed), Windows deferred to prerelease previews, draft-then-verify publishing, update metadata verification, updater relaunches the old app on any install failure
+- Supply chain: Go 1.27, govulncheck/gofmt/vet in the gate, npm advisories cleared, workflow actions pinned by SHA
+
+## Known gaps
+
+- PowerShell integration and the Windows preview need a smoke test on real Windows hardware
+- Multi-select remote file transfers (#17) are not implemented
+- rsync folder downloads show no percentage (openrsync and rsync 3 share no progress format)
+- Copying from an SFTP-only host to a wsh host still buffers files and refuses folders/large files with a clear error
+- Re-run clears the typed line with Ctrl-E Ctrl-U; shells in vi mode may not honor that
 
 ## Next work (in this order)
 
@@ -68,7 +82,7 @@ Done in 0.4.82: WaveAI chat, Tsunami/builder, launcher, and aifilediff are gone.
 
 ### P4 — 1.0
 
-Only after P1 + P2. Tag `1.0.0` when `docs/v1-release-gate.md` passes on a real Mac and `docs/windows-release-gate.md` passes for a signed Windows x64 package.
+Tag `1.0.0` when `docs/v1-release-gate.md` passes on a real Mac. Stable 1.0 is macOS-only; Windows x64 joins the stable channel only after `docs/windows-release-gate.md` passes for a signed package.
 
 ### P5 — After 1.0
 
@@ -76,10 +90,10 @@ Workflows in the palette. Then an IDE input editor. Not a custom renderer. Not a
 
 ## Fork policy
 
-Merge or cherry-pick Wave on a regular cadence, or start deleting leftover subsystems. A soft fork with no upstream pulse pays the tax and gets none of the fixes.
+There is no upstream remote or merge cadence today. Either set one up (and accept the import rewrites), or keep deleting leftover subsystems. A soft fork with no upstream pulse pays the tax and gets none of the fixes.
 
 ## How to continue
 
 1. Read this file, then `docs/leftovers.md` if the change touches Wave platform code.
-2. Implement the next P1/P2 item, not a new widget.
+2. Close a known gap above before adding a new widget.
 3. Keep this file current in the same PR. Do not add a fourth product definition.

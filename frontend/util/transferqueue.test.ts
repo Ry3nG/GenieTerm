@@ -5,15 +5,18 @@ import {
     clearInactiveTransferJobs,
     completeTransferJob,
     createTransferQueue,
-    enqueueTransferJobGroup,
     enqueueTransferJob,
+    enqueueTransferJobGroup,
     failTransferJob,
     getTransferGroupJobs,
     getTransferJob,
-    retryTransferJob,
+    MaxTransferJobs,
+    pruneTransferQueue,
     recoverTransferQueue,
-    summarizeTransferGroup,
+    requestTransferJobCancel,
+    retryTransferJob,
     startTransferJob,
+    summarizeTransferGroup,
     updateTransferProgress,
     type TransferJobInput,
 } from "./transferqueue";
@@ -29,12 +32,8 @@ const baseJobInput: TransferJobInput = {
 };
 
 describe("transferqueue", () => {
-    it("recovers interrupted downloads as retryable and uploads as requiring a fresh source", () => {
-        const download = startTransferJob(
-            enqueueTransferJob(createTransferQueue(), baseJobInput, 1000),
-            "job-1",
-            1100
-        );
+    it("recovers interrupted downloads and uploads as retryable failures", () => {
+        const download = startTransferJob(enqueueTransferJob(createTransferQueue(), baseJobInput, 1000), "job-1", 1100);
         const uploadInput = { ...baseJobInput, id: "upload-1", operation: "upload" as const };
         const withUpload = enqueueTransferJob(download, uploadInput, 1200);
         const recovered = recoverTransferQueue(withUpload, 2000);
@@ -45,7 +44,7 @@ describe("transferqueue", () => {
         });
         expect(recovered.jobs[1]).toMatchObject({
             status: "failed",
-            lastError: { code: "transfer_interrupted", retryable: false },
+            lastError: { code: "transfer_interrupted", retryable: true },
         });
         expect(recoverTransferQueue({ jobs: [{ id: 3 }] }, 2000)).toEqual(createTransferQueue());
     });
@@ -131,7 +130,7 @@ describe("transferqueue", () => {
         expect(retriedJob.failedAt).toBeUndefined();
     });
 
-    it("cancels queued and running jobs but rejects cancel after completion", () => {
+    it("cancels queued and running jobs and ignores cancel after completion", () => {
         const queued = enqueueTransferJob(createTransferQueue(), baseJobInput, 1000);
         const canceledQueued = cancelTransferJob(queued, "job-1", 1100);
 
@@ -151,7 +150,97 @@ describe("transferqueue", () => {
         });
 
         const completed = completeTransferJob(running, "job-1", 2300);
-        expect(() => cancelTransferJob(completed, "job-1", 2400)).toThrow("Cannot cancel completed transfer job");
+        expect(getTransferJob(cancelTransferJob(completed, "job-1", 2400), "job-1")).toEqual(
+            getTransferJob(completed, "job-1")
+        );
+    });
+
+    it("treats late terminal transitions on terminal jobs as no-ops", () => {
+        const running = startTransferJob(enqueueTransferJob(createTransferQueue(), baseJobInput, 1000), "job-1", 1100);
+        const canceled = cancelTransferJob(running, "job-1", 1200);
+        const canceledJob = getTransferJob(canceled, "job-1");
+
+        expect(getTransferJob(cancelTransferJob(canceled, "job-1", 1300), "job-1")).toEqual(canceledJob);
+        expect(getTransferJob(completeTransferJob(canceled, "job-1", 1300), "job-1")).toEqual(canceledJob);
+        expect(
+            getTransferJob(failTransferJob(canceled, "job-1", { code: "late", message: "Late close" }, 1300), "job-1")
+        ).toEqual(canceledJob);
+        expect(
+            getTransferJob(updateTransferProgress(canceled, "job-1", { bytesTransferred: 10 }, 1300), "job-1")
+        ).toEqual(canceledJob);
+
+        const completed = completeTransferJob(running, "job-1", 1200);
+        expect(getTransferJob(failTransferJob(completed, "job-1", { code: "x", message: "x" }, 1300), "job-1")).toEqual(
+            getTransferJob(completed, "job-1")
+        );
+    });
+
+    it("records cancel requests on running work and reports completion honestly", () => {
+        const queued = enqueueTransferJob(createTransferQueue(), baseJobInput, 1000);
+        expect(getTransferJob(requestTransferJobCancel(queued, "job-1", 1050), "job-1").status).toBe("canceled");
+
+        const running = startTransferJob(queued, "job-1", 1100);
+        const requested = requestTransferJobCancel(running, "job-1", 1200);
+        expect(getTransferJob(requested, "job-1")).toMatchObject({ status: "running", cancelRequestedAt: 1200 });
+        expect(requestTransferJobCancel(requested, "job-1", 1300)).toBe(requested);
+
+        const completed = completeTransferJob(requested, "job-1", 1400);
+        expect(getTransferJob(completed, "job-1")).toMatchObject({
+            status: "completed",
+            progress: { message: "Finished before the cancel request could take effect." },
+        });
+        expect(requestTransferJobCancel(completed, "job-1", 1500)).toBe(completed);
+
+        const canceledAfterRequest = cancelTransferJob(requested, "job-1", 1400);
+        const retried = retryTransferJob(canceledAfterRequest, "job-1", 1500);
+        expect(getTransferJob(retried, "job-1")).toMatchObject({ status: "queued", attempt: 2 });
+        expect(getTransferJob(retried, "job-1").cancelRequestedAt).toBeUndefined();
+    });
+
+    it("retries canceled jobs but not completed or non-retryable ones", () => {
+        const canceled = cancelTransferJob(
+            enqueueTransferJob(createTransferQueue(), baseJobInput, 1000),
+            "job-1",
+            1100
+        );
+        expect(getTransferJob(retryTransferJob(canceled, "job-1", 1200), "job-1")).toMatchObject({
+            status: "queued",
+            attempt: 2,
+        });
+
+        const running = startTransferJob(enqueueTransferJob(createTransferQueue(), baseJobInput, 1000), "job-1", 1100);
+        expect(() => retryTransferJob(completeTransferJob(running, "job-1", 1200), "job-1", 1300)).toThrow(
+            "Cannot retry completed transfer job"
+        );
+        const nonRetryable = failTransferJob(running, "job-1", { code: "bad", message: "Bad", retryable: false }, 1200);
+        expect(() => retryTransferJob(nonRetryable, "job-1", 1300)).toThrow("non-retryable");
+    });
+
+    it("fails queued jobs that never started", () => {
+        const queued = enqueueTransferJob(createTransferQueue(), baseJobInput, 1000);
+        expect(
+            getTransferJob(
+                failTransferJob(queued, "job-1", { code: "start", message: "Could not start" }, 1100),
+                "job-1"
+            ).status
+        ).toBe("failed");
+    });
+
+    it("caps the queue by pruning the oldest terminal jobs only", () => {
+        let queue = createTransferQueue();
+        queue = startTransferJob(enqueueTransferJob(queue, { ...baseJobInput, id: "active" }, 1), "active", 2);
+        for (let index = 0; index < MaxTransferJobs + 5; index++) {
+            const id = `done-${index}`;
+            queue = enqueueTransferJob(queue, { ...baseJobInput, id }, 10 + index);
+            queue = cancelTransferJob(queue, id, 10 + index);
+        }
+        expect(queue.jobs).toHaveLength(MaxTransferJobs);
+        expect(queue.jobs[0].id).toBe("active");
+        expect(queue.jobs[1].id).toBe("done-6");
+        expect(queue.jobs.at(-1).id).toBe(`done-${MaxTransferJobs + 4}`);
+
+        const allActive = { jobs: queue.jobs.map((job) => ({ ...job, status: "running" as const })) };
+        expect(pruneTransferQueue(allActive, 3)).toBe(allActive);
     });
 
     it("clears inactive transfer jobs without removing active work", () => {
@@ -162,7 +251,11 @@ describe("transferqueue", () => {
             1200
         );
         const completed = completeTransferJob(
-            startTransferJob(enqueueTransferJob(running, { ...baseJobInput, id: "completed" }, 1300), "completed", 1400),
+            startTransferJob(
+                enqueueTransferJob(running, { ...baseJobInput, id: "completed" }, 1300),
+                "completed",
+                1400
+            ),
             "completed",
             1500
         );
@@ -189,6 +282,7 @@ describe("transferqueue", () => {
 
         expect(() => startTransferJob(completed, "job-1", 1300)).toThrow("Cannot start completed transfer job");
         expect(() => completeTransferJob(queued, "job-1", 1300)).toThrow("Cannot complete queued transfer job");
+        expect(() => cancelTransferJob(queued, "missing", 1300)).toThrow("Unknown transfer job");
         expect(() => failTransferJob(queued, "missing", { code: "missing", message: "Missing job" }, 1300)).toThrow(
             "Unknown transfer job"
         );

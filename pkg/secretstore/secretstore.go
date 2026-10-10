@@ -283,7 +283,7 @@ func GetSecretNames() ([]string, error) {
 func CountSecrets() (int, error) {
 	lock.Lock()
 	defer lock.Unlock()
-	
+
 	if !initialized {
 		return 0, fmt.Errorf("secret store not initialized")
 	}

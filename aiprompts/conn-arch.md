@@ -54,29 +54,30 @@ Wave Terminal's connection system is designed to provide a unified interface for
 **Primary Files:**
 - [`blockcontroller.go`](../pkg/blockcontroller/blockcontroller.go) - Controller registry and orchestration
 - [`shellcontroller.go`](../pkg/blockcontroller/shellcontroller.go) - Shell/terminal controller implementation
+- [`durableshellcontroller.go`](../pkg/blockcontroller/durableshellcontroller.go) - Durable remote shell controller backed by `pkg/jobcontroller`
 
 **Responsibilities:**
 - **Controller Registry**: Maintains a global map of active block controllers (`controllerRegistry`)
 - **Lifecycle Management**: Handles controller creation, starting, stopping, and switching
-- **Connection Verification**: Checks connection status before starting shell processes ([`CheckConnStatus()`](../pkg/blockcontroller/blockcontroller.go:360))
-- **Controller Types**: Supports different controller types (shell, cmd, tsunami)
+- **Connection Verification**: Checks connection status before starting shell processes ([`CheckConnStatus()`](../pkg/blockcontroller/blockcontroller.go))
+- **Controller Types**: Supports `shell` and `cmd` controllers; remote `shell` blocks use `DurableShellController` when `term:durable` resolves true
 
 **Key Functions:**
-- [`ResyncController()`](../pkg/blockcontroller/blockcontroller.go:120) - Main entry point for synchronizing block state with desired controller
-- [`registerController()`](../pkg/blockcontroller/blockcontroller.go:84) - Registers a new controller, stopping any existing one
-- [`getController()`](../pkg/blockcontroller/blockcontroller.go:78) - Retrieves active controller for a block
+- [`ResyncController()`](../pkg/blockcontroller/blockcontroller.go) - Main entry point for synchronizing block state with desired controller
+- [`registerController()`](../pkg/blockcontroller/blockcontroller.go) - Registers a new controller, stopping any existing one
+- [`getController()`](../pkg/blockcontroller/blockcontroller.go) - Retrieves active controller for a block
 
 **ShellController Details:**
 - Implements the `Controller` interface
-- Manages shell processes via [`ShellProc`](../pkg/shellexec/shellexec.go:48)
+- Manages shell processes via [`ShellProc`](../pkg/shellexec/shellexec.go)
 - Handles three connection types via `ConnUnion`:
   - **Local**: Direct process execution on local machine
   - **SSH**: Remote execution via SSH connections
   - **WSL**: Windows Subsystem for Linux execution
 - Key methods:
-  - [`setupAndStartShellProcess()`](../pkg/blockcontroller/shellcontroller.go:364) - Sets up and starts shell process
-  - [`getConnUnion()`](../pkg/blockcontroller/shellcontroller.go:321) - Determines connection type and retrieves connection object
-  - [`manageRunningShellProcess()`](../pkg/blockcontroller/shellcontroller.go:500+) - Manages I/O for running process
+  - [`setupAndStartShellProcess()`](../pkg/blockcontroller/shellcontroller.go) - Sets up and starts shell process
+  - [`getConnUnion()`](../pkg/blockcontroller/shellcontroller.go) - Determines connection type and retrieves connection object
+  - [`manageRunningShellProcess()`](../pkg/blockcontroller/shellcontroller.go) - Manages I/O for running process
 
 ### 2. Connection Controllers
 
@@ -90,12 +91,13 @@ Wave Terminal's connection system is designed to provide a unified interface for
   ```
   init → connecting → connected → (running) → disconnected/error
   ```
-- **Thread Safety**: Each connection has its own lock (`SSHConn.Lock`)
+- **Thread Safety**: Each connection has a field lock (`SSHConn.lock`) and a lifecycle lock (`SSHConn.lifecycleLock`)
 
 **SSHConn Structure:**
 ```go
 type SSHConn struct {
-    Lock               *sync.Mutex
+    lock               *sync.Mutex      // Protects struct fields
+    lifecycleLock      *sync.Mutex      // Serializes connect/close
     Status             string           // Connection state
     WshEnabled         *atomic.Bool     // WSH availability flag
     Opts               *remote.SSHOpts  // Connection parameters
@@ -116,31 +118,31 @@ type SSHConn struct {
    - Handles authentication (pubkey, password, keyboard-interactive)
    - Supports ProxyJump for multi-hop connections
 
-2. **Domain Socket Setup** ([`OpenDomainSocketListener()`](../pkg/remote/conncontroller/conncontroller.go:201)):
-   - Creates Unix domain socket on remote host (`/tmp/waveterm-*.sock`)
+2. **Domain Socket Setup** ([`OpenDomainSocketListener()`](../pkg/remote/conncontroller/conncontroller.go)):
+   - Creates Unix domain socket on remote host (`/tmp/genieterm-*.sock`)
    - Enables bidirectional RPC communication
    - Socket used by both connserver and shell processes
 
 3. **WSH (Wave Shell Extensions) Management**:
-   - **Version Check** ([`StartConnServer()`](../pkg/remote/conncontroller/conncontroller.go:277)): Runs `wsh version` to check installation
-   - **Installation** ([`InstallWsh()`](../pkg/remote/conncontroller/conncontroller.go:478)): Copies appropriate WSH binary to remote
-   - **Update** ([`UpdateWsh()`](../pkg/remote/conncontroller/conncontroller.go:417)): Updates existing WSH installation
-   - **User Prompts** ([`getPermissionToInstallWsh()`](../pkg/remote/conncontroller/conncontroller.go:434)): Asks user for install permission
+   - **Version Check** ([`StartConnServer()`](../pkg/remote/conncontroller/conncontroller.go)): Runs the helper's `version` subcommand to check installation
+   - **Installation** ([`InstallWsh()`](../pkg/remote/conncontroller/conncontroller.go)): Copies the `genie` helper binary to the remote (`remote.CpWshToRemote()`)
+   - **Update** ([`UpdateWsh()`](../pkg/remote/conncontroller/conncontroller.go)): Updates existing WSH installation
+   - **User Prompts** ([`getPermissionToInstallWsh()`](../pkg/remote/conncontroller/conncontroller.go)): Asks user for install permission
 
 4. **Connection Server** (`wsh connserver`):
    - Long-running process on remote host
    - Provides RPC services for file operations, command execution, etc.
    - Communicates via domain socket
-   - Template: [`ConnServerCmdTemplate`](../pkg/remote/conncontroller/conncontroller.go:74)
+   - Command built by [`MakeConnServerCommand()`](../pkg/remote/conncontroller/conncontroller.go): runs `~/.genieterm/bin/genie`, falling back to a legacy `~/.waveterm/bin/wsh` if only that is present (or `conn:wshpath` when set)
 
 **Connection Flow:**
 ```
 1. GetConn(opts) - Retrieve or create connection
-2. Connect(ctx) - Initiate connection
-3. CheckIfNeedsAuth() - Verify authentication needed
+2. Connect(ctx) → connectInternal() - Establish SSH client (auth handled in remote.ConnectToClient())
+3. tryEnableWsh() - Check conn:wshenabled / ask permission
 4. OpenDomainSocketListener() - Set up RPC channel
-5. StartConnServer() - Launch wsh connserver
-6. (Install/Update WSH if needed)
+5. StartConnServer() - Launch helper connserver
+6. (InstallWsh() inline with a 60s bound, else background install while connected without wsh)
 7. Status: Connected - Ready for shell processes
 ```
 
@@ -148,12 +150,12 @@ type SSHConn struct {
 
 **Responsibilities:**
 - **Authentication Methods**:
-  - Public key with optional passphrase ([`createPublicKeyCallback()`](../pkg/remote/sshclient.go:118))
-  - Password authentication ([`createPasswordCallbackPrompt()`](../pkg/remote/sshclient.go:227))
-  - Keyboard-interactive ([`createInteractiveKbdInteractiveChallenge()`](../pkg/remote/sshclient.go:264))
+  - Public key with optional passphrase ([`createPublicKeyCallback()`](../pkg/remote/sshclient.go))
+  - Password authentication ([`createPasswordCallbackPrompt()`](../pkg/remote/sshclient.go))
+  - Keyboard-interactive ([`createInteractiveKbdInteractiveChallenge()`](../pkg/remote/sshclient.go))
   - SSH agent support
 
-- **Known Hosts Verification** ([`createHostKeyCallback()`](../pkg/remote/sshclient.go:429)):
+- **Known Hosts Verification** ([`createHostKeyCallback()`](../pkg/remote/sshclient.go)):
   - Reads `~/.ssh/known_hosts` and global known_hosts
   - Prompts user for unknown hosts
   - Handles key changes/mismatches
@@ -220,10 +222,10 @@ type ShellProc struct {
 }
 ```
 
-**ConnInterface Implementations:**
-- **Local**: [`CombinedConnInterface`](../pkg/shellexec/) wraps `os/exec.Cmd` with PTY
-- **SSH**: [`RemoteConnInterface`](../pkg/shellexec/) wraps SSH session
-- **WSL**: [`WslConnInterface`](../pkg/shellexec/) wraps WSL command
+**ConnInterface Implementations** (in [`conninterface.go`](../pkg/shellexec/conninterface.go)):
+- **Local**: `CmdWrap` wraps `os/exec.Cmd` with PTY
+- **SSH**: `SessionWrap` wraps SSH session
+- **WSL**: `WslCmdWrap` wraps WSL command
 
 **Process Startup Functions:**
 - [`StartLocalShellProc()`](../pkg/shellexec/) - Local shell processes
@@ -275,12 +277,12 @@ proc.Wait()
 **Responsibilities:**
 
 1. **Shell Detection**:
-   - [`DetectLocalShellPath()`](../pkg/util/shellutil/shellutil.go:87) - Finds user's default shell
-   - [`GetShellTypeFromShellPath()`](../pkg/util/shellutil/shellutil.go:462) - Identifies shell type (bash, zsh, fish, pwsh)
-   - [`DetectShellTypeAndVersion()`](../pkg/util/shellutil/shellutil.go:486) - Gets shell version info
+   - [`DetectLocalShellPath()`](../pkg/util/shellutil/shellutil.go) - Finds user's default shell
+   - [`GetShellTypeFromShellPath()`](../pkg/util/shellutil/shellutil.go) - Identifies shell type (bash, zsh, fish, pwsh)
+   - [`DetectShellTypeAndVersion()`](../pkg/util/shellutil/shellutil.go) - Gets shell version info
 
 2. **Shell Integration Files**:
-   - [`InitCustomShellStartupFiles()`](../pkg/util/shellutil/shellutil.go:270) - Creates Wave's shell integration
+   - [`InitCustomShellStartupFiles()`](../pkg/util/shellutil/shellutil.go) - Creates Wave's shell integration
    - Manages startup files for each shell type:
      - Bash: `.bashrc` in `shell/bash/`
      - Zsh: `.zshrc`, `.zprofile`, etc. in `shell/zsh/`
@@ -288,15 +290,15 @@ proc.Wait()
      - PowerShell: `wavepwsh.ps1` in `shell/pwsh/`
 
 3. **Environment Management**:
-   - [`WaveshellLocalEnvVars()`](../pkg/util/shellutil/shellutil.go:218) - Wave-specific environment variables
-   - [`UpdateCmdEnv()`](../pkg/util/shellutil/shellutil.go:231) - Updates command environment
+   - [`WaveshellLocalEnvVars()`](../pkg/util/shellutil/shellutil.go) - Wave-specific environment variables
+   - [`UpdateCmdEnv()`](../pkg/util/shellutil/shellutil.go) - Updates command environment
 
 4. **WSH Binary Management**:
-   - [`GetLocalWshBinaryPath()`](../pkg/util/shellutil/shellutil.go:334) - Locates platform-specific WSH binary
+   - [`GetLocalWshBinaryPath()`](../pkg/util/shellutil/shellutil.go) / `GetLocalGenieBinaryPath()` - Locate platform-specific helper binaries
    - Supports multiple OS/arch combinations
 
 5. **Git Bash Detection** (Windows):
-   - [`FindGitBash()`](../pkg/util/shellutil/shellutil.go:156) - Locates Git Bash installation
+   - [`FindGitBash()`](../pkg/util/shellutil/shellutil.go) - Locates Git Bash installation
    - Checks multiple common installation paths
 
 ## Connection Types and Workflows
@@ -306,7 +308,7 @@ proc.Wait()
 **Connection Name**: `"local"`, `"local:"`, or `""` (empty)
 
 **Workflow:**
-1. Block controller checks connection type via [`IsLocalConnName()`](../pkg/remote/conncontroller/conncontroller.go:80)
+1. Block controller checks connection type via [`IsLocalConnName()`](../pkg/remote/conncontroller/conncontroller.go)
 2. No connection setup needed
 3. Shell process started directly via [`StartLocalShellProc()`](../pkg/shellexec/)
 4. Uses `os/exec.Cmd` with PTY
@@ -350,7 +352,7 @@ proc.Wait()
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ 4. OpenDomainSocketListener(ctx) - Set Up RPC Channel          │
-│    - Create random socket path: /tmp/waveterm-[random].sock    │
+│    - Create random socket path: /tmp/genieterm-[random].sock   │
 │    - Use ssh.Client.ListenUnix() for remote forwarding         │
 │    - Start RPC listener goroutine                               │
 │    - Socket available for all subsequent operations             │
@@ -358,13 +360,13 @@ proc.Wait()
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ 5. StartConnServer(ctx) - Launch Wave Shell Extensions         │
-│    - Run: "wsh version" to check installation                   │
+│    - Run: "genie version" (wsh fallback) to check installation  │
 │    - If not installed or outdated:                              │
 │      a. Detect remote platform (OS/arch)                        │
 │      b. Get user permission (if configured)                     │
 │      c. InstallWsh() - Copy binary to remote                    │
 │      d. Retry StartConnServer()                                 │
-│    - Run: "wsh connserver" on remote                            │
+│    - Run: "genie connserver" on remote                          │
 │    - Pass JWT token for authentication                          │
 │    - Monitor connserver output                                   │
 │    - Wait for RPC route registration                            │
@@ -392,7 +394,7 @@ proc.Wait()
 **WSH (Wave Shell Extensions) Details:**
 
 **What is WSH?**
-- Binary program (`wsh`) that runs on remote hosts
+- Binary program (published as `genie`; `wsh` kept for compatibility) that runs on remote hosts
 - Provides RPC services for Wave Terminal
 - Written in Go, cross-platform
 - Versioned to match Wave Terminal version
@@ -406,12 +408,12 @@ proc.Wait()
    - Communicates over domain socket
 
 **WSH Installation Process:**
-1. Check if wsh is installed: Run `wsh version`
+1. Check if the helper is installed: run `~/.genieterm/bin/genie version` (falls back to an existing `~/.waveterm/bin/wsh`)
 2. If not installed: Detect platform with `uname -sm`
-3. Get appropriate binary from local cache
-4. Copy to remote: `~/.waveterm/bin/wsh`
+3. Get appropriate `genie` binary from the local app bundle
+4. Copy to remote: `~/.genieterm/bin/genie` (only `genie` is deployed; no new `wsh` copy)
 5. Set executable permissions
-6. Restart connection process
+6. Re-run `StartConnServer()`; if the inline install times out, keep the connection in no-wsh mode and finish installing in the background
 
 **With vs Without WSH:**
 - **With WSH**: Full RPC support, better integration, file sync
@@ -473,8 +475,8 @@ proc.Wait()
 - ProxyJump failure → Error shows which jump host failed
 
 **Recovery Mechanisms:**
-- [`conn.Reconnect(ctx)`](../pkg/remote/conncontroller/) - Close and re-establish connection
-- [`conn.WaitForConnect(ctx)`](../pkg/remote/conncontroller/) - Block until connected
+- [`conn.WaitForConnect(ctx)`](../pkg/remote/conncontroller/conncontroller.go) - Block until connected
+- [`EnsureConnection()`](../pkg/remote/conncontroller/conncontroller.go) - Connect if not already connected
 - Automatic fallback to no-WSH mode on installation failure
 
 ### Process Failures
@@ -485,9 +487,9 @@ proc.Wait()
 - I/O errors → Logged and surfaced to user
 
 **Cleanup:**
-- [`ShellProc.Close()`](../pkg/shellexec/shellexec.go:56) - Graceful then forceful kill
-- [`SSHConn.close_nolock()`](../pkg/remote/conncontroller/conncontroller.go:167) - Cleanup all resources
-- [`deleteController()`](../pkg/blockcontroller/blockcontroller.go:101) - Remove from registry
+- [`ShellProc.Close()`](../pkg/shellexec/shellexec.go) - Graceful then forceful kill
+- [`SSHConn.Close()`](../pkg/remote/conncontroller/conncontroller.go) - Cleanup all resources (via `closeInternal_withlifecyclelock()`)
+- [`deleteController()`](../pkg/blockcontroller/blockcontroller.go) - Remove from registry
 
 ## Configuration Integration
 
@@ -502,8 +504,8 @@ proc.Wait()
 
 **Global Settings:**
 - `conn:askbeforewshinstall` - Prompt before WSH installation
-- Stored in `~/.waveterm/config/settings.json`
-- Per-connection overrides in `~/.waveterm/config/connections.json`
+- Stored in `~/.config/genieterm/settings.json`
+- Per-connection overrides in `~/.config/genieterm/connections.json`
 
 ### SSH Configuration
 
@@ -528,9 +530,9 @@ proc.Wait()
 
 **SSHConn/WslConn:**
 ```go
-conn.Lock.Lock()
-defer conn.Lock.Unlock()
-// ... modify connection state
+conn.WithLock(func() {
+    // ... modify connection state (SSHConn.lock / WslConn.Lock)
+})
 ```
 
 **Atomic Flags:**

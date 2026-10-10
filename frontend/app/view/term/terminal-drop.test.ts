@@ -21,11 +21,11 @@ describe("terminal-drop", () => {
         );
     });
 
-    it("falls back to decoded wsh uri path when explicit path metadata is unavailable", () => {
+    it("falls back to the wsh uri path when explicit path metadata is unavailable", () => {
         const draggedFile: DraggedFile = {
             relName: "build output",
             absParent: "~/workspace",
-            uri: "wsh://devbox/%7E/workspace/build%20output",
+            uri: "wsh://devbox/~/workspace/build output",
             isDir: true,
         };
 

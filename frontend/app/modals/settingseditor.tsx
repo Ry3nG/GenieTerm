@@ -86,14 +86,8 @@ const SETTING_GROUPS: SettingGroup[] = [
         ],
     },
     {
-        title: "Privacy & updates",
+        title: "Updates",
         items: [
-            {
-                key: "telemetry:enabled",
-                label: "Telemetry",
-                hint: "Off by default",
-                control: { kind: "toggle" },
-            },
             { key: "autoupdate:enabled", label: "Automatic updates", control: { kind: "toggle" } },
             {
                 key: "autoupdate:channel",

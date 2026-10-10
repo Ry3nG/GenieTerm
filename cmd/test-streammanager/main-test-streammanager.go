@@ -10,10 +10,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/jobmanager"
 	"github.com/Ry3nG/GenieTerm/pkg/streamclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/spf13/cobra"
 )
 
 type TestConfig struct {

@@ -5,7 +5,6 @@ import { BlockModel } from "@/app/block/block-model";
 import { BlockFrame_Header } from "@/app/block/blockframe-header";
 import { blockViewToIcon, getViewIconElem, useTabBackground } from "@/app/block/blockutil";
 import { ConnStatusOverlay } from "@/app/block/connstatusoverlay";
-import { ChangeConnectionBlockModal } from "@/app/modals/conntypeahead";
 import { getBlockComponentModel, globalStore, useBlockAtom } from "@/app/store/global";
 import { useTabModel } from "@/app/store/tab-model";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -21,6 +20,10 @@ import * as jotai from "jotai";
 import * as React from "react";
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
+
+const ChangeConnectionBlockModal = React.lazy(() =>
+    import("@/app/modals/conntypeahead").then((m) => ({ default: m.ChangeConnectionBlockModal }))
+);
 
 const BlockMask = React.memo(({ nodeModel }: { nodeModel: NodeModel }) => {
     const waveEnv = useWaveEnv<BlockEnv>();
@@ -198,14 +201,16 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
                 {preview ? previewElem : children}
             </div>
             {preview || viewModel == null || !connModalOpen ? null : (
-                <ChangeConnectionBlockModal
-                    blockId={nodeModel.blockId}
-                    nodeModel={nodeModel}
-                    viewModel={viewModel}
-                    blockRef={blockModel?.blockRef}
-                    changeConnModalAtom={changeConnModalAtom}
-                    connBtnRef={connBtnRef}
-                />
+                <React.Suspense fallback={null}>
+                    <ChangeConnectionBlockModal
+                        blockId={nodeModel.blockId}
+                        nodeModel={nodeModel}
+                        viewModel={viewModel}
+                        blockRef={blockModel?.blockRef}
+                        changeConnModalAtom={changeConnModalAtom}
+                        connBtnRef={connBtnRef}
+                    />
+                </React.Suspense>
             )}
         </div>
     );

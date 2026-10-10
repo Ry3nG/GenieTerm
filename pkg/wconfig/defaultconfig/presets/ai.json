@@ -1,7 +1,0 @@
-{
-    "ai@global": {
-        "display:name": "Global default",
-        "display:order": -1,
-        "ai:*": true
-    }
-}

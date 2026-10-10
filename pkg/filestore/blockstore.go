@@ -288,13 +288,22 @@ func (s *FileStore) AppendData(ctx context.Context, zoneId string, name string, 
 }
 
 func (s *FileStore) AppendDataWithOffset(ctx context.Context, zoneId string, name string, data []byte) (int64, error) {
-	var offset int64
+	offset, _, err := s.AppendDataWithOffsetAndEpoch(ctx, zoneId, name, data)
+	return offset, err
+}
+
+// The epoch (TerminalFileEpoch of the file meta) is read under the same lock as the offset, so a
+// concurrent TruncateWithEpoch either happens entirely before this append (new epoch, offset 0..)
+// or entirely after it (old epoch), and readers can drop appends whose epoch is stale.
+func (s *FileStore) AppendDataWithOffsetAndEpoch(ctx context.Context, zoneId string, name string, data []byte) (int64, int64, error) {
+	var offset, epoch int64
 	err := withLock(s, zoneId, name, func(entry *CacheEntry) error {
 		err := entry.loadFileIntoCache(ctx)
 		if err != nil {
 			return err
 		}
 		offset = entry.File.Size
+		epoch = TerminalFileEpoch(entry.File.Meta)
 		partMap := entry.File.computePartMap(offset, int64(len(data)))
 		incompleteParts := incompletePartsFromMap(partMap)
 		if len(incompleteParts) > 0 {
@@ -306,7 +315,35 @@ func (s *FileStore) AppendDataWithOffset(ctx context.Context, zoneId string, nam
 		entry.writeAt(offset, data, false)
 		return nil
 	})
-	return offset, err
+	return offset, epoch, err
+}
+
+// Bumps the file's "fileepoch" meta and truncates it to zero length under a single lock (two separate
+// calls would let an append land between them, tagged with the new epoch but at a pre-truncate offset).
+// afterTruncateFn (optional) runs while the lock is still held, so anything it publishes is ordered
+// before every append that observes the new epoch. Returns the new epoch.
+func (s *FileStore) TruncateWithEpoch(ctx context.Context, zoneId string, name string, afterTruncateFn func(newEpoch int64)) (int64, error) {
+	return withLockRtn(s, zoneId, name, func(entry *CacheEntry) (int64, error) {
+		err := entry.loadFileIntoCache(ctx)
+		if err != nil {
+			return 0, err
+		}
+		newEpoch := TerminalFileEpoch(entry.File.Meta) + 1
+		newMeta := copyMeta(entry.File.Meta)
+		newMeta["fileepoch"] = newEpoch
+		entry.File.Meta = newMeta
+		entry.writeAt(0, nil, true)
+		entry.File.ModTs = time.Now().UnixMilli()
+		// truncation must reach the DB immediately (same as WriteFile)
+		err = entry.flushToDB(ctx, true)
+		if err != nil {
+			return 0, err
+		}
+		if afterTruncateFn != nil {
+			afterTruncateFn(newEpoch)
+		}
+		return newEpoch, nil
+	})
 }
 
 func metaIncrement(file *WaveFile, key string, amount int) int {

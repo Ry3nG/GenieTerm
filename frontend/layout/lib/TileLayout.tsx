@@ -1,9 +1,8 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { getSettingsKeyAtom } from "@/app/store/global";
 import clsx from "clsx";
-import { toPng } from "html-to-image";
 import { Atom, useAtomValue, useSetAtom } from "jotai";
 import React, {
     CSSProperties,
@@ -271,12 +270,15 @@ const DisplayNode = ({ layoutModel, node }: DisplayNodeProps) => {
             dragPreview(previewImage, { offsetY, offsetX });
         } else if (previewRef.current) {
             setPreviewImageGeneration(previewElementGeneration);
-            toPng(previewRef.current).then((url) => {
-                const img = new Image();
-                img.src = url;
-                setPreviewImage(img);
-                dragPreview(img, { offsetY, offsetX });
-            });
+            const previewNode = previewRef.current;
+            import("html-to-image")
+                .then(({ toPng }) => toPng(previewNode))
+                .then((url) => {
+                    const img = new Image();
+                    img.src = url;
+                    setPreviewImage(img);
+                    dragPreview(img, { offsetY, offsetX });
+                });
         }
     }, [
         dragPreview,

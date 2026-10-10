@@ -1,6 +1,6 @@
 # Inherited architecture notes
 
-These files are Wave Terminal design notes that still describe internals GenieTerm runs (`wshrpc`, layout, connections, WPS, VDom, the unused useChat backend).
+These files are Wave Terminal design notes that still describe internals GenieTerm runs (`wshrpc`, layout, connections, WPS, VDom).
 
 They are **not** GenieTerm product docs.
 

@@ -1,0 +1,48 @@
+=== RUN   TestDurableThroughput
+=== RUN   TestDurableThroughput/lines/0s
+2026/10/10 21:40:31 handleEOF: PTY reached EOF, totalSize=1400000
+    throughput_test.go:151: bytes=1400000 elapsed=117.952667ms MiB/s=11.32 packets=32 acks=63
+=== RUN   TestDurableThroughput/bulk/0s
+2026/10/10 21:40:31 handleEOF: PTY reached EOF, totalSize=10485760
+    throughput_test.go:151: bytes=10485760 elapsed=14.424875ms MiB/s=693.25 packets=161 acks=178
+=== RUN   TestDurableThroughput/lines/10ms
+2026/10/10 21:40:32 handleEOF: PTY reached EOF, totalSize=1400000
+    throughput_test.go:151: bytes=1400000 elapsed=142.208084ms MiB/s=9.39 packets=35 acks=69
+=== RUN   TestDurableThroughput/bulk/10ms
+2026/10/10 21:40:32 handleEOF: PTY reached EOF, totalSize=10485760
+    throughput_test.go:151: bytes=10485760 elapsed=101.102084ms MiB/s=98.91 packets=161 acks=171
+=== RUN   TestDurableThroughput/lines/50ms
+2026/10/10 21:40:32 handleEOF: PTY reached EOF, totalSize=1400000
+    throughput_test.go:151: bytes=1400000 elapsed=240.759792ms MiB/s=5.55 packets=50 acks=99
+=== RUN   TestDurableThroughput/bulk/50ms
+2026/10/10 21:40:33 handleEOF: PTY reached EOF, totalSize=10485760
+    throughput_test.go:151: bytes=10485760 elapsed=478.394833ms MiB/s=20.90 packets=161 acks=176
+--- PASS: TestDurableThroughput (1.35s)
+    --- PASS: TestDurableThroughput/lines/0s (0.12s)
+    --- PASS: TestDurableThroughput/bulk/0s (0.02s)
+    --- PASS: TestDurableThroughput/lines/10ms (0.16s)
+    --- PASS: TestDurableThroughput/bulk/10ms (0.12s)
+    --- PASS: TestDurableThroughput/lines/50ms (0.34s)
+    --- PASS: TestDurableThroughput/bulk/50ms (0.58s)
+=== RUN   TestDurableEchoLatency
+=== RUN   TestDurableEchoLatency/0s
+    throughput_test.go:174: echo=35.792µs one-way-delay=0s
+    throughput_test.go:174: echo=30.416µs one-way-delay=0s
+    throughput_test.go:174: echo=19.458µs one-way-delay=0s
+2026/10/10 21:40:33 handleError: PTY error=io: read/write on closed pipe, totalSize=3
+=== RUN   TestDurableEchoLatency/10ms
+    throughput_test.go:174: echo=11.0885ms one-way-delay=10ms
+    throughput_test.go:174: echo=11.05ms one-way-delay=10ms
+    throughput_test.go:174: echo=11.056417ms one-way-delay=10ms
+2026/10/10 21:40:33 handleError: PTY error=io: read/write on closed pipe, totalSize=3
+=== RUN   TestDurableEchoLatency/50ms
+    throughput_test.go:174: echo=50.610917ms one-way-delay=50ms
+    throughput_test.go:174: echo=51.050667ms one-way-delay=50ms
+    throughput_test.go:174: echo=51.069542ms one-way-delay=50ms
+2026/10/10 21:40:33 handleError: PTY error=io: read/write on closed pipe, totalSize=3
+--- PASS: TestDurableEchoLatency (0.29s)
+    --- PASS: TestDurableEchoLatency/0s (0.03s)
+    --- PASS: TestDurableEchoLatency/10ms (0.07s)
+    --- PASS: TestDurableEchoLatency/50ms (0.19s)
+PASS
+ok  	github.com/Ry3nG/GenieTerm/pkg/jobmanager	1.840s

@@ -27,6 +27,7 @@ const JobAccessTokenLabel = "Wave-JobAccessToken"
 const JobManagerStartLabel = "Wave-JobManagerStart"
 const JobInputQueueTimeout = 100 * time.Millisecond
 const JobInputQueueSize = 1000
+const JobStartTimeout = 60 * time.Second
 
 var WshCmdJobManager JobManager
 
@@ -80,6 +81,20 @@ func SetupJobManager(clientId string, jobId string, publicKeyBytes []byte, jobAu
 
 	go func() {
 		defer func() {
+			panichandler.PanicHandler("JobManager:startWatchdog", recover())
+		}()
+		if waitForJobStart(JobStartTimeout, WshCmdJobManager.IsJobStarted) {
+			return
+		}
+		// nobody ever sent StartJob (the launching connserver died or gave up); don't
+		// linger as an orphaned daemon holding a socket
+		log.Printf("job manager: no job started within %v, exiting\n", JobStartTimeout)
+		os.Remove(wavebase.GetRemoteJobSocketPath(jobId))
+		os.Exit(1)
+	}()
+
+	go func() {
+		defer func() {
 			panichandler.PanicHandler("JobManager:keepalive", recover())
 		}()
 		ticker := time.NewTicker(1 * time.Hour)
@@ -90,6 +105,26 @@ func SetupJobManager(clientId string, jobId string, publicKeyBytes []byte, jobAu
 	}()
 
 	return nil
+}
+
+// returns true as soon as isStarted reports true, false if timeout elapses first
+func waitForJobStart(timeout time.Duration, isStarted func() bool) bool {
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+	for {
+		if isStarted() {
+			return true
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return false
+		}
+		if remaining < pollInterval {
+			time.Sleep(remaining)
+			continue
+		}
+		time.Sleep(pollInterval)
+	}
 }
 
 func (jm *JobManager) processInputQueue() {

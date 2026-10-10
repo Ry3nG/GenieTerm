@@ -48,6 +48,12 @@ const (
 	LocalConnVariant_GitBash = "gitbash"
 )
 
+// bounds how long a dying shell's final terminal writes may hold up exit handling / Stop(graceful).
+// the pty read loop only ends once every holder of the pty slave is gone (e.g. a backgrounded child),
+// so it must not be waited on forever.
+const FinalOutputWaitTime = 2 * time.Second
+const StopOutputWaitTime = 5 * time.Second
+
 type ShellController struct {
 	Lock *sync.Mutex
 
@@ -65,6 +71,8 @@ type ShellController struct {
 	// for shell/cmd
 	ShellProc    *shellexec.ShellProc
 	ShellInputCh chan *BlockInputUnion
+	// closed once the current ShellProc's final terminal writes (pty tail, reset seq, exit message) are done
+	OutputDoneCh chan struct{}
 }
 
 // Constructor that returns the Controller interface
@@ -109,14 +117,32 @@ func (sc *ShellController) Stop(graceful bool, newStatus string, destroy bool) {
 	sc.ShellProc.Close()
 	if graceful {
 		doneCh := sc.ShellProc.DoneCh
+		outputDoneCh := sc.OutputDoneCh
 		sc.Lock.Unlock() // Unlock before waiting
 		<-doneCh
+		// ShellProc.Close() signals DoneCh straight after the process exits, before the wait loop's final
+		// writes; a restart truncates the term file right after Stop returns, so wait for those writes too
+		waitForChanWithTimeout(outputDoneCh, StopOutputWaitTime)
 		sc.Lock.Lock() // Re-lock after waiting
 	}
 
 	// Update status
 	sc.ProcStatus = newStatus
 	sc.sendUpdate_nolock()
+}
+
+func waitForChanWithTimeout(ch chan struct{}, timeout time.Duration) bool {
+	if ch == nil {
+		return true
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-ch:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 func (sc *ShellController) getRuntimeStatus_nolock() BlockControllerRuntimeStatus {
@@ -524,7 +550,12 @@ func (bc *ShellController) setupAndStartShellProcess(logCtx context.Context, rc 
 
 func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellProc, rc *RunShellOpts, blockMeta waveobj.MetaMapType) error {
 	shellInputCh := make(chan *BlockInputUnion, 32)
-	bc.ShellInputCh = shellInputCh
+	outputDoneCh := make(chan struct{})
+	readDoneCh := make(chan struct{})
+	bc.WithLock(func() {
+		bc.ShellInputCh = shellInputCh
+		bc.OutputDoneCh = outputDoneCh
+	})
 
 	go func() {
 		// handles regular output from the pty (goes to the blockfile and xterm)
@@ -545,18 +576,23 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 				termMsg := fmt.Sprintf("\r\nprocess finished with exit code = %d\r\n\r\n", exitCode)
 				HandleAppendBlockFile(bc.BlockId, wavebase.BlockFile_Term, []byte(termMsg))
 			}
+			close(readDoneCh)
 			// to stop the inputCh loop
 			time.Sleep(100 * time.Millisecond)
 			close(shellInputCh) // don't use bc.ShellInputCh (it's nil)
 		}()
-		buf := make([]byte, 4096)
+		output := MakeOutputCoalescer(OutputCoalesceWindow, OutputCoalesceMaxBytes, func(data []byte) {
+			err := HandleAppendBlockFile(bc.BlockId, wavebase.BlockFile_Term, data)
+			if err != nil {
+				log.Printf("error appending to blockfile: %v\n", err)
+			}
+		})
+		defer output.Close()
+		buf := make([]byte, 32*1024)
 		for {
 			nr, err := shellProc.Cmd.Read(buf)
 			if nr > 0 {
-				err := HandleAppendBlockFile(bc.BlockId, wavebase.BlockFile_Term, buf[:nr])
-				if err != nil {
-					log.Printf("error appending to blockfile: %v\n", err)
-				}
+				output.Write(buf[:nr])
 			}
 			if err == io.EOF {
 				break
@@ -566,6 +602,7 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 				break
 			}
 		}
+		output.Close()
 	}()
 	go func() {
 		// handles input from the shellInputCh, sent to pty
@@ -588,6 +625,8 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 		}()
 		// wait for the shell to finish
 		var exitCode int
+		// registered first so it runs last: Stop(graceful) waits on this before a restart may truncate
+		defer close(outputDoneCh)
 		defer func() {
 			bc.UpdateControllerAndSendUpdate(func() bool {
 				if bc.ProcStatus == Status_Running {
@@ -600,7 +639,11 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 		}()
 		waitErr := shellProc.Cmd.Wait()
 		exitCode = shellProc.Cmd.ExitCode()
-		shellProc.SetWaitErrorAndSignalDone(waitErr)
+		// the final writes go after the pty tail and before DoneCh/OutputDoneCh, otherwise they can land in
+		// the term file after a restart's truncate (and the reset seq would clobber the new shell's modes)
+		if !waitForChanWithTimeout(readDoneCh, FinalOutputWaitTime) {
+			log.Printf("[shellproc] pty-read loop still running after exit (blockid=%s), writing exit message anyway\n", bc.BlockId)
+		}
 		bc.resetTerminalState(context.Background())
 		exitSignal := shellProc.Cmd.ExitSignal()
 		var baseMsg string
@@ -616,6 +659,7 @@ func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellP
 			msg = fmt.Sprintf("%s (exit code %d)", baseMsg, exitCode)
 		}
 		bc.writeMutedMessageToTerminal("[" + msg + "]")
+		shellProc.SetWaitErrorAndSignalDone(waitErr)
 		go checkCloseOnExit(bc.BlockId, exitCode)
 	}()
 	return nil

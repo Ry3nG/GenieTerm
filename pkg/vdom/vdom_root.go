@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
+	"github.com/google/uuid"
 )
 
 const (

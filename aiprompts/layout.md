@@ -17,7 +17,7 @@ The system uses CSS Flexbox for positioning but maintains its own tree structure
 ```
 frontend/layout/lib/
 ├── TileLayout.tsx          # Main React component
-├── layoutAtom.ts           # Jotai state management  
+├── layoutAtom.ts           # Resolves a tab's LayoutState WaveObject atom
 ├── layoutModel.ts          # Core model class
 ├── layoutModelHooks.ts     # React hooks for integration
 ├── layoutNode.ts           # Node manipulation functions
@@ -60,15 +60,11 @@ interface LayoutTreeState {
     focusedNodeId?: string;                  // Currently focused node
     magnifiedNodeId?: string;                // Currently magnified node
     leafOrder?: LeafOrderEntry[];            // Computed leaf ordering
-    pendingBackendActions: LayoutActionData[]; // Actions from backend
-    generation: number;                      // State version number
+    pendingBackendActions: LayoutActionData[]; // Actions queued by the backend
 }
 ```
 
-**Generation System:**
-- Incremented on every state change
-- Used for optimistic updates and conflict resolution
-- Prevents stale state overwrites
+There is no generation counter. The frontend `LayoutModel` owns the tree at runtime and the backend only queues actions (see [State Synchronization](#state-synchronization)).
 
 ### NodeModel
 
@@ -109,7 +105,9 @@ The central orchestrator that manages the entire layout system:
 **State Management:**
 ```typescript
 class LayoutModel {
-    treeStateAtom: WritableLayoutTreeStateAtom;  // Persistent state
+    private localTreeStateAtom: PrimitiveAtom<LayoutTreeState>; // Runtime source of truth
+    treeState: LayoutTreeState;                  // Mutable local cache of the same state
+    private waveObjectAtom: Atom<LayoutState>;   // Persisted LayoutState WaveObject
     leafs: PrimitiveAtom<LayoutNode[]>;          // Computed leaf nodes
     additionalProps: PrimitiveAtom<Record<string, LayoutNodeAdditionalProps>>;
     pendingTreeAction: AtomWithThrottle<LayoutTreeAction>;
@@ -121,7 +119,7 @@ class LayoutModel {
 **Action Processing:**
 The model uses a reducer pattern to process actions:
 ```typescript
-treeReducer(action: LayoutTreeAction) {
+treeReducer(action: LayoutTreeAction, setState = true) {
     switch (action.type) {
         case LayoutTreeActionType.Move:
             moveNode(this.treeState, action);
@@ -131,7 +129,11 @@ treeReducer(action: LayoutTreeAction) {
             break;
         // ... handle all action types
     }
-    this.updateTree(); // Recompute derived state
+    if (setState) {
+        this.updateTree();
+        this.setter(this.localTreeStateAtom, { ...this.treeState });
+        this.persistToBackend();
+    }
 }
 ```
 
@@ -146,15 +148,19 @@ enum LayoutTreeActionType {
     ComputeMove = "computemove",      // Preview move operation
     Move = "move",                    // Execute move
     Swap = "swap",                    // Swap two nodes
+    SetPendingAction = "setpending",
+    CommitPendingAction = "commitpending",
+    ClearPendingAction = "clearpending",
     ResizeNode = "resize",            // Resize node(s)
     InsertNode = "insert",            // Insert new node
     InsertNodeAtIndex = "insertatindex", // Insert at specific index
     DeleteNode = "delete",            // Remove node
     FocusNode = "focus",              // Change focus
     MagnifyNodeToggle = "magnify",    // Toggle magnification
+    ClearTree = "clear",
+    ReplaceNode = "replace",
     SplitHorizontal = "splithorizontal", // Split horizontally
     SplitVertical = "splitvertical",  // Split vertically
-    // ... more actions
 }
 ```
 
@@ -162,10 +168,11 @@ enum LayoutTreeActionType {
 
 1. **User Interaction** → Action triggered
 2. **Action Validation** → Check if operation is valid
-3. **Tree Modification** → Update `LayoutTreeState`
-4. **State Propagation** → Update Jotai atoms
-5. **Layout Computation** → Recalculate positions
-6. **React Re-render** → Update UI
+3. **Tree Modification** → `treeReducer()` mutates `this.treeState`
+4. **Layout Computation** → `updateTree()` recalculates leafs, leaf order, and additional props
+5. **State Propagation** → `localTreeStateAtom` is set to a copy of `treeState`
+6. **Persistence** → `persistToBackend()` writes the LayoutState WaveObject (debounced 100ms)
+7. **React Re-render** → Update UI
 
 ### Example: Move Operation
 
@@ -253,15 +260,16 @@ The system computes absolute positions from the tree structure:
 
 ### Key Functions
 
-- [`updateTreeHelper()`](frontend/layout/lib/layoutModel.ts:638) - Main layout computation
-- [`computeNodeFromProps()`](frontend/layout/lib/layoutModel.ts:718) - Individual node positioning
-- [`setTransform()`](frontend/layout/lib/utils.ts:61) - CSS transform generation
+- `LayoutModel.updateTree()` in `frontend/layout/lib/layoutModel.ts` - walks (and optionally balances) the tree, then sets `leafs`, `leafOrder`, and `additionalProps`
+- `LayoutModel.updateTreeHelper()` - per-node callback that computes child rects, transforms, and resize handles, and applies the magnified-node transform to leafs
+- `LayoutModel.updateEphemeralNodeProps()` - positions the ephemeral node
+- `setTransform()` in `frontend/layout/lib/utils.ts` - CSS transform generation
 
 ## Node Management
 
 ### Node Operations
 
-The [`layoutNode.ts`](frontend/layout/lib/layoutNode.ts) file provides core node manipulation:
+The [`layoutNode.ts`](../frontend/layout/lib/layoutNode.ts) file provides core node manipulation:
 
 ```typescript
 // Create new node
@@ -287,32 +295,22 @@ The system automatically optimizes the tree structure:
 
 ## State Synchronization
 
-### Frontend ↔ Backend Sync
+### Frontend → Backend Persistence
 
-The layout state synchronizes with the backend through:
+The frontend is the source of truth for the tree. Sync is one-directional for tree state, with backend changes arriving only as queued actions:
 
-1. **`layoutAtom.ts`** - Jotai atom that wraps backend state
-2. **Generation tracking** - Prevents state conflicts
-3. **Pending actions** - Backend-initiated changes
-4. **Leaf order** - Frontend-computed ordering sent to backend
+1. **Initialization** - `initializeFromWaveObject()` reads the tab's `LayoutState` WaveObject (resolved by `getLayoutStateAtomFromTab()` in `layoutAtom.ts`) once, seeds `treeState` and `localTreeStateAtom`, then processes any pending backend actions.
+2. **Local updates** - every `treeReducer()` call with `setState = true` runs `updateTree()`, sets `localTreeStateAtom`, and calls `persistToBackend()`.
+3. **Persistence** - `persistToBackend()` debounces for 100ms, then copies `rootnode`, `focusednodeid`, `magnifiednodeid`, `leaforder`, and `pendingbackendactions` onto the WaveObject and saves it with `WOS.setObjectValue()`.
 
-### Atom Structure
+### Backend-Initiated Actions
 
-```typescript
-const layoutTreeStateAtom = atom(
-    (get) => {
-        // Read from backend
-        const layoutState = get(backendLayoutStateAtom);
-        return transformToTreeState(layoutState);
-    },
-    (get, set, treeState) => {
-        // Write to backend
-        if (generationNewer(treeState)) {
-            set(backendLayoutStateAtom, transformFromTreeState(treeState));
-        }
-    }
-);
-```
+The backend never rewrites the tree directly. It appends `LayoutActionData` entries to `pendingbackendactions` on the `LayoutState` WaveObject:
+
+1. For the static tab, `getLayoutModelForTab()` in `layoutModelHooks.ts` subscribes to the WaveObject atom and calls `LayoutModel.onBackendUpdate()` on change.
+2. `processPendingBackendActions()` skips actions without an `actionid` and any already in `processedActionIds`, then applies each one through `handleBackendAction()`.
+3. `handleBackendAction()` translates the action (insert, insertatindex, delete, clear, replace, split, `cleanuporphaned`) into a `treeReducer(action, false)` call or a node close.
+4. After the batch, the model runs `updateTree()`, sets `localTreeStateAtom`, and persists, which clears the processed queue.
 
 ## Special Features
 
@@ -341,9 +339,9 @@ Temporary nodes that aren't part of the persistent tree:
 ### React Integration
 
 **Hooks:**
-- [`useTileLayout()`](frontend/layout/lib/layoutModelHooks.ts:51) - Main hook for layout setup
-- [`useNodeModel()`](frontend/layout/lib/layoutModelHooks.ts:65) - Get node model for component
-- [`useDebouncedNodeInnerRect()`](frontend/layout/lib/layoutModelHooks.ts:69) - Animated positioning
+- `useTileLayout()` in `frontend/layout/lib/layoutModelHooks.ts` - Main hook for layout setup
+- `useNodeModel()` - Get node model for component
+- `useDebouncedNodeInnerRect()` - Animated positioning
 
 ### Content Rendering
 
@@ -369,21 +367,21 @@ interface TileLayoutContents {
 
 ### Adding New Actions
 
-1. Define action type in [`types.ts`](frontend/layout/lib/types.ts)
-2. Implement handler in [`layoutTree.ts`](frontend/layout/lib/layoutTree.ts)
-3. Add case to [`LayoutModel.treeReducer()`](frontend/layout/lib/layoutModel.ts:330)
-4. Update generation and call `updateTree()`
+1. Define action type in [`types.ts`](../frontend/layout/lib/types.ts)
+2. Implement handler in [`layoutTree.ts`](../frontend/layout/lib/layoutTree.ts)
+3. Add a case to `LayoutModel.treeReducer()` in [`layoutModel.ts`](../frontend/layout/lib/layoutModel.ts)
+4. If the backend can issue it, also handle it in `LayoutModel.handleBackendAction()`
 
 ### Extending Node Properties
 
-1. Add to `LayoutNodeAdditionalProps` in [`types.ts`](frontend/layout/lib/types.ts)
-2. Compute in [`updateTreeHelper()`](frontend/layout/lib/layoutModel.ts:638)
+1. Add to `LayoutNodeAdditionalProps` in [`types.ts`](../frontend/layout/lib/types.ts)
+2. Compute in `LayoutModel.updateTreeHelper()`
 3. Access via `nodeModel.additionalProps`
 
 ### Custom Layout Behaviors
 
 Override or extend layout computation by:
-1. Modifying [`computeNodeFromProps()`](frontend/layout/lib/layoutModel.ts:718)
+1. Modifying `LayoutModel.updateTreeHelper()`
 2. Adding custom CSS transforms
 3. Implementing special handling in action reducers
 
@@ -398,14 +396,15 @@ The system includes extensive validation:
 ## Testing
 
 The layout system includes comprehensive tests:
-- [`layoutNode.test.ts`](frontend/layout/tests/layoutNode.test.ts) - Node operations
-- [`layoutTree.test.ts`](frontend/layout/tests/layoutTree.test.ts) - Tree operations  
-- [`utils.test.ts`](frontend/layout/tests/utils.test.ts) - Utility functions
+- [`layoutNode.test.ts`](../frontend/layout/tests/layoutNode.test.ts) - Node operations
+- [`layoutTree.test.ts`](../frontend/layout/tests/layoutTree.test.ts) - Tree operations  
+- [`utils.test.ts`](../frontend/layout/tests/utils.test.ts) - Utility functions
+- [`layoutModel.test.ts`](../frontend/layout/tests/layoutModel.test.ts) - LayoutModel behavior
 
 ## Debugging
 
 For debugging layout issues:
-1. Check `treeState.generation` for state changes
+1. Check `pendingbackendactions` on the `LayoutState` WaveObject and the model's `processedActionIds`
 2. Inspect `additionalProps` for computed layout data
 3. Use browser dev tools to examine CSS transforms
 4. Enable console logging in action reducers

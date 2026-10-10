@@ -31,7 +31,7 @@ This happens in ~10 places: insertNode, insertNodeAtIndex, deleteNode, focusNode
 
 ### 2. Committing to Local Atom
 
-The [`LayoutModel.treeReducer()`](../frontend/layout/lib/layoutModel.ts:547) commits changes:
+`LayoutModel.treeReducer()` in [`layoutModel.ts`](../frontend/layout/lib/layoutModel.ts) commits changes:
 
 ```typescript
 treeReducer(action: LayoutTreeAction, setState = true): boolean {
@@ -56,10 +56,12 @@ Each block's `NodeModel` has an `isFocused` atom:
 isFocused: atom((get) => {
     const treeState = get(this.localTreeStateAtom);
     const isFocused = treeState.focusedNodeId === nodeid;
-    const waveAIFocused = get(atoms.waveAIFocusedAtom);
-    return isFocused && !waveAIFocused;
+    const focusType = get(FocusManager.getInstance().focusType);
+    return isFocused && focusType === "node";
 })
 ```
+
+`FocusManager.focusType` (in `frontend/app/store/focusManager.ts`) currently only has the value `"node"`; the Wave AI focus type was removed with the chat panel.
 
 When `localTreeStateAtom` updates, all `isFocused` atoms recalculate. Only the matching node returns `true`.
 

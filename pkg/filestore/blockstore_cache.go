@@ -231,6 +231,10 @@ func (entry *CacheEntry) readAt(ctx context.Context, offset int64, size int64, r
 			return realDataOffset, nil, nil
 		}
 	}
+	if size <= 0 {
+		// offset past EOF (e.g. the file was truncated after the caller's Stat); make() below would panic
+		return offset, nil, nil
+	}
 	partMap := file.computePartMap(offset, size)
 	dataEntryMap, err := entry.loadDataPartsForRead(ctx, getPartIdxsFromMap(partMap))
 	if err != nil {

@@ -1,6 +1,14 @@
 // Copyright 2026, GenieTerm. Apache-2.0.
 
-type ParserState = "ground" | "escape" | "escape-intermediate" | "csi" | "osc" | "osc-escape" | "string" | "string-escape";
+type ParserState =
+    | "ground"
+    | "escape"
+    | "escape-intermediate"
+    | "csi"
+    | "osc"
+    | "osc-escape"
+    | "string"
+    | "string-escape";
 
 export class TerminalStreamBoundaryTracker {
     state: ParserState = "ground";

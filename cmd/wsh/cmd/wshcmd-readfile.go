@@ -7,10 +7,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
+	"github.com/spf13/cobra"
 )
 
 var readFileCmd = &cobra.Command{

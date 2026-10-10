@@ -44,15 +44,16 @@ import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from 
 import { DirectoryTreeView } from "./preview-directory-tree";
 import {
     cleanMimetype,
+    confirmFileDelete,
     copyWithOverwriteConfirmation,
     getBestUnit,
     getLastModifiedTime,
     getSortIcon,
-    handleFileDelete,
     handleRename,
+    isFileCopyFailure,
     isIconValid,
+    isParentDirEntry,
     makeDirectoryDefaultMenuItems,
-    type FileCopyFailureResult,
     type FileCopyResult,
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
@@ -74,6 +75,16 @@ function getDroppedItemType(dataTransfer: DataTransfer, index: number): Transfer
     const item = dataTransfer.items?.[index] as WebKitDataTransferItem;
     const entry = item?.webkitGetAsEntry?.();
     return entry?.isDirectory ? "folder" : "file";
+}
+
+function toUploadOutcome(result: FileCopyResult): TransferJobOutcome {
+    if (!isFileCopyFailure(result)) {
+        return { status: "completed" };
+    }
+    if (result.canceled) {
+        return { status: "canceled" };
+    }
+    return { status: "failed", error: makeUploadFailure(result.errorText, result.retryable) };
 }
 
 function makeUploadFailure(errorText: string, retryable: boolean): TransferError {
@@ -432,6 +443,8 @@ function TableBody({
                 return;
             }
             const fileName = finfo.path.split("/").pop();
+            // the ".." row points at the parent directory; rename/delete on it would act on the parent
+            const isParentRow = isParentDirEntry(finfo);
             const menu: ContextMenuItem[] = [
                 {
                     label: "New File",
@@ -445,12 +458,16 @@ function TableBody({
                         table.options.meta.newDirectory();
                     },
                 },
-                {
+            ];
+            if (!isParentRow) {
+                menu.push({
                     label: "Rename",
                     click: () => {
                         table.options.meta.updateName(finfo.path, finfo.isdir);
                     },
-                },
+                });
+            }
+            menu.push(
                 {
                     type: "separator",
                 },
@@ -469,8 +486,8 @@ function TableBody({
                 {
                     label: "Copy Full File Name (Shell Quoted)",
                     click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([finfo.path]))),
-                },
-            ];
+                }
+            );
             addOpenMenuItems(menu, conn, finfo);
             menu.push(
                 {
@@ -479,15 +496,19 @@ function TableBody({
                 {
                     label: "Default Settings",
                     submenu: makeDirectoryDefaultMenuItems(model),
-                },
-                {
-                    type: "separator",
-                },
-                {
-                    label: "Delete",
-                    click: () => handleFileDelete(model, finfo.path, false, setErrorMsg),
                 }
             );
+            if (!isParentRow) {
+                menu.push(
+                    {
+                        type: "separator",
+                    },
+                    {
+                        label: "Delete",
+                        click: () => confirmFileDelete(model, finfo, setErrorMsg),
+                    }
+                );
+            }
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },
         [setRefreshVersion, conn]
@@ -526,7 +547,12 @@ function TableBody({
                             key={row.original.path}
                             data-index={item.index}
                             ref={rowVirtualizer.measureElement}
-                            style={{ position: "absolute", top: 0, width: "100%", transform: `translateY(${item.start}px)` }}
+                            style={{
+                                position: "absolute",
+                                top: 0,
+                                width: "100%",
+                                transform: `translateY(${item.start}px)`,
+                            }}
                         >
                             <TableRow
                                 model={model}
@@ -572,10 +598,10 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
     const [_, drag] = useDrag(
         () => ({
             type: "FILE_ITEM",
-            canDrag: true,
+            canDrag: !isParentDirEntry(row.original),
             item: () => dragItem,
         }),
-        [dragItem]
+        [dragItem, row.original]
     );
 
     const dragRef = useCallback(
@@ -637,6 +663,15 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const finfo = useAtomValue(model.statFile);
     const dirPath = finfo?.path;
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
+    const mountAbortRef = useRef<AbortController>(null);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        mountAbortRef.current = controller;
+        return () => {
+            controller.abort();
+        };
+    }, []);
 
     useEffect(() => {
         model.refreshCallback = () => {
@@ -798,33 +833,78 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     });
 
     const handleDropCopy = useCallback(
-        async (data: CommandFileCopyData, itemType: TransferItemType): Promise<FileCopyResult> => {
+        async (
+            data: CommandFileCopyData,
+            itemType: TransferItemType,
+            signal?: AbortSignal
+        ): Promise<FileCopyResult> => {
             return copyWithOverwriteConfirmation(data, itemType, {
                 copyFile: (nextData) =>
                     env.rpc.FileCopyCommand(TabRpcClient, nextData, { timeout: nextData.opts?.timeout }),
                 refresh: () => model.refreshCallback?.(),
                 setErrorMsg,
+                watchErrorMsg: (listener) =>
+                    globalStore.sub(model.errorMsgAtom, () => listener(globalStore.get(model.errorMsgAtom))),
+                signal: signal ?? mountAbortRef.current?.signal,
             });
         },
-        [env.rpc, model.refreshCallback, setErrorMsg]
+        [env.rpc, model.refreshCallback, model.errorMsgAtom, setErrorMsg]
+    );
+
+    // RPC copies cannot be interrupted mid-flight, so a cancel only takes effect before the copy starts or while it
+    // is waiting on the overwrite prompt; otherwise the real outcome of the copy is reported.
+    const runTrackedUpload = useCallback(
+        async (jobId: string, itemType: TransferItemType, data: CommandFileCopyData): Promise<void> => {
+            const started = await env.electron.beginTransferJob(jobId);
+            if (!started) {
+                return;
+            }
+            const controller = new AbortController();
+            const mountSignal = mountAbortRef.current?.signal;
+            const abortUpload = () => controller.abort();
+            if (mountSignal?.aborted) {
+                controller.abort();
+            }
+            mountSignal?.addEventListener("abort", abortUpload);
+            const stopWatching = env.electron.onTransferQueueUpdate((queue) => {
+                const job = queue?.jobs.find((candidate) => candidate.id === jobId);
+                if (job?.cancelRequestedAt != null || job?.status === "canceled") {
+                    controller.abort();
+                }
+            });
+            let outcome: TransferJobOutcome;
+            try {
+                outcome = toUploadOutcome(await handleDropCopy(data, itemType, controller.signal));
+            } catch (e) {
+                outcome = { status: "failed", error: makeUploadFailure(`${e}`, true) };
+            } finally {
+                stopWatching?.();
+                mountSignal?.removeEventListener("abort", abortUpload);
+            }
+            await env.electron.finishTransferJob(jobId, outcome);
+        },
+        [env.electron, handleDropCopy]
     );
 
     const retryUpload = useCallback(
-        (job: TransferJob): Promise<FileCopyResult> => {
+        async (job: TransferJob): Promise<void> => {
             const lastSeparator = job.destination.lastIndexOf("/");
             if (lastSeparator < job.destination.indexOf("://") + 3) {
-                return Promise.resolve({ ok: false, errorText: "Invalid remote destination.", retryable: false });
+                if (await env.electron.beginTransferJob(job.id)) {
+                    await env.electron.finishTransferJob(job.id, {
+                        status: "failed",
+                        error: makeUploadFailure("Invalid remote destination.", false),
+                    });
+                }
+                return;
             }
-            return handleDropCopy(
-                {
-                    srcuri: job.source,
-                    desturi: job.destination.slice(0, lastSeparator + 1),
-                    opts: { timeout: CopyTimeoutYear },
-                },
-                job.itemType
-            );
+            await runTrackedUpload(job.id, job.itemType, {
+                srcuri: job.source,
+                desturi: job.destination.slice(0, lastSeparator + 1),
+                opts: { timeout: CopyTimeoutYear },
+            });
         },
-        [handleDropCopy]
+        [env.electron, runTrackedUpload]
     );
 
     const buildLocalUploadItems = useCallback(
@@ -865,30 +945,18 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     createId: () => createUploadTransferJobId("upload"),
                 });
 
-                await Promise.all(plans.map((plan) => env.electron.startTransferJob(plan.jobInput)));
+                await env.electron.enqueueTransferJobs(plans.map((plan) => plan.jobInput));
                 for (const plan of plans) {
-                    const result = await handleDropCopy(
-                        {
+                    try {
+                        await runTrackedUpload(plan.jobInput.id, plan.jobInput.itemType, {
                             srcuri: plan.srcuri,
                             desturi: plan.desturi,
                             opts: {
                                 timeout: CopyTimeoutYear,
                             },
-                        },
-                        plan.jobInput.itemType
-                    );
-                    if (!result.ok) {
-                        const failureResult = result as FileCopyFailureResult;
-                        if (failureResult.canceled) {
-                            await env.electron.finishTransferJob(plan.jobInput.id, { status: "canceled" });
-                        } else {
-                            await env.electron.finishTransferJob(plan.jobInput.id, {
-                                status: "failed",
-                                error: makeUploadFailure(failureResult.errorText, failureResult.retryable),
-                            });
-                        }
-                    } else {
-                        await env.electron.finishTransferJob(plan.jobInput.id, { status: "completed" });
+                        });
+                    } catch (e) {
+                        console.error("Upload transfer tracking failed", e);
                     }
                 }
             } catch (e) {
@@ -899,7 +967,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 });
             }
         },
-        [buildLocalUploadItems, dirPath, env.electron, handleDropCopy, model.formatRemoteUri, setErrorMsg]
+        [buildLocalUploadItems, dirPath, env.electron, runTrackedUpload, model.formatRemoteUri, setErrorMsg]
     );
 
     const handleLocalDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {

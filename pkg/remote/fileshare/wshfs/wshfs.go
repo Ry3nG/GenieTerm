@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/fsutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
@@ -25,8 +26,8 @@ const (
 	FileMode                    = os.FileMode(0644)
 	DirMode                     = os.FileMode(0755) | os.ModeDir
 	RecursiveRequiredError      = "recursive flag must be set for directory operations"
-	MergeRequiredError          = "directory already exists at %q, set overwrite flag to delete the existing contents or set merge flag to merge the contents"
-	OverwriteRequiredError      = "file already exists at %q, set overwrite flag to delete the existing file"
+	MergeRequiredError          = fsutil.MergeRequiredError
+	OverwriteRequiredError      = fsutil.OverwriteRequiredError
 )
 
 // This needs to be set by whoever initializes the client, either main-server or wshcmd-connserver

@@ -20,11 +20,19 @@ import { focusedBlockId, getElemAsStr } from "@/util/focusutil";
 import { isBlank, useAtomValueSafe } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
-import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, Suspense, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./block.scss";
 import { BlockEnv } from "./blockenv";
 import { BlockFrame } from "./blockframe";
-import { makeViewModel } from "./blockregistry";
+import { loadViewModel, makeViewModel } from "./blockregistry";
+
+function ViewModelLoader({ viewType, children }: { viewType: string; children: React.ReactNode }) {
+    const pending = loadViewModel(viewType);
+    if (pending != null) {
+        use(pending);
+    }
+    return children;
+}
 
 function getViewElem(
     blockId: string,
@@ -298,7 +306,21 @@ const Block = memo((props: BlockProps) => {
     if (isNull || isBlank(props.nodeModel.blockId)) {
         return null;
     }
-    return <BlockInner key={props.nodeModel.blockId + ":" + viewType} {...props} viewType={viewType} />;
+    return (
+        <ErrorBoundary key={props.nodeModel.blockId + ":" + viewType}>
+            <Suspense
+                fallback={
+                    <div className="block">
+                        <CenteredDiv>Loading...</CenteredDiv>
+                    </div>
+                }
+            >
+                <ViewModelLoader viewType={viewType}>
+                    <BlockInner {...props} viewType={viewType} />
+                </ViewModelLoader>
+            </Suspense>
+        </ErrorBoundary>
+    );
 });
 
 const SubBlockInner = memo((props: SubBlockProps & { viewType: string }) => {
@@ -330,7 +352,21 @@ const SubBlock = memo((props: SubBlockProps) => {
     if (isNull || isBlank(props.nodeModel.blockId)) {
         return null;
     }
-    return <SubBlockInner key={props.nodeModel.blockId + ":" + viewType} {...props} viewType={viewType} />;
+    return (
+        <ErrorBoundary key={props.nodeModel.blockId + ":" + viewType}>
+            <Suspense
+                fallback={
+                    <div className="block">
+                        <CenteredDiv>Loading...</CenteredDiv>
+                    </div>
+                }
+            >
+                <ViewModelLoader viewType={viewType}>
+                    <SubBlockInner {...props} viewType={viewType} />
+                </ViewModelLoader>
+            </Suspense>
+        </ErrorBoundary>
+    );
 });
 
 export { Block, SubBlock };

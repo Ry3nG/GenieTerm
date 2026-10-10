@@ -10,8 +10,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/wavetermdev/htmltoken"
 	"github.com/Ry3nG/GenieTerm/pkg/vdom/cssparser"
+	"github.com/wavetermdev/htmltoken"
 )
 
 // can tokenize and bind HTML to Elems

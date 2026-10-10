@@ -10,7 +10,7 @@ import { addOpenMenuItems } from "@/util/previewutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
 import * as React from "react";
-import { handleFileDelete, isIconValid } from "./preview-directory-utils";
+import { confirmFileDelete, isIconValid, isParentDirEntry } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
 
@@ -72,13 +72,16 @@ export function makeFileTreeNodeContextMenu(ctx: FileTreeNodeMenuCtx, fileInfo: 
         },
     ];
     addOpenMenuItems(menu, ctx.connName, fileInfo);
+    if (isParentDirEntry(fileInfo)) {
+        return menu;
+    }
     menu.push(
         {
             type: "separator",
         },
         {
             label: "Delete",
-            click: () => handleFileDelete(ctx.model, fileInfo.path, false, ctx.setErrorMsg),
+            click: () => confirmFileDelete(ctx.model, fileInfo, ctx.setErrorMsg),
         }
     );
     return menu;

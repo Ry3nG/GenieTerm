@@ -1,7 +1,15 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-export function getShellIntegrationRecovery(status: ConnStatus) {
+import type { ShellType } from "./completion/types";
+
+export type ShellIntegrationReport = {
+    // the shell started its integration script but reported integration:false
+    integrationDisabled?: boolean;
+    shellType?: ShellType;
+};
+
+export function getShellIntegrationRecovery(status: ConnStatus, report?: ShellIntegrationReport) {
     const connection = status?.connection;
     const remote = connection && connection !== "local" && !connection.startsWith("local:");
     if (remote && status.status !== "connected") {
@@ -19,6 +27,17 @@ export function getShellIntegrationRecovery(status: ConnStatus) {
                 ? "Shell integration is disabled for this connection. Command blocks need it enabled."
                 : `Shell integration is unavailable: ${status.wsherror || status.nowshreason || "helper not ready"}.`,
             action: disabled ? "enable" : "reconnect",
+        };
+    }
+    // the shell explicitly reported it can't provide integration; restarting it would
+    // just report the same thing again, so don't offer that.
+    if (report?.integrationDisabled) {
+        if (report.shellType === "pwsh") {
+            return { message: "Command blocks aren't available for PowerShell yet.", action: null };
+        }
+        return {
+            message: "This shell reported that integration is unavailable, so command blocks are off.",
+            action: null,
         };
     }
     return {

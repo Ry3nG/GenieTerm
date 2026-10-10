@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
-	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 )
 
 const (

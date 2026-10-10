@@ -5,20 +5,21 @@ import { ClientService, ObjectService, WindowService, WorkspaceService } from "@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { fireAndForget } from "@/util/util";
-import { BaseWindow, BaseWindowConstructorOptions, dialog, globalShortcut, ipcMain, screen, webContents } from "electron";
-import { globalEvents } from "emain/emain-events";
-import path from "path";
-import { debounce } from "throttle-debounce";
 import {
-    getGlobalIsQuitting,
-    getGlobalIsRelaunching,
-    setGlobalIsRelaunching,
-    setWasActive,
-    setWasInFg,
-} from "./emain-activity";
-import { log } from "./emain-log";
-import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
+    BaseWindow,
+    BaseWindowConstructorOptions,
+    dialog,
+    globalShortcut,
+    ipcMain,
+    screen,
+    webContents,
+} from "electron";
+import { globalEvents } from "emain/emain-events";
+import { debounce } from "throttle-debounce";
 import { getAppIconPath } from "./app-icon";
+import { getGlobalIsQuitting, getGlobalIsRelaunching, setGlobalIsRelaunching } from "./emain-activity";
+import { log } from "./emain-log";
+import { isDev, unamePlatform } from "./emain-platform";
 import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
@@ -143,6 +144,28 @@ type WindowActionQueueEntry =
 
 function isNonEmptyUnsavedWorkspace(workspace: Workspace): boolean {
     return !workspace.name && !workspace.icon && workspace.tabids?.length > 1;
+}
+
+// mirrors wcore.DeleteWorkspace, which keeps named workspaces (and so their durable sessions)
+function workspaceDeletedOnClose(workspace: Workspace): boolean {
+    if (workspace == null) {
+        return false;
+    }
+    return !(workspace.name && workspace.icon && workspace.tabids?.length > 0);
+}
+
+async function countDurableSessions(workspaceId: string): Promise<number> {
+    try {
+        return (await RpcApi.DurableJobCountCommand(ElectronWshClient, { workspaceid: workspaceId })) ?? 0;
+    } catch (e) {
+        console.log("error counting durable sessions", workspaceId, e);
+        return 0;
+    }
+}
+
+function formatDurableSessionWarning(count: number): string {
+    const noun = count == 1 ? "durable SSH session" : "durable SSH sessions";
+    return `${count} running ${noun} will be terminated (the remote shells and their programs are stopped).`;
 }
 
 export class WaveBrowserWindow extends BaseWindow {
@@ -277,8 +300,6 @@ export class WaveBrowserWindow extends BaseWindow {
             focusedWaveWindow = this; // eslint-disable-line @typescript-eslint/no-this-alias
             console.log("focus win", this.waveWindowId);
             fireAndForget(() => ClientService.FocusWindow(this.waveWindowId));
-            setWasInFg(true);
-            setWasActive(true);
             setTimeout(() => globalEvents.emit("windows-updated"), 50);
         });
         this.on("blur", () => {
@@ -301,19 +322,32 @@ export class WaveBrowserWindow extends BaseWindow {
                 const numWindows = waveWindowMap.size;
                 const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
                 if (numWindows > 1 || !fullConfig.settings["window:savelastwindow"]) {
-                    if (fullConfig.settings["window:confirmclose"]) {
-                        const workspace = await WorkspaceService.GetWorkspace(this.workspaceId);
-                        if (isNonEmptyUnsavedWorkspace(workspace)) {
-                            const choice = dialog.showMessageBoxSync(this, {
-                                type: "question",
-                                buttons: ["Cancel", "Close Window"],
-                                title: "Confirm",
-                                message:
-                                    "Window has unsaved tabs, closing window will delete existing tabs.\n\nContinue?",
-                            });
-                            if (choice === 0) {
-                                return;
-                            }
+                    const workspace = await WorkspaceService.GetWorkspace(this.workspaceId);
+                    const durableCount = workspaceDeletedOnClose(workspace)
+                        ? await countDurableSessions(this.workspaceId)
+                        : 0;
+                    const confirmUnsaved =
+                        fullConfig.settings["window:confirmclose"] && isNonEmptyUnsavedWorkspace(workspace);
+                    // durable sessions are always confirmed: losing them is not obvious from closing a window
+                    if (confirmUnsaved || durableCount > 0) {
+                        const messageParts = [];
+                        if (confirmUnsaved) {
+                            messageParts.push("Window has unsaved tabs, closing window will delete existing tabs.");
+                        }
+                        if (durableCount > 0) {
+                            messageParts.push(formatDurableSessionWarning(durableCount));
+                        }
+                        messageParts.push("Continue?");
+                        const choice = dialog.showMessageBoxSync(this, {
+                            type: "question",
+                            buttons: ["Cancel", "Close Window"],
+                            title: "Confirm",
+                            message: messageParts.join("\n\n"),
+                            defaultId: 0,
+                            cancelId: 0,
+                        });
+                        if (choice === 0) {
+                            return;
                         }
                     }
                     this.deleteAllowed = true;
@@ -749,13 +783,6 @@ ipcMain.on("create-tab", async (event, _opts) => {
     return null;
 });
 
-ipcMain.on("set-waveai-open", (event, isOpen: boolean) => {
-    const tabView = getWaveTabViewByWebContentsId(event.sender.id);
-    if (tabView) {
-        tabView.isWaveAIOpen = isOpen;
-    }
-});
-
 ipcMain.handle("close-tab", async (event, workspaceId: string, tabId: string, confirmClose: boolean) => {
     const ww = getWaveWindowByWorkspaceId(workspaceId);
     if (ww == null) {
@@ -815,11 +842,13 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
 
         const _workspaceHasWindow = !!workspaceList.find((wse) => wse.workspaceid === workspaceId)?.windowid;
 
+        const durableCount = await countDurableSessions(workspaceId);
+        const durableWarning = durableCount > 0 ? `\n\n${formatDurableSessionWarning(durableCount)}` : "";
         const choice = dialog.showMessageBoxSync(this, {
             type: "question",
             buttons: ["Cancel", "Delete Workspace"],
             title: "Confirm",
-            message: `Deleting workspace will also delete its contents.\n\nContinue?`,
+            message: `Deleting workspace will also delete its contents.${durableWarning}\n\nContinue?`,
         });
         if (choice === 0) {
             console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);

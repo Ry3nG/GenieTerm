@@ -101,16 +101,21 @@ chmod a+x {{.installPath}} || exit 1;
 `)
 var installTemplate = template.Must(template.New("wsh-install-template").Parse(installTemplateRawDefault))
 
-func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, clientArch string) error {
+// remotePath must be the same path the connserver is launched from (conn:wshpath or the
+// default helper path); "" means the default.
+func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, clientArch string, remotePath string) error {
 	genieLocalPath, err := shellutil.GetLocalGenieBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
 	if err != nil {
 		return err
+	}
+	if remotePath == "" {
+		remotePath = wavebase.RemoteFullGenieBinPath
 	}
 	// Deploy only the genie helper — it's what the shell integration and connserver
 	// use. We no longer push a second (redundant) wsh binary on every install; the
 	// connserver still falls back to a legacy remote's ~/.waveterm/bin/wsh if one is
 	// already present. This halves the bytes copied (matters on slow/proxied links).
-	return cpHelperToRemote(ctx, client, genieLocalPath, wavebase.RemoteFullGenieBinPath)
+	return cpHelperToRemote(ctx, client, genieLocalPath, remotePath)
 }
 
 func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string, remotePath string) error {
@@ -124,11 +129,11 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 	}
 	defer input.Close()
 	installWords := map[string]string{
-		"installDir": filepath.ToSlash(filepath.Dir(remotePath)),
+		"installDir": shellutil.SoftQuote(filepath.ToSlash(filepath.Dir(remotePath))),
 		// Unique temp path per copy so a retry/background install can't collide with
 		// a lingering earlier attempt's write and leave a corrupt binary.
-		"tempPath":    fmt.Sprintf("%s.temp.%d", remotePath, time.Now().UnixNano()),
-		"installPath": remotePath,
+		"tempPath":    shellutil.SoftQuote(fmt.Sprintf("%s.temp.%d", remotePath, time.Now().UnixNano())),
+		"installPath": shellutil.SoftQuote(remotePath),
 	}
 	var installCmd bytes.Buffer
 	if err := installTemplate.Execute(&installCmd, installWords); err != nil {

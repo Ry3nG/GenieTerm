@@ -5,17 +5,25 @@ package conncontroller
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/remote"
 	"golang.org/x/crypto/ssh"
 )
 
 const connMonitorCheckInterval = 10 * time.Second
 const connMonitorUrgentCheckDelay = time.Second
+const connMonitorInFlightCheckInterval = 2 * time.Second
+const connMonitorKeepAliveIdle = 10 * time.Second
+const connMonitorStalledThreshold = 10 * time.Second
+const connMonitorUrgentStalledThreshold = 5 * time.Second
+const connMonitorDeadTimeout = 15 * time.Second
+const connMonitorResumeProbeTimeout = 5 * time.Second
 
 // Lock ordering: conn.lock > cm.lock (conn.lock is outer, cm.lock is inner)
 // CRITICAL: Methods that hold cm.lock must NEVER call into SSHConn (deadlock - violates ordering).
@@ -28,6 +36,8 @@ type ConnMonitor struct {
 	LastInputTime     atomic.Int64
 	KeepAliveSentTime atomic.Int64
 	KeepAliveInFlight bool
+	KeepAlive         remote.KeepAliveSettings
+	closeRequested    atomic.Bool
 	ctx               context.Context
 	cancelFunc        context.CancelFunc
 	inputNotifyCh     chan int64
@@ -47,12 +57,17 @@ func MakeConnMonitor(conn *SSHConn, client *ssh.Client) *ConnMonitor {
 		lock:             &sync.Mutex{},
 		Conn:             conn,
 		Client:           client,
+		KeepAlive:        remote.GetClientKeepAliveSettings(client),
 		ctx:              ctx,
 		cancelFunc:       cancelFunc,
 		inputNotifyCh:    make(chan int64, 1),
 		activityNotifyCh: make(chan struct{}, 1),
 		checkNotifyCh:    make(chan struct{}, 1),
 	}
+	// the handshake just completed, so the transport is known-good right now. Seeding this
+	// matters for connections without the helper, which otherwise never produce
+	// "activity" and would never get keepalives (or would read as degraded forever).
+	cm.LastActivityTime.Store(time.Now().UnixMilli())
 	go cm.keepAliveMonitor()
 	return cm
 }
@@ -115,6 +130,12 @@ func (cm *ConnMonitor) clearKeepAliveInFlight() {
 	cm.KeepAliveInFlight = false
 }
 
+func (cm *ConnMonitor) isKeepAliveInFlight() bool {
+	cm.lock.Lock()
+	defer cm.lock.Unlock()
+	return cm.KeepAliveInFlight
+}
+
 func (cm *ConnMonitor) getTimeSinceKeepAlive() int64 {
 	cm.lock.Lock()
 	defer cm.lock.Unlock()
@@ -125,6 +146,8 @@ func (cm *ConnMonitor) getTimeSinceKeepAlive() int64 {
 	return time.Now().UnixMilli() - cm.KeepAliveSentTime.Load()
 }
 
+// SendKeepAlive sends an SSH-level keepalive@openssh.com global request. It works with or
+// without the remote helper, since any SSH server answers (or rejects) global requests.
 func (cm *ConnMonitor) SendKeepAlive() error {
 	client := cm.Client
 	if !cm.setKeepAliveInFlight() {
@@ -148,6 +171,37 @@ func (cm *ConnMonitor) SendKeepAlive() error {
 	return nil
 }
 
+func (cm *ConnMonitor) keepAliveIdleThreshold() time.Duration {
+	if cm.KeepAlive.Interval > 0 {
+		return cm.KeepAlive.Interval
+	}
+	return connMonitorKeepAliveIdle
+}
+
+// deadTimeout is how long a keepalive may stay unanswered before the transport is
+// considered dead (ServerAliveInterval * ServerAliveCountMax when configured).
+func (cm *ConnMonitor) deadTimeout() time.Duration {
+	if cm.KeepAlive.Interval > 0 {
+		countMax := cm.KeepAlive.CountMax
+		if countMax <= 0 {
+			countMax = remote.DefaultSshServerAliveCountMax
+		}
+		return cm.KeepAlive.Interval * time.Duration(countMax)
+	}
+	return connMonitorDeadTimeout
+}
+
+func (cm *ConnMonitor) nextCheckDelay() time.Duration {
+	if cm.isKeepAliveInFlight() {
+		return connMonitorInFlightCheckInterval
+	}
+	idle := cm.keepAliveIdleThreshold()
+	if idle < connMonitorCheckInterval {
+		return idle
+	}
+	return connMonitorCheckInterval
+}
+
 func (cm *ConnMonitor) checkConnection() {
 	lastActivity := cm.LastActivityTime.Load()
 	if lastActivity == 0 {
@@ -156,21 +210,86 @@ func (cm *ConnMonitor) checkConnection() {
 	urgent := cm.isUrgent()
 	timeSinceActivity := time.Now().UnixMilli() - lastActivity
 
-	keepAliveThreshold := int64(10000)
+	keepAliveThreshold := cm.keepAliveIdleThreshold().Milliseconds()
 	if urgent {
-		keepAliveThreshold = 1000
+		keepAliveThreshold = connMonitorUrgentCheckDelay.Milliseconds()
 	}
 	if timeSinceActivity > keepAliveThreshold {
 		cm.SendKeepAlive()
 	}
 
-	stalledThreshold := int64(10000)
+	stalledThreshold := connMonitorStalledThreshold.Milliseconds()
 	if urgent {
-		stalledThreshold = 5000
+		stalledThreshold = connMonitorUrgentStalledThreshold.Milliseconds()
 	}
 	timeSinceKeepAlive := cm.getTimeSinceKeepAlive()
 	if timeSinceKeepAlive > stalledThreshold {
 		cm.setConnHealthStatus(ConnHealthStatus_Stalled)
+	}
+	if timeSinceKeepAlive > cm.deadTimeout().Milliseconds() {
+		cm.handleDeadConnection(fmt.Sprintf("no keepalive response for %ds", timeSinceKeepAlive/1000))
+	}
+}
+
+// handleDeadConnection closes the transport so the connection can be re-established.
+// Only done when an automatic reconnect will follow (durable jobs / open terminals) or
+// when the user explicitly configured ServerAliveInterval (OpenSSH semantics); otherwise
+// the connection is just shown as stalled and the user decides.
+func (cm *ConnMonitor) handleDeadConnection(reason string) {
+	if cm.ctx == nil || cm.ctx.Err() != nil || cm.Client == nil {
+		return
+	}
+	if cm.KeepAlive.Interval <= 0 && !shouldAutoReconnect(cm.Conn.GetName()) {
+		return
+	}
+	if !cm.closeRequested.CompareAndSwap(false, true) {
+		return
+	}
+	cm.Conn.closeUnresponsiveClient(cm.Client, reason)
+}
+
+// ProbeAfterResume sends an immediate keepalive with a short timeout. After sleep the
+// TCP connection is often silently dead; waiting for the regular stall detection would
+// leave durable sessions detached for much longer than necessary.
+func (cm *ConnMonitor) ProbeAfterResume() {
+	if cm.Client == nil || cm.ctx == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("conncontroller:ProbeAfterResume", recover())
+		}()
+		err := cm.probeKeepAlive(connMonitorResumeProbeTimeout)
+		if cm.ctx.Err() != nil {
+			return
+		}
+		if err == nil {
+			cm.UpdateLastActivityTime()
+			return
+		}
+		log.Printf("[conncontroller] conn:%s resume probe failed: %v", cm.Conn.GetName(), err)
+		cm.handleDeadConnection("no response after system resume")
+	}()
+}
+
+func (cm *ConnMonitor) probeKeepAlive(timeout time.Duration) error {
+	resultCh := make(chan error, 1)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("conncontroller:probeKeepAlive", recover())
+		}()
+		_, _, err := cm.Client.SendRequest("keepalive@openssh.com", true, nil)
+		resultCh <- err
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case err := <-resultCh:
+		return err
+	case <-timer.C:
+		return fmt.Errorf("keepalive not answered within %v", timeout)
+	case <-cm.ctx.Done():
+		return nil
 	}
 }
 
@@ -195,6 +314,7 @@ func (cm *ConnMonitor) keepAliveMonitor() {
 		timer.Reset(delay)
 		timerCh = timer.C
 	}
+	resetTimer(cm.nextCheckDelay())
 
 	for {
 		// check if our client is still the active one
@@ -206,15 +326,21 @@ func (cm *ConnMonitor) keepAliveMonitor() {
 		case <-timerCh:
 			timerCh = nil
 			if pendingInputTime != 0 {
-				if cm.LastActivityTime.Load() < pendingInputTime {
+				if cm.LastActivityTime.Load() >= pendingInputTime {
+					pendingInputTime = 0
+				} else if cm.getTimeSinceKeepAlive() < connMonitorUrgentCheckDelay.Milliseconds() {
+					// input with no response yet: probe the transport (works without the
+					// helper, whose traffic is otherwise the only "activity" signal)
+					cm.SendKeepAlive()
+					resetTimer(connMonitorUrgentCheckDelay)
+					continue
+				} else {
 					cm.setConnHealthStatus(ConnHealthStatus_Degraded)
+					pendingInputTime = 0
 				}
-				pendingInputTime = 0
 			}
 			cm.checkConnection()
-			if cm.LastActivityTime.Load() != 0 {
-				resetTimer(connMonitorCheckInterval)
-			}
+			resetTimer(cm.nextCheckDelay())
 
 		case inputTime := <-cm.inputNotifyCh:
 			if cm.LastActivityTime.Load() >= inputTime {
@@ -225,13 +351,11 @@ func (cm *ConnMonitor) keepAliveMonitor() {
 
 		case <-cm.activityNotifyCh:
 			pendingInputTime = 0
-			resetTimer(connMonitorCheckInterval)
+			resetTimer(cm.nextCheckDelay())
 
 		case <-cm.checkNotifyCh:
 			cm.checkConnection()
-			if cm.LastActivityTime.Load() != 0 {
-				resetTimer(connMonitorCheckInterval)
-			}
+			resetTimer(cm.nextCheckDelay())
 
 		case <-cm.ctx.Done():
 			return

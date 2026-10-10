@@ -1,7 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { contextBridge, ipcRenderer, type IpcRendererEvent, Rectangle, webUtils, WebviewTag } from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent, webUtils, WebviewTag } from "electron";
 import type { TransferJobInput, TransferQueue } from "../frontend/util/transferqueue";
 
 // update type in custom.d.ts (ElectronApi type)
@@ -20,7 +20,6 @@ contextBridge.exposeInMainWorld("api", {
     getZoomFactor: () => ipcRenderer.sendSync("get-zoom-factor"),
     openNewWindow: () => ipcRenderer.send("open-new-window"),
     showWorkspaceAppMenu: (workspaceId) => ipcRenderer.send("workspace-appmenu-show", workspaceId),
-    showBuilderAppMenu: (builderId) => ipcRenderer.send("builder-appmenu-show", builderId),
     showContextMenu: (workspaceId, menuId, menu) => ipcRenderer.send("contextmenu-show", workspaceId, menuId, menu),
     onContextMenuClick: (callback: (menuId: string, id: string | null) => void) =>
         ipcRenderer.on("contextmenu-click", (_event, menuId: string, id: string | null) => callback(menuId, id)),
@@ -35,7 +34,8 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("transfer-queue:update", listener);
         return () => ipcRenderer.off("transfer-queue:update", listener);
     },
-    startTransferJob: (input: TransferJobInput) => ipcRenderer.invoke("transfer-job:start", input),
+    enqueueTransferJobs: (inputs: TransferJobInput[]) => ipcRenderer.invoke("transfer-job:enqueue", inputs),
+    beginTransferJob: (jobId: string) => ipcRenderer.invoke("transfer-job:begin", jobId),
     finishTransferJob: (jobId: string, outcome: TransferJobOutcome) =>
         ipcRenderer.invoke("transfer-job:finish", jobId, outcome),
     openExternal: (url) => {
@@ -69,20 +69,12 @@ contextBridge.exposeInMainWorld("api", {
     closeTab: (workspaceId, tabId, confirmClose) => ipcRenderer.invoke("close-tab", workspaceId, tabId, confirmClose),
     setWindowInitStatus: (status) => ipcRenderer.send("set-window-init-status", status),
     onWaveInit: (callback) => ipcRenderer.on("wave-init", (_event, initOpts) => callback(initOpts)),
-    onBuilderInit: (callback) => ipcRenderer.on("builder-init", (_event, initOpts) => callback(initOpts)),
     sendLog: (log) => ipcRenderer.send("fe-log", log),
     onQuicklook: (filePath: string) => ipcRenderer.send("quicklook", filePath),
     openNativePath: (filePath: string) => ipcRenderer.send("open-native-path", filePath),
-    captureScreenshot: (rect: Rectangle) => ipcRenderer.invoke("capture-screenshot", rect),
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),
     clearWebviewStorage: (webContentsId: number) => ipcRenderer.invoke("clear-webview-storage", webContentsId),
-    setWaveAIOpen: (isOpen: boolean) => ipcRenderer.send("set-waveai-open", isOpen),
-    closeBuilderWindow: () => ipcRenderer.send("close-builder-window"),
-    incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) =>
-        ipcRenderer.send("increment-term-commands", opts),
     nativePaste: () => ipcRenderer.send("native-paste"),
-    openBuilder: (appId?: string) => ipcRenderer.send("open-builder", appId),
-    setBuilderWindowAppId: (appId: string) => ipcRenderer.send("set-builder-window-appid", appId),
     doRefresh: () => ipcRenderer.send("do-refresh"),
     toggleDevTools: () => ipcRenderer.send("app-toggle-devtools"),
     resetZoom: () => ipcRenderer.send("app-reset-zoom"),

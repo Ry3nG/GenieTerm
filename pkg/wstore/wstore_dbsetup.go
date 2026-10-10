@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/sawka/txwrap"
 	"github.com/Ry3nG/GenieTerm/pkg/util/migrateutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
+	"github.com/jmoiron/sqlx"
+	"github.com/sawka/txwrap"
 
 	dbfs "github.com/Ry3nG/GenieTerm/db"
 )

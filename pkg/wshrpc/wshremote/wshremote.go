@@ -135,6 +135,13 @@ func (impl *ServerImpl) getWshPath() (string, error) {
 		}
 		return filepath.Join(wavebase.GetWaveDataDir(), "bin", "wsh"), nil
 	}
+	// prefer the binary this connserver was launched from so a custom conn:wshpath is
+	// honored for job managers too (the default paths may not exist in that case)
+	if exePath, exeErr := os.Executable(); exeErr == nil {
+		if _, statErr := os.Stat(exePath); statErr == nil {
+			return exePath, nil
+		}
+	}
 	geniePath, err := wavebase.ExpandHomeDir(wavebase.RemoteFullGenieBinPath)
 	if err != nil {
 		return "", fmt.Errorf("cannot expand genie path: %w", err)

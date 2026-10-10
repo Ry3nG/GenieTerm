@@ -15,20 +15,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/load"
-	"github.com/shirou/gopsutil/v4/mem"
-	goproc "github.com/shirou/gopsutil/v4/process"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/util/procinfo"
 	"github.com/Ry3nG/GenieTerm/pkg/util/unixutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
+	"github.com/shirou/gopsutil/v4/load"
+	"github.com/shirou/gopsutil/v4/mem"
+	goproc "github.com/shirou/gopsutil/v4/process"
 )
 
 const (
-	ProcCacheIdleTimeout  = 60 * time.Second
-	ProcCachePollInterval = 1 * time.Second
-	ProcCacheMinSleep     = 500 * time.Millisecond
-	ProcViewerMaxLimit    = 500
+	// must stay above 2x the slowest UI refresh interval (5s) so a polling widget never lapses
+	ProcCacheIdleTimeout     = 12 * time.Second
+	ProcWidgetOrderExpiry    = 60 * time.Second
+	ProcCacheDefaultInterval = 1 * time.Second
+	ProcCacheMaxInterval     = 5 * time.Second
+	ProcCacheMinSleep        = 500 * time.Millisecond
+	ProcViewerMaxLimit       = 500
 )
 
 // cpuSample records a single CPU time measurement for a process.
@@ -45,13 +48,19 @@ type widgetPidOrder struct {
 	lastRequest time.Time
 }
 
+// procLease is held by a widget that is actively polling for fresh data. Only data requests
+// renew a lease (keepalives do not), so paused or hidden widgets let sampling stop.
+type procLease struct {
+	lastSeen time.Time
+	interval time.Duration
+}
+
 // procCacheState is the singleton background cache for process list data.
 // lastCPUSamples, lastCPUEpoch, and uidCache are only accessed by the single runLoop goroutine.
 type procCacheState struct {
-	lock        sync.Mutex
-	cached      *wshrpc.ProcessListResponse
-	lastRequest time.Time
-	running     bool
+	lock    sync.Mutex
+	cached  *wshrpc.ProcessListResponse
+	running bool
 	// ready is closed when the first result is placed in cache; set to nil after close.
 	ready chan struct{}
 
@@ -59,27 +68,25 @@ type procCacheState struct {
 	lastCPUEpoch   int
 	uidCache       map[uint32]string // uid -> username, populated lazily
 
+	leases          map[string]*procLease      // keyed by widgetId ("" for anonymous callers)
 	widgetPidOrders map[string]*widgetPidOrder // keyed by widgetId
 }
 
 // procCache is the singleton background cache for process list data.
 var procCache = &procCacheState{}
 
-// requestAndWait marks the cache as recently requested and returns the current cached
-// result. If the background goroutine is not running it starts it and waits for the
-// first populate before returning.
-func (s *procCacheState) requestAndWait(ctx context.Context) (*wshrpc.ProcessListResponse, error) {
-	s.lock.Lock()
-	s.lastRequest = time.Now()
-	if !s.running {
-		s.running = true
-		readyCh := make(chan struct{})
-		s.ready = readyCh
-		go s.runLoop(readyCh)
+func clampProcInterval(intervalMs int) time.Duration {
+	if intervalMs <= 0 {
+		return ProcCacheDefaultInterval
 	}
-	readyCh := s.ready
-	s.lock.Unlock()
+	interval := time.Duration(intervalMs) * time.Millisecond
+	return max(ProcCacheDefaultInterval, min(interval, ProcCacheMaxInterval))
+}
 
+// requestAndWait renews the caller's lease and returns the current cached result. If the
+// background goroutine is not running it starts it and waits for the first populate before returning.
+func (s *procCacheState) requestAndWait(ctx context.Context, widgetId string, interval time.Duration) (*wshrpc.ProcessListResponse, error) {
+	readyCh := s.renewLeaseAndEnsureRunning(widgetId, interval)
 	if readyCh != nil {
 		select {
 		case <-readyCh:
@@ -87,35 +94,51 @@ func (s *procCacheState) requestAndWait(ctx context.Context) (*wshrpc.ProcessLis
 			return nil, ctx.Err()
 		}
 	}
-
-	s.lock.Lock()
-	result := s.cached
-	s.lock.Unlock()
-
+	result := s.getCached()
 	if result == nil {
 		return nil, fmt.Errorf("process list unavailable")
 	}
 	return result, nil
 }
 
-func (s *procCacheState) touchLastRequest() {
+func (s *procCacheState) renewLeaseAndEnsureRunning(widgetId string, interval time.Duration) chan struct{} {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.lastRequest = time.Now()
+	if s.leases == nil {
+		s.leases = make(map[string]*procLease)
+	}
+	s.leases[widgetId] = &procLease{lastSeen: time.Now(), interval: interval}
+	if !s.running {
+		s.running = true
+		s.ready = make(chan struct{})
+		go s.runLoop(s.ready)
+	}
+	return s.ready
 }
 
+func (s *procCacheState) getCached() *wshrpc.ProcessListResponse {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.cached
+}
+
+// touchWidgetPidOrder keeps a paused widget's pid order from expiring without renewing its lease.
 func (s *procCacheState) touchWidgetPidOrder(widgetId string) {
 	if widgetId == "" {
 		return
 	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.lastRequest = time.Now()
-	if s.widgetPidOrders != nil {
-		if entry, ok := s.widgetPidOrders[widgetId]; ok {
-			entry.lastRequest = time.Now()
-		}
+	if entry, ok := s.widgetPidOrders[widgetId]; ok {
+		entry.lastRequest = time.Now()
 	}
+}
+
+func (s *procCacheState) releaseWidget(widgetId string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	delete(s.leases, widgetId)
+	delete(s.widgetPidOrders, widgetId)
 }
 
 func (s *procCacheState) storeWidgetPidOrder(widgetId string, pids []int32, totalCount int) {
@@ -127,10 +150,16 @@ func (s *procCacheState) storeWidgetPidOrder(widgetId string, pids []int32, tota
 	if s.widgetPidOrders == nil {
 		s.widgetPidOrders = make(map[string]*widgetPidOrder)
 	}
+	now := time.Now()
+	for id, entry := range s.widgetPidOrders {
+		if now.Sub(entry.lastRequest) >= ProcWidgetOrderExpiry {
+			delete(s.widgetPidOrders, id)
+		}
+	}
 	s.widgetPidOrders[widgetId] = &widgetPidOrder{
 		pids:        pids,
 		totalCount:  totalCount,
-		lastRequest: time.Now(),
+		lastRequest: now,
 	}
 }
 
@@ -140,14 +169,11 @@ func (s *procCacheState) getWidgetPidOrder(widgetId string) ([]int32, int) {
 	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	if s.widgetPidOrders == nil {
-		return nil, 0
-	}
 	entry, ok := s.widgetPidOrders[widgetId]
 	if !ok {
 		return nil, 0
 	}
-	if time.Since(entry.lastRequest) >= ProcCacheIdleTimeout {
+	if time.Since(entry.lastRequest) >= ProcWidgetOrderExpiry {
 		delete(s.widgetPidOrders, widgetId)
 		return nil, 0
 	}
@@ -155,29 +181,50 @@ func (s *procCacheState) getWidgetPidOrder(widgetId string) ([]int32, int) {
 }
 
 // updateCacheAndCheckIdle stores the latest snapshot, signals the first-ready channel if needed,
-// and checks whether the loop has been idle long enough to shut down.
-// Returns true if the loop should exit (idle timeout reached), false to continue.
-func (s *procCacheState) updateCacheAndCheckIdle(result *wshrpc.ProcessListResponse, firstDone *bool, firstReadyCh chan struct{}) bool {
+// and drops expired leases. Returns (true, 0) if the loop should exit because no lease remains,
+// otherwise (false, sleep) where sleep comes from the smallest interval requested by a live lease.
+// Pid orders are intentionally kept on exit so a paused widget can still page through its frozen order.
+func (s *procCacheState) updateCacheAndCheckIdle(result *wshrpc.ProcessListResponse, firstDone *bool, firstReadyCh chan struct{}) (bool, time.Duration) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if result != nil {
 		s.cached = result
+	}
+	// the very first snapshot has no CPU deltas, so hold readers until the second one rather
+	// than handing them a CPU-less list (which would also make the default cpu sort meaningless)
+	if !*firstDone && (result == nil || result.HasCPU) {
+		*firstDone = true
+		close(firstReadyCh)
+		s.ready = nil
+	}
+	now := time.Now()
+	interval := time.Duration(0)
+	for id, lease := range s.leases {
+		if now.Sub(lease.lastSeen) >= ProcCacheIdleTimeout {
+			delete(s.leases, id)
+			continue
+		}
+		if interval == 0 || lease.interval < interval {
+			interval = lease.interval
+		}
+	}
+	if interval > 0 {
+		if !*firstDone {
+			return false, ProcCacheMinSleep
+		}
+		return false, interval
 	}
 	if !*firstDone {
 		*firstDone = true
 		close(firstReadyCh)
 		s.ready = nil
 	}
-	if time.Since(s.lastRequest) < ProcCacheIdleTimeout {
-		return false
-	}
 	s.cached = nil
 	s.running = false
 	s.lastCPUSamples = nil
 	s.lastCPUEpoch = 0
 	s.uidCache = nil
-	s.widgetPidOrders = nil
-	return true
+	return true, 0
 }
 
 func (s *procCacheState) runLoop(firstReadyCh chan struct{}) {
@@ -210,12 +257,13 @@ func (s *procCacheState) runLoop(firstReadyCh chan struct{}) {
 			}
 		}
 
-		if s.updateCacheAndCheckIdle(result, &firstDone, firstReadyCh) {
+		exit, interval := s.updateCacheAndCheckIdle(result, &firstDone, firstReadyCh)
+		if exit {
 			return
 		}
 
 		elapsed := time.Since(iterStart)
-		time.Sleep(max(ProcCacheMinSleep, ProcCachePollInterval-elapsed))
+		time.Sleep(max(ProcCacheMinSleep, interval-elapsed))
 	}
 }
 
@@ -491,16 +539,16 @@ func sortProcesses(processes []wshrpc.ProcessInfo, sortBy string, sortDesc bool)
 }
 
 func (impl *ServerImpl) RemoteProcessListCommand(ctx context.Context, data wshrpc.CommandRemoteProcessListData) (*wshrpc.ProcessListResponse, error) {
+	if data.Release {
+		procCache.releaseWidget(data.WidgetId)
+		return nil, nil
+	}
 	if data.KeepAlive {
-		if data.WidgetId != "" {
-			procCache.touchWidgetPidOrder(data.WidgetId)
-		} else {
-			procCache.touchLastRequest()
-		}
+		procCache.touchWidgetPidOrder(data.WidgetId)
 		return nil, nil
 	}
 
-	raw, err := procCache.requestAndWait(ctx)
+	raw, err := procCache.requestAndWait(ctx, data.WidgetId, clampProcInterval(data.Interval))
 	if err != nil {
 		return nil, err
 	}

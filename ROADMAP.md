@@ -8,17 +8,15 @@ The living tracker is [`docs/GENIETERM-ROADMAP.md`](docs/GENIETERM-ROADMAP.md). 
 
 ## Now
 
-- Finish the daily-driver semantic terminal: jump past output, per-block actions, honest shell-integration fallback.
-- Finish remote files: cancel/retry in the transfer UI, `genie://` presentation, macOS installed-app smoke.
+- Pass `docs/v1-release-gate.md` on a real Mac and tag 1.0.0 (macOS-only stable).
+- Smoke-test the Windows x64 preview and PowerShell command blocks on real Windows hardware.
 
 ## Next
 
-- Subscriber-gated remote sysinfo.
-- Honest path when the remote helper is missing.
-- 1.0 as terminal + durable remote + files — not a Wave-sized surface.
+- Signed Windows x64 builds on the stable channel.
+- Multi-select remote file transfers.
 
 ## Later
 
-- Session-aware local/remote file handoff.
 - Palette workflows.
 - IDE-style input editor over the existing xterm session.

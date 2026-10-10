@@ -6,7 +6,7 @@ import { fireAndForget } from "@/util/util";
 import clsx from "clsx";
 import * as jotai from "jotai";
 import * as React from "react";
-import type { CommandProposal } from "./command-composer";
+import type { CommandComposerContextInput, CommandProposal } from "./command-composer";
 import type { TermWrap } from "./termwrap";
 
 type TermCommandComposerProps = {
@@ -41,8 +41,10 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
         }
     }, [isOpen]);
 
-    const contextInput = React.useMemo(
-        () => ({
+    // termWrap.cmdBlocks and the selection change without re-rendering this component,
+    // so the context is read at submit time instead of being memoized.
+    const getContextInput = React.useCallback(
+        (): CommandComposerContextInput => ({
             blockMeta: blockData?.meta,
             connStatus,
             selectedOutput: termWrap?.terminal?.getSelection() ?? "",
@@ -58,9 +60,9 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
     const submit = React.useCallback(
         (e: React.FormEvent) => {
             e.preventDefault();
-            fireAndForget(() => model.generateCommandProposals(input, contextInput));
+            fireAndForget(() => model.generateCommandProposals(input, getContextInput()));
         },
-        [contextInput, input, model]
+        [getContextInput, input, model]
     );
 
     const applyProposal = React.useCallback(
@@ -84,10 +86,10 @@ const TermCommandComposer = React.memo(({ model, blockData, connStatus, termWrap
             }
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
-                fireAndForget(() => model.generateCommandProposals(input, contextInput));
+                fireAndForget(() => model.generateCommandProposals(input, getContextInput()));
             }
         },
-        [close, contextInput, input, model]
+        [close, getContextInput, input, model]
     );
 
     if (!isOpen) {

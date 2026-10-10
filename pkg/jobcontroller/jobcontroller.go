@@ -12,9 +12,9 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
@@ -37,6 +37,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wstore"
+	"github.com/google/uuid"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -65,7 +66,7 @@ const (
 	JobKind_Task  = "task"
 )
 
-const DefaultStreamRwnd = 64 * 1024
+const DefaultStreamRwnd = 2 * 1024 * 1024
 const MetaKey_TotalGap = "totalgap"
 const JobOutputFileName = "term"
 const AutoReconnectDelay = 1 * time.Second
@@ -98,8 +99,6 @@ var (
 		m:           make(map[string]*connState),
 		reconcileCh: make(chan struct{}, 1),
 	}
-
-	jobStreamIds = ds.MakeSyncMap[string]()
 
 	jobTerminationMessageWritten = ds.MakeSyncMap[bool]()
 
@@ -445,7 +444,10 @@ func handleConnChangeEvent(event *wps.WaveEvent) {
 		cs = &connState{actual: false, processed: false, reconciling: false}
 		connStates.m[connName] = cs
 	}
-	cs.actual = connStatus.Connected
+	// durable jobs are only reachable through the connserver route, so "up" means
+	// connected *and* wsh enabled. This also reconciles jobs when a background wsh install
+	// finishes after connect, and marks them down when the connserver exits.
+	cs.actual = connStatus.Connected && connStatus.WshEnabled
 	connStates.Unlock()
 
 	select {
@@ -483,35 +485,29 @@ func handleBlockCloseEvent(event *wps.WaveEvent) {
 
 func onConnectionUp(connName string) {
 	log.Printf("[conn:%s] connection became connected, reconnecting jobs", connName)
-	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFn()
-
-	allJobs, err := wstore.DBGetAllObjsByType[*waveobj.Job](ctx, waveobj.OType_Job)
+	listCtx, listCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	jobIds, err := getRunningJobIdsForConn(listCtx, connName)
+	listCancel()
 	if err != nil {
 		log.Printf("[conn:%s] failed to get jobs for reconnection: %v", connName, err)
 		return
 	}
 
-	var jobsToReconnect []*waveobj.Job
-	for _, job := range allJobs {
-		if job.Connection == connName && isJobManagerRunning(job) {
-			jobsToReconnect = append(jobsToReconnect, job)
-		}
-	}
+	log.Printf("[conn:%s] found %d jobs to reconnect", connName, len(jobIds))
 
-	log.Printf("[conn:%s] found %d jobs to reconnect", connName, len(jobsToReconnect))
-
-	successCount := 0
-	for _, job := range jobsToReconnect {
-		err = ReconnectJob(ctx, job.OID, nil)
+	// each job gets its own deadline and retries; one slow job manager must not eat the
+	// budget of the others
+	var successCount atomic.Int32
+	runBounded(jobIds, ReconnectJobMaxConcurrency, func(jobId string) {
+		err := reconnectJobWithRetry(connName, jobId)
 		if err != nil {
-			log.Printf("[job:%s] error reconnecting: %v", job.OID, err)
-		} else {
-			successCount++
+			log.Printf("[job:%s] error reconnecting: %v", jobId, err)
+			return
 		}
-	}
+		successCount.Add(1)
+	})
 
-	log.Printf("[conn:%s] finished reconnecting jobs: %d/%d successful", connName, successCount, len(jobsToReconnect))
+	log.Printf("[conn:%s] finished reconnecting jobs: %d/%d successful", connName, successCount.Load(), len(jobIds))
 }
 
 func onConnectionDown(connName string) {
@@ -548,34 +544,6 @@ func GetConnectedJobIds() []string {
 		}
 	}
 	return connectedJobIds
-}
-
-func GetNumJobsRunning() int {
-	ctx, cancelFn := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancelFn()
-	allJobs, err := wstore.DBGetAllObjsByType[*waveobj.Job](ctx, waveobj.OType_Job)
-	if err != nil {
-		return 0
-	}
-	count := 0
-	for _, job := range allJobs {
-		if job.JobManagerStatus == JobManagerStatus_Running {
-			count++
-		}
-	}
-	return count
-}
-
-func GetNumJobsConnected() int {
-	jobControllerLock.Lock()
-	defer jobControllerLock.Unlock()
-	count := 0
-	for _, status := range jobConnStates {
-		if status == JobConnStatus_Connected {
-			count++
-		}
-	}
-	return count
 }
 
 func CheckJobConnected(ctx context.Context, jobId string) (*waveobj.Job, error) {
@@ -678,7 +646,7 @@ func StartJob(ctx context.Context, params StartJobParams) (string, error) {
 	readerRouteId := wshclient.GetBareRpcClientRouteId()
 	writerRouteId := wshutil.MakeJobRouteId(jobId)
 	reader, streamMeta := broker.CreateStreamReader(readerRouteId, writerRouteId, DefaultStreamRwnd)
-	jobStreamIds.Set(jobId, streamMeta.Id)
+	closeStreamReader(getJobStream(jobId).swap(streamMeta.Id, reader))
 
 	fileOpts := wshrpc.FileOpts{
 		MaxSize:  10 * 1024 * 1024,
@@ -714,7 +682,7 @@ func StartJob(ctx context.Context, params StartJobParams) (string, error) {
 	writeSessionSeparatorToTerminal(params.BlockId, params.TermSize.Cols)
 
 	log.Printf("[job:%s] sending RemoteStartJobCommand to connection %s, cmd=%q, args=%v", jobId, params.ConnName, params.Cmd, params.Args)
-	log.Printf("[job:%s] env=%v", jobId, params.Env)
+	log.Printf("[job:%s] env keys=%v", jobId, utilfn.GetMapKeys(params.Env))
 	rtnData, err := wshclient.RemoteStartJobCommand(bareRpc, startJobData, rpcOpts)
 	if err != nil {
 		log.Printf("[job:%s] RemoteStartJobCommand failed: %v", jobId, err)
@@ -772,7 +740,7 @@ func StartJob(ctx context.Context, params StartJobParams) (string, error) {
 }
 
 func doWFSAppend(ctx context.Context, oref waveobj.ORef, fileName string, data []byte) error {
-	offset, err := filestore.WFS.AppendDataWithOffset(ctx, oref.OID, fileName, data)
+	offset, fileEpoch, err := filestore.WFS.AppendDataWithOffsetAndEpoch(ctx, oref.OID, fileName, data)
 	if err != nil {
 		return err
 	}
@@ -782,11 +750,12 @@ func doWFSAppend(ctx context.Context, oref waveobj.ORef, fileName string, data [
 			oref.String(),
 		},
 		Data: &wps.WSFileEventData{
-			ZoneId:   oref.OID,
-			FileName: fileName,
-			FileOp:   wps.FileOp_Append,
-			Data64:   base64.StdEncoding.EncodeToString(data),
-			Offset:   offset,
+			ZoneId:    oref.OID,
+			FileName:  fileName,
+			FileOp:    wps.FileOp_Append,
+			Data64:    base64.StdEncoding.EncodeToString(data),
+			Offset:    offset,
+			FileEpoch: fileEpoch,
 		},
 	})
 	return nil
@@ -819,19 +788,23 @@ func runOutputLoop(ctx context.Context, jobId string, streamId string, reader *s
 	}()
 
 	log.Printf("[job:%s] [stream:%s] output loop started", jobId, streamId)
-	buf := make([]byte, 4096)
+	js := getJobStream(jobId)
+	// job managers send packets of up to 64 KB; read whole packets so each becomes one append
+	buf := make([]byte, 64*1024)
 	for {
 		n, err := reader.Read(buf)
-		currentStreamId, _ := jobStreamIds.GetEx(jobId)
-		if currentStreamId != streamId {
-			log.Printf("[job:%s] [stream:%s] stream superseded by [stream:%s], exiting output loop", jobId, streamId, currentStreamId)
-			break
-		}
-		if n > 0 {
+		isCurrent := js.runIfCurrent(streamId, func() {
+			if n <= 0 {
+				return
+			}
 			appendErr := handleAppendJobFile(ctx, jobId, JobOutputFileName, buf[:n])
 			if appendErr != nil {
 				log.Printf("[job:%s] error appending data to WaveFS: %v", jobId, appendErr)
 			}
+		})
+		if !isCurrent {
+			log.Printf("[job:%s] [stream:%s] stream superseded by [stream:%s], exiting output loop", jobId, streamId, js.getStreamId())
+			break
 		}
 
 		if err == io.EOF {
@@ -1234,21 +1207,33 @@ func restartStreaming(ctx context.Context, jobId string, knownConnected bool, rt
 		}
 	}
 
-	var currentSeq int64 = 0
-	var totalGap int64 = 0
-	waveFile, err := filestore.WFS.Stat(ctx, jobId, JobOutputFileName)
-	if err == nil {
-		currentSeq = waveFile.Size
-		totalGap = getMetaInt64(waveFile.Meta, MetaKey_TotalGap)
-		currentSeq += totalGap
-	}
-
 	bareRpc := wshclient.GetBareRpcClient()
 	broker := bareRpc.StreamBroker
 	readerRouteId := wshclient.GetBareRpcClientRouteId()
 	writerRouteId := wshutil.MakeJobRouteId(jobId)
-	reader, streamMeta := broker.CreateStreamReaderWithSeq(readerRouteId, writerRouteId, DefaultStreamRwnd, currentSeq)
-	jobStreamIds.Set(jobId, streamMeta.Id)
+
+	var currentSeq int64 = 0
+	var totalGap int64 = 0
+	var fileSize int64 = 0
+	var reader *streamclient.Reader
+	var streamMeta *wshrpc.StreamMeta
+	var oldReader *streamclient.Reader
+	js := getJobStream(jobId)
+	func() {
+		js.lock.Lock()
+		defer js.lock.Unlock()
+		waveFile, statErr := filestore.WFS.Stat(ctx, jobId, JobOutputFileName)
+		if statErr == nil {
+			fileSize = waveFile.Size
+			totalGap = getMetaInt64(waveFile.Meta, MetaKey_TotalGap)
+			currentSeq = fileSize + totalGap
+		}
+		reader, streamMeta = broker.CreateStreamReaderWithSeq(readerRouteId, writerRouteId, DefaultStreamRwnd, currentSeq)
+		oldReader = js.swap_withlock(streamMeta.Id, reader)
+	}()
+	// the old reader is closed only after the job manager has been switched to the new
+	// stream id (so its cancel ack is ignored as stale rather than consuming buffered output)
+	defer closeStreamReader(oldReader)
 
 	prepareData := wshrpc.CommandJobPrepareConnectData{
 		StreamMeta: *streamMeta,
@@ -1261,7 +1246,7 @@ func restartStreaming(ctx context.Context, jobId string, knownConnected bool, rt
 		Timeout: 5000,
 	}
 
-	log.Printf("[job:%s] sending JobPrepareConnectCommand with seq=%d (fileSize=%d, totalGap=%d)", jobId, currentSeq, waveFile.Size, totalGap)
+	log.Printf("[job:%s] sending JobPrepareConnectCommand with seq=%d (fileSize=%d, totalGap=%d)", jobId, currentSeq, fileSize, totalGap)
 	rtnData, err := wshclient.JobPrepareConnectCommand(bareRpc, prepareData, rpcOpts)
 	if err != nil {
 		reader.Close()
@@ -1402,6 +1387,8 @@ func IsBlockIdTermDurable(blockId string) bool {
 func DeleteJob(ctx context.Context, jobId string) error {
 	SetJobConnStatus(jobId, JobConnStatus_Disconnected)
 	jobTerminationMessageWritten.Delete(jobId)
+	removeJobStream(jobId)
+	lastAutoReconnectAttempt.Delete(jobId)
 	err := filestore.WFS.DeleteZone(ctx, jobId)
 	if err != nil {
 		log.Printf("[job:%s] warning: error deleting WaveFS zone: %v", jobId, err)

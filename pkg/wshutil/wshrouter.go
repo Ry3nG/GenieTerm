@@ -34,7 +34,6 @@ const (
 	RoutePrefix_Proc       = "proc:"
 	RoutePrefix_Tab        = "tab:"
 	RoutePrefix_FeBlock    = "feblock:"
-	RoutePrefix_Builder    = "builder:"
 	RoutePrefix_Link       = "link:"
 	RoutePrefix_Job        = "job:"
 	RoutePrefix_Bare       = "bare:"
@@ -130,10 +129,6 @@ func MakeTabRouteId(tabId string) string {
 
 func MakeFeBlockRouteId(blockId string) string {
 	return "feblock:" + blockId
-}
-
-func MakeBuilderRouteId(builderId string) string {
-	return "builder:" + builderId
 }
 
 func MakeJobRouteId(jobId string) string {
@@ -458,9 +453,11 @@ func (router *WshRouter) drainLinkBacklog_withLock(linkId baseds.LinkId, lm *lin
 	return backlog
 }
 
-func (router *WshRouter) processOneBacklogRound() {
+// returns true if any backlogged message was delivered
+func (router *WshRouter) processOneBacklogRound() bool {
 	router.lock.Lock()
 	defer router.lock.Unlock()
+	progressed := false
 	for linkId, backlog := range router.linkMsgBacklog {
 		lm := router.linkMap[linkId]
 		if lm == nil {
@@ -473,6 +470,9 @@ func (router *WshRouter) processOneBacklogRound() {
 			continue
 		}
 		newBacklog := router.drainLinkBacklog_withLock(linkId, lm, backlog)
+		if len(newBacklog) < len(backlog) {
+			progressed = true
+		}
 		if len(newBacklog) == 0 {
 			highWater := router.backlogHighWaterMark[linkId]
 			if highWater > 0 {
@@ -484,6 +484,7 @@ func (router *WshRouter) processOneBacklogRound() {
 		}
 		router.linkMsgBacklog[linkId] = newBacklog
 	}
+	return progressed
 }
 
 func (router *WshRouter) processBacklog() {
@@ -496,7 +497,12 @@ func (router *WshRouter) processBacklog() {
 			router.linkBacklogCond.Wait()
 		}
 		router.lock.Unlock()
-		router.processOneBacklogRound()
+		// a link that accepted messages this round is draining, so keep feeding it; only back off from a
+		// link that is not reading (a fixed 50ms pause capped bursty links at one channel's worth per pause)
+		if router.processOneBacklogRound() {
+			time.Sleep(time.Millisecond)
+			continue
+		}
 		time.Sleep(50 * time.Millisecond)
 	}
 }

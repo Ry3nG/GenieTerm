@@ -1,9 +1,11 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0s
 
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { boundNumber, isBlank } from "@/util/util";
-import { generate as generateCSS, parse as parseCSS, walk as walkCSS } from "css-tree";
+import generateCSS from "css-tree/generator";
+import parseCSS from "css-tree/parser";
+import walkCSS from "css-tree/walker";
 
 function encodeFileURL(file: string) {
     const webEndpoint = getWebServerEndpoint();
@@ -69,7 +71,10 @@ export function processBackgroundUrls(cssText: string): string {
     return rtnStyle.replace(/^background:\s*/, "");
 }
 
-export function computeBgStyleFromMeta(meta: Omit<BackgroundConfigType, "display:name">, defaultOpacity: number = null): React.CSSProperties {
+export function computeBgStyleFromMeta(
+    meta: Omit<BackgroundConfigType, "display:name">,
+    defaultOpacity: number = null
+): React.CSSProperties {
     const bgAttr = meta?.["bg"];
     if (isBlank(bgAttr)) {
         return null;

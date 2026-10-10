@@ -14,6 +14,9 @@ on:
             - ready_for_review
     workflow_dispatch:
 
+permissions:
+    contents: read
+
 env:
     NODE_VERSION: 22
     GO_VERSION_FILE: go.mod
@@ -22,20 +25,20 @@ jobs:
     v1-gate:
         name: V1 gate
         runs-on: ubuntu-latest
-        timeout-minutes: 25
+        timeout-minutes: 40
         if: github.event.pull_request.draft == false
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-            - uses: actions/setup-node@v6
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@v5
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
               with:
                   go-version-file: ${{ env.GO_VERSION_FILE }}
                   cache-dependency-path: go.sum
@@ -51,41 +54,9 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Runtime dependency audit
-              run: npm audit --omit=dev --audit-level=moderate
-
-            - name: Verify font asset references
-              run: npm run assets:verify
-
-            - name: TypeScript typecheck
-              run: npm exec tsc -- --noEmit
-
-            - name: ESLint
-              run: npm run lint
-
-            - name: Format check
-              run: npm run format:check
-
-            - name: Vitest suite
-              run: npm test -- --run
-
-            - name: Go test suite
-              run: go test ./...
-
-            - name: Production build
-              run: npm run build:prod
-
-            - name: Preview build
-              working-directory: frontend/preview
-              run: npx vite build
-
-            - name: Preview visual QA
-              timeout-minutes: 6
-              run: npm run visual:preview
-
-            - name: Preview interaction QA
-              timeout-minutes: 4
-              run: npm run interaction:preview
+            # scripts/v1-gate.mjs is the single source of truth for the gate; the release preflight runs it too.
+            - name: V1 gate
+              run: node scripts/v1-gate.mjs
 
     windows-package:
         name: Windows x64 package
@@ -95,25 +66,26 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-            - uses: actions/setup-node@v6
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@v5
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
               with:
                   go-version-file: ${{ env.GO_VERSION_FILE }}
                   cache-dependency-path: go.sum
 
-            - uses: arduino/setup-task@v2
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
               with:
                   version: 3.x
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-            - uses: mlugg/setup-zig@v1
+            # setup-zig v2 still declares node20 (there is no node24 release yet); the runner executes it on node24.
+            - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
               with:
                   version: 0.13.0
 
@@ -141,7 +113,7 @@ jobs:
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
             - name: Upload Windows preview artifacts
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
                   name: genieterm-windows-x64
                   if-no-files-found: error
@@ -152,3 +124,75 @@ jobs:
 
             - name: Verify Windows package and launch
               run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
+
+            - name: Verify packaging left the checkout unchanged
+              shell: bash
+              run: |
+                  # setup-zig keeps its cache in the workspace (.zig-cache), which is not part of the source.
+                  CHANGES="$(git status --porcelain --untracked-files=all -- . ':(exclude).zig-cache')"
+                  if [ -n "${CHANGES}" ]; then
+                    echo "::error::Packaging modified the checkout"
+                    echo "${CHANGES}"
+                    git diff --stat
+                    exit 1
+                  fi
+
+    # Runs on pushes to main and manual runs (not PRs) so macOS packaging breakage shows up before a release
+    # tag. The release workflow builds both architectures; the arm64 zip is enough to catch breakage here.
+    macos-package:
+        name: macOS arm64 package
+        runs-on: macos-latest
+        timeout-minutes: 60
+        if: github.event_name != 'pull_request'
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - name: Build macOS arm64 package
+              run: task package -- --mac zip --arm64
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+
+            - name: Verify macOS package, signature, and update metadata
+              run: task package:verify -- make --require-arch arm64
+
+            - name: Launch packaged app (window smoke)
+              run: node scripts/verify-installed-app.mjs --window-smoke make/mac-arm64/GenieTerm.app
+
+            - name: Verify packaging left the checkout unchanged
+              run: |
+                  CHANGES="$(git status --porcelain --untracked-files=all)"
+                  if [ -n "${CHANGES}" ]; then
+                    echo "::error::Packaging modified the checkout"
+                    echo "${CHANGES}"
+                    git diff --stat
+                    exit 1
+                  fi

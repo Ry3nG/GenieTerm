@@ -2,14 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { atom } from "jotai";
+import { atom, type PrimitiveAtom } from "jotai";
 import { describe, expect, it, vi } from "vitest";
 import {
+    confirmFileDelete,
     copyWithOverwriteConfirmation,
     getLastModifiedTime,
+    handleFileDelete,
     isFileCopyFailure,
+    isParentDirEntry,
+    makeDeleteConfirmation,
     makeDirectoryDefaultMenuItems,
+    makeRecursiveDeleteConfirmation,
     overwriteError,
+    recursiveError,
 } from "./preview-directory-utils";
 
 describe("getLastModifiedTime", () => {
@@ -92,6 +98,76 @@ describe("copyWithOverwriteConfirmation", () => {
         expect(copyCalls[1].opts).toMatchObject({ timeout: 42, overwrite: true });
         expect(data.opts.overwrite).toBeUndefined();
     });
+
+    function makeConfirmationHarness() {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const errorMsgAtom = atom(null) as PrimitiveAtom<ErrorMsg>;
+        const copyFile = vi.fn(async (_data: CommandFileCopyData) => {
+            if (copyFile.mock.calls.length === 1) {
+                throw new Error(`file already exists, ${overwriteError}`);
+            }
+        });
+        const deps = {
+            copyFile,
+            setErrorMsg: (msg: ErrorMsg) => globalStore.set(errorMsgAtom, msg),
+            watchErrorMsg: (listener: (msg: ErrorMsg) => void) =>
+                globalStore.sub(errorMsgAtom, () => listener(globalStore.get(errorMsgAtom))),
+        };
+        const data: CommandFileCopyData = { srcuri: "file:///tmp/a.txt", desturi: "wsh://devbox/~/up" };
+        return { errorMsgAtom, copyFile, deps, data };
+    }
+
+    async function flushMicrotasks() {
+        for (let index = 0; index < 5; index++) {
+            await Promise.resolve();
+        }
+    }
+
+    it("settles as canceled when the overwrite prompt is replaced by another message", async () => {
+        const { errorMsgAtom, deps, data } = makeConfirmationHarness();
+        const resultPromise = copyWithOverwriteConfirmation(data, "file", deps);
+        await flushMicrotasks();
+        expect(globalStore.get(errorMsgAtom)?.status).toBe("Confirm Overwrite File(s)");
+
+        globalStore.set(errorMsgAtom, { status: "Rename Failed", text: "boom" });
+
+        await expect(resultPromise).resolves.toMatchObject({ ok: false, canceled: true });
+        expect(globalStore.get(errorMsgAtom)?.status).toBe("Rename Failed");
+    });
+
+    it("settles as canceled and clears the prompt when aborted (unmount or job cancel)", async () => {
+        const { errorMsgAtom, copyFile, deps, data } = makeConfirmationHarness();
+        const controller = new AbortController();
+        const resultPromise = copyWithOverwriteConfirmation(data, "file", { ...deps, signal: controller.signal });
+        await flushMicrotasks();
+        expect(globalStore.get(errorMsgAtom)?.status).toBe("Confirm Overwrite File(s)");
+
+        controller.abort();
+
+        await expect(resultPromise).resolves.toMatchObject({ ok: false, canceled: true });
+        expect(globalStore.get(errorMsgAtom)).toBeNull();
+        expect(copyFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not prompt when already aborted and keeps a confirmed copy running after the overlay resets", async () => {
+        const aborted = makeConfirmationHarness();
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+            copyWithOverwriteConfirmation(aborted.data, "file", { ...aborted.deps, signal: controller.signal })
+        ).resolves.toMatchObject({ canceled: true });
+        expect(globalStore.get(aborted.errorMsgAtom)).toBeNull();
+
+        const { errorMsgAtom, copyFile, deps, data } = makeConfirmationHarness();
+        const resultPromise = copyWithOverwriteConfirmation(data, "file", deps);
+        await flushMicrotasks();
+        const prompt = globalStore.get(errorMsgAtom);
+        prompt.buttons[0].onClick();
+        globalStore.set(errorMsgAtom, null);
+
+        await expect(resultPromise).resolves.toEqual({ ok: true });
+        expect(copyFile).toHaveBeenCalledTimes(2);
+    });
 });
 
 describe("makeDirectoryDefaultMenuItems", () => {
@@ -124,5 +200,66 @@ describe("makeDirectoryDefaultMenuItems", () => {
 
         expect(globalStore.get(treeViewMode)).toBe(true);
         expect(setConfig).toHaveBeenCalledWith(undefined, { "preview:fileview": "tree" });
+    });
+});
+
+describe("delete confirmations", () => {
+    it("names the full path for files and folders", () => {
+        expect(makeDeleteConfirmation("/srv/app/config.yml", false, null)).toMatchObject({
+            text: expect.stringContaining("/srv/app/config.yml"),
+            recursive: false,
+        });
+        expect(makeDeleteConfirmation("/srv/app/empty", true, 0)).toMatchObject({
+            text: expect.stringContaining("empty folder /srv/app/empty"),
+            recursive: false,
+        });
+        expect(makeDeleteConfirmation("/srv/app/logs", true, null)).toMatchObject({
+            text: expect.stringContaining("/srv/app/logs"),
+            recursive: false,
+        });
+    });
+
+    it("asks for a recursive delete with the item count for non-empty folders", () => {
+        const confirmation = makeDeleteConfirmation("/srv/app", true, 1);
+        expect(confirmation.recursive).toBe(true);
+        expect(confirmation.buttonText).toBe("Delete Recursively");
+        expect(confirmation.text).toContain("/srv/app");
+        expect(confirmation.text).toContain("1 item ");
+        expect(makeRecursiveDeleteConfirmation("/srv/app", null).text).toContain("/srv/app and everything inside it");
+    });
+
+    it("ignores the parent directory entry", () => {
+        const setErrorMsg = vi.fn();
+        expect(isParentDirEntry({ name: "..", path: "/srv" })).toBe(true);
+        confirmFileDelete({} as any, { name: "..", path: "/srv", isdir: true }, setErrorMsg);
+        expect(setErrorMsg).not.toHaveBeenCalled();
+    });
+
+    it("names the path when the backend requires a recursive delete", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const setErrorMsg = vi.fn();
+        const fileDelete = vi.fn(async () => {
+            throw new Error(recursiveError);
+        });
+        const model = {
+            formatRemoteUri: vi.fn(async (path: string) => `wsh://devbox${path}`),
+            refreshCallback: vi.fn(),
+            env: {
+                rpc: {
+                    FileDeleteCommand: fileDelete,
+                    FileListStreamCommand: async function* () {
+                        yield { fileinfo: [{ name: "a" }, { name: "b" }] };
+                    },
+                },
+            },
+        } as any;
+
+        handleFileDelete(model, "/srv/data", false, setErrorMsg);
+        await vi.waitFor(() => expect(setErrorMsg).toHaveBeenCalledTimes(1));
+
+        const prompt = setErrorMsg.mock.calls[0][0] as ErrorMsg;
+        expect(prompt.text).toContain("/srv/data");
+        expect(prompt.text).toContain("2 items");
+        expect(prompt.buttons?.[0].text).toBe("Delete Recursively");
     });
 });

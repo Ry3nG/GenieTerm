@@ -379,7 +379,10 @@ export function bufferLinesToText(buffer: TermTypes.IBuffer, startIndex: number,
     for (let i = clampedStart; i < clampedEnd; i++) {
         const line = buffer.getLine(i);
         if (line) {
-            const lineText = line.translateToString(true);
+            // a row that continues on the next row ends mid-line, so its trailing spaces
+            // are real content (e.g. a space that happened to land in the last column).
+            const continuesOnNextRow = i + 1 < clampedEnd && buffer.getLine(i + 1)?.isWrapped === true;
+            const lineText = line.translateToString(!continuesOnNextRow);
             // If this line is wrapped (continuation of previous line), concatenate without newline
             if (line.isWrapped && !isFirstLine) {
                 currentLine += lineText;
@@ -418,6 +421,48 @@ export function bufferLinesToText(buffer: TermTypes.IBuffer, startIndex: number,
     return lines;
 }
 
+export const DefaultTermScrollback = 2000;
+export const MaxTermScrollback = 50000;
+
+export function resolveTermScrollback(settingsValue: unknown, metaValue: unknown): number {
+    let scrollback = DefaultTermScrollback;
+    if (typeof settingsValue === "number" && settingsValue) {
+        scrollback = Math.floor(settingsValue);
+    }
+    if (typeof metaValue === "number" && metaValue) {
+        scrollback = Math.floor(metaValue);
+    }
+    if (Number.isNaN(scrollback)) {
+        return DefaultTermScrollback;
+    }
+    return Math.min(Math.max(scrollback, 0), MaxTermScrollback);
+}
+
+export type TerminalCacheCheck = {
+    cacheFile: WaveFile | null;
+    cacheByteLength: number;
+    ptyOffset: number;
+    mainFile: WaveFile | null;
+    termFileEpoch: number;
+};
+
+export function canUseTerminalCache(check: TerminalCacheCheck): boolean {
+    const { cacheFile, cacheByteLength, ptyOffset, mainFile, termFileEpoch } = check;
+    if (cacheFile == null || mainFile == null || cacheByteLength <= 0 || ptyOffset <= 0 || ptyOffset > mainFile.size) {
+        return false;
+    }
+    if (Number(cacheFile.meta?.["fileepoch"] ?? 0) !== termFileEpoch) {
+        return false;
+    }
+    // A circular term file only keeps its last maxsize bytes; once the cache offset has
+    // been overwritten, fetching from it silently starts later and leaves a hole.
+    const maxSize = Number(mainFile.opts?.maxsize ?? 0);
+    if (maxSize > 0 && ptyOffset < mainFile.size - maxSize) {
+        return false;
+    }
+    return true;
+}
+
 export function isLikelyOnSameHost(lastCommand: string): boolean {
     if (lastCommand == null) {
         return true;
@@ -428,4 +473,44 @@ export function isLikelyOnSameHost(lastCommand: string): boolean {
 
 export function quoteForPosixShell(filePath: string): string {
     return "'" + filePath.replace(/'/g, "'\\''") + "'";
+}
+
+export const MaxCoalescedAppendBytes = 1024 * 1024;
+
+export type QueuedTermAppend = { data: Uint8Array; offset: number };
+
+// Merges the contiguous run at the head of the queue into one chunk: a burst of small pty appends becomes one
+// xterm write instead of one write (and one write-callback round trip) per chunk.
+export function takeAppendBatch<T extends QueuedTermAppend>(
+    queue: T[],
+    canJoin: (first: T, next: T) => boolean = () => true,
+    maxBytes = MaxCoalescedAppendBytes
+): QueuedTermAppend {
+    const first = queue.shift();
+    if (first == null) {
+        return null;
+    }
+    const parts = [first.data];
+    let total = first.data.length;
+    let nextOffset = first.offset + first.data.length;
+    while (queue.length > 0) {
+        const next = queue[0];
+        if (next.offset !== nextOffset || total + next.data.length > maxBytes || !canJoin(first, next)) {
+            break;
+        }
+        queue.shift();
+        parts.push(next.data);
+        total += next.data.length;
+        nextOffset += next.data.length;
+    }
+    if (parts.length === 1) {
+        return { data: first.data, offset: first.offset };
+    }
+    const merged = new Uint8Array(total);
+    let pos = 0;
+    for (const part of parts) {
+        merged.set(part, pos);
+        pos += part.length;
+    }
+    return { data: merged, offset: first.offset };
 }

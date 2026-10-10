@@ -137,9 +137,25 @@ function getManualSshTarget(lastCommand: string): string {
 }
 
 function optionConsumesNextArg(option: string): boolean {
-    return ["-b", "-c", "-D", "-E", "-F", "-I", "-i", "-J", "-L", "-m", "-O", "-o", "-Q", "-R", "-S", "-W", "-w"].includes(
-        option
-    );
+    return [
+        "-b",
+        "-c",
+        "-D",
+        "-E",
+        "-F",
+        "-I",
+        "-i",
+        "-J",
+        "-L",
+        "-m",
+        "-O",
+        "-o",
+        "-Q",
+        "-R",
+        "-S",
+        "-W",
+        "-w",
+    ].includes(option);
 }
 
 function connectionTargetMatches(connection: string, target: string): boolean {
