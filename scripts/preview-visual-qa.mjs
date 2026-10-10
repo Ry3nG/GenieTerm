@@ -292,16 +292,15 @@ async function runPreviewCase(browser, baseUrl, previewCase) {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: NavigationTimeoutMs });
     await page.locator("body").waitFor({ state: "visible" });
     await page.evaluate(() => document.fonts?.ready);
-    if (previewCase.checks.length > 0) {
-      await page.getByText(previewCase.checks[0], { exact: false }).first().waitFor({
-        state: "visible",
-        timeout: PageTimeoutMs,
-      });
-    }
-
+    // parts of a preview (lazy-loaded charts, editors) render after the first text, so wait for each one
     for (const text of previewCase.checks) {
-      const count = await page.getByText(text, { exact: false }).count();
-      if (count === 0) {
+      const found = await page
+        .getByText(text, { exact: false })
+        .first()
+        .waitFor({ state: "attached", timeout: PageTimeoutMs })
+        .then(() => true)
+        .catch(() => false);
+      if (!found) {
         throw new Error(`${previewCase.name}/${viewport.name} missing required text: ${text}`);
       }
     }
