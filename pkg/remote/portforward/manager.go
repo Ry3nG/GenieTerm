@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,6 +29,8 @@ const (
 	maxSessions     = 512
 	maxPendingDials = 64
 	sshOnlyError    = "port forwarding is only needed for SSH connections"
+	// Windows reports a busy port as WSAEADDRINUSE rather than EADDRINUSE.
+	wsaEADDRINUSE = syscall.Errno(10048)
 )
 
 // Implementations must be comparable (normally pointers), and Close must unblock Dial.
@@ -129,10 +132,18 @@ func listen(data wshrpc.CommandPortForwardStartData) (net.Listener, error) {
 	if data.LocalPort == 0 {
 		return net.Listen("tcp4", "127.0.0.1:0")
 	}
-	if errors.Is(err, syscall.EADDRINUSE) {
+	if isAddrInUse(err) {
 		return nil, fmt.Errorf("local port %d is in use", port)
 	}
 	return nil, fmt.Errorf("cannot listen on local port %d: %w", port, err)
+}
+
+func isAddrInUse(err error) bool {
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return true
+	}
+	var errno syscall.Errno
+	return runtime.GOOS == "windows" && errors.As(err, &errno) && errno == wsaEADDRINUSE
 }
 
 func (m *Manager) Start(ctx context.Context, data wshrpc.CommandPortForwardStartData) (*wshrpc.PortForwardInfo, error) {
