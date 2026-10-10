@@ -37,7 +37,7 @@ func TestGPUParsers(t *testing.T) {
 		count      int
 		bad        bool
 	}{
-		{"fixture", hostFixture(t, "gpus.csv"), 2, false}, {"empty", "", 0, false}, {"malformed", "0,broken", 0, true}, {"invalid identity", "x,u,n,1,2,3,4,5,6", 0, true}, {"no device", "No devices were found", 0, true},
+		{"fixture", hostFixture(t, "gpus.csv"), 2, false}, {"empty", "", 0, false}, {"malformed", "0,broken", 0, true}, {"invalid identity", "x,u,n,1,2,3,4,5,6,7,8,9,10,11,P0", 0, true}, {"old field count", "0,GPU-a,n,1,2,3,4,5,6", 0, true}, {"no device", "No devices were found", 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rows, err := parseGPUs(tc.text)
@@ -47,6 +47,13 @@ func TestGPUParsers(t *testing.T) {
 			if tc.name == "fixture" {
 				if rows[0].data.Name != "NVIDIA A100, PCIe" || rows[0].data.MemUsed != 1572864 || rows[1].data.Temp != -1 {
 					t.Fatalf("rows=%+v", rows)
+				}
+				a, b := rows[0].data, rows[1].data
+				if a.MemUtil != 10 || a.Fan != -1 || a.ClockSm != 1410 || a.ClockSmMax != 1410 || a.ClockMem != 1593 || a.Pstate != "P0" {
+					t.Fatalf("extended fields = %+v", a)
+				}
+				if b.MemUtil != -1 || b.Fan != 35 || b.Pstate != "" {
+					t.Fatalf("missing extended fields = %+v", b)
 				}
 			}
 		})

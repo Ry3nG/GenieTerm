@@ -34,6 +34,12 @@ export function makeMockGpus(step: number): GpuData[] {
             temp: idle ? 31 : Math.round(clamp(62 + util / 6 + (i === 3 ? 12 : 0), 30, 95)),
             power: idle ? 69 : Math.round(clamp(420 + util * 2.4, 60, 700)),
             powerlimit: 700,
+            memutil: idle ? 0 : Math.round(clamp(util * 0.4, 0, 100)),
+            fan: -1,
+            clocksm: idle ? 345 : 1980,
+            clocksmmax: 1980,
+            clockmem: idle ? 1593 : 2619,
+            pstate: idle ? "P8" : "P0",
             processes: idle
                 ? []
                 : [
@@ -218,9 +224,13 @@ export const MockProcesses: ProcessInfo[] = [
 
 export function makeMockProcessList(data: CommandRemoteProcessListData): ProcessListResponse {
     const search = (data?.textsearch ?? "").toLowerCase();
+    const key = data?.sortby === "mem" ? "mem" : "cpu";
     const processes = MockProcesses.filter(
         (p) => search === "" || p.command.toLowerCase().includes(search) || String(p.pid) === search
-    );
+    )
+        .slice()
+        .sort((a, b) => b[key] - a[key])
+        .slice(0, data?.limit || MockProcesses.length);
     return {
         processes,
         summary: {

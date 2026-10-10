@@ -95,7 +95,21 @@ describe("host formatting", () => {
 
     it("summarizes identical GPUs", () => {
         const gpu = (index: number, name: string) =>
-            ({ index, name, util: 0, memused: 0, memtotal: 0, temp: 0, power: 0, powerlimit: 0 }) as GpuData;
+            ({
+                index,
+                name,
+                util: 0,
+                memused: 0,
+                memtotal: 0,
+                temp: 0,
+                power: 0,
+                powerlimit: 0,
+                memutil: 0,
+                fan: -1,
+                clocksm: 0,
+                clocksmmax: 0,
+                clockmem: 0,
+            }) as GpuData;
         expect(summarizeGpus([gpu(0, "H100"), gpu(1, "H100")])).toBe("2 × H100");
         expect(summarizeGpus([gpu(0, "A100"), gpu(1, "T4")])).toBe("A100, T4");
         expect(summarizeGpus([])).toBe("");

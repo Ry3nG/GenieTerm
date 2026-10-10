@@ -26,6 +26,7 @@ export type HostEnv = WaveEnvSubset<{
         RemoteSysInfoWatchCommand: WaveEnv["rpc"]["RemoteSysInfoWatchCommand"];
         RemoteHostInfoCommand: WaveEnv["rpc"]["RemoteHostInfoCommand"];
         RemoteListeningPortsCommand: WaveEnv["rpc"]["RemoteListeningPortsCommand"];
+        RemoteProcessListCommand: WaveEnv["rpc"]["RemoteProcessListCommand"];
         PortForwardStartCommand: WaveEnv["rpc"]["PortForwardStartCommand"];
         PortForwardStopCommand: WaveEnv["rpc"]["PortForwardStopCommand"];
         PortForwardListCommand: WaveEnv["rpc"]["PortForwardListCommand"];
@@ -47,7 +48,13 @@ export type HostSamples = {
     netDown: number[];
     netUp: number[];
     gpuUtil: Map<number, number[]>;
+    gpuMem: Map<number, number[]>;
 };
+
+// "summary" or one resource: cpu, memory, network, disks, gpu:<index>
+export type HostResource = string;
+
+export type TopProcessesState = { sortBy: "cpu" | "mem"; data: ProcessListResponse; error: string };
 
 export type PortsState = {
     data: ListeningPortsResponse;
@@ -71,7 +78,7 @@ const PortsPollMs = 3000;
 const SampleGapMs = 2500;
 
 function emptySamples(): HostSamples {
-    return { ts: [], cpu: [], mem: [], netDown: [], netUp: [], gpuUtil: new Map() };
+    return { ts: [], cpu: [], mem: [], netDown: [], netUp: [], gpuUtil: new Map(), gpuMem: new Map() };
 }
 
 function isDocumentHidden(): boolean {
@@ -90,8 +97,11 @@ export function appendSample(samples: HostSamples, data: TimeSeriesData): HostSa
     const base = lastTs > 0 && data.ts - lastTs > SampleGapMs ? emptySamples() : samples;
     const values = data.values ?? {};
     const gpuUtil = new Map<number, number[]>();
+    const gpuMem = new Map<number, number[]>();
     for (const gpu of data.gpus ?? []) {
         gpuUtil.set(gpu.index, pushHistory(base.gpuUtil.get(gpu.index) ?? [], gpu.util));
+        const memPct = gpu.memtotal > 0 && gpu.memused >= 0 ? (gpu.memused / gpu.memtotal) * 100 : NaN;
+        gpuMem.set(gpu.index, pushHistory(base.gpuMem.get(gpu.index) ?? [], memPct));
     }
     return {
         ts: pushHistory(base.ts, data.ts),
@@ -100,6 +110,7 @@ export function appendSample(samples: HostSamples, data: TimeSeriesData): HostSa
         netDown: pushHistory(base.netDown, values["net:down"]),
         netUp: pushHistory(base.netUp, values["net:up"]),
         gpuUtil,
+        gpuMem,
     };
 }
 
@@ -130,6 +141,8 @@ export class HostViewModel implements ViewModel {
     forwardsAtom = jotai.atom<PortForwardInfo[]>([]) as jotai.PrimitiveAtom<PortForwardInfo[]>;
     forwardActionAtom = jotai.atom(null) as jotai.PrimitiveAtom<ForwardAction>;
     processModelAtom = jotai.atom(null) as jotai.PrimitiveAtom<ProcessViewerViewModel>;
+    resourceAtom = jotai.atom<HostResource>("summary") as jotai.PrimitiveAtom<HostResource>;
+    topProcessesAtom = jotai.atom<TopProcessesState>(null) as jotai.PrimitiveAtom<TopProcessesState>;
 
     connection: jotai.Atom<string>;
     connStatus: jotai.Atom<ConnStatus>;
@@ -142,6 +155,7 @@ export class HostViewModel implements ViewModel {
     portsPoll = { conn: "", dataConn: "", timer: null as ReturnType<typeof setTimeout>, epoch: 0 };
     forwardsSub = { conn: "", unsub: null as () => void, epoch: 0 };
     hostInfoConn = "";
+    topPoll = { key: "", timer: null as ReturnType<typeof setTimeout>, epoch: 0 };
 
     constructor({ blockId, waveEnv, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -167,6 +181,7 @@ export class HostViewModel implements ViewModel {
         this.unsubs.push(globalStore.sub(this.connection, sync));
         this.unsubs.push(globalStore.sub(this.connStatus, sync));
         this.unsubs.push(globalStore.sub(this.tabAtom, sync));
+        this.unsubs.push(globalStore.sub(this.resourceAtom, sync));
         this.unsubs.push(globalStore.sub(tabModel.isActiveAtom, sync));
         if (typeof document !== "undefined") {
             document.addEventListener("visibilitychange", sync);
@@ -197,6 +212,9 @@ export class HostViewModel implements ViewModel {
         this.syncSampling(live && tab === "overview" ? conn : "");
         this.syncPortsPolling(live && tab === "ports" ? conn : "");
         this.syncForwards(canForwardPorts(conn) ? conn : "");
+        const resource = globalStore.get(this.resourceAtom);
+        const topSort = resource === "cpu" ? "cpu" : resource === "memory" ? "mem" : "";
+        this.syncTopProcesses(live && tab === "overview" && topSort ? `${conn}|${topSort}` : "");
         if (live) {
             this.ensureHostInfo(conn);
         }
@@ -332,6 +350,58 @@ export class HostViewModel implements ViewModel {
         } catch (e) {
             console.log("host: reading sysinfo history failed", conn, e);
         }
+    }
+
+    // The CPU and Memory detail views list the busiest processes; poll only while one is open.
+    syncTopProcesses(key: string) {
+        const t = this.topPoll;
+        if (t.key === key) {
+            return;
+        }
+        const prevConn = t.key.split("|")[0];
+        clearTimeout(t.timer);
+        t.timer = null;
+        t.epoch++;
+        t.key = key;
+        if (prevConn !== "") {
+            Promise.resolve(
+                this.env.rpc.RemoteProcessListCommand(
+                    TabRpcClient,
+                    { widgetid: `${this.blockId}:top`, release: true },
+                    { route: makeConnRoute(prevConn) }
+                )
+            ).catch(() => {});
+        }
+        if (key === "") {
+            globalStore.set(this.topProcessesAtom, null);
+            return;
+        }
+        const [conn, sortBy] = key.split("|") as [string, "cpu" | "mem"];
+        const epoch = t.epoch;
+        const tick = async () => {
+            try {
+                const data = await this.env.rpc.RemoteProcessListCommand(
+                    TabRpcClient,
+                    { widgetid: `${this.blockId}:top`, sortby: sortBy, sortdesc: true, limit: 8, interval: 2000 },
+                    { route: makeConnRoute(conn), timeout: 8000 }
+                );
+                if (this.topPoll.epoch !== epoch) {
+                    return;
+                }
+                globalStore.set(this.topProcessesAtom, { sortBy, data, error: "" });
+            } catch (e) {
+                if (this.topPoll.epoch !== epoch) {
+                    return;
+                }
+                globalStore.set(this.topProcessesAtom, { sortBy, data: null, error: errorText(e) });
+            }
+            this.topPoll.timer = setTimeout(() => fireAndForget(tick), 2000);
+        };
+        fireAndForget(tick);
+    }
+
+    selectResource(resource: HostResource) {
+        globalStore.set(this.resourceAtom, resource);
     }
 
     ensureHostInfo(conn: string) {
@@ -558,6 +628,7 @@ export class HostViewModel implements ViewModel {
         this.disposed = true;
         this.stopSampling();
         this.syncPortsPolling("");
+        this.syncTopProcesses("");
         this.syncForwards("");
         for (const unsub of this.unsubs) {
             unsub();

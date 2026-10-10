@@ -30,7 +30,7 @@ const (
 	gpuMaxDevices     = 256
 	gpuMaxProcesses   = 32
 	gpuMiB            = 1024 * 1024
-	gpuQuery          = "--query-gpu=index,uuid,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit"
+	gpuQuery          = "--query-gpu=index,uuid,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,utilization.memory,fan.speed,clocks.sm,clocks.max.sm,clocks.mem,pstate"
 	gpuProcessQuery   = "--query-compute-apps=gpu_uuid,pid,used_memory"
 )
 
@@ -87,6 +87,17 @@ func gpuNumber(text string, scale float64) float64 {
 	return n * scale
 }
 
+func gpuPstate(text string) string {
+	text = strings.TrimSpace(text)
+	if len(text) < 2 || text[0] != 'P' {
+		return ""
+	}
+	if _, err := strconv.Atoi(text[1:]); err != nil {
+		return ""
+	}
+	return text
+}
+
 type gpuRecord struct {
 	uuid string
 	data wshrpc.GpuData
@@ -95,7 +106,7 @@ type gpuRecord struct {
 func parseGPUs(text string) ([]gpuRecord, error) {
 	reader := csv.NewReader(strings.NewReader(text))
 	reader.TrimLeadingSpace = true
-	reader.FieldsPerRecord = 9
+	reader.FieldsPerRecord = 15
 	var result []gpuRecord
 	seen := make(map[string]bool)
 	for {
@@ -119,6 +130,8 @@ func parseGPUs(text string) ([]gpuRecord, error) {
 			Index: int(index), Name: strings.TrimSpace(row[2]), Util: gpuNumber(row[3], 1),
 			MemUsed: gpuNumber(row[4], gpuMiB), MemTotal: gpuNumber(row[5], gpuMiB),
 			Temp: gpuNumber(row[6], 1), Power: gpuNumber(row[7], 1), PowerLimit: gpuNumber(row[8], 1),
+			MemUtil: gpuNumber(row[9], 1), Fan: gpuNumber(row[10], 1), ClockSm: gpuNumber(row[11], 1),
+			ClockSmMax: gpuNumber(row[12], 1), ClockMem: gpuNumber(row[13], 1), Pstate: gpuPstate(row[14]),
 		}})
 	}
 }

@@ -883,6 +883,12 @@ declare global {
         temp: number;
         power: number;
         powerlimit: number;
+        memutil: number;
+        fan: number;
+        clocksm: number;
+        clocksmmax: number;
+        clockmem: number;
+        pstate?: string;
         processes?: GpuProcessInfo[];
     };
 

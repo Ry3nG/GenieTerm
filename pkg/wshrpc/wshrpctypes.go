@@ -390,6 +390,12 @@ type GpuData struct {
 	Temp       float64          `json:"temp"`       // celsius
 	Power      float64          `json:"power"`      // watts
 	PowerLimit float64          `json:"powerlimit"` // watts
+	MemUtil    float64          `json:"memutil"`    // percent of time the memory controller was busy
+	Fan        float64          `json:"fan"`        // percent; -1 for passively cooled cards
+	ClockSm    float64          `json:"clocksm"`    // MHz
+	ClockSmMax float64          `json:"clocksmmax"` // MHz
+	ClockMem   float64          `json:"clockmem"`   // MHz
+	Pstate     string           `json:"pstate,omitempty"`
 	Processes  []GpuProcessInfo `json:"processes,omitempty"`
 }
 

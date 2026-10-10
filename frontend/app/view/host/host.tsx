@@ -5,8 +5,8 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { memo, useEffect, useState } from "react";
+import { HostOverviewPane } from "./host-detail";
 import type { HostViewModel } from "./host-model";
-import { HostOverview } from "./host-overview";
 import { HostPorts } from "./host-ports";
 import { formatHostSubtitle, HostTab, isLocalConnName, isWslConnName } from "./hostutil";
 
@@ -153,12 +153,14 @@ export function HostView(props: ViewComponentProps<HostViewModel>) {
         content = <NotConnected model={model} />;
     } else if (tab === "processes") {
         content = <ProcessesTab model={model} props={props} />;
-    } else {
+    } else if (tab === "ports") {
         content = (
             <OverlayScrollbarsComponent className="h-full" options={{ scrollbars: { autoHide: "leave" } }}>
-                {tab === "ports" ? <HostPorts model={model} /> : <HostOverview model={model} />}
+                <HostPorts model={model} />
             </OverlayScrollbarsComponent>
         );
+    } else {
+        content = <HostOverviewPane model={model} />;
     }
     return (
         <div className="flex h-full w-full min-w-0 flex-col">

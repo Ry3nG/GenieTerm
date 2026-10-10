@@ -1,13 +1,12 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useState } from "react";
 import type { HostViewModel } from "./host-model";
 import { Sparkline } from "./host-sparkline";
+import { Card, CardHeader, coreCellColor, coreKeys, formatGpuPower, Meter, Stat, toneColor } from "./host-ui";
 import {
-    clampPct,
     formatBytesAsGiB,
     formatGiB,
     formatGpuMemory,
@@ -16,107 +15,10 @@ import {
     isValidNumber,
     summarizeGpus,
     temperatureTone,
-    usageTone,
 } from "./hostutil";
-
-const ToneColor: Record<string, string> = {
-    normal: "var(--accent-color)",
-    warning: "var(--warning-color)",
-    error: "var(--error-color)",
-    none: "var(--grey-text-color)",
-};
 
 const MaxGpuProcesses = 4;
 const MaxCoreCells = 256;
-
-function toneColor(pct: number): string {
-    return ToneColor[usageTone(pct)];
-}
-
-function Card({ className, children }: { className?: string; children: React.ReactNode }) {
-    return (
-        <section className={cn("min-w-0 rounded-xl border border-border bg-panel px-4 py-3.5", className)}>
-            {children}
-        </section>
-    );
-}
-
-function CardHeader({
-    icon,
-    title,
-    detail,
-    value,
-    valueColor,
-}: {
-    icon: string;
-    title: string;
-    detail?: React.ReactNode;
-    value?: string;
-    valueColor?: string;
-}) {
-    return (
-        <div className="flex items-start gap-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent/12 text-accent">
-                <i className={cn("fa-solid text-[12px]", icon)} aria-hidden="true" />
-            </div>
-            <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold leading-5 text-primary">{title}</div>
-                {detail && <div className="truncate text-[12px] leading-4 text-muted">{detail}</div>}
-            </div>
-            {value != null && (
-                <div
-                    className="shrink-0 text-[22px] font-semibold leading-7 tabular-nums"
-                    style={{ color: valueColor ?? "var(--main-text-color)" }}
-                >
-                    {value}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function Meter({ pct, color, className }: { pct: number; color?: string; className?: string }) {
-    return (
-        <div className={cn("h-1.5 overflow-hidden rounded-full bg-foreground/10", className)}>
-            <div
-                className="h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none"
-                style={{ width: `${clampPct(pct)}%`, backgroundColor: color ?? toneColor(pct) }}
-            />
-        </div>
-    );
-}
-
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
-    return (
-        <div className="min-w-0">
-            <div className="text-[11px] leading-4 text-muted">{label}</div>
-            <div
-                className="truncate text-[13px] font-medium leading-5 tabular-nums"
-                style={{ color: tone ? ToneColor[tone] : "var(--main-text-color)" }}
-            >
-                {value}
-            </div>
-        </div>
-    );
-}
-
-function coreKeys(values: { [key: string]: number }): string[] {
-    return Object.keys(values ?? {})
-        .filter((k) => k.startsWith("cpu:"))
-        .sort((a, b) => parseInt(a.slice(4)) - parseInt(b.slice(4)));
-}
-
-function coreCellColor(pct: number): string {
-    if (!isValidNumber(pct)) {
-        return "var(--color-hover)";
-    }
-    const tone = usageTone(pct);
-    if (tone !== "normal") {
-        return ToneColor[tone];
-    }
-    const strength = Math.round(18 + clampPct(pct) * 0.82);
-    return `color-mix(in srgb, var(--accent-color) ${strength}%, transparent)`;
-}
 
 const CpuCard = memo(({ model }: { model: HostViewModel }) => {
     const latest = useAtomValue(model.latestAtom);
@@ -128,7 +30,7 @@ const CpuCard = memo(({ model }: { model: HostViewModel }) => {
     const hasLoad = isValidNumber(values["load:1"]);
     const detail = [hostInfo?.cpumodel, cores.length > 0 ? `${cores.length} cores` : ""].filter(Boolean).join(" · ");
     return (
-        <Card>
+        <Card onClick={() => model.selectResource("cpu")} label="Show CPU details">
             <CardHeader
                 icon="fa-microchip"
                 title="CPU"
@@ -178,7 +80,7 @@ const MemoryCard = memo(({ model }: { model: HostViewModel }) => {
     const swapUsed = values["swap:used"];
     const swapPct = isValidNumber(swapUsed) && swapTotal > 0 ? (swapUsed / swapTotal) * 100 : NaN;
     return (
-        <Card>
+        <Card onClick={() => model.selectResource("memory")} label="Show memory details">
             <CardHeader
                 icon="fa-memory"
                 title="Memory"
@@ -212,14 +114,9 @@ const GpuCard = memo(({ model, gpu, history }: { model: HostViewModel; gpu: GpuD
     const memPct = gpu.memtotal > 0 && isValidNumber(gpu.memused) ? (gpu.memused / gpu.memtotal) * 100 : NaN;
     const processes = gpu.processes ?? [];
     const shown = showAll ? processes : processes.slice(0, MaxGpuProcesses);
-    const power =
-        isValidNumber(gpu.power) && isValidNumber(gpu.powerlimit)
-            ? `${Math.round(gpu.power)}/${Math.round(gpu.powerlimit)} W`
-            : isValidNumber(gpu.power)
-              ? `${Math.round(gpu.power)} W`
-              : "—";
+    const power = formatGpuPower(gpu);
     return (
-        <Card>
+        <Card onClick={() => model.selectResource(`gpu:${gpu.index}`)} label={`Show GPU ${gpu.index} details`}>
             <CardHeader
                 icon="fa-display"
                 title={`GPU ${gpu.index}`}
@@ -251,9 +148,14 @@ const GpuCard = memo(({ model, gpu, history }: { model: HostViewModel; gpu: GpuD
                     <ul className="flex flex-col">
                         {shown.map((p) => (
                             <li key={p.pid}>
-                                <button
-                                    className="-mx-1.5 flex w-[calc(100%+12px)] cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:bg-hover"
-                                    onClick={() => model.showProcess(p.pid)}
+                                <span
+                                    role="link"
+                                    tabIndex={-1}
+                                    className="-mx-1.5 flex w-[calc(100%+12px)] cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:bg-hoverbg"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        model.showProcess(p.pid);
+                                    }}
                                     title={`Show ${p.command || p.pid} in Processes`}
                                 >
                                     <span className="min-w-0 flex-1 truncate text-secondary">
@@ -263,18 +165,23 @@ const GpuCard = memo(({ model, gpu, history }: { model: HostViewModel; gpu: GpuD
                                     <span className="w-16 shrink-0 text-right tabular-nums text-secondary">
                                         {formatBytesAsGiB(p.memused)}
                                     </span>
-                                </button>
+                                </span>
                             </li>
                         ))}
                     </ul>
                 )}
                 {processes.length > MaxGpuProcesses && (
-                    <button
-                        className="mt-1 cursor-pointer text-[12px] text-muted transition-colors hover:text-primary"
-                        onClick={() => setShowAll((v) => !v)}
+                    <span
+                        role="button"
+                        tabIndex={-1}
+                        className="mt-1 inline-block cursor-pointer text-[12px] text-muted transition-colors hover:text-primary"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAll((v) => !v);
+                        }}
                     >
                         {showAll ? "Show fewer" : `${processes.length - MaxGpuProcesses} more`}
-                    </button>
+                    </span>
                 )}
             </div>
         </Card>
@@ -298,7 +205,7 @@ const GpuSection = memo(({ model }: { model: HostViewModel }) => {
         .join(" · ");
     return (
         <div className="col-span-full flex flex-col gap-3">
-            <div className="flex items-baseline gap-2 px-0.5 pt-1">
+            <div className="flex items-baseline gap-2 px-0.5">
                 <h3 className="text-[13px] font-semibold text-primary">GPUs</h3>
                 <span className="min-w-0 truncate text-[12px] text-muted">
                     {[summarizeGpus(gpus), driver].filter(Boolean).join(" · ")}
@@ -320,7 +227,7 @@ const NetworkCard = memo(({ model }: { model: HostViewModel }) => {
     const values = latest?.values ?? {};
     const peak = Math.max(1024, ...samples.netDown.filter(Number.isFinite), ...samples.netUp.filter(Number.isFinite));
     return (
-        <Card>
+        <Card onClick={() => model.selectResource("network")} label="Show network details">
             <CardHeader icon="fa-arrow-right-arrow-left" title="Network" />
             <div className="mt-3 grid grid-cols-2 gap-3">
                 <div>
@@ -363,7 +270,7 @@ const DiskCard = memo(({ model }: { model: HostViewModel }) => {
     const latest = useAtomValue(model.latestAtom);
     const disks = latest?.disks ?? [];
     return (
-        <Card>
+        <Card onClick={() => model.selectResource("disks")} label="Show disk details">
             <CardHeader
                 icon="fa-hard-drive"
                 title="Disks"
@@ -396,26 +303,20 @@ const DiskCard = memo(({ model }: { model: HostViewModel }) => {
 });
 DiskCard.displayName = "DiskCard";
 
-export const HostOverview = memo(({ model }: { model: HostViewModel }) => {
+// GPU hosts lead with their GPUs: on a workstation or training server they matter most.
+export const HostSummary = memo(({ model }: { model: HostViewModel }) => {
     const latest = useAtomValue(model.latestAtom);
-    if (latest == null) {
-        return (
-            <div className="flex h-full items-center justify-center text-[13px] text-muted">
-                <i className="fa-solid fa-circle-notch fa-spin mr-2 text-[12px]" aria-hidden="true" />
-                Reading this host…
-            </div>
-        );
-    }
+    const hasGpus = (latest?.gpus?.length ?? 0) > 0;
     return (
         <div className="@container">
             <div className="grid grid-cols-1 gap-3 p-4 @[760px]:grid-cols-2">
+                {hasGpus && <GpuSection model={model} />}
                 <CpuCard model={model} />
                 <MemoryCard model={model} />
-                <GpuSection model={model} />
                 <NetworkCard model={model} />
                 <DiskCard model={model} />
             </div>
         </div>
     );
 });
-HostOverview.displayName = "HostOverview";
+HostSummary.displayName = "HostSummary";

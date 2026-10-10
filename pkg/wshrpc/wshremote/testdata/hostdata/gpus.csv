@@ -1,2 +1,2 @@
-0, GPU-a, "NVIDIA A100, PCIe", 42, 1.5, 40960, 67, 123.5, 250
-1, GPU-b, NVIDIA T4, [N/A], N/A, [Not Supported], , NaN, inf
+0, GPU-a, "NVIDIA A100, PCIe", 42, 1.5, 40960, 67, 123.5, 250, 10, [N/A], 1410, 1410, 1593, P0
+1, GPU-b, NVIDIA T4, [N/A], N/A, [Not Supported], , NaN, inf, [N/A], 35, 300, 1590, 5000, [N/A]
