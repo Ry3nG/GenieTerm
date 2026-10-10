@@ -4,7 +4,10 @@ const fs = require("fs");
 const path = require("path");
 const childProcess = require("node:child_process");
 
-const windowsShouldSign = !!process.env.SM_CODE_SIGNING_CERT_SHA1_HASH;
+// Without a Developer ID (CSC_LINK / CSC_NAME), sign the whole bundle ad-hoc so it still passes
+// `codesign --verify --deep --strict`; an unsigned bundle with a modified Info.plist is reported as damaged.
+const macHasDeveloperId = !!(process.env.CSC_LINK || process.env.CSC_NAME);
+const releaseNotesFile = path.join(__dirname, "docs", "releases", `v${pkg.version}.md`);
 const defaultLinuxTargets = ["zip", "deb", "rpm", "snap", "AppImage", "pacman"];
 const linuxTargets = process.env.GENIETERM_LINUX_TARGETS
     ? process.env.GENIETERM_LINUX_TARGETS.split(",")
@@ -36,7 +39,9 @@ const config = {
     productName: pkg.productName,
     executableName: pkg.productName,
     artifactName: "${productName}-${platform}-${arch}-${version}.${ext}",
+    // Stable builds also write beta/alpha metadata so users on the beta channel keep receiving stable releases.
     generateUpdatesFilesForAllChannels: true,
+    ...(fs.existsSync(releaseNotesFile) ? { releaseInfo: { releaseNotesFile } } : {}),
     npmRebuild: false,
     nodeGypRebuild: false,
     electronCompile: false,
@@ -72,6 +77,7 @@ const config = {
             },
         ],
         category: "public.app-category.developer-tools",
+        ...(macHasDeveloperId ? {} : { identity: "-" }),
         minimumSystemVersion: "10.15.0",
         mergeASARs: true,
         singleArchFiles: "**/dist/bin/wavesrv.*",
@@ -115,16 +121,6 @@ const config = {
     win: {
         target: ["nsis", "zip"],
         forceCodeSigning: process.env.GENIETERM_REQUIRE_WINDOWS_SIGNATURE === "1",
-        ...(windowsShouldSign
-            ? {
-                  signtoolOptions: {
-                      signingHashAlgorithms: ["sha256"],
-                      publisherName: "GenieTerm",
-                      certificateSubjectName: "GenieTerm",
-                      certificateSha1: process.env.SM_CODE_SIGNING_CERT_SHA1_HASH,
-                  },
-              }
-            : {}),
     },
     appImage: {
         license: "LICENSE",

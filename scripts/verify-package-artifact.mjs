@@ -4,8 +4,15 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fail, MacAppExpectations, verifyDirectory, verifyMacAppBundle } from "./macos-app-verifier.mjs";
+import { verifyUpdateMetadata } from "./verify-update-metadata.mjs";
 
-const OutputDir = path.resolve(process.argv[2] || process.env.GENIETERM_BUILD_OUTPUT || "make");
+const Args = process.argv.slice(2);
+const RequireArchIndex = Args.indexOf("--require-arch");
+const RequiredArches = RequireArchIndex >= 0 ? (Args[RequireArchIndex + 1] ?? "").split(",").filter(Boolean) : [];
+const PositionalArgs = Args.filter(
+  (arg, idx) => !arg.startsWith("--") && (RequireArchIndex < 0 || idx !== RequireArchIndex + 1)
+);
+const OutputDir = path.resolve(PositionalArgs[0] || process.env.GENIETERM_BUILD_OUTPUT || "make");
 const Scope = "verify-package-artifact";
 const { productName: ProductName, version: Version } = MacAppExpectations;
 
@@ -62,6 +69,17 @@ function main() {
   }
   for (const zipPath of zips) {
     log(`found ${path.relative(OutputDir, zipPath)}`);
+  }
+  try {
+    verifyUpdateMetadata({
+      dir: OutputDir,
+      platform: "mac",
+      version: Version,
+      productName: ProductName,
+      requiredArches: RequiredArches,
+    });
+  } catch (error) {
+    fail(Scope, error.message);
   }
   log("all package artifact checks passed");
 }
