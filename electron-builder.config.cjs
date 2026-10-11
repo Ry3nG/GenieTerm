@@ -146,9 +146,8 @@ const config = {
         target: ["nsis", "zip"],
         forceCodeSigning: process.env.GENIETERM_REQUIRE_WINDOWS_SIGNATURE === "1",
     },
-    appImage: {
-        license: "LICENSE",
-    },
+    // No appImage.license: AppRun would block the first launch on a zenity click-through of the Apache-2.0 text.
+    appImage: {},
     snap: {
         base: "core22",
         confinement: "classic",

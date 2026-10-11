@@ -144,6 +144,10 @@ async function windowSmoke(appPath) {
   }
 }
 
+// An installed .deb must keep Chromium's sandbox (AppArmor profile or setuid helper); only the
+// AppImage smoke may fall back to --no-sandbox, as its AppRun does on restricted kernels.
+let requireSandbox = false;
+
 async function launchPackagedAppForCdp(executablePath, userDataDir, withoutSandbox = false) {
   const child = spawn(
     executablePath,
@@ -197,6 +201,7 @@ async function launchPackagedAppForCdp(executablePath, userDataDir, withoutSandb
     if (
       process.platform === "linux" &&
       !withoutSandbox &&
+      !requireSandbox &&
       /No usable sandbox|SUID sandbox helper binary|Running as root without --no-sandbox/i.test(output)
     ) {
       log("sandbox unavailable in smoke environment; retrying this test with --no-sandbox");
@@ -247,6 +252,17 @@ function stopAppProcesses(appProcess, userDataDir) {
 }
 
 async function main() {
+  if (process.platform === "linux" && process.argv.includes("--linux-installed")) {
+    const root = process.argv[process.argv.indexOf("--linux-installed") + 1];
+    if (!root || !shouldWindowSmoke) {
+      fail(Scope, "Linux usage: --window-smoke --linux-installed /opt/GenieTerm (run under xvfb-run)");
+    }
+    verifyLinuxTree(root, process.arch);
+    requireSandbox = true;
+    await windowSmoke(root);
+    log("installed Linux package window smoke passed with the sandbox on");
+    return;
+  }
   if (process.platform === "linux") {
     const imageIndex = process.argv.indexOf("--linux-appimage");
     const image = imageIndex >= 0 ? process.argv[imageIndex + 1] : null;
