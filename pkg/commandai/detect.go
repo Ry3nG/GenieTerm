@@ -16,6 +16,8 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
 
+var probeTimeout = 8 * time.Second
+
 var versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?`)
 
 var detectionCache = struct {
@@ -66,7 +68,7 @@ func detectOne(ctx context.Context, s settings, refresh bool) wshrpc.CommandAiEn
 			return info
 		}
 	}
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	info := wshrpc.CommandAiEngineInfo{Id: s.engine, Label: engineLabel(s.engine), BaseUrl: s.base}
 	switch s.engine {
@@ -80,13 +82,25 @@ func detectOne(ctx context.Context, s settings, refresh bool) wshrpc.CommandAiEn
 		}
 		info.Available = true
 		info.Path = path
-		out, _, _ := runProcess(ctx, path, []string{"--version"}, "", "", childEnv())
-		info.Version = versionPattern.FindString(string(out))
 		args := []string{"login", "status"}
 		if s.engine == EngineClaude {
 			args = []string{"auth", "status", "--json"}
 		}
-		out, stderr, err := runProcess(ctx, path, args, "", "", childEnv())
+		// Each probe starts node or a large binary, which can take seconds on a busy
+		// machine, so they run side by side.
+		var versionOut, out, stderr []byte
+		var probes sync.WaitGroup
+		probes.Add(2)
+		go func() {
+			defer probes.Done()
+			versionOut, _, _ = runProcess(ctx, path, []string{"--version"}, "", "", childEnv())
+		}()
+		go func() {
+			defer probes.Done()
+			out, stderr, err = runProcess(ctx, path, args, "", "", childEnv())
+		}()
+		probes.Wait()
+		info.Version = versionPattern.FindString(string(versionOut))
 		if s.engine == EngineCodex {
 			info.SignedIn = err == nil
 			text := string(out) + string(stderr)

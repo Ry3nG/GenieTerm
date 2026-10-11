@@ -14,7 +14,7 @@ import { makeMockNodeModel } from "../mock/mock-node-model";
 import { applyMockEnvOverrides } from "../mock/mockwaveenv";
 import { makeMockCommandAiStatus } from "./commandai.preview-util";
 
-export function WaveConfigPreview() {
+export function SettingsPreview() {
     const baseEnv = useWaveEnv();
     const tabModel = useTabModel();
     const { env, model } = useMemo(() => {

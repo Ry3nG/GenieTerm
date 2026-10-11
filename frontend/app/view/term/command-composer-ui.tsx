@@ -898,7 +898,6 @@ const TermCommandComposer = React.memo(({ model, termWrap, contextLabel, isMac }
 
     const runBlockedReason = React.useCallback(
         (command: string) => commandAi.getRunBlockedReason(command),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [commandAi, shellIntegrationStatus, altScreenActive]
     );
 

@@ -64,6 +64,9 @@ func TestRunSettings(t *testing.T) {
 
 func TestBlockContextAndDistroCache(t *testing.T) {
 	cfg := testConfig(t, "")
+	distroCache.Lock()
+	distroCache.entries = make(map[string]distroEntry)
+	distroCache.Unlock()
 	oldBlock, oldRT := readBlock, readRTInfo
 	t.Cleanup(func() { readBlock = oldBlock; readRTInfo = oldRT })
 	readBlock = func(context.Context, string) (*waveobj.Block, error) {
