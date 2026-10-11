@@ -14,7 +14,7 @@ import * as services from "@/store/services";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { debounce } from "throttle-debounce";
 
 type PageName = "init" | "features";
@@ -109,6 +109,8 @@ const NewInstallOnboardingModal = () => {
         const windowHeight = window.innerHeight;
         setIsCompact(windowHeight < 800);
         if (modalRef.current) {
+            // measure the content's natural height, not a height clamped for the previous page
+            modalRef.current.style.height = "auto";
             const modalHeight = modalRef.current.offsetHeight;
             const maxHeight = windowHeight * 0.9;
             if (maxHeight < modalHeight) {
@@ -136,6 +138,11 @@ const NewInstallOnboardingModal = () => {
             window.removeEventListener("resize", debouncedUpdateModalHeight);
         };
     }, []);
+
+    // the feature tour is much taller than the welcome page; re-clamp before it paints
+    useLayoutEffect(() => {
+        updateModalHeight();
+    }, [pageName]);
 
     useEffect(() => {
         disableGlobalKeybindings();
