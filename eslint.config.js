@@ -19,14 +19,7 @@ export default [
     },
 
     {
-        ignores: [
-            "**/node_modules/**",
-            "**/dist/**",
-            "**/build/**",
-            "**/make/**",
-            "tsunami/frontend/scaffold/**",
-            "docs/.docusaurus/**",
-        ],
+        ignores: ["**/node_modules/**", "**/dist/**", "**/build/**", "**/make/**", "docs/.docusaurus/**"],
     },
 
     {

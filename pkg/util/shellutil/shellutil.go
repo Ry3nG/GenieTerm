@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package shellutil
@@ -22,7 +22,6 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
 	"github.com/Ry3nG/GenieTerm/pkg/utilds"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
-	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 )
 
@@ -209,10 +208,6 @@ func findInstalledGitBash() (string, error) {
 	}
 
 	return "", nil
-}
-
-func DefaultTermSize() waveobj.TermSize {
-	return waveobj.TermSize{Rows: DefaultTermRows, Cols: DefaultTermCols}
 }
 
 func WaveshellLocalEnvVars(termType string) map[string]string {

@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package web
@@ -406,31 +406,6 @@ func handleStreamFile(w http.ResponseWriter, r *http.Request) {
 		log.Printf("error streaming file %q: %v\n", path, err)
 		http.Error(w, fmt.Sprintf("error streaming file: %v", err), http.StatusInternalServerError)
 	}
-}
-
-func WriteJsonError(w http.ResponseWriter, errVal error) {
-	w.Header().Set(ContentTypeHeaderKey, ContentTypeJson)
-	w.WriteHeader(http.StatusOK)
-	errMap := make(map[string]interface{})
-	errMap["error"] = errVal.Error()
-	barr, _ := json.Marshal(errMap)
-	w.Write(barr)
-}
-
-func WriteJsonSuccess(w http.ResponseWriter, data interface{}) {
-	w.Header().Set(ContentTypeHeaderKey, ContentTypeJson)
-	rtnMap := make(map[string]interface{})
-	rtnMap["success"] = true
-	if data != nil {
-		rtnMap["data"] = data
-	}
-	barr, err := json.Marshal(rtnMap)
-	if err != nil {
-		WriteJsonError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write(barr)
 }
 
 type ClientActiveState struct {

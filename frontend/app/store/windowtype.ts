@@ -4,10 +4,6 @@
 // waveWindowType is set once at startup and never changes.
 let waveWindowType: "tab" | "preview" = "tab";
 
-function getWaveWindowType(): "tab" | "preview" {
-    return waveWindowType;
-}
-
 function isTabWindow(): boolean {
     return waveWindowType === "tab";
 }
@@ -20,4 +16,4 @@ function setWaveWindowType(windowType: "tab" | "preview") {
     waveWindowType = windowType;
 }
 
-export { getWaveWindowType, isPreviewWindow, isTabWindow, setWaveWindowType };
+export { isPreviewWindow, isTabWindow, setWaveWindowType };

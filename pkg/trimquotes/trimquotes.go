@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package trimquotes
@@ -21,11 +21,4 @@ func TrimQuotes(s string) (string, bool) {
 func TryTrimQuotes(s string) string {
 	trimmed, _ := TrimQuotes(s)
 	return trimmed
-}
-
-func ReplaceQuotes(s string, shouldReplace bool) string {
-	if shouldReplace {
-		return strconv.Quote(s)
-	}
-	return s
 }

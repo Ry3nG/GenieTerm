@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // wave core application coordinator
@@ -12,7 +12,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -122,25 +121,6 @@ func SendWaveObjUpdate(oref waveobj.ORef) {
 			Obj:        waveObj,
 		},
 	})
-}
-
-func ResolveBlockIdFromPrefix(ctx context.Context, tabId string, blockIdPrefix string) (string, error) {
-	if len(blockIdPrefix) != 8 {
-		return "", fmt.Errorf("widget_id must be 8 characters")
-	}
-
-	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
-	if err != nil {
-		return "", fmt.Errorf("error getting tab: %w", err)
-	}
-
-	for _, blockId := range tab.BlockIds {
-		if strings.HasPrefix(blockId, blockIdPrefix) {
-			return blockId, nil
-		}
-	}
-
-	return "", fmt.Errorf("widget_id not found: %q", blockIdPrefix)
 }
 
 func InitMainServer() error {

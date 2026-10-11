@@ -409,10 +409,6 @@ func readConfigFileFS(fsys fs.FS, logPrefix string, fileName string) (waveobj.Me
 	return readConfigHelper(logPrefix+fileName, barr, readErr)
 }
 
-func ReadDefaultsConfigFile(fileName string) (waveobj.MetaMapType, []ConfigError) {
-	return readConfigFileFS(defaultconfig.ConfigFS, "defaults:", fileName)
-}
-
 func ReadWaveHomeConfigFile(fileName string) (waveobj.MetaMapType, []ConfigError) {
 	configDirAbsPath := wavebase.GetWaveConfigDir()
 	configDirFsys := os.DirFS(configDirAbsPath)

@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wavebase
@@ -135,10 +135,6 @@ func GetWaveAppPath() string {
 	return AppPath_VarCache
 }
 
-func GetWaveAppResourcesPath() string {
-	return AppResourcesPath_VarCache
-}
-
 func GetWaveDataDir() string {
 	return DataHome_VarCache
 }
@@ -149,10 +145,6 @@ func GetWaveConfigDir() string {
 
 func GetWaveAppBinPath() string {
 	return filepath.Join(GetWaveAppPath(), AppPathBinDir)
-}
-
-func GetWaveAppElectronExecPath() string {
-	return AppElectronExecPath_VarCache
 }
 
 func GetHomeDir() string {
@@ -348,14 +340,6 @@ func DetermineLang() string {
 		osLang = determineLang()
 	})
 	return osLang
-}
-
-func DetermineLocale() string {
-	truncated := strings.Split(DetermineLang(), ".")[0]
-	if truncated == "" {
-		return "C"
-	}
-	return strings.Replace(truncated, "_", "-", -1)
 }
 
 func ClientArch() string {

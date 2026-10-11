@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // implements incremental json format
@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 // ijson values are built out of standard go building blocks:
@@ -42,58 +41,12 @@ func MakeSetCommand(path Path, value any) Command {
 	}
 }
 
-func MakeDelCommand(path Path) Command {
-	return Command{
-		"type": DelCommandStr,
-		"path": path,
-	}
-}
-
 func MakeAppendCommand(path Path, value any) Command {
 	return Command{
 		"type": AppendCommandStr,
 		"path": path,
 		"data": value,
 	}
-}
-
-var pathPartKeyRe = regexp.MustCompile(`^[a-zA-Z0-9:_#-]+`)
-
-func ParseSimplePath(input string) ([]any, error) {
-	var path []any
-	// Scan the input string character by character
-	for i := 0; i < len(input); {
-		if input[i] == '[' {
-			// Handle the index
-			end := strings.Index(input[i:], "]")
-			if end == -1 {
-				return nil, fmt.Errorf("unmatched bracket at position %d", i)
-			}
-			index, err := strconv.Atoi(input[i+1 : i+end])
-			if err != nil {
-				return nil, fmt.Errorf("invalid index at position %d: %v", i, err)
-			}
-			path = append(path, index)
-			i += end + 1
-		} else {
-			// Handle the key
-			j := i
-			for j < len(input) && input[j] != '.' && input[j] != '[' {
-				j++
-			}
-			key := input[i:j]
-			if !pathPartKeyRe.MatchString(key) {
-				return nil, fmt.Errorf("invalid key at position %d: %s", i, key)
-			}
-			path = append(path, key)
-			i = j
-		}
-		if i < len(input) && input[i] == '.' {
-			i++
-		}
-	}
-
-	return path, nil
 }
 
 type PathError struct {
@@ -219,11 +172,6 @@ type SetPathOpts struct {
 	Force     bool
 	Remove    bool
 	CombineFn CombiningFunc
-}
-
-func SetPathNoErr(data any, path Path, value any, opts *SetPathOpts) any {
-	ret, _ := SetPath(data, path, value, opts)
-	return ret
 }
 
 func SetPath(data any, path Path, value any, opts *SetPathOpts) (any, error) {
@@ -449,43 +397,6 @@ func setPathInternal(data any, pp pathWithPos, value any, opts SetPathOpts) (any
 	default:
 		return nil, PathError{fmt.Sprintf("invalid path element type %T", pathElem)}
 	}
-}
-
-func NormalizeNumbers(v any) any {
-	switch v := v.(type) {
-	case int:
-		return float64(v)
-	case float32:
-		return float64(v)
-	case int8:
-		return float64(v)
-	case int16:
-		return float64(v)
-	case int32:
-		return float64(v)
-	case int64:
-		return float64(v)
-	case uint:
-		return float64(v)
-	case uint8:
-		return float64(v)
-	case uint16:
-		return float64(v)
-	case uint32:
-		return float64(v)
-	case uint64:
-		return float64(v)
-	case []any:
-		for i, elem := range v {
-			v[i] = NormalizeNumbers(elem)
-		}
-	case map[string]any:
-		for k, elem := range v {
-			v[k] = NormalizeNumbers(elem)
-		}
-	}
-	return v
-
 }
 
 func DeepEqual(v1 any, v2 any) bool {

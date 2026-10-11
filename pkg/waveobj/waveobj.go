@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package waveobj
@@ -189,14 +189,6 @@ func GetOID(waveObj WaveObj) string {
 	return reflect.ValueOf(waveObj).Elem().FieldByIndex(desc.OIDField.Index).String()
 }
 
-func SetOID(waveObj WaveObj, oid string) {
-	desc := getWaveObjDesc(waveObj.GetOType())
-	if desc == nil {
-		return
-	}
-	reflect.ValueOf(waveObj).Elem().FieldByIndex(desc.OIDField.Index).SetString(oid)
-}
-
 func GetVersion(waveObj WaveObj) int {
 	desc := getWaveObjDesc(waveObj.GetOType())
 	if desc == nil {
@@ -298,32 +290,9 @@ func FromJsonMap(m map[string]any) (WaveObj, error) {
 	return wobj, nil
 }
 
-func ORefFromMap(m map[string]any) (*ORef, error) {
-	oref := ORef{}
-	err := mapstructure.Decode(m, &oref)
-	if err != nil {
-		return nil, err
-	}
-	return &oref, nil
-}
-
 func ORefFromWaveObj(w WaveObj) *ORef {
 	return &ORef{
 		OType: w.GetOType(),
 		OID:   GetOID(w),
 	}
-}
-
-func FromJsonGen[T WaveObj](data []byte) (T, error) {
-	obj, err := FromJson(data)
-	if err != nil {
-		var zero T
-		return zero, err
-	}
-	rtn, ok := obj.(T)
-	if !ok {
-		var zero T
-		return zero, fmt.Errorf("type mismatch got %T, expected %T", obj, zero)
-	}
-	return rtn, nil
 }
