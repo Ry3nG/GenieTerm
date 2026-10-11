@@ -24,8 +24,8 @@ import {
     isMacCodeSignatureError,
     launchMacUpdateInstaller,
 } from "./mac-update-installer";
-import { formatReleaseNotes } from "./update-release-notes";
-import { usesPackageManagerUpdates } from "./updater-platform";
+import { formatReleaseNotes, summarizeReleaseNotes } from "./update-release-notes";
+import { checkPackageFeed, usesPackageManagerUpdates } from "./updater-platform";
 
 const ReleasesUrl = "https://github.com/Ry3nG/GenieTerm/releases";
 const UpdateFeedUrl = "https://github.com/Ry3nG/GenieTerm/releases/latest/download/";
@@ -81,6 +81,7 @@ export class Updater {
     autoCheckEnabled: boolean;
     availableUpdateReleaseName: string | null;
     availableUpdateReleaseNotes: string | null;
+    availableUpdateSummary: string | null;
     availableUpdateInfo: UpdateInfo | null;
     availableUpdateFilePath: string | null;
     availableUpdateSha512: string | null;
@@ -102,6 +103,7 @@ export class Updater {
         this.autoCheckInterval = null;
         this.availableUpdateReleaseName = null;
         this.availableUpdateReleaseNotes = null;
+        this.availableUpdateSummary = null;
         this.availableUpdateInfo = null;
         this.availableUpdateFilePath = null;
         this.availableUpdateSha512 = null;
@@ -191,6 +193,7 @@ export class Updater {
             this.availableUpdateInfo = null;
             this.availableUpdateReleaseName = null;
             this.availableUpdateReleaseNotes = null;
+            this.availableUpdateSummary = null;
             this.availableUpdateFilePath = null;
             this.availableUpdateSha512 = null;
             this.status = "up-to-date";
@@ -239,30 +242,27 @@ export class Updater {
     // .deb installs only need to know a newer version exists; the AppImage manifest for this
     // architecture carries the released version
     async checkPackageFeed(): Promise<{ isUpdateAvailable: boolean }> {
-        if (this.status != "manual") {
-            this.status = "checking";
-        }
-        const manifest = process.arch == "arm64" ? "latest-linux-arm64.yml" : "latest-linux.yml";
-        const resp = await net.fetch(UpdateFeedUrl + manifest);
-        if (!resp.ok) {
-            throw new Error(`update feed returned ${resp.status} for ${manifest}`);
-        }
-        const info = YAML.parse(await resp.text()) as UpdateInfo;
-        const current = app.getVersion();
-        const isUpdateAvailable = semver.valid(info?.version) != null && semver.gt(info.version, current);
-        if (!isUpdateAvailable) {
-            this.status = "up-to-date";
-            return { isUpdateAvailable };
-        }
-        this.setAvailableUpdate(info);
-        this.status = "manual";
-        return { isUpdateAvailable };
+        return checkPackageFeed({
+            fetch: (url) => net.fetch(url),
+            parseManifest: (text) => YAML.parse(text),
+            isNewer: (version, current) => semver.gt(version, current),
+            isValidVersion: (version) => typeof version == "string" && semver.valid(version) != null,
+            feedUrl: UpdateFeedUrl,
+            arch: process.arch,
+            currentVersion: app.getVersion(),
+            getStatus: () => this.status,
+            setStatus: (status) => {
+                this.status = status;
+            },
+            onUpdateAvailable: (info) => this.setAvailableUpdate(info as unknown as UpdateInfo),
+        });
     }
 
     private setAvailableUpdate(updateInfo: UpdateInfo) {
         this.availableUpdateInfo = updateInfo;
         this.availableUpdateReleaseName = updateInfo.releaseName ?? `GenieTerm ${updateInfo.version}`;
         this.availableUpdateReleaseNotes = formatReleaseNotes(updateInfo.releaseNotes);
+        this.availableUpdateSummary = summarizeReleaseNotes(updateInfo.releaseNotes);
     }
 
     /**
@@ -322,7 +322,11 @@ export class Updater {
                     : await autoUpdater.checkForUpdates();
             } catch (error) {
                 if (!isChannelFileNotFoundError(error)) {
-                    throw error;
+                    if (!userInput) {
+                        throw error;
+                    }
+                    await this.showCheckFailedMessage(error);
+                    return;
                 }
                 result = null;
             }
@@ -408,29 +412,34 @@ export class Updater {
         this.installPromptInProgress = true;
 
         const releaseTitle = this.availableUpdateReleaseName ?? "A GenieTerm update";
-        const releaseNotes = this.availableUpdateReleaseNotes ? `\n\n${this.availableUpdateReleaseNotes}` : "";
         const installOnQuitAvailable = autoUpdater.autoInstallOnAppQuit && !this.squirrelRejectedUpdate;
-        const laterNote = installOnQuitAvailable
-            ? " If you choose Later, it installs when you quit GenieTerm."
-            : " If you choose Later, GenieTerm will ask again; this build does not install updates on quit.";
+        // one line of what's new and what a restart does; the full notes are a click away
+        const detail = [
+            this.availableUpdateSummary,
+            "Restarting takes a few seconds. Durable SSH sessions pick up where they left off; other open shells start fresh." +
+                (installOnQuitAvailable ? " Choose Later to install when you quit." : ""),
+        ]
+            .filter(Boolean)
+            .join("\n\n");
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "info",
-            buttons: ["Restart Now", "Later"],
+            buttons: ["Restart Now", "Later", "What's New"],
             defaultId: 0,
             cancelId: 1,
             title: "GenieTerm Update",
-            message: `${releaseTitle} is ready to install.`,
-            detail: `Restart GenieTerm now to finish installing the update.${laterNote}${releaseNotes}`,
+            message: `${releaseTitle} is ready`,
+            detail,
         };
 
         try {
             const allWindows = getAllWaveWindows();
             if (allWindows.length > 0) {
-                await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts).then(({ response }) => {
-                    if (response === 0) {
-                        fireAndForget(this.installUpdate.bind(this));
-                    }
-                });
+                const { response } = await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts);
+                if (response === 0) {
+                    fireAndForget(this.installUpdate.bind(this));
+                } else if (response === 2) {
+                    await shell.openExternal(this.releasePageUrl());
+                }
             }
         } finally {
             this.installPromptInProgress = false;
@@ -509,21 +518,45 @@ export class Updater {
         });
     }
 
+    async showCheckFailedMessage(error: unknown) {
+        console.warn("update check failed", error);
+        const dialogOpts: Electron.MessageBoxOptions = {
+            type: "warning",
+            message: "GenieTerm couldn't check for updates.",
+            detail: `${error instanceof Error ? error.message : String(error)}\n\nCheck your connection and try again from the GenieTerm menu.`,
+        };
+        const window = focusedWaveWindow ?? getAllWaveWindows()[0];
+        if (window) {
+            await dialog.showMessageBox(window, dialogOpts);
+        }
+    }
+
+    releasePageUrl(): string {
+        const version = this.availableUpdateInfo?.version;
+        return version ? `${ReleasesUrl}/tag/v${version}` : `${ReleasesUrl}/latest`;
+    }
+
     async showPackageUpdateDialog() {
         const version = this.availableUpdateInfo?.version;
-        const releasePageUrl = version ? `${ReleasesUrl}/tag/v${version}` : `${ReleasesUrl}/latest`;
-        const arch = process.arch == "arm64" ? "arm64" : "amd64";
+        const arch = process.arch == "arm64" ? "arm64" : "x64";
+        const debName = version ? `GenieTerm-linux-${arch}-${version}.deb` : `the .deb for ${arch}`;
+        const detail = [
+            this.availableUpdateSummary,
+            `This copy was installed from a .deb, so update it the same way: download ${debName} from the release page and run sudo apt install ./${version ? debName : "<package>.deb"}.`,
+        ]
+            .filter(Boolean)
+            .join("\n\n");
         const { response } = await dialog.showMessageBox({
             type: "info",
             buttons: ["Open Release Page", "Later"],
             defaultId: 0,
             cancelId: 1,
             title: "GenieTerm Update",
-            message: `${this.availableUpdateReleaseName ?? `GenieTerm ${version ?? ""}`.trim()} is available.`,
-            detail: `This copy of GenieTerm was installed with a system package, so it updates the same way: download the new .deb for ${arch} from the release page and open it, or install it with\n\nsudo apt install ./<downloaded .deb>\n\nThe AppImage build updates itself instead.`,
+            message: `${this.availableUpdateReleaseName ?? `GenieTerm ${version ?? ""}`.trim()} is available`,
+            detail,
         });
         if (response == 0) {
-            await shell.openExternal(releasePageUrl);
+            await shell.openExternal(this.releasePageUrl());
         }
     }
 

@@ -107,7 +107,7 @@ export function verifyLinuxDesktop(text, pkg = Pkg) {
   for (const [key, value] of Object.entries({
     Name: pkg.productName,
     Comment: pkg.description,
-    Categories: "Development;TerminalEmulator;System;",
+    Categories: "System;TerminalEmulator;",
     StartupWMClass: pkg.productName,
     Icon: pkg.name,
   })) {

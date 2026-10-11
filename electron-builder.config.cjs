@@ -101,7 +101,7 @@ const config = {
     linux: {
         // Linux wavesrv is built for the host architecture. Avoid builder's x86_64/amd64 filename aliases.
         artifactName: `\${productName}-linux-${process.arch}-\${version}.\${ext}`,
-        category: "Development;TerminalEmulator;System",
+        category: "System",
         executableName: pkg.name,
         target: linuxTargets,
         synopsis: pkg.description,
@@ -111,7 +111,8 @@ const config = {
                 Name: pkg.productName,
                 Comment: pkg.description,
                 Keywords: "developer;terminal;emulator;",
-                Categories: "Development;TerminalEmulator;System;",
+                // one main category (System) plus TerminalEmulator, as GNOME Terminal does; desktop-file-validate flags more
+                Categories: "System;TerminalEmulator;",
                 StartupWMClass: pkg.productName,
             },
         },

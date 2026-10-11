@@ -63,7 +63,7 @@ function writeMetadata(dir, platform, arch, version = Pkg.version) {
 }
 
 function desktop() {
-  return `[Desktop Entry]\nName=${Pkg.productName}\nComment=${Pkg.description}\nCategories=Development;TerminalEmulator;System;\nStartupWMClass=${Pkg.productName}\nIcon=${Pkg.name}\nKeywords=developer;terminal;emulator;\nExec=/opt/${Pkg.productName}/${Pkg.name} %U\n`;
+  return `[Desktop Entry]\nName=${Pkg.productName}\nComment=${Pkg.description}\nCategories=System;TerminalEmulator;\nStartupWMClass=${Pkg.productName}\nIcon=${Pkg.name}\nKeywords=developer;terminal;emulator;\nExec=/opt/${Pkg.productName}/${Pkg.name} %U\n`;
 }
 
 function control(arch, version = Pkg.version) {

@@ -184,7 +184,8 @@ jobs:
                   sysctl kernel.apparmor_restrict_unprivileged_userns || true
                   test -x /opt/GenieTerm/genieterm
                   test "$(readlink -f /usr/bin/genieterm)" = /opt/GenieTerm/genieterm
-                  desktop-file-validate /usr/share/applications/genieterm.desktop
+                  VALIDATE="$(desktop-file-validate /usr/share/applications/genieterm.desktop 2>&1 || true)"
+                  if [ -n "${VALIDATE}" ]; then echo "${VALIDATE}"; exit 1; fi
                   if [ -e /etc/apparmor.d/abi/4.0 ]; then
                     test -f /etc/apparmor.d/genieterm
                     sudo apparmor_parser --preprocess /etc/apparmor.d/genieterm > /dev/null
