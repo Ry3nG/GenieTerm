@@ -17,7 +17,7 @@ const Osc52MaxDecodedSize = 75 * 1024; // max clipboard size for OSC 52 (matches
 const Osc52MaxRawLength = 128 * 1024; // includes selector + base64 + whitespace (rough check)
 
 // OSC 16162 - Shell Integration Commands
-// See aiprompts/wave-osc-16162.md for full documentation
+// See docs/architecture/shell-integration.md for the protocol and replay behavior.
 export type ShellIntegrationStatus = "ready" | "running-command";
 
 const ClaudeCodeRegex = /^claude\b/;
