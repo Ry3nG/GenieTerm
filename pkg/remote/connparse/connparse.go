@@ -64,6 +64,11 @@ func (c *Connection) GetFullURI() string {
 		}
 		return (&url.URL{Scheme: "file", Path: filePath}).String()
 	}
+	if c.Scheme == "file" {
+		// hosted file URIs (file://server/share/...) are decoded on parse, so they must be
+		// re-escaped here to round-trip (a raw space is not a valid URI)
+		return (&url.URL{Scheme: "file", Host: c.Host, Path: c.Path}).String()
+	}
 	return c.Scheme + "://" + c.GetPathWithHost()
 }
 

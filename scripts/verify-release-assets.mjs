@@ -40,6 +40,11 @@ export function getExpectedReleaseAssets({ productName, version, includeWindows 
     `${productName}-darwin-arm64-${version}.zip`,
     `${productName}-darwin-x64-${version}.zip`,
     ...channels.map((channel) => getMetadataFileName(channel, "mac")),
+    ...["x64", "arm64"].flatMap((arch) => [
+      `${productName}-linux-${arch}-${version}.AppImage`,
+      `${productName}-linux-${arch}-${version}.deb`,
+      ...channels.map((channel) => getMetadataFileName(channel, "linux", arch)),
+    ]),
   ];
   if (includeWindows) {
     required.push(
@@ -48,7 +53,7 @@ export function getExpectedReleaseAssets({ productName, version, includeWindows 
       ...channels.map((channel) => getMetadataFileName(channel, "windows"))
     );
   }
-  const optional = required.filter((name) => /\.(dmg|zip|exe)$/.test(name)).map((name) => `${name}.blockmap`);
+  const optional = required.filter((name) => /\.(dmg|zip|exe|AppImage)$/.test(name)).map((name) => `${name}.blockmap`);
   return { channels, required, optional };
 }
 
@@ -101,6 +106,20 @@ function main() {
         version,
         productName,
         requiredArches: platform === "mac" ? ["arm64", "x64"] : ["x64"],
+      });
+    } catch (error) {
+      fail(error.message);
+    }
+  }
+  for (const arch of ["x64", "arm64"]) {
+    const metadataPath = byName.get(getMetadataFileName(channels[0], "linux", arch));
+    try {
+      verifyUpdateMetadata({
+        dir: path.dirname(metadataPath),
+        platform: "linux",
+        version,
+        productName,
+        requiredArches: [arch],
       });
     } catch (error) {
       fail(error.message);

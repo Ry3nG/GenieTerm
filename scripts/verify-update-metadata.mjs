@@ -32,7 +32,10 @@ export function getUpdateChannels(version) {
   return [prerelease];
 }
 
-export function getMetadataFileName(channel, platform) {
+export function getMetadataFileName(channel, platform, arch = "x64") {
+  if (platform === "linux") {
+    return `${channel}-linux${arch === "x64" ? "" : `-${arch}`}.yml`;
+  }
   return platform === "mac" ? `${channel}-mac.yml` : `${channel}.yml`;
 }
 
@@ -99,6 +102,42 @@ function verifyMetadataFile(dir, fileName, options, hashFile) {
 
 export function verifyUpdateMetadata({ dir, platform, version, productName, requiredArches = [] }) {
   const hashFile = makeHashCache();
+  if (platform === "linux") {
+    const arches =
+      requiredArches.length > 0
+        ? requiredArches
+        : ["x64", "arm64"].filter((arch) =>
+            existsSync(path.join(dir, `${productName}-linux-${arch}-${version}.AppImage`))
+          );
+    if (arches.length === 0) {
+      fail(`no Linux AppImage update payload was found in ${dir}`);
+    }
+    const channels = getUpdateChannels(version);
+    for (const arch of arches) {
+      if (!["x64", "arm64"].includes(arch)) {
+        fail(`unsupported Linux architecture ${arch}`);
+      }
+      const requiredUrl = `${productName}-linux-${arch}-${version}.AppImage`;
+      for (const channel of channels) {
+        const fileName = getMetadataFileName(channel, platform, arch);
+        const files = verifyMetadataFile(
+          dir,
+          fileName,
+          {
+            version,
+            payloadExtension: ".AppImage",
+            requiredUrls: [requiredUrl],
+          },
+          hashFile
+        );
+        if (files.length !== 1 || files[0].url !== requiredUrl) {
+          fail(`${fileName} must contain only ${requiredUrl}`);
+        }
+        console.log(`[${Scope}] verified ${fileName}: ${requiredUrl}`);
+      }
+    }
+    return channels;
+  }
   const isMac = platform === "mac";
   const payloadExtension = isMac ? ".zip" : ".exe";
   const payloadPrefix = isMac ? `${productName}-darwin-` : `${productName}-win32-`;
@@ -131,8 +170,8 @@ function parseArgs(argv) {
   const options = { dir: null, platforms: [], requiredArches: [] };
   for (let idx = 0; idx < argv.length; idx++) {
     const arg = argv[idx];
-    if (arg === "--mac" || arg === "--windows") {
-      options.platforms.push(arg === "--mac" ? "mac" : "windows");
+    if (["--mac", "--windows", "--linux"].includes(arg)) {
+      options.platforms.push(arg.slice(2));
       continue;
     }
     if (arg === "--require-arch") {
@@ -160,7 +199,7 @@ function main() {
       platform,
       version: pkg.version,
       productName: pkg.productName,
-      requiredArches: platform === "mac" ? options.requiredArches : [],
+      requiredArches: options.requiredArches,
     });
   }
   console.log(`[${Scope}] all update metadata checks passed`);

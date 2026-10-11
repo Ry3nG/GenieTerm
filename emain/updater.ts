@@ -1,11 +1,12 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { app, dialog, ipcMain, Notification, shell } from "electron";
+import { app, dialog, ipcMain, net, Notification, shell } from "electron";
 import type { UpdateDownloadedEvent, UpdateInfo } from "electron-updater";
 import { autoUpdater } from "electron-updater";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
+import semver from "semver";
 import YAML from "yaml";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { isDev } from "../frontend/util/isdev";
@@ -23,9 +24,11 @@ import {
     isMacCodeSignatureError,
     launchMacUpdateInstaller,
 } from "./mac-update-installer";
-import { formatReleaseNotes } from "./update-release-notes";
+import { formatReleaseNotes, summarizeReleaseNotes } from "./update-release-notes";
+import { checkPackageFeed, usesPackageManagerUpdates } from "./updater-platform";
 
 const ReleasesUrl = "https://github.com/Ry3nG/GenieTerm/releases";
+const UpdateFeedUrl = "https://github.com/Ry3nG/GenieTerm/releases/latest/download/";
 const ChannelFileNotFoundCode = "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND";
 
 export let updater: Updater;
@@ -48,7 +51,10 @@ async function checkMacDeveloperIdSignature(): Promise<boolean> {
 
 function getUpdateChannel(settings: SettingsType): string {
     const updaterConfigPath = path.join(process.resourcesPath!, "app-update.yml");
-    const updaterConfig = YAML.parse(readFileSync(updaterConfigPath, { encoding: "utf8" }).toString());
+    // package-managed Linux builds ship without updater config; they follow the stable feed
+    const updaterConfig = existsSync(updaterConfigPath)
+        ? YAML.parse(readFileSync(updaterConfigPath, { encoding: "utf8" }).toString())
+        : {};
     console.log("Updater config from binary:", updaterConfig);
     const updaterChannel: string = updaterConfig.channel ?? "latest";
     const settingsChannel = settings["autoupdate:channel"];
@@ -75,6 +81,7 @@ export class Updater {
     autoCheckEnabled: boolean;
     availableUpdateReleaseName: string | null;
     availableUpdateReleaseNotes: string | null;
+    availableUpdateSummary: string | null;
     availableUpdateInfo: UpdateInfo | null;
     availableUpdateFilePath: string | null;
     availableUpdateSha512: string | null;
@@ -96,6 +103,7 @@ export class Updater {
         this.autoCheckInterval = null;
         this.availableUpdateReleaseName = null;
         this.availableUpdateReleaseNotes = null;
+        this.availableUpdateSummary = null;
         this.availableUpdateInfo = null;
         this.availableUpdateFilePath = null;
         this.availableUpdateSha512 = null;
@@ -103,10 +111,11 @@ export class Updater {
         this.installOnQuitSetting = settings["autoupdate:installonquit"];
         this.squirrelRejectedUpdate = false;
 
-        autoUpdater.autoDownload = true;
+        autoUpdater.autoDownload = !usesPackageManagerUpdates();
         // On macOS, install-on-quit goes through Squirrel.Mac, which rejects builds without a Developer ID
         // signature. Keep it off until the signature check below confirms Squirrel can be used.
-        autoUpdater.autoInstallOnAppQuit = process.platform != "darwin" && this.installOnQuitSetting;
+        autoUpdater.autoInstallOnAppQuit =
+            process.platform != "darwin" && !usesPackageManagerUpdates() && this.installOnQuitSetting;
         console.log("Download update automatically:", autoUpdater.autoDownload);
         this.macDeveloperIdSigned = checkMacDeveloperIdSignature();
         if (process.platform == "darwin") {
@@ -184,6 +193,7 @@ export class Updater {
             this.availableUpdateInfo = null;
             this.availableUpdateReleaseName = null;
             this.availableUpdateReleaseNotes = null;
+            this.availableUpdateSummary = null;
             this.availableUpdateFilePath = null;
             this.availableUpdateSha512 = null;
             this.status = "up-to-date";
@@ -229,10 +239,30 @@ export class Updater {
         });
     }
 
+    // .deb installs only need to know a newer version exists; the AppImage manifest for this
+    // architecture carries the released version
+    async checkPackageFeed(): Promise<{ isUpdateAvailable: boolean }> {
+        return checkPackageFeed({
+            fetch: (url) => net.fetch(url),
+            parseManifest: (text) => YAML.parse(text),
+            isNewer: (version, current) => semver.gt(version, current),
+            isValidVersion: (version) => typeof version == "string" && semver.valid(version) != null,
+            feedUrl: UpdateFeedUrl,
+            arch: process.arch,
+            currentVersion: app.getVersion(),
+            getStatus: () => this.status,
+            setStatus: (status) => {
+                this.status = status;
+            },
+            onUpdateAvailable: (info) => this.setAvailableUpdate(info as unknown as UpdateInfo),
+        });
+    }
+
     private setAvailableUpdate(updateInfo: UpdateInfo) {
         this.availableUpdateInfo = updateInfo;
         this.availableUpdateReleaseName = updateInfo.releaseName ?? `GenieTerm ${updateInfo.version}`;
         this.availableUpdateReleaseNotes = formatReleaseNotes(updateInfo.releaseNotes);
+        this.availableUpdateSummary = summarizeReleaseNotes(updateInfo.releaseNotes);
     }
 
     /**
@@ -264,6 +294,10 @@ export class Updater {
      * @param userInput Whether the user is requesting this. If so, an alert will report the result of the check.
      */
     async checkForUpdates(userInput: boolean) {
+        if (userInput && this.status == "manual") {
+            await this.showPackageUpdateDialog();
+            return;
+        }
         if (userInput && this.status == "ready") {
             await this.promptToInstallUpdate();
             return;
@@ -281,12 +315,18 @@ export class Updater {
             (this.autoCheckInterval &&
                 (!this.lastUpdateCheck || Math.abs(now.getTime() - this.lastUpdateCheck.getTime()) > this.intervalms))
         ) {
-            let result: Awaited<ReturnType<typeof autoUpdater.checkForUpdates>>;
+            let result: { isUpdateAvailable: boolean };
             try {
-                result = await autoUpdater.checkForUpdates();
+                result = usesPackageManagerUpdates()
+                    ? await this.checkPackageFeed()
+                    : await autoUpdater.checkForUpdates();
             } catch (error) {
                 if (!isChannelFileNotFoundError(error)) {
-                    throw error;
+                    if (!userInput) {
+                        throw error;
+                    }
+                    await this.showCheckFailedMessage(error);
+                    return;
                 }
                 result = null;
             }
@@ -306,7 +346,7 @@ export class Updater {
                 }
             }
             if (userInput && result?.isUpdateAvailable) {
-                if (this.status == "ready") {
+                if (this.status == "ready" || this.status == "manual") {
                     await this.promptToInstallUpdate();
                 } else {
                     await this.showUpdateDownloadingMessage();
@@ -355,6 +395,10 @@ export class Updater {
      * Prompts the user to install the downloaded application update and restarts the application
      */
     async promptToInstallUpdate() {
+        if (this.status == "manual") {
+            await this.showPackageUpdateDialog();
+            return;
+        }
         if (this.status == "available" || this.status == "downloading" || this.status == "checking") {
             await this.showUpdateDownloadingMessage();
             return;
@@ -368,29 +412,34 @@ export class Updater {
         this.installPromptInProgress = true;
 
         const releaseTitle = this.availableUpdateReleaseName ?? "A GenieTerm update";
-        const releaseNotes = this.availableUpdateReleaseNotes ? `\n\n${this.availableUpdateReleaseNotes}` : "";
         const installOnQuitAvailable = autoUpdater.autoInstallOnAppQuit && !this.squirrelRejectedUpdate;
-        const laterNote = installOnQuitAvailable
-            ? " If you choose Later, it installs when you quit GenieTerm."
-            : " If you choose Later, GenieTerm will ask again; this build does not install updates on quit.";
+        // one line of what's new and what a restart does; the full notes are a click away
+        const detail = [
+            this.availableUpdateSummary,
+            "Restarting takes a few seconds. Durable SSH sessions pick up where they left off; other open shells start fresh." +
+                (installOnQuitAvailable ? " Choose Later to install when you quit." : ""),
+        ]
+            .filter(Boolean)
+            .join("\n\n");
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "info",
-            buttons: ["Restart Now", "Later"],
+            buttons: ["Restart Now", "Later", "What's New"],
             defaultId: 0,
             cancelId: 1,
             title: "GenieTerm Update",
-            message: `${releaseTitle} is ready to install.`,
-            detail: `Restart GenieTerm now to finish installing the update.${laterNote}${releaseNotes}`,
+            message: `${releaseTitle} is ready`,
+            detail,
         };
 
         try {
             const allWindows = getAllWaveWindows();
             if (allWindows.length > 0) {
-                await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts).then(({ response }) => {
-                    if (response === 0) {
-                        fireAndForget(this.installUpdate.bind(this));
-                    }
-                });
+                const { response } = await dialog.showMessageBox(focusedWaveWindow ?? allWindows[0], dialogOpts);
+                if (response === 0) {
+                    fireAndForget(this.installUpdate.bind(this));
+                } else if (response === 2) {
+                    await shell.openExternal(this.releasePageUrl());
+                }
             }
         } finally {
             this.installPromptInProgress = false;
@@ -467,6 +516,48 @@ export class Updater {
             message: "GenieTerm could not start the update installer.",
             detail: "The update is still downloaded. Try Restart Now again or install the latest release manually.",
         });
+    }
+
+    async showCheckFailedMessage(error: unknown) {
+        console.warn("update check failed", error);
+        const dialogOpts: Electron.MessageBoxOptions = {
+            type: "warning",
+            message: "GenieTerm couldn't check for updates.",
+            detail: `${error instanceof Error ? error.message : String(error)}\n\nCheck your connection and try again from the GenieTerm menu.`,
+        };
+        const window = focusedWaveWindow ?? getAllWaveWindows()[0];
+        if (window) {
+            await dialog.showMessageBox(window, dialogOpts);
+        }
+    }
+
+    releasePageUrl(): string {
+        const version = this.availableUpdateInfo?.version;
+        return version ? `${ReleasesUrl}/tag/v${version}` : `${ReleasesUrl}/latest`;
+    }
+
+    async showPackageUpdateDialog() {
+        const version = this.availableUpdateInfo?.version;
+        const arch = process.arch == "arm64" ? "arm64" : "x64";
+        const debName = version ? `GenieTerm-linux-${arch}-${version}.deb` : `the .deb for ${arch}`;
+        const detail = [
+            this.availableUpdateSummary,
+            `This copy was installed from a .deb, so update it the same way: download ${debName} from the release page and run sudo apt install ./${version ? debName : "<package>.deb"}.`,
+        ]
+            .filter(Boolean)
+            .join("\n\n");
+        const { response } = await dialog.showMessageBox({
+            type: "info",
+            buttons: ["Open Release Page", "Later"],
+            defaultId: 0,
+            cancelId: 1,
+            title: "GenieTerm Update",
+            message: `${this.availableUpdateReleaseName ?? `GenieTerm ${version ?? ""}`.trim()} is available`,
+            detail,
+        });
+        if (response == 0) {
+            await shell.openExternal(this.releasePageUrl());
+        }
     }
 
     async showManualInstallDialog(reason: string) {

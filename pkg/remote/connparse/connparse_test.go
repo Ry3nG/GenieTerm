@@ -561,3 +561,24 @@ func TestParseURI_S3BucketOnly(t *testing.T) {
 	t.Log("Testing with trailing slash")
 	testUri("profile:s3://bucket/", "/", "bucket/")
 }
+
+func TestParseURI_HostedFileURIRoundTripsEscapes(t *testing.T) {
+	t.Parallel()
+	for _, uri := range []string{
+		"file://server/share/My%20Files/out.txt",
+		"file://server/share/plain/out.txt",
+		"file://server/share/%E8%AE%AD%E7%BB%83.mp4",
+	} {
+		c, err := connparse.ParseURI(uri)
+		if err != nil {
+			t.Fatalf("ParseURI(%q): %v", uri, err)
+		}
+		if got := c.GetFullURI(); got != uri {
+			t.Fatalf("GetFullURI() = %q, want %q (path %q)", got, uri, c.Path)
+		}
+		again, err := connparse.ParseURI(c.GetFullURI())
+		if err != nil || again.Path != c.Path || again.Host != c.Host {
+			t.Fatalf("re-parse of %q gave %+v, err %v", c.GetFullURI(), again, err)
+		}
+	}
+}

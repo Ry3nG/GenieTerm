@@ -58,6 +58,148 @@ jobs:
             - name: V1 gate
               run: node scripts/v1-gate.mjs
 
+    linux-package:
+        name: Linux x64 package
+        runs-on: ubuntu-22.04
+        timeout-minutes: 90
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install Zig (glibc 2.28 CGO toolchain)
+              uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+              with:
+                  version: 0.13.0
+
+            - name: Install Linux packaging and smoke dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y xvfb xauth libfuse2 libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 libsecret-1-0 libgbm1 libasound2 libatspi2.0-0 libuuid1 xdg-utils desktop-file-utils
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - name: Linux packaging verifier tests
+              run: npm test -- --run scripts/linux-package.test.mjs
+
+            - name: Build Linux AppImage and deb
+              run: task package -- --linux --x64 --publish never
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+                  GENIETERM_LINUX_TARGETS: AppImage,deb
+
+            - name: Verify Linux packages and update metadata
+              run: task package:verify -- make --require-arch x64
+
+            - name: Launch extracted AppImage (window smoke)
+              run: |
+                  VERSION="$(node -p "require('./package.json').version")"
+                  xvfb-run -a node scripts/verify-installed-app.mjs --window-smoke --linux-appimage "make/GenieTerm-linux-x64-${VERSION}.AppImage"
+
+            - name: Verify packaging left the checkout unchanged
+              run: |
+                  # setup-zig keeps its cache in the workspace; generated source changes must still fail.
+                  CHANGES="$(git status --porcelain --untracked-files=all -- . ':(exclude).zig-cache')"
+                  if [ -n "${CHANGES}" ]; then
+                    echo "::error::Packaging modified the checkout, so the artifacts would not match ${GITHUB_SHA}"
+                    echo "${CHANGES}"
+                    git diff --stat
+                    exit 1
+                  fi
+
+            - name: Upload Linux package artifacts
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: genieterm-linux-x64
+                  if-no-files-found: error
+                  path: |
+                      make/*.AppImage
+                      make/*.deb
+                      make/*.blockmap
+                      make/*-linux*.yml
+
+    linux-deb-ubuntu-2404:
+        name: Linux deb on Ubuntu 24.04
+        needs: linux-package
+        # 24.04 restricts unprivileged user namespaces; the installed package must still run sandboxed
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: genieterm-linux-x64
+                  path: linux-x64
+
+            - name: Install the deb with apt
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y xvfb xauth desktop-file-utils
+                  sudo apt-get install -y ./linux-x64/GenieTerm-linux-x64-*.deb
+
+            - name: Check the PATH link, desktop entry and AppArmor profile
+              run: |
+                  sysctl kernel.apparmor_restrict_unprivileged_userns || true
+                  test -x /opt/GenieTerm/genieterm
+                  test "$(readlink -f /usr/bin/genieterm)" = /opt/GenieTerm/genieterm
+                  VALIDATE="$(desktop-file-validate /usr/share/applications/genieterm.desktop 2>&1 || true)"
+                  if [ -n "${VALIDATE}" ]; then echo "${VALIDATE}"; exit 1; fi
+                  if [ -e /etc/apparmor.d/abi/4.0 ]; then
+                    test -f /etc/apparmor.d/genieterm
+                    sudo apparmor_parser --preprocess /etc/apparmor.d/genieterm > /dev/null
+                  fi
+
+            - name: Launch the installed app with the sandbox on
+              run: xvfb-run -a node scripts/verify-installed-app.mjs --window-smoke --linux-installed /opt/GenieTerm
+
+            - name: Remove the package and check cleanup
+              run: |
+                  sudo apt-get remove -y genieterm
+                  test ! -e /usr/bin/genieterm
+                  test ! -e /etc/apparmor.d/genieterm
+
     windows-package:
         name: Windows x64 package
         runs-on: windows-latest

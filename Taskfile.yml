@@ -89,13 +89,13 @@ tasks:
             - npm run build:prod && npm exec electron-builder -- -c electron-builder.config.cjs -p never {{.CLI_ARGS}} && node scripts/normalize-update-metadata.mjs
 
     package:verify:
-        desc: Verify packaged macOS app identity, version, helpers, code signature, and update metadata.
+        desc: Verify macOS or Linux packages, identity, version, helpers, and update metadata.
         cmd: node scripts/verify-package-artifact.mjs {{.CLI_ARGS}}
         deps:
             - npm:install
 
     installed:verify:
-        desc: Verify installed macOS app identity, version, helpers, signature, and optional launch smoke.
+        desc: Verify a macOS app or extracted Linux AppImage, with optional window smoke.
         cmd: node scripts/verify-installed-app.mjs {{.CLI_ARGS}}
         deps:
             - npm:install
@@ -448,4 +448,3 @@ tasks:
     godoc:
         desc: Start the Go documentation server for the root module
         cmd: $(go env GOPATH)/bin/pkgsite -http=:6060
-

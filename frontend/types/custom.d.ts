@@ -380,7 +380,16 @@ declare global {
         dispose?: () => void;
     }
 
-    type UpdaterStatus = "up-to-date" | "checking" | "available" | "downloading" | "ready" | "error" | "installing";
+    // "manual": a newer version exists but this install (a Linux .deb) is updated by the package manager
+    type UpdaterStatus =
+        | "up-to-date"
+        | "checking"
+        | "available"
+        | "downloading"
+        | "ready"
+        | "error"
+        | "installing"
+        | "manual";
 
     // jotai doesn't export this type :/
     type Loadable<T> = { state: "loading" } | { state: "hasData"; data: T } | { state: "hasError"; error: unknown };

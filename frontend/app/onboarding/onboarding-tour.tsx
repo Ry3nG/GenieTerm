@@ -137,13 +137,16 @@ export function TourPage({
                 <h2 className="mt-1.5 text-[24px] font-semibold leading-tight text-foreground">{title}</h2>
                 <p className="mt-2 max-w-[620px] text-pretty text-[14px] leading-6 text-secondary">{lede}</p>
             </header>
-            <div className="unselectable grid h-[292px] flex-shrink-0 grid-cols-[minmax(0,1fr)_372px] gap-8">
-                <div className="flex flex-col justify-center gap-5">
-                    {features.map((feature) => (
-                        <FeatureRow key={feature.title} {...feature} />
-                    ))}
+            {/* in a short window the modal is clamped; the middle scrolls so Back/Next stay on screen */}
+            <div className="unselectable min-h-0 flex-1 overflow-y-auto">
+                <div className="grid h-[292px] grid-cols-[minmax(0,1fr)_372px] gap-8">
+                    <div className="flex flex-col justify-center gap-5">
+                        {features.map((feature) => (
+                            <FeatureRow key={feature.title} {...feature} />
+                        ))}
+                    </div>
+                    <div className="min-h-0">{illustration}</div>
                 </div>
-                <div className="min-h-0">{illustration}</div>
             </div>
             {footer}
         </div>

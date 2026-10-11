@@ -22,6 +22,8 @@ export function getUpdateStatusMessage(status: UpdaterStatus): string | null {
             return "Downloading Update";
         case "ready":
             return "Install Update";
+        case "manual":
+            return "Update Available";
         case "installing":
             return "Installing Update";
         default:
@@ -41,12 +43,15 @@ export function getUpdateStatusIcon(status: UpdaterStatus): string {
 }
 
 export function isUpdateStatusActionable(status: UpdaterStatus): boolean {
-    return status === "ready";
+    return status === "ready" || status === "manual";
 }
 
 export function getUpdateStatusTooltip(status: UpdaterStatus, message: string): string {
     if (status === "ready") {
         return "Restart GenieTerm to install update";
+    }
+    if (status === "manual") {
+        return "A new version is available. Click to see how to install it";
     }
     if (status === "downloading" || status === "available") {
         return "Downloading update in the background";

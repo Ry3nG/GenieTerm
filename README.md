@@ -15,13 +15,20 @@ GenieTerm is a macOS terminal built around four things that usually live in sepa
 
 Long commands notify you when they finish while you're looking elsewhere, and every terminal header shows the folder and git branch it's in.
 
-It runs on your machine. There is no account and no usage data. The one AI feature is optional: press ⇧⌘Space, describe what you want, and GenieTerm proposes a command for you to review. It never runs one on its own.
+It runs on your machine. There is no account and no usage data. The one AI feature is optional: press ⇧⌘Space (Shift+Alt+Space on Linux), describe what you want, and GenieTerm proposes a command for you to review. It never runs one on its own.
 
 ## Install
 
-Download the latest release from the [Releases page](https://github.com/Ry3nG/GenieTerm/releases) (Apple Silicon and Intel). The app is ad-hoc signed and not notarized, so the first launch is blocked by Gatekeeper: move it to `/Applications`, try to open it once, then choose **Open Anyway** in System Settings → Privacy & Security. GenieTerm updates itself after that.
+Download the latest release from the [Releases page](https://github.com/Ry3nG/GenieTerm/releases).
 
-A Windows x64 build is published as an unsigned preview on prerelease tags; see [`docs/windows-release-gate.md`](docs/windows-release-gate.md). Linux is not shipped.
+**macOS** (Apple Silicon and Intel). The app is ad-hoc signed and not notarized, so Gatekeeper blocks the first launch. Move it to `/Applications`, try to open it once, then choose **Open Anyway** in System Settings → Privacy & Security. GenieTerm updates itself after that.
+
+**Linux** (x64 and arm64). These builds run on glibc 2.28 and later, for example Ubuntu 20.04 or Debian 10.
+
+- **AppImage:** make it executable (`chmod +x GenieTerm-linux-x64-*.AppImage`), then run it. It updates itself. Ubuntu 22.04 and later need the `libfuse2` package to run AppImages (`libfuse2t64` on 24.04).
+- **Debian and Ubuntu:** run `sudo apt install ./GenieTerm-linux-x64-*.deb`. GenieTerm tells you when a new version is out, and you install the new `.deb` the same way.
+
+**Windows:** an x64 build is published as an unsigned preview on prerelease tags. See [`docs/windows-release-gate.md`](docs/windows-release-gate.md).
 
 ## The `genie` helper
 
@@ -48,6 +55,13 @@ Build and install a local macOS package (build outside File Provider-managed fol
 GENIETERM_BUILD_OUTPUT=/private/tmp/genieterm-make task package -- --mac zip --arm64
 rm -rf /Applications/GenieTerm.app
 ditto --norsrc /private/tmp/genieterm-make/mac-arm64/GenieTerm.app /Applications/GenieTerm.app
+```
+
+On Linux, with Node 22, Go, Task and Zig 0.13 installed, build for the machine's own architecture:
+
+```sh
+GENIETERM_LINUX_TARGETS=AppImage,deb task package -- --linux
+task package:verify -- make --require-arch "$(node -p process.arch)"
 ```
 
 On Windows x64, with Node 22, Go, Task and Zig installed:

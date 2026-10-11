@@ -91,3 +91,33 @@ function trimToDialogLength(text: string): string {
     }
     return `${trimmed.trim()}...`;
 }
+
+const MaxSummaryLength = 220;
+
+// The opening paragraph of a release's notes (under its title), for a dialog that has room for
+// one line of "what's new" and links to the rest.
+export function summarizeReleaseNotes(releaseNotes: ReleaseNotesInput): string | null {
+    if (releaseNotes == null) {
+        return null;
+    }
+    const raw = typeof releaseNotes === "string" ? releaseNotes : releaseNotes.find((n) => n.note)?.note;
+    if (!raw) {
+        return null;
+    }
+    const paragraphs = raw
+        .replace(/\r\n/g, "\n")
+        .replace(/<!--[\s\S]*?-->/g, "")
+        .split(/\n\s*\n/)
+        .map((p) => p.trim())
+        .filter((p) => p && !/^#{1,6}\s/.test(p) && !/^[-*+]\s|^\d+\.\s/.test(p) && !/^<h[1-6]\b/i.test(p));
+    const first = sanitizeReleaseNoteText(paragraphs[0])?.replace(/\s+/g, " ");
+    if (!first) {
+        return null;
+    }
+    if (first.length <= MaxSummaryLength) {
+        return first;
+    }
+    const cut = first.slice(0, MaxSummaryLength);
+    const sentenceEnd = cut.lastIndexOf(". ");
+    return sentenceEnd > MaxSummaryLength * 0.5 ? cut.slice(0, sentenceEnd + 1) : `${cut.replace(/\s+\S*$/, "")}…`;
+}

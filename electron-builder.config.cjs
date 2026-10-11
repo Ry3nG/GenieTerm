@@ -8,7 +8,7 @@ const childProcess = require("node:child_process");
 // `codesign --verify --deep --strict`; an unsigned bundle with a modified Info.plist is reported as damaged.
 const macHasDeveloperId = !!(process.env.CSC_LINK || process.env.CSC_NAME);
 const releaseNotesFile = path.join(__dirname, "docs", "releases", `v${pkg.version}.md`);
-const defaultLinuxTargets = ["zip", "deb", "rpm", "snap", "AppImage", "pacman"];
+const defaultLinuxTargets = ["AppImage", "deb"];
 const linuxTargets = process.env.GENIETERM_LINUX_TARGETS
     ? process.env.GENIETERM_LINUX_TARGETS.split(",")
           .map((target) => target.trim())
@@ -99,8 +99,11 @@ const config = {
         },
     },
     linux: {
-        artifactName: "${name}-${platform}-${arch}-${version}.${ext}",
-        category: "TerminalEmulator",
+        // Linux wavesrv is built for the host architecture. Avoid builder's x86_64/amd64 filename aliases.
+        artifactName: `\${productName}-linux-${process.arch}-\${version}.\${ext}`,
+        // electron-builder writes this as the desktop entry's Categories: one main category (System) plus
+        // TerminalEmulator, as GNOME Terminal does; desktop-file-validate flags more than one main category
+        category: "System;TerminalEmulator",
         executableName: pkg.name,
         target: linuxTargets,
         synopsis: pkg.description,
@@ -110,21 +113,42 @@ const config = {
                 Name: pkg.productName,
                 Comment: pkg.description,
                 Keywords: "developer;terminal;emulator;",
-                Categories: "Development;Utility;",
+                StartupWMClass: pkg.productName,
             },
         },
         executableArgs: ["--enable-features", "UseOzonePlatform", "--ozone-platform-hint", "auto"], // Hint Electron to use Ozone abstraction layer for native Wayland support
     },
     deb: {
         afterInstall: "build/deb-postinstall.tpl",
+        afterRemove: "build/deb-postremove.tpl",
+        maintainer: `${pkg.author.name} <${pkg.author.email}>`,
+        vendor: pkg.author.name,
+        // Homepage is inherited from package.json by electron-builder.
+        priority: "optional",
+        packageCategory: "devel",
+        // depends replaces (rather than extends) electron-builder's defaults.
+        depends: [
+            "libgtk-3-0",
+            "libnotify4",
+            "libnss3",
+            "libxss1",
+            "libxtst6",
+            "xdg-utils",
+            "libatspi2.0-0",
+            "libuuid1",
+            "libsecret-1-0",
+            "libgbm1",
+            "libasound2t64 | libasound2",
+        ],
+        // Only AppImage installs use the updater; deb packages are installed manually.
+        publish: null,
     },
     win: {
         target: ["nsis", "zip"],
         forceCodeSigning: process.env.GENIETERM_REQUIRE_WINDOWS_SIGNATURE === "1",
     },
-    appImage: {
-        license: "LICENSE",
-    },
+    // No appImage.license: AppRun would block the first launch on a zenity click-through of the Apache-2.0 text.
+    appImage: {},
     snap: {
         base: "core22",
         confinement: "classic",
@@ -137,6 +161,9 @@ const config = {
     },
     publish: publishConfig,
     afterPack: (context) => {
+        if (context.electronPlatformName === "linux" && Arch[context.arch] !== process.arch) {
+            throw new Error("Linux packaging requires a native runner for each architecture (including wavesrv)");
+        }
         if (context.electronPlatformName === "darwin") {
             const appBundlePath = path.resolve(context.appOutDir, `${pkg.productName}.app`);
             childProcess.execFileSync("xattr", ["-cr", appBundlePath], { stdio: "ignore" });

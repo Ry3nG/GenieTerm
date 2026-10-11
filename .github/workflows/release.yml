@@ -2,12 +2,12 @@ name: Release
 
 # Push a version-matching tag to build, verify, and publish a GitHub Release.
 #
-# - Stable tags (vX.Y.Z) publish macOS arm64 + x64 only. The macOS app is ad-hoc signed and not notarized
+# - Stable tags (vX.Y.Z) publish macOS and Linux arm64 + x64. The macOS app is ad-hoc signed and not notarized
 #   (no Apple Developer ID is configured), so users approve the first launch in Gatekeeper.
 # - Windows x64 is deferred from stable until a code-signing certificate exists. It ships as an unsigned
 #   preview on prerelease tags (vX.Y.Z-beta.N). To ship it on stable, configure the WIN_CSC_LINK /
 #   WIN_CSC_KEY_PASSWORD secrets and set the repository variable GENIETERM_WINDOWS_STABLE=signed.
-# - Linux is not built or published.
+# - Linux ships AppImage (auto-update) and deb (manual update) on native Ubuntu runners.
 # - workflow_dispatch builds and verifies everything without publishing.
 on:
     push:
@@ -150,6 +150,98 @@ jobs:
                       make/*.blockmap
                       make/*-mac.yml
 
+    build-linux:
+        name: Build Linux (${{ matrix.arch }})
+        needs: preflight
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - arch: x64
+                      runner: ubuntu-22.04
+                    - arch: arm64
+                      runner: ubuntu-22.04-arm
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 90
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install Zig (glibc 2.28 CGO toolchain)
+              uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+              with:
+                  version: 0.13.0
+
+            - name: Install Linux packaging and smoke dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y xvfb xauth libfuse2 libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 libsecret-1-0 libgbm1 libasound2 libatspi2.0-0 libuuid1 xdg-utils desktop-file-utils
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - name: Linux packaging verifier tests
+              run: npm test -- --run scripts/linux-package.test.mjs
+
+            - name: Build Linux AppImage and deb
+              run: task package -- --linux --${{ matrix.arch }} --publish never
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+                  GENIETERM_LINUX_TARGETS: AppImage,deb
+
+            - name: Verify Linux packages and update metadata
+              run: task package:verify -- make --require-arch ${{ matrix.arch }}
+
+            - name: Launch extracted AppImage (window smoke)
+              run: |
+                  VERSION="$(node -p "require('./package.json').version")"
+                  xvfb-run -a node scripts/verify-installed-app.mjs --window-smoke --linux-appimage "make/GenieTerm-linux-${{ matrix.arch }}-${VERSION}.AppImage"
+
+            - name: Verify packaging left the checkout unchanged
+              run: |
+                  # setup-zig keeps its cache in the workspace; generated source changes must still fail.
+                  CHANGES="$(git status --porcelain --untracked-files=all -- . ':(exclude).zig-cache')"
+                  if [ -n "${CHANGES}" ]; then
+                    echo "::error::Packaging modified the checkout, so the artifacts would not match ${GITHUB_SHA}"
+                    echo "${CHANGES}"
+                    git diff --stat
+                    exit 1
+                  fi
+
+            - name: Upload Linux package artifacts
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: genieterm-linux-${{ matrix.arch }}
+                  if-no-files-found: error
+                  path: |
+                      make/*.AppImage
+                      make/*.deb
+                      make/*.blockmap
+                      make/*-linux*.yml
+
     build-windows:
         name: Build Windows x64
         needs: preflight
@@ -260,13 +352,73 @@ jobs:
                       make/beta.yml
                       make/latest.yml
 
+    linux-deb-ubuntu-2404:
+        name: Linux deb on Ubuntu 24.04
+        needs: build-linux
+        # 24.04 restricts unprivileged user namespaces; the installed package must still run sandboxed
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: genieterm-linux-x64
+                  path: linux-x64
+
+            - name: Install the deb with apt
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y xvfb xauth desktop-file-utils
+                  sudo apt-get install -y ./linux-x64/GenieTerm-linux-x64-*.deb
+
+            - name: Check the PATH link, desktop entry and AppArmor profile
+              run: |
+                  sysctl kernel.apparmor_restrict_unprivileged_userns || true
+                  test -x /opt/GenieTerm/genieterm
+                  test "$(readlink -f /usr/bin/genieterm)" = /opt/GenieTerm/genieterm
+                  VALIDATE="$(desktop-file-validate /usr/share/applications/genieterm.desktop 2>&1 || true)"
+                  if [ -n "${VALIDATE}" ]; then echo "${VALIDATE}"; exit 1; fi
+                  if [ -e /etc/apparmor.d/abi/4.0 ]; then
+                    test -f /etc/apparmor.d/genieterm
+                    sudo apparmor_parser --preprocess /etc/apparmor.d/genieterm > /dev/null
+                  fi
+
+            - name: Launch the installed app with the sandbox on
+              run: xvfb-run -a node scripts/verify-installed-app.mjs --window-smoke --linux-installed /opt/GenieTerm
+
+            - name: Remove the package and check cleanup
+              run: |
+                  sudo apt-get remove -y genieterm
+                  test ! -e /usr/bin/genieterm
+                  test ! -e /etc/apparmor.d/genieterm
+
     publish:
         name: Verify and publish GitHub Release
-        needs: [build-macos, build-windows]
-        # build-windows is skipped on stable tags until Windows signing is configured; macOS must always succeed.
+        needs: [build-macos, build-linux, linux-deb-ubuntu-2404, build-windows]
+        # build-windows is skipped on stable tags until Windows signing is configured; macOS and Linux must succeed.
         if: >-
             !cancelled() &&
             needs.build-macos.result == 'success' &&
+            needs.build-linux.result == 'success' &&
+            needs.linux-deb-ubuntu-2404.result == 'success' &&
             (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped')
         runs-on: ubuntu-latest
         timeout-minutes: 30
@@ -299,7 +451,7 @@ jobs:
                   pattern: genieterm-*
                   path: release-artifacts
 
-            # Checks the exact asset set (Windows assets only when build-windows succeeded, so a macOS-only
+            # Checks the exact asset set (Windows assets only when build-windows succeeded, so a macOS + Linux
             # stable release can never carry a stale Windows latest.yml) and every update manifest's
             # version, size, and sha512 against the payloads.
             - name: Verify release assets
