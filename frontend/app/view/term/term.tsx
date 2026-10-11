@@ -14,7 +14,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { TermViewModel } from "@/app/view/term/term-model";
 import { atoms, getApi, getOverrideConfigAtom, getSettingsKeyAtom, WOS } from "@/store/global";
-import { fireAndForget, isSshConnName, useAtomValueSafe } from "@/util/util";
+import { fireAndForget, useAtomValueSafe } from "@/util/util";
 import { computeBgStyleFromMeta } from "@/util/waveutil";
 import { ISearchOptions } from "@xterm/addon-search";
 import clsx from "clsx";
@@ -32,7 +32,6 @@ import {
 import { TermCommandComposer } from "./command-composer-ui";
 import { TermCompletion } from "./completion/completion-ui";
 import type { ShellType } from "./completion/types";
-import { getShellIntegrationRecovery } from "./shellintegration";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
@@ -503,142 +502,6 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
 
 TermCommandActionBar.displayName = "TermCommandActionBar";
 
-const TermShellIntegrationBanner = React.memo(
-    ({ termWrap, model }: { termWrap: TermWrap | null; model: TermViewModel }) => {
-        const connStatus = jotai.useAtomValue(model.connStatus);
-        const [busy, setBusy] = React.useState(false);
-        const [error, setError] = React.useState<string>(null);
-        const integrationDisabled = useAtomValueSafe<boolean>(termWrap?.shellIntegrationDisabledAtom) ?? false;
-        const shellType = useAtomValueSafe<ShellType>(termWrap?.shellTypeAtom) ?? "unknown";
-        const recovery = getShellIntegrationRecovery(connStatus, { integrationDisabled, shellType });
-        const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
-        const [readyToWarn, setReadyToWarn] = React.useState(false);
-
-        React.useEffect(() => {
-            if (termWrap == null || shellIntegrationStatus != null) {
-                setReadyToWarn(false);
-                return;
-            }
-            const timer = window.setTimeout(() => setReadyToWarn(true), 2500);
-            return () => window.clearTimeout(timer);
-        }, [termWrap, shellIntegrationStatus]);
-
-        if (!readyToWarn || shellIntegrationStatus != null || recovery == null) {
-            return null;
-        }
-
-        const recover = async () => {
-            if (busy) return;
-            setBusy(true);
-            setError(null);
-            try {
-                if (recovery.action === "enable") {
-                    const metamaptype: unknown = { "conn:wshenabled": true };
-                    await RpcApi.SetConnectionsConfigCommand(TabRpcClient, {
-                        host: connStatus.connection,
-                        metamaptype,
-                    });
-                }
-                if (recovery.action === "enable" || recovery.action === "reconnect") {
-                    await RpcApi.ConnDisconnectCommand(TabRpcClient, connStatus.connection, { timeout: 10000 });
-                    await RpcApi.ConnConnectCommand(
-                        TabRpcClient,
-                        { host: connStatus.connection, logblockid: model.blockId },
-                        { timeout: 120000 }
-                    );
-                    if (!globalStore.get(model.connStatus)?.wshenabled) {
-                        return;
-                    }
-                }
-                if (globalStore.get(model.connStatus)?.connection === connStatus?.connection) {
-                    await model.forceRestartController();
-                }
-            } catch (err) {
-                setError(String(err));
-            } finally {
-                setBusy(false);
-            }
-        };
-
-        return (
-            <div className="term-status-banner" role="status">
-                <i className="fa-solid fa-circle-info" aria-hidden="true" />
-                <span>{error ?? recovery.message}</span>
-                {recovery.action && (
-                    <button
-                        type="button"
-                        className="cursor-pointer shrink-0 underline"
-                        disabled={busy}
-                        title={
-                            recovery.action === "restart"
-                                ? "Restarts this terminal and ends its current shell process"
-                                : "Reconnects this host, interrupting its terminals, and restarts this shell"
-                        }
-                        onClick={recover}
-                    >
-                        {busy
-                            ? "Working…"
-                            : recovery.action === "enable"
-                              ? "Enable and reconnect"
-                              : recovery.action === "reconnect"
-                                ? "Retry connection"
-                                : "Restart terminal"}
-                    </button>
-                )}
-            </div>
-        );
-    }
-);
-
-TermShellIntegrationBanner.displayName = "TermShellIntegrationBanner";
-
-const TermDurablePromptBanner = React.memo(
-    ({ blockId, model, connection }: { blockId: string; model: TermViewModel; connection?: string }) => {
-        const [blockData] = WOS.useWaveObjectValue<Block>(WOS.makeORef("block", blockId));
-        const isDurable = jotai.useAtomValue(model.termConfigedDurable);
-        const isRemote = isSshConnName(connection);
-        const alreadyAsked = Boolean(blockData?.meta?.["term:durableprompted"]);
-
-        if (!isRemote || isDurable || alreadyAsked) {
-            return null;
-        }
-
-        const dismiss = () => {
-            fireAndForget(() =>
-                RpcApi.SetMetaCommand(TabRpcClient, {
-                    oref: WOS.makeORef("block", blockId),
-                    meta: { "term:durableprompted": true },
-                })
-            );
-        };
-
-        const enable = () => {
-            fireAndForget(async () => {
-                await RpcApi.SetMetaCommand(TabRpcClient, {
-                    oref: WOS.makeORef("block", blockId),
-                    meta: { "term:durableprompted": true },
-                });
-                await model.restartSessionWithDurability(true);
-            });
-        };
-
-        return (
-            <div className="term-status-banner term-status-banner-durable" role="status">
-                <i className="fa-solid fa-shield" aria-hidden="true" />
-                <span>Keep this SSH session if GenieTerm restarts?</span>
-                <button type="button" className="term-status-banner-btn cursor-pointer" onClick={enable}>
-                    Enable durable
-                </button>
-                <button type="button" className="term-status-banner-btn cursor-pointer" onClick={dismiss}>
-                    Not now
-                </button>
-            </div>
-        );
-    }
-);
-
-TermDurablePromptBanner.displayName = "TermDurablePromptBanner";
-
 const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => {
     const viewRef = React.useRef<HTMLDivElement>(null);
     const connectElemRef = React.useRef<HTMLDivElement>(null);
@@ -646,6 +509,16 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const [blockData] = WOS.useWaveObjectValue<Block>(WOS.makeORef("block", blockId));
     const connStatus = jotai.useAtomValue(model.connStatus);
     const shellIntegrationStatus = useAtomValueSafe(termWrapInst?.shellIntegrationStatusAtom);
+    const integrationDisabled = useAtomValueSafe<boolean>(termWrapInst?.shellIntegrationDisabledAtom) ?? false;
+    const shellType = useAtomValueSafe<ShellType>(termWrapInst?.shellTypeAtom) ?? "unknown";
+    React.useEffect(() => {
+        globalStore.set(model.shellStatusInputsAtom, {
+            report: { integrationDisabled, shellType },
+            integrationReported: shellIntegrationStatus != null,
+            missingIntegrationSince: termWrapInst != null && shellIntegrationStatus == null ? Date.now() : undefined,
+        });
+        return () => globalStore.set(model.shellStatusInputsAtom, {});
+    }, [model, termWrapInst, shellIntegrationStatus, integrationDisabled, shellType]);
     const lastCommand = useAtomValueSafe(termWrapInst?.lastCommandAtom);
     const settingsScrollback = jotai.useAtomValue(getSettingsKeyAtom("term:scrollback"));
     const settingsFontFamily = jotai.useAtomValue(getSettingsKeyAtom("term:fontfamily"));
@@ -931,8 +804,6 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TermStickers config={stickerConfig} />
             <TermToolbarVDomNode key="vdom-toolbar" blockId={blockId} model={model} />
             <TermVDomNode key="vdom" blockId={blockId} model={model} />
-            <TermShellIntegrationBanner termWrap={termWrapInst} model={model} />
-            <TermDurablePromptBanner blockId={blockId} model={model} connection={blockData?.meta?.connection} />
             {shouldShowSemanticTerminal(terminalPresentationMode) && (
                 <TermCommandActionBar model={model} termWrap={termWrapInst} />
             )}

@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { BlockStatusActionId, TerminalBlockStatusInputs } from "@/app/block/blockstatus";
 import type { WaveEnv } from "@/app/waveenv/waveenv";
 import type { TransferError, TransferJobInput, TransferQueue } from "@/util/transferqueue";
 import { type Placement } from "@floating-ui/react";
@@ -334,6 +335,8 @@ declare global {
 
         termDurableStatus?: jotai.Atom<BlockJobStatusData | null>;
         termConfigedDurable?: jotai.Atom<null | boolean>;
+        blockStatusInputsAtom?: jotai.Atom<TerminalBlockStatusInputs>;
+        handleBlockStatusAction?: (action: BlockStatusActionId) => Promise<void>;
 
         // Icon button displayed before the title in the header.
         preIconButton?: jotai.Atom<IconButtonDecl>;

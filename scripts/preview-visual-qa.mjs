@@ -21,6 +21,25 @@ const CleanupTimeoutMs = 5000;
 
 const PreviewCases = [
   {
+    name: "blockstatus",
+    path: "/?preview=blockstatus",
+    checks: [
+      "Couldn't connect to",
+      "Reconnecting in 4s (attempt 2)",
+      "isn't responding",
+      "Connected without the GenieTerm helper",
+      "Installing the GenieTerm helper",
+      "Enable and reconnect",
+      "Restart terminal",
+      "PowerShell",
+      "Keep running",
+    ],
+    viewports: [
+      { name: "desktop", width: 1100, height: 2100 },
+      { name: "narrow", width: 360, height: 2100 },
+    ],
+  },
+  {
     name: "commandpalette",
     path: "/?preview=commandpalette",
     checks: ["Recent", "Terminal", "Split Block Right", "↑↓ navigate · ↵ run · esc close"],

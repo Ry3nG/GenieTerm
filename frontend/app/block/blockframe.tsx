@@ -3,8 +3,8 @@
 
 import { BlockModel } from "@/app/block/block-model";
 import { BlockFrame_Header } from "@/app/block/blockframe-header";
+import { BlockStatusLine } from "@/app/block/blockstatusline";
 import { blockViewToIcon, getViewIconElem, useTabBackground } from "@/app/block/blockutil";
-import { ConnStatusOverlay } from "@/app/block/connstatusoverlay";
 import { getBlockComponentModel, globalStore, useBlockAtom } from "@/app/store/global";
 import { useTabModel } from "@/app/store/tab-model";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -189,15 +189,11 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
             inert={preview || undefined}
         >
             <BlockMask nodeModel={nodeModel} />
-            {preview || viewModel == null || !manageConnection ? null : (
-                <ConnStatusOverlay
-                    nodeModel={nodeModel}
-                    viewModel={viewModel}
-                    changeConnModalAtom={changeConnModalAtom}
-                />
-            )}
             <div className="block-frame-default-inner" style={innerStyle}>
                 {noHeader || <ErrorBoundary fallback={headerElemNoView}>{headerElem}</ErrorBoundary>}
+                {preview || viewModel == null || !manageConnection ? null : (
+                    <BlockStatusLine blockId={nodeModel.blockId} viewModel={viewModel} connModalOpen={connModalOpen} />
+                )}
                 {preview ? previewElem : children}
             </div>
             {preview || viewModel == null || !connModalOpen ? null : (
