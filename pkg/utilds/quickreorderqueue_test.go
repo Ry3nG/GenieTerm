@@ -205,7 +205,9 @@ func TestQuickReorderQueue_SimpleTimeout(t *testing.T) {
 }
 
 func TestQuickReorderQueue_RollingTimeout(t *testing.T) {
-	q := MakeQuickReorderQueue[string](20, 50*time.Millisecond)
+	// every gap is filled within ~60ms of sleeps; Windows rounds each 10ms sleep up to its ~15.6ms timer tick,
+	// so a 50ms window let item5 time out before item4 arrived
+	q := MakeQuickReorderQueue[string](20, 250*time.Millisecond)
 	defer q.Close()
 
 	q.QueueItem("session1", 1, "item1")

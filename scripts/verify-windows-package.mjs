@@ -27,6 +27,7 @@ const OutputDir = path.resolve(process.argv[2] || process.env.GENIETERM_BUILD_OU
 const WindowSmoke = process.argv.includes("--window-smoke");
 const InstallerSmoke = process.argv.includes("--installer-smoke");
 const RequireSignature = process.argv.includes("--require-signature");
+const RequireZip = !process.argv.includes("--no-zip");
 const { productName: ProductName, version: Version } = JSON.parse(readFileSync("package.json", "utf8"));
 const UpdateChannel = Version.match(/^\d+\.\d+\.\d+-([A-Za-z0-9-]+)/)?.[1] || "latest";
 
@@ -398,7 +399,9 @@ async function main() {
   // An NSIS bootstrapper may be x86 even when its installed app is x64.
   const installerPath = findArtifact(names, ".exe");
   executables.push(installerPath);
-  findArtifact(names, ".zip");
+  if (RequireZip) {
+    findArtifact(names, ".zip");
+  }
   await verifyUpdateMetadata(names);
   const signTool = findSignTool();
   const signatures = executables.map((filePath) => ({

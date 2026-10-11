@@ -17,6 +17,11 @@ on:
 permissions:
     contents: read
 
+# A new push to a PR supersedes the run before it; pushes to main always finish.
+concurrency:
+    group: ci-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
     NODE_VERSION: 22
     GO_VERSION_FILE: go.mod
@@ -111,6 +116,8 @@ jobs:
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   GENIETERM_LINUX_TARGETS: AppImage,deb
+                  # gz instead of the release's single-threaded xz; CI only installs this deb
+                  GENIETERM_FAST_PACKAGE: "1"
 
             - name: Verify Linux packages and update metadata
               run: task package:verify -- make --require-arch x64
@@ -200,11 +207,53 @@ jobs:
                   test ! -e /usr/bin/genieterm
                   test ! -e /etc/apparmor.d/genieterm
 
+    windows-tests:
+        name: Windows tests
+        runs-on: windows-latest
+        timeout-minutes: 30
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            # The full suite runs in the V1 gate; on Windows only the Electron main process tests take
+            # different paths (file system, transfer transport).
+            - name: Windows Vitest suite (Electron main)
+              run: npm test -- --run emain
+
+            - name: Windows Go test suite
+              run: go test ./...
+
     windows-package:
         name: Windows x64 package
         runs-on: windows-latest
         timeout-minutes: 60
-        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+        # Like macOS: Windows is an unsigned preview that stable releases don't build, so its packaging runs
+        # on pushes to main and manual runs, off the PR critical path. windows-tests covers PRs.
+        if: github.event_name != 'pull_request'
         permissions:
             contents: read
         steps:
@@ -242,17 +291,15 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Windows Vitest suite
-              run: npm test -- --run
-
-            - name: Windows Go test suite
-              run: go test ./...
-
-            - name: Build Windows x64 packages
-              run: task package -- --win --x64
+            # The installer is what the smoke installs; the release workflow builds the compressed installer
+            # and the zip.
+            - name: Build Windows x64 installer
+              run: task package -- --win nsis --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
+                  # uncompressed installer; only the smoke installs it
+                  GENIETERM_FAST_PACKAGE: "1"
 
             - name: Upload Windows preview artifacts
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -261,11 +308,10 @@ jobs:
                   if-no-files-found: error
                   path: |
                       make/*.exe
-                      make/*.zip
                       make/*.yml
 
             - name: Verify Windows package and launch
-              run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
+              run: node scripts/verify-windows-package.mjs make --no-zip --window-smoke --installer-smoke
 
             - name: Verify packaging left the checkout unchanged
               shell: bash
