@@ -14,6 +14,9 @@ const linuxTargets = process.env.GENIETERM_LINUX_TARGETS
           .map((target) => target.trim())
           .filter(Boolean)
     : defaultLinuxTargets;
+// CI packages are only installed by smoke tests, so skip the slow release compression
+// (single-threaded xz for the deb, zlib for the Windows installer). Releases never set this.
+const fastPackage = process.env.GENIETERM_FAST_PACKAGE === "1";
 const githubPublishConfig = {
     provider: "github",
     owner: "Ry3nG",
@@ -143,10 +146,12 @@ const config = {
         ],
         // Only AppImage installs use the updater; deb packages are installed manually.
         publish: null,
+        ...(fastPackage ? { compression: "gz" } : {}),
     },
     win: {
         target: ["nsis", "zip"],
         forceCodeSigning: process.env.GENIETERM_REQUIRE_WINDOWS_SIGNATURE === "1",
+        ...(fastPackage ? { compression: "store" } : {}),
     },
     // No appImage.license: AppRun would block the first launch on a zenity click-through of the Apache-2.0 text.
     appImage: {},

@@ -112,11 +112,12 @@ jobs:
               run: npm test -- --run scripts/linux-package.test.mjs
 
             - name: Build Linux AppImage and deb
-              # xz (the release default) compresses the deb single-threaded; CI only installs it.
-              run: task package -- --linux --x64 --publish never -c.deb.compression=gz
+              run: task package -- --linux --x64 --publish never
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   GENIETERM_LINUX_TARGETS: AppImage,deb
+                  # gz instead of the release's single-threaded xz; CI only installs this deb
+                  GENIETERM_FAST_PACKAGE: "1"
 
             - name: Verify Linux packages and update metadata
               run: task package:verify -- make --require-arch x64
@@ -293,10 +294,12 @@ jobs:
             # The installer is what the smoke installs; the release workflow builds the compressed installer
             # and the zip.
             - name: Build Windows x64 installer
-              run: task package -- --win nsis --x64 -c.compression=store
+              run: task package -- --win nsis --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
+                  # uncompressed installer; only the smoke installs it
+                  GENIETERM_FAST_PACKAGE: "1"
 
             - name: Upload Windows preview artifacts
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
