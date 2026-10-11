@@ -57,6 +57,7 @@ const HostHeader = memo(({ model }: { model: HostViewModel }) => {
     const activeForwards = forwards.filter((f) => f.status === "active").length;
     const title = hostInfo?.hostname || (isLocalConnName(conn) ? "This computer" : conn);
     const subtitle = formatHostSubtitle(hostInfo, now);
+    const kindLabel = connKindLabel(conn);
     return (
         // Narrow blocks give the host name its own row and stretch the tabs across the block, so
         // neither has to truncate the other.
@@ -71,9 +72,11 @@ const HostHeader = memo(({ model }: { model: HostViewModel }) => {
                     <h2 className="truncate text-[15px] font-semibold leading-5 text-primary" title={title}>
                         {title}
                     </h2>
-                    <span className="shrink-0 rounded-full border border-border px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] text-muted">
-                        {connKindLabel(conn)}
-                    </span>
+                    {kindLabel !== title && (
+                        <span className="shrink-0 rounded-full border border-border px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] text-muted">
+                            {kindLabel}
+                        </span>
+                    )}
                 </div>
                 <div className={cn("truncate text-[12px] leading-4 text-muted", ShortBlock.subtitle)} title={subtitle}>
                     {subtitle || " "}
