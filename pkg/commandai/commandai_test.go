@@ -18,12 +18,18 @@ import (
 
 func testConfig(t *testing.T, engine string) *wconfig.FullConfigType {
 	t.Helper()
-	oldConfig, oldSecret, oldDistro := getConfig, getSecret, fetchDistro
+	oldConfig, oldSecret, oldDistro, oldBackend := getConfig, getSecret, fetchDistro, getLinuxStorageBackend
 	config := &wconfig.FullConfigType{Settings: wconfig.SettingsType{TermCommandComposer: true, CommandAiEngine: engine}}
 	getConfig = func() wconfig.FullConfigType { return *config }
 	getSecret = func(string) (string, bool, error) { return "", false, nil }
 	fetchDistro = func(context.Context, string) string { return "" }
-	t.Cleanup(func() { getConfig = oldConfig; getSecret = oldSecret; fetchDistro = oldDistro })
+	getLinuxStorageBackend = func() (string, error) { return "", nil }
+	t.Cleanup(func() {
+		getConfig = oldConfig
+		getSecret = oldSecret
+		fetchDistro = oldDistro
+		getLinuxStorageBackend = oldBackend
+	})
 	return config
 }
 

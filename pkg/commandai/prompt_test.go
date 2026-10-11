@@ -14,6 +14,7 @@ import (
 
 func TestPromptGoldens(t *testing.T) {
 	t.Setenv("HOME", "/home/tester")
+	t.Setenv("USERPROFILE", "/home/tester")
 	exit := 1
 	for _, tt := range []struct {
 		name string

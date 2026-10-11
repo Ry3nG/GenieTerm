@@ -18,6 +18,8 @@ import (
 
 var probeTimeout = 8 * time.Second
 
+var getLinuxStorageBackend = secretstore.GetLinuxStorageBackend
+
 var versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?`)
 
 var detectionCache = struct {
@@ -206,7 +208,7 @@ func GetStatus(ctx context.Context, refresh bool) wshrpc.CommandAiStatus {
 		}
 	}
 	if runtime.GOOS == "linux" {
-		result.SecretBackend, _ = secretstore.GetLinuxStorageBackend()
+		result.SecretBackend, _ = getLinuxStorageBackend()
 	}
 	return result
 }

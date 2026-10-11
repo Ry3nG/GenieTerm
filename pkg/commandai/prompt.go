@@ -60,7 +60,7 @@ func buildPrompt(req wshrpc.CommandAiRequest) (system, message string, redaction
 	}
 	cwd := c.Cwd
 	if location == "This computer" {
-		if home, err := os.UserHomeDir(); err == nil && home != "" && (cwd == home || strings.HasPrefix(cwd, home+"/")) {
+		if home, err := os.UserHomeDir(); err == nil && home != "" && (cwd == home || strings.HasPrefix(cwd, home+"/") || strings.HasPrefix(cwd, home+string(os.PathSeparator))) {
 			cwd = "~" + strings.TrimPrefix(cwd, home)
 		}
 	}
