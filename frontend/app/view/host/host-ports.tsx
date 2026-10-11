@@ -25,6 +25,10 @@ const AccentButton =
 const IconButton =
     "inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-primary";
 
+// the port column narrows and the owner/scope columns drop as the block narrows
+const PortGrid =
+    "grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 px-3 @[480px]:grid-cols-[72px_minmax(0,1fr)_auto] @[480px]:px-4 @[640px]:grid-cols-[72px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(150px,auto)]";
+
 const StatusDot: Record<string, string> = {
     active: "bg-success",
     waiting: "bg-warning",
@@ -58,8 +62,16 @@ function ForwardActions({
     return (
         <div className="flex items-center justify-end gap-1">
             {openable && (
-                <button className={AccentButton} onClick={() => model.openLocalPort(forward.localport)}>
-                    Open
+                <button
+                    className={AccentButton}
+                    onClick={() => model.openLocalPort(forward.localport)}
+                    aria-label="Open"
+                >
+                    <i
+                        className="fa-solid fa-arrow-up-right-from-square text-[10px] @[480px]:hidden"
+                        aria-hidden="true"
+                    />
+                    <span className="hidden @[480px]:inline">Open</span>
                 </button>
             )}
             <Tooltip content="Copy local address" placement="top">
@@ -98,6 +110,8 @@ const PortRowView = memo(({ model, row, canForward }: { model: HostViewModel; ro
                 <button
                     className={SecondaryButton}
                     disabled={busy}
+                    aria-label={openable ? "Forward & open" : "Forward"}
+                    title={openable ? "Forward & open" : "Forward"}
                     onClick={() => fireAndForget(() => model.startForward(row.port, 0, openable))}
                 >
                     {busy ? (
@@ -105,26 +119,33 @@ const PortRowView = memo(({ model, row, canForward }: { model: HostViewModel; ro
                     ) : (
                         <i className="fa-solid fa-arrow-right-to-bracket text-[11px]" aria-hidden="true" />
                     )}
-                    {busy ? "Forwarding…" : openable ? "Forward & open" : "Forward"}
+                    <span className="hidden @[480px]:inline">
+                        {busy ? "Forwarding…" : openable ? "Forward & open" : "Forward"}
+                    </span>
                 </button>
             </div>
         );
     } else if (openable) {
         actions = (
             <div className="flex justify-end">
-                <button className={SecondaryButton} onClick={() => model.openLocalPort(row.port)}>
-                    Open
+                <button className={SecondaryButton} onClick={() => model.openLocalPort(row.port)} aria-label="Open">
+                    <i
+                        className="fa-solid fa-arrow-up-right-from-square text-[10px] @[480px]:hidden"
+                        aria-hidden="true"
+                    />
+                    <span className="hidden @[480px]:inline">Open</span>
                 </button>
             </div>
         );
     }
     return (
         <div className="group border-b border-border/60 last:border-b-0">
-            <div className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2 transition-colors hover:bg-hover/60 @[640px]:grid-cols-[72px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(150px,auto)]">
+            <div className={cn(PortGrid, "py-2 transition-colors hover:bg-hover/60")}>
                 <div className="font-mono text-[13px] font-semibold tabular-nums text-primary">{row.port}</div>
                 <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-[13px] text-primary">
+                    {/* on a narrow row the forward's address wraps under the name instead of truncating it */}
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2">
+                        <span className="max-w-full truncate text-[13px] text-primary">
                             {row.service || row.command || "Unknown process"}
                         </span>
                         {row.forward && <ForwardBadge forward={row.forward} />}
@@ -143,7 +164,11 @@ const PortRowView = memo(({ model, row, canForward }: { model: HostViewModel; ro
                 </div>
                 {actions ?? <div />}
             </div>
-            {error && <div className="px-4 pb-2 pl-[100px] text-[12px] text-error">{error}</div>}
+            {error && (
+                <div className="px-3 pb-2 pl-[68px] text-[12px] text-error @[480px]:px-4 @[480px]:pl-[100px]">
+                    {error}
+                </div>
+            )}
         </div>
     );
 });
@@ -281,10 +306,7 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
             {orphanForwards.length > 0 && (
                 <div className="border-b border-border">
                     {orphanForwards.map((f) => (
-                        <div
-                            key={f.id}
-                            className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2"
-                        >
+                        <div key={f.id} className={cn(PortGrid, "py-2")}>
                             <div className="font-mono text-[13px] font-semibold tabular-nums text-primary">
                                 {f.remoteport}
                             </div>
@@ -331,7 +353,7 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
                             aria-hidden="true"
                         />
                         Other listeners · {otherRows.length}
-                        <span className="text-muted/70">
+                        <span className="hidden truncate text-muted/70 @[560px]:inline">
                             GenieTerm, system services, other users and ephemeral ports
                         </span>
                     </button>

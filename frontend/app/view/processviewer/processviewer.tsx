@@ -538,24 +538,43 @@ type ColDef = {
     width: string;
     align?: "right";
     hideOnPlatform?: string[];
+    // narrower tables drop this column; Command, CPU% and Memory always stay
+    minTableWidth?: number;
 };
 
 const Columns: ColDef[] = [
-    { key: "pid", label: "PID", width: "70px", align: "right" },
+    { key: "pid", label: "PID", width: "70px", align: "right", minTableWidth: 380 },
     { key: "command", label: "Command", width: "minmax(120px, 4fr)" },
-    { key: "status", label: "Status", width: "75px", hideOnPlatform: ["windows", "darwin"] },
-    { key: "user", label: "User", width: "80px", hideOnPlatform: ["windows"] },
-    { key: "threads", label: "NT", tooltip: "Num Threads", width: "40px", align: "right", hideOnPlatform: ["windows"] },
+    { key: "status", label: "Status", width: "75px", hideOnPlatform: ["windows", "darwin"], minTableWidth: 520 },
+    { key: "user", label: "User", width: "80px", hideOnPlatform: ["windows"], minTableWidth: 440 },
+    {
+        key: "threads",
+        label: "NT",
+        tooltip: "Num Threads",
+        width: "40px",
+        align: "right",
+        hideOnPlatform: ["windows"],
+        minTableWidth: 580,
+    },
     { key: "cpu", label: "CPU%", width: "70px", align: "right" },
     { key: "mem", label: "Memory", width: "90px", align: "right" },
 ];
 
-function getColumns(platform: string): ColDef[] {
-    return Columns.filter((c) => !c.hideOnPlatform?.includes(platform));
+const ColumnWidthSteps = [0, 380, 440, 520, 580];
+
+// snaps a measured width to the steps where columns change, so resizing doesn't re-render every row
+function columnWidthStep(width: number): number {
+    return ColumnWidthSteps.filter((step) => width >= step).pop() ?? 0;
 }
 
-function getGridTemplate(platform: string): string {
-    return getColumns(platform)
+function getColumns(platform: string, tableWidth: number): ColDef[] {
+    return Columns.filter(
+        (c) => !c.hideOnPlatform?.includes(platform) && (c.minTableWidth == null || tableWidth >= c.minTableWidth)
+    );
+}
+
+function getGridTemplate(platform: string, tableWidth: number): string {
+    return getColumns(platform, tableWidth)
         .map((c) => c.width)
         .join(" ");
 }
@@ -636,14 +655,16 @@ const TableHeader = React.memo(function TableHeader({
     sortBy,
     sortDesc,
     platform,
+    tableWidth,
 }: {
     model: ProcessViewerViewModel;
     sortBy: SortCol;
     sortDesc: boolean;
     platform: string;
+    tableWidth: number;
 }) {
-    const cols = getColumns(platform);
-    const gridTemplate = getGridTemplate(platform);
+    const cols = getColumns(platform, tableWidth);
+    const gridTemplate = getGridTemplate(platform, tableWidth);
     return (
         <div
             className="grid w-full shrink-0 border-b border-white/10 bg-panel text-xs text-secondary font-medium select-none"
@@ -670,6 +691,7 @@ const ProcessRow = React.memo(function ProcessRow({
     proc,
     hasCpu,
     platform,
+    tableWidth,
     selected,
     onSelect,
     onContextMenu,
@@ -677,13 +699,14 @@ const ProcessRow = React.memo(function ProcessRow({
     proc: ProcessInfo;
     hasCpu: boolean;
     platform: string;
+    tableWidth: number;
     selected: boolean;
     onSelect: (pid: number) => void;
     onContextMenu: (pid: number, e: React.MouseEvent) => void;
 }) {
-    const cols = getColumns(platform);
+    const cols = getColumns(platform, tableWidth);
     const visibleKeys = new Set(cols.map((c) => c.key));
-    const gridTemplate = getGridTemplate(platform);
+    const gridTemplate = getGridTemplate(platform, tableWidth);
     if (proc.gone) {
         return (
             <div
@@ -692,9 +715,11 @@ const ProcessRow = React.memo(function ProcessRow({
                 onClick={() => onSelect(proc.pid)}
                 onContextMenu={(e) => onContextMenu(proc.pid, e)}
             >
-                <div className="px-2 flex items-center truncate justify-end text-secondary font-mono text-[11px]">
-                    {proc.pid}
-                </div>
+                {visibleKeys.has("pid") && (
+                    <div className="px-2 flex items-center truncate justify-end text-secondary font-mono text-[11px]">
+                        {proc.pid}
+                    </div>
+                )}
                 <div className="px-2 flex items-center truncate text-muted italic">(gone)</div>
                 {visibleKeys.has("status") && <div className="px-2 flex items-center truncate" />}
                 {visibleKeys.has("user") && <div className="px-2 flex items-center truncate" />}
@@ -711,10 +736,17 @@ const ProcessRow = React.memo(function ProcessRow({
             onClick={() => onSelect(proc.pid)}
             onContextMenu={(e) => onContextMenu(proc.pid, e)}
         >
-            <div className="px-2 flex items-center truncate justify-end text-secondary font-mono text-[11px]">
-                {proc.pid}
+            {visibleKeys.has("pid") && (
+                <div className="px-2 flex items-center truncate justify-end text-secondary font-mono text-[11px]">
+                    {proc.pid}
+                </div>
+            )}
+            <div
+                className="px-2 flex items-center truncate"
+                title={visibleKeys.has("pid") ? undefined : `pid ${proc.pid}`}
+            >
+                {proc.command}
             </div>
-            <div className="px-2 flex items-center truncate">{proc.command}</div>
             {visibleKeys.has("status") && (
                 <div className="px-2 flex items-center truncate text-secondary text-[11px]">{proc.status}</div>
             )}
@@ -963,6 +995,7 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
         const bodyScrollRef = React.useRef<HTMLDivElement>(null);
         const containerRef = React.useRef<HTMLDivElement>(null);
         const [wide, setWide] = React.useState(false);
+        const [tableWidth, setTableWidth] = React.useState(ColumnWidthSteps[ColumnWidthSteps.length - 1]);
 
         const isFirstRender = React.useRef(true);
         React.useEffect(() => {
@@ -1038,11 +1071,13 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
                 for (const entry of entries) {
                     model.setContainerHeight(entry.contentRect.height);
                     setWide(entry.contentRect.width >= 600);
+                    setTableWidth(columnWidthStep(entry.contentRect.width));
                 }
             });
             ro.observe(el);
             model.setContainerHeight(el.clientHeight);
             setWide(el.clientWidth >= 600);
+            setTableWidth(columnWidthStep(el.clientWidth));
             return () => ro.disconnect();
         }, [model]);
 
@@ -1071,7 +1106,13 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
                         </div>
                     ) : (
                         <div className="flex flex-col h-full min-w-full w-max">
-                            <TableHeader model={model} sortBy={sortBy} sortDesc={sortDesc} platform={platform} />
+                            <TableHeader
+                                model={model}
+                                sortBy={sortBy}
+                                sortDesc={sortDesc}
+                                platform={platform}
+                                tableWidth={tableWidth}
+                            />
                             <div
                                 ref={bodyScrollRef}
                                 className="flex-1 overflow-y-auto overflow-x-hidden w-full wide-scrollbar"
@@ -1085,6 +1126,7 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
                                                 proc={proc}
                                                 hasCpu={hasCpu}
                                                 platform={platform}
+                                                tableWidth={tableWidth}
                                                 selected={selectedPid === proc.pid}
                                                 onSelect={handleSelectPid}
                                                 onContextMenu={handleContextMenu}

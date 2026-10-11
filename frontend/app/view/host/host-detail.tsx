@@ -4,7 +4,7 @@
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import type { HostResource, HostViewModel } from "./host-model";
 import { HostSummary } from "./host-overview";
 import { Sparkline } from "./host-sparkline";
@@ -167,8 +167,18 @@ ResourceList.displayName = "ResourceList";
 // Compact strip for narrow blocks, where a sidebar would crowd the detail.
 const ResourceStrip = memo(({ model, items }: { model: HostViewModel; items: ResourceItem[] }) => {
     const selected = useAtomValue(model.resourceAtom);
+    const navRef = useRef<HTMLElement>(null);
+    // keep the selection visible when it changes from elsewhere (a summary card, the palette)
+    useEffect(() => {
+        const el = navRef.current?.querySelector<HTMLElement>('[aria-current="true"]');
+        el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }, [selected]);
     return (
-        <nav aria-label="Host resources" className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2">
+        <nav
+            ref={navRef}
+            aria-label="Host resources"
+            className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 py-2 [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-24px),transparent)] [scrollbar-width:none]"
+        >
             {items.map((item) => (
                 <button
                     key={item.id}
@@ -194,8 +204,12 @@ const ResourceStrip = memo(({ model, items }: { model: HostViewModel; items: Res
 ResourceStrip.displayName = "ResourceStrip";
 
 function DetailFrame({ children }: { children: React.ReactNode }) {
-    return <div className="flex flex-col gap-5 p-5">{children}</div>;
+    return <div className="flex flex-col gap-5 p-4 @[560px]:p-5">{children}</div>;
 }
+
+// process tables drop the pid, then the owner, as they narrow; the name and the number stay
+const PidCell = "hidden w-16 shrink-0 tabular-nums text-muted @[400px]/table:inline";
+const UserCell = "hidden w-24 shrink-0 truncate text-muted @[480px]/table:inline";
 
 function StatGrid({ children }: { children: React.ReactNode }) {
     return <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-x-4 gap-y-3">{children}</div>;
@@ -224,7 +238,7 @@ const TopProcesses = memo(({ model, sortBy }: { model: HostViewModel; sortBy: "c
                     All processes →
                 </button>
             </div>
-            <div className="overflow-hidden rounded-lg border border-border">
+            <div className="@container/table overflow-hidden rounded-lg border border-border">
                 {top?.error && <div className="px-3 py-2 text-[12px] text-error">{top.error}</div>}
                 {!top?.error && rows.length === 0 && <div className="px-3 py-2 text-[12px] text-muted">Loading…</div>}
                 {rows.map((p) => (
@@ -233,9 +247,9 @@ const TopProcesses = memo(({ model, sortBy }: { model: HostViewModel; sortBy: "c
                         className="flex w-full cursor-pointer items-center gap-3 border-b border-border/60 px-3 py-1.5 text-left text-[12px] transition-colors last:border-b-0 hover:bg-hover"
                         onClick={() => model.showProcess(p.pid)}
                     >
-                        <span className="w-16 shrink-0 tabular-nums text-muted">{p.pid}</span>
+                        <span className={PidCell}>{p.pid}</span>
                         <span className="min-w-0 flex-1 truncate text-primary">{p.command}</span>
-                        <span className="w-24 shrink-0 truncate text-muted">{p.user}</span>
+                        <span className={UserCell}>{p.user}</span>
                         <span
                             className={cn(
                                 "w-16 shrink-0 text-right tabular-nums",
@@ -390,7 +404,7 @@ const GpuDetail = memo(({ model, index }: { model: HostViewModel; index: number 
                 value={formatPct(gpu.util)}
                 valueColor="var(--accent-color)"
             />
-            <div className="grid grid-cols-1 gap-4 @[760px]:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 @[640px]:grid-cols-2">
                 <DetailChart
                     title="Utilization"
                     series={[{ values: samples.gpuUtil.get(gpu.index) ?? [], color: "var(--accent-color)" }]}
@@ -432,7 +446,7 @@ const GpuDetail = memo(({ model, index }: { model: HostViewModel; index: number 
                     title="Processes"
                     detail={processes.length > 0 ? `${processes.length} using this GPU` : ""}
                 />
-                <div className="overflow-hidden rounded-lg border border-border">
+                <div className="@container/table overflow-hidden rounded-lg border border-border">
                     {processes.length === 0 && (
                         <div className="px-3 py-2 text-[12px] text-muted">Nothing is running on this GPU.</div>
                     )}
@@ -440,12 +454,12 @@ const GpuDetail = memo(({ model, index }: { model: HostViewModel; index: number 
                         const share = gpu.memtotal > 0 && p.memused >= 0 ? (p.memused / gpu.memtotal) * 100 : NaN;
                         const cells = (
                             <>
-                                <span className="w-16 shrink-0 tabular-nums text-muted">{p.pid}</span>
+                                <span className={PidCell}>{p.pid}</span>
                                 <span className="min-w-0 flex-1 truncate text-primary">
                                     {p.command || <span className="text-muted">Not visible from here</span>}
                                 </span>
-                                <span className="w-24 shrink-0 truncate text-muted">{p.user}</span>
-                                <span className="w-28 shrink-0">
+                                <span className={UserCell}>{p.user}</span>
+                                <span className="hidden w-28 shrink-0 @[560px]/table:inline-block">
                                     <Meter pct={share} color="var(--accent-color)" />
                                 </span>
                                 <span className="w-20 shrink-0 text-right tabular-nums text-secondary">
@@ -584,16 +598,19 @@ export const HostOverviewPane = memo(({ model }: { model: HostViewModel }) => {
     }
     return (
         <div className="@container flex h-full flex-col">
-            <div className="@[720px]:hidden">
+            <div className="@[760px]:hidden">
                 <ResourceStrip model={model} items={items} />
             </div>
             <div className="flex min-h-0 flex-1">
-                <OverlayScrollbarsComponent
-                    className="hidden w-[232px] shrink-0 border-r border-border @[720px]:block"
-                    options={{ scrollbars: { autoHide: "leave" } }}
-                >
-                    <ResourceList model={model} items={items} />
-                </OverlayScrollbarsComponent>
+                {/* OverlayScrollbars sets display on its own element, so the wrapper does the hiding */}
+                <div className="hidden w-[232px] shrink-0 border-r border-border @[760px]:flex @[1280px]:w-[264px]">
+                    <OverlayScrollbarsComponent
+                        className="min-w-0 flex-1"
+                        options={{ scrollbars: { autoHide: "leave" } }}
+                    >
+                        <ResourceList model={model} items={items} />
+                    </OverlayScrollbarsComponent>
+                </div>
                 <OverlayScrollbarsComponent className="min-w-0 flex-1" options={{ scrollbars: { autoHide: "leave" } }}>
                     <div className="@container">
                         <ResourceDetail model={model} resource={resource} />

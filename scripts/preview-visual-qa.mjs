@@ -54,6 +54,7 @@ const PreviewCases = [
     viewports: [
       { name: "desktop", width: 1300, height: 1900 },
       { name: "narrow", width: 760, height: 1900 },
+      { name: "compact", width: 480, height: 1900 },
     ],
   },
   {

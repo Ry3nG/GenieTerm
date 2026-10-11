@@ -1,11 +1,22 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useState } from "react";
 import type { HostViewModel } from "./host-model";
 import { Sparkline } from "./host-sparkline";
-import { Card, CardHeader, coreCellColor, coreKeys, formatGpuPower, Meter, Stat, toneColor } from "./host-ui";
+import {
+    Card,
+    CardHeader,
+    coreCellColor,
+    coreKeys,
+    formatGpuPower,
+    Meter,
+    Stat,
+    ToneColor,
+    toneColor,
+} from "./host-ui";
 import {
     formatBytesAsGiB,
     formatGiB,
@@ -19,6 +30,7 @@ import {
 
 const MaxGpuProcesses = 4;
 const MaxCoreCells = 256;
+const CompactGpuCount = 3;
 
 const CpuCard = memo(({ model }: { model: HostViewModel }) => {
     const latest = useAtomValue(model.latestAtom);
@@ -93,7 +105,7 @@ const MemoryCard = memo(({ model }: { model: HostViewModel }) => {
                 series={[{ values: samples.mem, color: "var(--accent-color)" }]}
                 label="Memory usage over the last minute"
             />
-            <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-3 @[300px]/card:grid-cols-3">
                 <Stat label="Used" value={formatGiB(used)} />
                 <Stat label="Available" value={formatGiB(available)} />
                 <div className="min-w-0">
@@ -129,7 +141,7 @@ const GpuCard = memo(({ model, gpu, history }: { model: HostViewModel; gpu: GpuD
                 series={[{ values: history ?? [], color: "var(--accent-color)" }]}
                 label={`GPU ${gpu.index} utilization over the last minute`}
             />
-            <div className="mt-3 grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-3 @[300px]/card:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="min-w-0">
                     <Stat label="Memory" value={formatGpuMemory(gpu.memused, gpu.memtotal)} />
                     <Meter pct={memPct} className="mt-1" color="var(--accent-color)" />
@@ -202,6 +214,53 @@ const GpuCard = memo(({ model, gpu, history }: { model: HostViewModel; gpu: GpuD
 });
 GpuCard.displayName = "GpuCard";
 
+// One line per GPU for narrow blocks on multi-GPU hosts, where full cards would bury CPU and memory.
+const GpuRows = memo(({ model, gpus }: { model: HostViewModel; gpus: GpuData[] }) => {
+    return (
+        <div className="overflow-hidden rounded-xl border border-border bg-panel">
+            {gpus.map((gpu) => {
+                const tempTone = temperatureTone(gpu.temp);
+                return (
+                    <button
+                        key={gpu.index}
+                        type="button"
+                        aria-label={`Show GPU ${gpu.index} details`}
+                        onClick={() => model.selectResource(`gpu:${gpu.index}`)}
+                        className="flex w-full cursor-pointer items-center gap-3 border-b border-border/60 px-3.5 py-2.5 text-left outline-none transition-colors last:border-b-0 hover:bg-hover focus-visible:bg-hover"
+                    >
+                        <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-baseline gap-2 text-[11px] text-muted">
+                                <span className="shrink-0 text-[13px] font-medium text-primary">GPU {gpu.index}</span>
+                                <span className="min-w-0 truncate tabular-nums">
+                                    {formatGpuMemory(gpu.memused, gpu.memtotal)}
+                                    {isValidNumber(gpu.temp) && (
+                                        <>
+                                            {" · "}
+                                            <span
+                                                style={
+                                                    tempTone === "normal" ? undefined : { color: ToneColor[tempTone] }
+                                                }
+                                            >
+                                                {Math.round(gpu.temp)} °C
+                                            </span>
+                                        </>
+                                    )}
+                                    {isValidNumber(gpu.power) && ` · ${Math.round(gpu.power)} W`}
+                                </span>
+                            </div>
+                            <Meter pct={gpu.util} className="mt-1.5" color="var(--accent-color)" />
+                        </div>
+                        <span className="w-11 shrink-0 text-right text-[15px] font-semibold tabular-nums text-accent">
+                            {formatPct(gpu.util)}
+                        </span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+});
+GpuRows.displayName = "GpuRows";
+
 const GpuSection = memo(({ model }: { model: HostViewModel }) => {
     const latest = useAtomValue(model.latestAtom);
     const samples = useAtomValue(model.samplesAtom);
@@ -210,6 +269,7 @@ const GpuSection = memo(({ model }: { model: HostViewModel }) => {
     if (gpus.length === 0) {
         return null;
     }
+    const compact = gpus.length >= CompactGpuCount;
     const driver = [
         hostInfo?.gpudriver ? `Driver ${hostInfo.gpudriver}` : "",
         hostInfo?.cudaversion ? `CUDA ${hostInfo.cudaversion}` : "",
@@ -224,7 +284,17 @@ const GpuSection = memo(({ model }: { model: HostViewModel }) => {
                     {[summarizeGpus(gpus), driver].filter(Boolean).join(" · ")}
                 </span>
             </div>
-            <div className="grid grid-cols-1 gap-3 @[660px]:grid-cols-2 @[1100px]:grid-cols-3">
+            {compact && (
+                <div className="@[680px]:hidden">
+                    <GpuRows model={model} gpus={gpus} />
+                </div>
+            )}
+            <div
+                className={cn(
+                    "grid grid-cols-1 gap-3 @[680px]:grid-cols-2 @[1040px]:grid-cols-3 @[1480px]:grid-cols-4",
+                    compact && "hidden @[680px]:grid"
+                )}
+            >
                 {gpus.map((gpu) => (
                     <GpuCard key={gpu.index} model={model} gpu={gpu} history={samples.gpuUtil.get(gpu.index)} />
                 ))}
@@ -322,7 +392,7 @@ export const HostSummary = memo(({ model }: { model: HostViewModel }) => {
     const hasGpus = (latest?.gpus?.length ?? 0) > 0;
     return (
         <div className="@container">
-            <div className="grid grid-cols-1 gap-3 p-4 @[760px]:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 p-3 @[420px]:p-4 @[680px]:grid-cols-2">
                 {hasGpus && <GpuSection model={model} />}
                 <CpuCard model={model} />
                 <MemoryCard model={model} />

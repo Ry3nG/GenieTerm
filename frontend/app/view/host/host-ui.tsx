@@ -27,7 +27,7 @@ export function Card({
     onClick?: () => void;
     label?: string;
 }) {
-    const base = "min-w-0 rounded-xl border border-border bg-panel px-4 py-3.5 text-left";
+    const base = "@container/card min-w-0 rounded-xl border border-border bg-panel px-4 py-3.5 text-left";
     if (onClick == null) {
         return <section className={cn(base, className)}>{children}</section>;
     }
@@ -82,7 +82,14 @@ export function CardHeader({
                 >
                     {title}
                 </div>
-                {detail && <div className="truncate text-[12px] leading-4 text-muted">{detail}</div>}
+                {detail && (
+                    <div
+                        className={cn("text-[12px] leading-4 text-muted", large ? "line-clamp-2" : "truncate")}
+                        title={typeof detail === "string" ? detail : undefined}
+                    >
+                        {detail}
+                    </div>
+                )}
             </div>
             {value != null && (
                 <div
@@ -185,7 +192,7 @@ export function DetailChart({
                     <span className="tabular-nums">{topLabel}</span>
                 </span>
             </div>
-            <div className="relative h-40 rounded-lg border border-border bg-background/40">
+            <div className="relative h-28 rounded-lg border border-border bg-background/40 @[560px]:h-40">
                 {[25, 50, 75].map((y) => (
                     <div
                         key={y}
