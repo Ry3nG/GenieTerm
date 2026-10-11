@@ -130,3 +130,26 @@ func TestProgressReaderReportsUncompressedBytes(t *testing.T) {
 		t.Fatalf("progress should be throttled, got %d calls for a fast copy", calls)
 	}
 }
+
+type recordingWriter struct{ writes []int }
+
+func (rw *recordingWriter) Write(p []byte) (int, error) {
+	rw.writes = append(rw.writes, len(p))
+	return len(p), nil
+}
+
+func TestChunkedWriterFeedsTheChannelInSmallPieces(t *testing.T) {
+	rec := &recordingWriter{}
+	reports := 0
+	cw := &chunkedWriter{w: rec, chunk: 4096, onAccepted: func() { reports++ }}
+	n, err := cw.Write(make([]byte, 10000))
+	if err != nil || n != 10000 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	if len(rec.writes) != 3 || rec.writes[0] != 4096 || rec.writes[2] != 10000-2*4096 {
+		t.Fatalf("writes = %v", rec.writes)
+	}
+	if reports != 1 {
+		t.Fatalf("reports should be throttled to one per second, got %d", reports)
+	}
+}

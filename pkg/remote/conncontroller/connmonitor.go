@@ -21,6 +21,10 @@ const connMonitorUrgentCheckDelay = time.Second
 const connMonitorInFlightCheckInterval = 2 * time.Second
 const connMonitorKeepAliveIdle = 10 * time.Second
 const connMonitorStalledThreshold = 10 * time.Second
+
+// on a few-KB/s link an upload's accepted chunks arrive seconds apart, so a moving transfer
+// vouches for the link this long after its last chunk
+const connMonitorTransferGrace = 30 * time.Second
 const connMonitorUrgentStalledThreshold = 5 * time.Second
 const connMonitorDeadTimeout = 15 * time.Second
 const connMonitorResumeProbeTimeout = 5 * time.Second
@@ -237,7 +241,7 @@ func (cm *ConnMonitor) checkConnection() {
 		stalledThreshold = connMonitorUrgentStalledThreshold.Milliseconds()
 	}
 	timeSinceKeepAlive := cm.getTimeSinceKeepAlive()
-	if cm.isTransferring(time.Now().UnixMilli(), stalledThreshold) {
+	if cm.isTransferring(time.Now().UnixMilli(), connMonitorTransferGrace.Milliseconds()) {
 		return
 	}
 	if timeSinceKeepAlive > stalledThreshold {

@@ -133,6 +133,32 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// chunkedWriter hands the SSH channel small pieces so each accepted piece can be reported:
+// on a very slow link a single gzip flush can otherwise take longer than the stall threshold.
+type chunkedWriter struct {
+	w          io.Writer
+	chunk      int
+	lastReport time.Time
+	onAccepted func()
+}
+
+func (cw *chunkedWriter) Write(p []byte) (int, error) {
+	written := 0
+	for written < len(p) {
+		end := min(written+cw.chunk, len(p))
+		n, err := cw.w.Write(p[written:end])
+		written += n
+		if err != nil {
+			return written, err
+		}
+		if cw.onAccepted != nil && time.Since(cw.lastReport) >= time.Second {
+			cw.lastReport = time.Now()
+			cw.onAccepted()
+		}
+	}
+	return written, nil
+}
+
 func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, clientArch string, remotePath string, onProgress InstallProgressFunc) error {
 	genieLocalPath, err := shellutil.GetLocalGenieBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
 	if err != nil {
@@ -198,7 +224,11 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 	go func() {
 		defer close(copyDone)
 		defer stdin.Close()
-		gz, gzErr := gzip.NewWriterLevel(stdin, gzip.BestCompression)
+		sink := &chunkedWriter{w: stdin, chunk: 4096}
+		if onProgress != nil {
+			sink.onAccepted = func() { onProgress(source.sent, source.total) }
+		}
+		gz, gzErr := gzip.NewWriterLevel(sink, gzip.BestCompression)
 		if gzErr != nil {
 			copyDone <- fmt.Errorf("failed to init gzip: %w", gzErr)
 			return
