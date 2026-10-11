@@ -165,7 +165,8 @@ func TestCollectHostInfo(t *testing.T) {
 	boot, err := host.BootTimeWithContext(ctx)
 	if err != nil {
 		t.Logf("boot time is unavailable in this environment: %v", err)
-	} else if info.BootTime != int64(boot) {
+	} else if diff := info.BootTime - int64(boot); diff < -1 || diff > 1 {
+		// Windows derives boot time from uptime, so two reads can land a second apart.
 		t.Fatalf("boot time = %d, want %d", info.BootTime, boot)
 	}
 }
