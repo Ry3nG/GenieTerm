@@ -1,7 +1,11 @@
-## Reporting Security Issues
+# Security
 
-Email security reports to [gongzerui@team6907.org](mailto:gongzerui@team6907.org).
+## Supported versions
 
-**Do not report security vulnerabilities through public GitHub issues.**
+Security fixes go into the latest stable release, which GenieTerm installs for you through its updater.
 
-GenieTerm is an independent open-source fork of [Wave Terminal](https://github.com/wavetermdev/waveterm). Please do not send GenieTerm reports to Command Line Inc. / `security@commandline.dev`.
+## Reporting a vulnerability
+
+Email [gongzerui@team6907.org](mailto:gongzerui@team6907.org) with the version you're using, your operating system, and steps to reproduce. Please don't open a public issue for a vulnerability. You'll get a reply acknowledging the report, and we'll keep you updated until a fix ships.
+
+GenieTerm is an independent fork of [Wave Terminal](https://github.com/wavetermdev/waveterm). Send GenieTerm reports here, not to Command Line Inc.

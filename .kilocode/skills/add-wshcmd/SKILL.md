@@ -1,19 +1,19 @@
 ---
 name: add-wshcmd
-description: Guide for adding new wsh commands to Wave Terminal. Use when implementing new CLI commands, adding command-line functionality, or extending the wsh command interface.
+description: Guide for adding new wsh commands to GenieTerm. Use when implementing new CLI commands, adding command-line functionality, or extending the wsh command interface.
 ---
 
-# Adding a New wsh Command to Wave Terminal
+# Adding a New wsh Command to GenieTerm
 
 This guide explains how to add a new command to the `wsh` CLI tool.
 
 ## wsh Command System Overview
 
-Wave Terminal's `wsh` command provides CLI access to Wave Terminal features. The system uses:
+GenieTerm's `wsh` command provides CLI access to GenieTerm features. The system uses:
 
 1. **Cobra Framework** - CLI command structure and parsing
 2. **Command Files** - Individual command implementations in `cmd/wsh/cmd/wshcmd-*.go`
-3. **RPC Client** - Communication with Wave Terminal backend via `RpcClient`
+3. **RPC Client** - Communication with GenieTerm backend via `RpcClient`
 4. **Activity Tracking** - Telemetry for command usage analytics
 
 Commands are registered in their `init()` functions and execute through the Cobra framework.
@@ -126,7 +126,7 @@ var myCommandCmd = &cobra.Command{
 #### When to Use PreRunE
 
 Include `PreRunE: preRunSetupRpcClient` if your command:
-- Communicates with the Wave Terminal backend
+- Communicates with the GenieTerm backend
 - Needs access to `RpcClient` 
 - Requires JWT authentication (WAVETERM_JWT env var)
 - Makes RPC calls via `wshclient.*Command()` functions
@@ -370,7 +370,7 @@ task build
 
 ### Example 1: Simple Command with No RPC
 
-**Use case:** A command that prints Wave Terminal version info
+**Use case:** A command that prints GenieTerm version info
 
 #### Command File (`cmd/wsh/cmd/wshcmd-version.go`)
 
@@ -387,7 +387,7 @@ import (
 
 var versionCmd = &cobra.Command{
     Use:   "version",
-    Short: "Print Wave Terminal version",
+    Short: "Print GenieTerm version",
     RunE:  versionRun,
 }
 
@@ -400,7 +400,7 @@ func versionRun(cmd *cobra.Command, args []string) (rtnErr error) {
         sendActivity("version", rtnErr == nil)
     }()
     
-    fmt.Printf("Wave Terminal %s\n", wavebase.WaveVersion)
+    fmt.Printf("GenieTerm %s\n", wavebase.WaveVersion)
     return nil
 }
 ```
@@ -410,7 +410,7 @@ func versionRun(cmd *cobra.Command, args []string) (rtnErr error) {
 ````markdown
 ## version
 
-Print the current Wave Terminal version.
+Print the current GenieTerm version.
 
 ```sh
 wsh version

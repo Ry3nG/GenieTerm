@@ -36,12 +36,23 @@ body:
           value: |
               ## Environment details
 
-              Include the GenieTerm version so we can track issues across builds. On macOS, open the app menu and choose `GenieTerm -> About GenieTerm`, then copy the client version below.
+              The version is at the bottom of **Settings → General**.
     - type: input
       attributes:
           label: GenieTerm Version
           description: The version of GenieTerm you are running.
-          placeholder: v0.14.5
+          placeholder: 1.1.0
+      validations:
+          required: true
+    - type: dropdown
+      attributes:
+          label: Where does it happen?
+          description: Many problems only show up on remote hosts.
+          options:
+              - In a local terminal
+              - On an SSH host
+              - On a WSL distribution
+              - Not specific to a connection
       validations:
           required: true
     - type: dropdown

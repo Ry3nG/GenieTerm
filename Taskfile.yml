@@ -36,7 +36,7 @@ tasks:
             WAVETERM_ENVFILE: "{{.ROOT_DIR}}/.env"
 
     electron:quickdev:
-        desc: Run the Electron application via the Vite dev server (quick dev - no docsite, arm64 only, no generate, no wsh).
+        desc: Run the Electron application via the Vite dev server (quick dev - arm64 only, no generate, no wsh).
         cmd: npm run dev
         deps:
             - npm:install
@@ -374,13 +374,15 @@ tasks:
             - npm:install
 
     v1:gate:
-        desc: Run the GenieTerm v1.0.0 baseline quality gate.
+        desc: "The merge gate: typecheck, lint, format, tests, Go checks, audits and preview QA."
+        aliases: [check]
         cmd: node scripts/v1-gate.mjs {{.CLI_ARGS}}
         deps:
             - npm:install
 
     v1:gate:package:
-        desc: Run the GenieTerm v1.0.0 release quality gate with packaging and installed-app verification.
+        desc: The release gate. Runs the merge gate, then packages the app and verifies the installed build.
+        aliases: [check:release]
         cmd: node scripts/v1-gate.mjs --package --installed {{.CLI_ARGS}}
         deps:
             - npm:install

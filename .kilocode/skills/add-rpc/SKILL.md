@@ -1,13 +1,13 @@
 ---
 name: add-rpc
-description: Guide for adding new RPC calls to Wave Terminal. Use when implementing new RPC commands, adding server-client communication methods, or extending the RPC interface with new functionality.
+description: Guide for adding new RPC calls to GenieTerm. Use when implementing new RPC commands, adding server-client communication methods, or extending the RPC interface with new functionality.
 ---
 
 # Adding RPC Calls Guide
 
 ## Overview
 
-Wave Terminal uses a WebSocket-based RPC (Remote Procedure Call) system for communication between different components. The RPC system allows the frontend, backend, electron main process, remote servers, and terminal blocks to communicate with each other through well-defined commands.
+GenieTerm uses a WebSocket-based RPC (Remote Procedure Call) system for communication between different components. The RPC system allows the frontend, backend, electron main process, remote servers, and terminal blocks to communicate with each other through well-defined commands.
 
 This guide covers how to add a new RPC command to the system.
 
@@ -22,7 +22,7 @@ This guide covers how to add a new RPC command to the system.
 
 ## RPC Command Structure
 
-RPC commands in Wave Terminal follow these conventions:
+RPC commands in GenieTerm follow these conventions:
 
 - **Method names** must end with `Command`
 - **First parameter** must be `context.Context`

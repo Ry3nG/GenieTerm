@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+    - name: Report a security vulnerability
+      url: https://github.com/Ry3nG/GenieTerm/blob/main/SECURITY.md
+      about: Please report vulnerabilities privately by email, not in a public issue.
