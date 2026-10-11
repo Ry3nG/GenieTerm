@@ -1,4 +1,4 @@
-// Copyright 2023, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useLongClick } from "@/app/hook/useLongClick";
@@ -22,6 +22,7 @@ export const IconButton = memo(
         return (
             <button
                 ref={ref}
+                data-onboarding={decl.dataOnboarding}
                 className={clsx("wave-iconbutton", className, decl.className, {
                     disabled,
                     "no-action": decl.noAction,

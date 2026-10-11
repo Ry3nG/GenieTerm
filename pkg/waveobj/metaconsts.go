@@ -129,8 +129,11 @@ const (
 	MetaKey_VDomRoute         = "vdom:route"
 	MetaKey_VDomPersist       = "vdom:persist"
 
-	MetaKey_OnboardingGithubStar  = "onboarding:githubstar"
-	MetaKey_OnboardingLastVersion = "onboarding:lastversion"
+	MetaKey_OnboardingGithubStar     = "onboarding:githubstar"
+	MetaKey_OnboardingLastVersion    = "onboarding:lastversion"
+	MetaKey_OnboardingQuickStart     = "onboarding:quickstart"
+	MetaKey_OnboardingQuickStartStep = "onboarding:quickstartstep"
+	MetaKey_OnboardingTips           = "onboarding:tips"
 
 	MetaKey_Count = "count"
 )

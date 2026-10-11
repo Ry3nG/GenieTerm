@@ -1,9 +1,10 @@
 // Copyright 2026, GenieTerm
 // SPDX-License-Identifier: Apache-2.0
 
+import { subscribeOnboardingEvents, type OnboardingEvent } from "@/app/onboarding/onboarding-events";
 import { globalStore } from "@/app/store/jotaiStore";
 import * as jotai from "jotai";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CmdBlock } from "./cmdblocks";
 import { TermCommandAiModel, type CommandAiHost, type CommandAiRunner } from "./term-commandai";
 
@@ -91,11 +92,28 @@ async function flush() {
 }
 
 describe("TermCommandAiModel", () => {
+    let events: OnboardingEvent[];
+    let unsubscribe: () => void;
+
     beforeEach(() => {
+        events = [];
+        unsubscribe = subscribeOnboardingEvents((event) => events.push(event));
         Object.defineProperty(globalThis.navigator, "clipboard", {
             value: { writeText: vi.fn(async () => {}) },
             configurable: true,
         });
+    });
+
+    afterEach(() => unsubscribe());
+
+    it("opens with a prefilled prompt without submitting", async () => {
+        const { model, runner } = makeModel();
+        expect(model.open({ task: "compose", prompt: "find big files", submit: false })).toBe(true);
+        await flush();
+        expect(model.getSheet()).toMatchObject({ task: "compose", input: "find big files", exchanges: [] });
+        expect(model.getSheet().pending).toBeUndefined();
+        expect(runner.calls).toHaveLength(0);
+        expect(events).toEqual([{ type: "commandai-opened", blockId: "block-1" }]);
     });
 
     it("composes, then refines with the earlier turn", async () => {
@@ -186,6 +204,7 @@ describe("TermCommandAiModel", () => {
         await model.apply(danger.id, "run");
         expect(model.getSheet().confirmId).toBe(danger.id);
         expect(termWrap.runCommand).not.toHaveBeenCalled();
+        expect(events.filter((event) => event.type === "commandai-applied")).toEqual([]);
         await model.apply(danger.id, "run");
         expect(termWrap.runCommand).toHaveBeenCalledWith("rm -rf build");
         expect(model.getSheet()).toBeNull();
@@ -197,6 +216,10 @@ describe("TermCommandAiModel", () => {
         await model.apply(model.getLastExchange().proposals[0].id, "insert");
         expect(termWrap.insertCommand).toHaveBeenCalledWith("ls build");
         expect(safe.command).toBe("ls build");
+        expect(events.filter((event) => event.type === "commandai-applied")).toEqual([
+            { type: "commandai-applied", blockId: "block-1", mode: "run" },
+            { type: "commandai-applied", blockId: "block-1", mode: "insert" },
+        ]);
     });
 
     it("copies instead of inserting while a command is running", async () => {
@@ -210,12 +233,58 @@ describe("TermCommandAiModel", () => {
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ls");
         expect(termWrap.insertCommand).not.toHaveBeenCalled();
         expect(model.getSheet().notice).toContain("Copied");
+        expect(events.filter((event) => event.type === "commandai-applied")).toEqual([]);
     });
+
+    it.each(["insert", "run", "copy"] as const)("does not emit applied for an unsuccessful %s", async (action) => {
+        const { model, runner, termWrap } = makeModel();
+        termWrap.insertCommand.mockReturnValue(false);
+        termWrap.runCommand.mockReturnValue(false);
+        model.open({ prompt: "list" });
+        const pending = model.submit();
+        runner.calls[0].resolve(ok(runner.calls[0].request, ["ls"]));
+        await pending;
+        await model.apply(model.getLastExchange().proposals[0].id, action);
+        expect(events.filter((event) => event.type === "commandai-applied")).toEqual([]);
+        if (action !== "run") {
+            expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ls");
+        }
+    });
+
+    it.each([
+        { action: "insert", succeeds: true, busy: false },
+        { action: "run", succeeds: true, busy: false },
+        { action: "insert", succeeds: false, busy: false },
+        { action: "run", succeeds: false, busy: false },
+        { action: "insert", succeeds: true, busy: true },
+    ] as const)(
+        "emits for inline $action only on success (succeeds=$succeeds, busy=$busy)",
+        async ({ action, succeeds, busy }) => {
+            const { model, runner, termWrap } = makeModel();
+            const pending = model.generateInline("list", failedBlock);
+            await flush();
+            runner.calls[0].resolve(ok(runner.calls[0].request, ["ls"]));
+            await pending;
+            termWrap.insertCommand.mockReturnValue(succeeds);
+            termWrap.runCommand.mockReturnValue(succeeds);
+            if (busy) {
+                globalStore.set(termWrap.shellIntegrationStatusAtom, "running-command");
+            }
+            await model.applyInline(failedBlock, action);
+            expect(events).toEqual(
+                succeeds && !busy ? [{ type: "commandai-applied", blockId: "block-1", mode: action }] : []
+            );
+            if (busy) {
+                expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ls");
+            }
+        }
+    );
 
     it("does not open when Command AI is off", () => {
         const { model } = makeModel(makeRunner(), { isEnabled: () => false });
         expect(model.open({ prompt: "x" })).toBe(false);
         expect(model.getSheet()).toBeNull();
+        expect(events).toEqual([]);
     });
 
     it("previews the request it would send", async () => {

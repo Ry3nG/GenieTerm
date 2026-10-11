@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { OnboardingAnchor } from "@/app/onboarding/onboarding-events";
 import { CommandAiClient, isCommandAiEngineReady, openCommandAiSettings } from "@/app/store/commandai";
 import type { TermViewModel } from "@/app/view/term/term-model";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
@@ -823,6 +824,7 @@ export function CommandAiSheet({
         <div
             ref={rootRef}
             role="dialog"
+            data-onboarding={OnboardingAnchor.CommandAiSheet}
             aria-label="Command AI"
             tabIndex={-1}
             onKeyDown={onKeyDown}

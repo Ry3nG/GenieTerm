@@ -1,6 +1,7 @@
 // Copyright 2026, GenieTerm
 // SPDX-License-Identifier: Apache-2.0
 
+import { emitOnboardingEvent } from "@/app/onboarding/onboarding-events";
 import { CommandAiClient, makeCommandAiRequestId } from "@/app/store/commandai";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
@@ -117,6 +118,7 @@ export class TermCommandAiModel {
             selection,
             includeOutput: this.host.includeOutputByDefault(),
         });
+        emitOnboardingEvent({ type: "commandai-opened", blockId: this.host.blockId });
         this.runner.loadStatus().catch((e) => console.error("command ai status failed", e));
         if (options.submit) {
             fireAndForget(() => this.submit());
@@ -357,6 +359,7 @@ export class TermCommandAiModel {
                 return;
             }
             globalStore.set(this.sheetAtom, null);
+            emitOnboardingEvent({ type: "commandai-applied", blockId: this.host.blockId, mode: "run" });
             return;
         }
         this.host.suppressCompletionFor(proposal.command);
@@ -366,6 +369,7 @@ export class TermCommandAiModel {
             return;
         }
         globalStore.set(this.sheetAtom, null);
+        emitOnboardingEvent({ type: "commandai-applied", blockId: this.host.blockId, mode: "insert" });
     }
 
     async toggleDisclosure(): Promise<void> {
@@ -558,5 +562,6 @@ export class TermCommandAiModel {
         }
         this.clearInlineState(block);
         this.host.giveFocus();
+        emitOnboardingEvent({ type: "commandai-applied", blockId: this.host.blockId, mode });
     }
 }

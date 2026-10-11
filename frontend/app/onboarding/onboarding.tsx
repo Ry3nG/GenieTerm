@@ -4,20 +4,18 @@
 import Logo from "@/app/asset/logo";
 import { Button } from "@/app/element/button";
 import { FlexiModal } from "@/app/modals/modal";
-import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
-import { OnboardingFeatures } from "@/app/onboarding/onboarding-features";
+import { CurrentOnboardingVersion, OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
+import { OnboardingModel, setClientMeta } from "@/app/onboarding/onboarding-model";
 import { FeatureItem, FeatureRow } from "@/app/onboarding/onboarding-tour";
 import { ClientModel } from "@/app/store/client-model";
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
 import * as services from "@/store/services";
 import { fireAndForget } from "@/util/util";
-import { atom, PrimitiveAtom, useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { debounce } from "throttle-debounce";
-
-type PageName = "init" | "features";
 
 const WelcomePillars: FeatureItem[] = [
     {
@@ -37,17 +35,27 @@ const WelcomePillars: FeatureItem[] = [
     },
 ];
 
-const pageNameAtom: PrimitiveAtom<PageName> = atom<PageName>("init");
-
 const InitPage = ({ isCompact }: { isCompact: boolean }) => {
     const clientData = useAtomValue(ClientModel.getInstance().clientAtom);
-    const setPageName = useSetAtom(pageNameAtom);
+    const setNewInstallOnboardingOpen = useSetAtom(modalsModel.newInstallOnboardingOpen);
 
-    const acceptTos = () => {
+    const finishWelcome = async (startQuickStart: boolean) => {
+        // the renderer reopens this modal on any client update until tosagreed lands
         if (!clientData?.tosagreed) {
-            fireAndForget(() => services.ClientService.AgreeTos());
+            await services.ClientService.AgreeTos();
         }
-        setPageName("features");
+        setClientMeta({
+            "onboarding:lastversion": CurrentOnboardingVersion,
+            ...(startQuickStart ? {} : { "onboarding:quickstart": "dismissed" }),
+        });
+        setNewInstallOnboardingOpen(false);
+        if (startQuickStart) {
+            OnboardingModel.getInstance().start();
+            return;
+        }
+        setTimeout(() => {
+            globalRefocus();
+        }, 10);
     };
 
     return (
@@ -72,12 +80,21 @@ const InitPage = ({ isCompact }: { isCompact: boolean }) => {
                 </div>
             </OverlayScrollbarsComponent>
             <footer className={`unselectable flex-shrink-0 ${isCompact ? "mt-2" : "mt-5"}`}>
-                <div className="flex flex-row items-center justify-center [&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm [&>button:not(:first-child)]:ml-2.5">
-                    <Button className="font-[600]" onClick={acceptTos}>
-                        Continue
+                <div className="flex flex-row items-center justify-center [&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm">
+                    <Button className="font-[600]" onClick={() => fireAndForget(() => finishWelcome(true))}>
+                        Get Started
                     </Button>
                 </div>
-                <div className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-muted">
+                <div className="mt-2.5 text-center text-[12.5px] text-secondary">
+                    A one-minute Quick Start, right in your terminal.{" "}
+                    <button
+                        className="cursor-pointer text-muted underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                        onClick={() => fireAndForget(() => finishWelcome(false))}
+                    >
+                        Skip
+                    </button>
+                </div>
+                <div className="mt-4 flex items-center justify-center gap-1.5 text-[12px] text-muted">
                     <i className="fa-solid fa-lock text-[10px]" aria-hidden="true" />
                     <span>Runs on your machine. No account, no usage data.</span>
                 </div>
@@ -86,23 +103,8 @@ const InitPage = ({ isCompact }: { isCompact: boolean }) => {
     );
 };
 
-const FeaturesPage = () => {
-    const [newInstallOnboardingOpen, setNewInstallOnboardingOpen] = useAtom(modalsModel.newInstallOnboardingOpen);
-
-    const handleComplete = () => {
-        setNewInstallOnboardingOpen(false);
-        setTimeout(() => {
-            globalRefocus();
-        }, 10);
-    };
-
-    return <OnboardingFeatures onComplete={handleComplete} />;
-};
-
 const NewInstallOnboardingModal = () => {
     const modalRef = useRef<HTMLDivElement | null>(null);
-    const [pageName, setPageName] = useAtom(pageNameAtom);
-    const clientData = useAtomValue(ClientModel.getInstance().clientAtom);
     const [isCompact, setIsCompact] = useState<boolean>(window.innerHeight < 800);
 
     const updateModalHeight = () => {
@@ -122,15 +124,6 @@ const NewInstallOnboardingModal = () => {
     };
 
     useEffect(() => {
-        if (clientData.tosagreed) {
-            setPageName("features");
-        }
-        return () => {
-            setPageName("init");
-        };
-    }, []);
-
-    useEffect(() => {
         updateModalHeight();
         const debouncedUpdateModalHeight = debounce(150, updateModalHeight);
         window.addEventListener("resize", debouncedUpdateModalHeight);
@@ -139,11 +132,6 @@ const NewInstallOnboardingModal = () => {
         };
     }, []);
 
-    // the feature tour is much taller than the welcome page; re-clamp before it paints
-    useLayoutEffect(() => {
-        updateModalHeight();
-    }, [pageName]);
-
     useEffect(() => {
         disableGlobalKeybindings();
         return () => {
@@ -151,26 +139,14 @@ const NewInstallOnboardingModal = () => {
         };
     }, []);
 
-    let pageComp: React.JSX.Element = null;
-    switch (pageName) {
-        case "init":
-            pageComp = <InitPage isCompact={isCompact} />;
-            break;
-        case "features":
-            pageComp = <FeaturesPage />;
-            break;
-    }
-    if (pageComp == null) {
-        return null;
-    }
-
     const paddingClass = isCompact ? "!py-3 !px-[30px]" : "!p-[30px]";
-    const widthClass = pageName === "features" ? "w-[820px]" : "w-[560px]";
 
     return (
-        <FlexiModal className={`${widthClass} rounded-[10px] ${paddingClass} relative overflow-hidden`} ref={modalRef}>
+        <FlexiModal className={`w-[560px] rounded-[10px] ${paddingClass} relative overflow-hidden`} ref={modalRef}>
             <OnboardingGradientBg />
-            <div className="flex flex-col w-full h-full relative z-10">{pageComp}</div>
+            <div className="flex flex-col w-full h-full relative z-10">
+                <InitPage isCompact={isCompact} />
+            </div>
         </FlexiModal>
     );
 };

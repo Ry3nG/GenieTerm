@@ -9,27 +9,43 @@ import {
     isOnboardingCurrent,
     OnboardingGradientBg,
 } from "@/app/onboarding/onboarding-common";
+import { OnboardingModel, setClientMeta } from "@/app/onboarding/onboarding-model";
 import { FeatureItem, FeatureRow } from "@/app/onboarding/onboarding-tour";
 import { ClientModel } from "@/app/store/client-model";
 import { getApi, globalStore } from "@/app/store/global";
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
-import * as WOS from "@/app/store/wos";
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import coerce from "semver/functions/coerce";
 import lt from "semver/functions/lt";
 
-const ReleaseNotesUrl = "https://github.com/Ry3nG/GenieTerm/releases/tag/v1.2.0";
+const ReleaseNotesUrl = "https://github.com/Ry3nG/GenieTerm/releases/tag/v1.3.0";
 
 type UpgradeRelease = { version: string; title: string; items: FeatureItem[] };
 
 const UpgradeReleases: UpgradeRelease[] = [
     {
+        version: "v1.3.0",
+        title: "New in 1.3",
+        items: [
+            {
+                icon: "fa-compass",
+                title: "Quick Start",
+                description:
+                    "A one-minute tour inside your own terminal: run a command, ask Command AI, open a folder. It moves on when you do.",
+            },
+            {
+                icon: "fa-lightbulb",
+                title: "Tips when they help",
+                description:
+                    "The first time a command fails, GenieTerm points to the fix. Connect to a server and it shows where its files and GPUs are. Once each.",
+            },
+        ],
+    },
+    {
         version: "v1.2.0",
-        title: "New in 1.2",
+        title: "Also since your last update",
         items: [
             {
                 icon: "fa-wand-magic-sparkles",
@@ -57,7 +73,7 @@ const UpgradeReleases: UpgradeRelease[] = [
     },
     {
         version: "v1.0.0",
-        title: "Also since your last update",
+        title: "Earlier",
         items: [
             {
                 icon: "fa-server",
@@ -138,11 +154,17 @@ const UpgradeOnboardingModal = () => {
         }, 10);
     };
 
-    const handleClose = () => {
-        const clientId = ClientModel.getInstance().clientId;
-        RpcApi.SetMetaCommand(TabRpcClient, {
-            oref: WOS.makeORef("client", clientId),
-            meta: { "onboarding:lastversion": CurrentOnboardingVersion },
+    const handleStartQuickStart = () => {
+        setClientMeta({ "onboarding:lastversion": CurrentOnboardingVersion });
+        globalStore.set(modalsModel.upgradeOnboardingOpen, false);
+        OnboardingModel.getInstance().start();
+    };
+
+    const handleNotNow = () => {
+        const quickStart = clientData.meta?.["onboarding:quickstart"];
+        setClientMeta({
+            "onboarding:lastversion": CurrentOnboardingVersion,
+            ...(quickStart === "done" ? {} : { "onboarding:quickstart": "dismissed" }),
         });
         doClose();
     };
@@ -155,16 +177,19 @@ const UpgradeOnboardingModal = () => {
                     <div className="mb-2.5">
                         <Logo />
                     </div>
-                    <div className="text-[25px] font-normal text-foreground">GenieTerm 1.2</div>
+                    <div className="text-[25px] font-normal text-foreground">GenieTerm 1.3</div>
                     <div className="text-[14px] text-secondary">What's new since your last update.</div>
                 </header>
                 <div className="max-h-[52vh] overflow-y-auto">
                     <UpgradeNotes lastVersion={lastVersion} />
                 </div>
                 <footer className="flex flex-col items-center gap-3 unselectable">
-                    <div className="[&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm">
-                        <Button className="font-[600] cursor-pointer" onClick={handleClose}>
-                            Continue
+                    <div className="flex items-center gap-2.5 [&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm">
+                        <Button className="grey font-[600] cursor-pointer" onClick={handleNotNow}>
+                            Not Now
+                        </Button>
+                        <Button className="font-[600] cursor-pointer" onClick={handleStartQuickStart}>
+                            Start Quick Start
                         </Button>
                     </div>
                     <button

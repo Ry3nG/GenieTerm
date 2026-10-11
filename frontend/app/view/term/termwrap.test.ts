@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { subscribeOnboardingEvents } from "@/app/onboarding/onboarding-events";
 import { activeTabIdAtom } from "@/app/store/activetab";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -354,6 +355,40 @@ describe("TermWrap runCommand", () => {
 });
 
 describe("TermWrap command blocks", () => {
+    it.each([
+        { replaying: false, interrupted: false, command: "make test", exitCode: 0, emits: true },
+        { replaying: false, interrupted: true, command: "make test", exitCode: 130, emits: true },
+        { replaying: false, interrupted: false, command: "make test", exitCode: null, emits: true },
+        { replaying: true, interrupted: false, command: "make test", exitCode: 0, emits: false },
+        { replaying: false, interrupted: false, command: "", exitCode: 0, emits: false },
+        { replaying: false, interrupted: false, command: "   ", exitCode: 0, emits: false },
+    ])("emits command-done only for live commands: %j", ({ replaying, interrupted, command, exitCode, emits }) => {
+        const { termWrap } = makeTermWrap();
+        startPrompt(termWrap);
+        termWrap.onCommandStart(command, replaying);
+        const block = termWrap.pendingCmdBlock;
+        if (interrupted) {
+            termWrap.finalizeInterruptedCmdBlock(block);
+        }
+        const listener = vi.fn();
+        const unsubscribe = subscribeOnboardingEvents(listener);
+        try {
+            termWrap.onCommandDone(exitCode, replaying);
+            expect(listener).toHaveBeenCalledTimes(emits ? 1 : 0);
+            if (emits) {
+                expect(listener).toHaveBeenCalledWith({
+                    type: "command-done",
+                    blockId: "block-1",
+                    cmdBlockId: String(block.id),
+                    command,
+                    exitCode: exitCode ?? -1,
+                });
+            }
+        } finally {
+            unsubscribe();
+        }
+    });
+
     it.each([
         ["live", false, false, true],
         ["replayed", true, false, false],

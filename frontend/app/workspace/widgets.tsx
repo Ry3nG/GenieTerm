@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip } from "@/app/element/tooltip";
+import { OnboardingAnchor } from "@/app/onboarding/onboarding-events";
 import { getFocusedBlockId } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
@@ -25,19 +26,20 @@ export type WidgetsEnv = WaveEnvSubset<{
     showContextMenu: WaveEnv["showContextMenu"];
 }>;
 
-function sortByDisplayOrder(wmap: { [key: string]: WidgetConfigType }): WidgetConfigType[] {
+function sortByDisplayOrder(wmap: { [key: string]: WidgetConfigType }): [string, WidgetConfigType][] {
     if (wmap == null) {
         return [];
     }
-    const wlist = Object.values(wmap);
+    const wlist = Object.entries(wmap);
     wlist.sort((a, b) => {
-        return (a["display:order"] ?? 0) - (b["display:order"] ?? 0);
+        return (a[1]["display:order"] ?? 0) - (b[1]["display:order"] ?? 0);
     });
     return wlist;
 }
 
 type WidgetPropsType = {
     widget: WidgetConfigType;
+    widgetKey?: string;
     mode: "normal" | "compact" | "supercompact";
     env: WidgetsEnv;
 };
@@ -83,7 +85,7 @@ async function handleWidgetSelect(widget: WidgetConfigType, env: WidgetsEnv) {
     env.createBlock(blockDef, widget.magnified);
 }
 
-const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
+const Widget = memo(({ widget, widgetKey, mode, env }: WidgetPropsType) => {
     const [isTruncated, setIsTruncated] = useState(false);
     const labelRef = useRef<HTMLDivElement>(null);
 
@@ -95,9 +97,16 @@ const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
     }, [mode, widget.label]);
 
     const shouldDisableTooltip = mode !== "normal" ? false : !isTruncated;
+    const onboardingAnchor =
+        widgetKey === "defwidget@files"
+            ? OnboardingAnchor.WidgetFiles
+            : widgetKey === "defwidget@host"
+              ? OnboardingAnchor.WidgetHost
+              : undefined;
 
     return (
         <Tooltip
+            divDataAttributes={{ "data-widget": widgetKey, "data-onboarding": onboardingAnchor }}
             content={widget.description || widget.label}
             placement="left"
             disable={shouldDisableTooltip}
@@ -122,6 +131,7 @@ const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
         </Tooltip>
     );
 });
+Widget.displayName = "Widget";
 
 function SettingsTooltipContent({ item }: { item: WidgetSettingsActionItem }) {
     if (!item.hasError) {
@@ -274,8 +284,8 @@ const Widgets = memo(() => {
                 {mode === "supercompact" ? (
                     <>
                         <div className="grid grid-cols-2 gap-0 w-full">
-                            {widgets?.map((data, idx) => (
-                                <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
+                            {widgets?.map(([key, data]) => (
+                                <Widget key={key} widgetKey={key} widget={data} mode={mode} env={env} />
                             ))}
                         </div>
                         <div className="flex-grow" />
@@ -287,8 +297,8 @@ const Widgets = memo(() => {
                     </>
                 ) : (
                     <>
-                        {widgets?.map((data, idx) => (
-                            <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
+                        {widgets?.map(([key, data]) => (
+                            <Widget key={key} widgetKey={key} widget={data} mode={mode} env={env} />
                         ))}
                         <div className="flex-grow" />
                         {settingsActionItems.map((item) => (
@@ -309,8 +319,8 @@ const Widgets = memo(() => {
                 ref={measurementRef}
                 className="flex flex-col w-12 py-1 -ml-1 select-none absolute -z-10 opacity-0 pointer-events-none"
             >
-                {widgets?.map((data, idx) => (
-                    <Widget key={`measurement-widget-${idx}`} widget={data} mode="normal" env={env} />
+                {widgets?.map(([key, data]) => (
+                    <Widget key={key} widget={data} mode="normal" env={env} />
                 ))}
                 <div className="flex-grow" />
                 {settingsActionItems.map((item) => (
