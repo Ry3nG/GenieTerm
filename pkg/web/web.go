@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -242,6 +243,23 @@ func writeWaveFileRange(w io.Writer, readAt waveFileReadAtFn, startIdx int64, en
 	return written, nil
 }
 
+// streamFileBaseName returns the last element of a local path or wsh:// URI, for either separator.
+func streamFileBaseName(path string) string {
+	idx := strings.LastIndexAny(path, "/\\")
+	return path[idx+1:]
+}
+
+// Without a filename, a video player's download button or the PDF viewer saves the file under the
+// URL's name ("stream-file.mp4"). Inline keeps previews rendering in place.
+func setStreamFileDisposition(header http.Header, name string) {
+	if name == "" {
+		return
+	}
+	if value := mime.FormatMediaType("inline", map[string]string{"filename": name}); value != "" {
+		header.Set("Content-Disposition", value)
+	}
+}
+
 func serveTransparentGIF(w http.ResponseWriter) {
 	gifBytes, _ := base64.StdEncoding.DecodeString(TransparentGif64)
 	w.Header().Set("Content-Type", "image/gif")
@@ -255,6 +273,7 @@ func handleLocalStreamFile(w http.ResponseWriter, r *http.Request, path string, 
 		log.Printf("streaming file w/no404: %q\n", path)
 		// use the custom response writer
 		rw := &notFoundBlockingResponseWriter{w: w, headers: http.Header{}}
+		setStreamFileDisposition(rw.Header(), streamFileBaseName(path))
 
 		// Serve the file using http.ServeFile
 		path, err := wavebase.ExpandHomeDir(path)
@@ -272,7 +291,9 @@ func handleLocalStreamFile(w http.ResponseWriter, r *http.Request, path string, 
 		path, err := wavebase.ExpandHomeDir(path)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
+		setStreamFileDisposition(w.Header(), streamFileBaseName(path))
 		http.ServeFile(w, r, path)
 	}
 }
@@ -335,6 +356,11 @@ func handleStreamFileFromReader(w http.ResponseWriter, r *http.Request, path str
 	log.Printf("stream-file headers-ready path=%q time-to-headers=%v\n", path, time.Since(startTime))
 	w.Header().Set(ContentTypeHeaderKey, fileInfo.MimeType)
 	w.Header().Set("Accept-Ranges", "bytes")
+	if fileInfo.Name != "" {
+		setStreamFileDisposition(w.Header(), fileInfo.Name)
+	} else {
+		setStreamFileDisposition(w.Header(), streamFileBaseName(path))
+	}
 	if byteRange != "" {
 		br, _ := fileutil.ParseByteRange(byteRange)
 		var rangeEnd int64

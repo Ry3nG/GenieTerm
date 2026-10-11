@@ -9,6 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
@@ -73,5 +76,62 @@ func TestWriteWaveFileRangeTruncatedDuringRead(t *testing.T) {
 	var out bytes.Buffer
 	if _, err := writeWaveFileRange(&out, readAt, 100, 200); err == nil {
 		t.Fatalf("expected an error when the file no longer has the requested range")
+	}
+}
+
+func TestStreamFileBaseName(t *testing.T) {
+	cases := map[string]string{
+		"wsh://gpu-box/home/me/runs/demo.mp4": "demo.mp4",
+		"~/Movies/clip.mov":                   "clip.mov",
+		`wsh://local/C:\Users\me\report.pdf`:  "report.pdf",
+		"plain.txt":                           "plain.txt",
+		"wsh://gpu-box/home/me/":              "",
+	}
+	for in, want := range cases {
+		if got := streamFileBaseName(in); got != want {
+			t.Fatalf("streamFileBaseName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestStreamFileDispositionNamesTheFile(t *testing.T) {
+	header := http.Header{}
+	setStreamFileDisposition(header, "demo.mp4")
+	if got := header.Get("Content-Disposition"); got != "inline; filename=demo.mp4" {
+		t.Fatalf("ascii name: %q", got)
+	}
+	header = http.Header{}
+	setStreamFileDisposition(header, "训练 结果.mp4")
+	if got := header.Get("Content-Disposition"); !strings.HasPrefix(got, "inline; filename*=utf-8''") {
+		t.Fatalf("non-ascii name should use RFC 2231 encoding: %q", got)
+	}
+	header = http.Header{}
+	setStreamFileDisposition(header, `say "hi".pdf`)
+	if got := header.Get("Content-Disposition"); got != `inline; filename="say \"hi\".pdf"` {
+		t.Fatalf("quoted name: %q", got)
+	}
+	header = http.Header{}
+	setStreamFileDisposition(header, "")
+	if got := header.Get("Content-Disposition"); got != "" {
+		t.Fatalf("empty name should not set a header: %q", got)
+	}
+}
+
+func TestLocalStreamFileSendsFilename(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "clip.mp4")
+	if err := os.WriteFile(path, []byte("not really a video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, no404 := range []bool{false, true} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/wave/stream-local-file?path="+path, nil)
+		handleLocalStreamFile(rec, req, path, no404)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("no404=%v: status %d", no404, rec.Code)
+		}
+		if got := rec.Header().Get("Content-Disposition"); got != "inline; filename=clip.mp4" {
+			t.Fatalf("no404=%v: Content-Disposition %q", no404, got)
+		}
 	}
 }
