@@ -1,0 +1,9 @@
+node_modules
+out
+public/dev
+public/captures
+public/*.wav
+audio/cues.json
+audio/__pycache__
+public/score.json
+demo/authorized_keys
