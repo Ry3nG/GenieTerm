@@ -7,7 +7,8 @@ import path from "node:path";
 import process from "node:process";
 import { chromium } from "playwright";
 import { PNG } from "pngjs";
-import { fail, MacAppExpectations, run, verifyDirectory, verifyMacAppBundle } from "./macos-app-verifier.mjs";
+import { MacAppExpectations, run, verifyDirectory, verifyMacAppBundle } from "./macos-app-verifier.mjs";
+import { extractAppImage, verifyLinuxTree } from "./verify-linux-package.mjs";
 
 const Scope = "verify-installed-app";
 const DefaultAppPath = `/Applications/${MacAppExpectations.productName}.app`;
@@ -18,6 +19,10 @@ const AppPath = path.resolve(appPathArg || DefaultAppPath);
 
 function log(message) {
   console.log(`[${Scope}] ${message}`);
+}
+
+function fail(scope, message) {
+  throw new Error(`[${scope}] ${message}`);
 }
 
 function launchSmoke(appPath) {
@@ -93,7 +98,10 @@ async function assertWindowRendersContent(window, timeoutMs) {
 }
 
 async function windowSmoke(appPath) {
-  const executablePath = path.join(appPath, "Contents", "MacOS", MacAppExpectations.productName);
+  const executablePath =
+    process.platform === "linux"
+      ? path.join(appPath, "genieterm")
+      : path.join(appPath, "Contents", "MacOS", MacAppExpectations.productName);
   const userDataDir = mkdtempSync(path.join(tmpdir(), "genieterm-window-smoke-"));
   let browser = null;
   let appProcess = null;
@@ -119,6 +127,7 @@ async function windowSmoke(appPath) {
     if (!window.url().includes("app.asar")) {
       fail(Scope, `window URL does not point at packaged app content: ${window.url()}`);
     }
+    await assertWindowRendersContent(window, 15000);
     const errorBoundaryCount = await window.getByText("Something went wrong", { exact: false }).count();
     if (errorBoundaryCount > 0) {
       fail(Scope, "window rendered the React error boundary");
@@ -126,7 +135,6 @@ async function windowSmoke(appPath) {
     if (consoleErrors.length > 0) {
       fail(Scope, `window console errors: ${consoleErrors.join("\n")}`);
     }
-    await assertWindowRendersContent(window, 15000);
   } finally {
     if (browser) {
       await browser.close().catch(() => {});
@@ -136,43 +144,66 @@ async function windowSmoke(appPath) {
   }
 }
 
-async function launchPackagedAppForCdp(executablePath, userDataDir) {
-  const child = spawn(executablePath, ["--remote-debugging-port=0", "--user-data-dir", userDataDir, "--disable-gpu"], {
-    env: {
-      ...process.env,
-      GENIETERM_SKIP_SINGLE_INSTANCE: "1",
-      WAVETERM_CONFIG_HOME: path.join(userDataDir, "config"),
-      WAVETERM_DATA_HOME: path.join(userDataDir, "data"),
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+async function launchPackagedAppForCdp(executablePath, userDataDir, withoutSandbox = false) {
+  const child = spawn(
+    executablePath,
+    [
+      "--remote-debugging-port=0",
+      "--user-data-dir",
+      userDataDir,
+      "--disable-gpu",
+      ...(withoutSandbox ? ["--no-sandbox"] : []),
+    ],
+    {
+      env: {
+        ...process.env,
+        GENIETERM_SKIP_SINGLE_INSTANCE: "1",
+        WAVETERM_CONFIG_HOME: path.join(userDataDir, "config"),
+        WAVETERM_DATA_HOME: path.join(userDataDir, "data"),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    }
+  );
   let output = "";
-  const wsUrl = await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error(`timed out waiting for DevTools endpoint\n${output}`));
-    }, 20000);
-    const onData = (buffer) => {
-      output += buffer.toString();
-      const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-      if (match) {
+  try {
+    const wsUrl = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`timed out waiting for DevTools endpoint\n${output}`));
+      }, 20000);
+      const onData = (buffer) => {
+        output += buffer.toString();
+        const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+        if (match) {
+          clearTimeout(timeout);
+          resolve(match[1]);
+        }
+      };
+      child.stdout.on("data", onData);
+      child.stderr.on("data", onData);
+      child.on("error", (error) => {
         clearTimeout(timeout);
-        resolve(match[1]);
-      }
-    };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.on("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
+        reject(error);
+      });
+      child.on("exit", (code, signal) => {
+        if (!/DevTools listening on ws:\/\//.test(output)) {
+          clearTimeout(timeout);
+          reject(new Error(`app exited before DevTools endpoint was ready: code=${code} signal=${signal}\n${output}`));
+        }
+      });
     });
-    child.on("exit", (code, signal) => {
-      if (!/DevTools listening on ws:\/\//.test(output)) {
-        clearTimeout(timeout);
-        reject(new Error(`app exited before DevTools endpoint was ready: code=${code} signal=${signal}\n${output}`));
-      }
-    });
-  });
-  return { child, wsUrl };
+    return { child, wsUrl };
+  } catch (error) {
+    stopAppProcesses(child, userDataDir);
+    if (
+      process.platform === "linux" &&
+      !withoutSandbox &&
+      /No usable sandbox|SUID sandbox helper binary|Running as root without --no-sandbox/i.test(output)
+    ) {
+      log("sandbox unavailable in smoke environment; retrying this test with --no-sandbox");
+      return launchPackagedAppForCdp(executablePath, userDataDir, true);
+    }
+    throw error;
+  }
 }
 
 // Electron keeps pre-created tab views around at zero size; only the visible app page can be screenshotted.
@@ -216,6 +247,23 @@ function stopAppProcesses(appProcess, userDataDir) {
 }
 
 async function main() {
+  if (process.platform === "linux") {
+    const imageIndex = process.argv.indexOf("--linux-appimage");
+    const image = imageIndex >= 0 ? process.argv[imageIndex + 1] : null;
+    if (!image || !shouldWindowSmoke) {
+      fail(Scope, "Linux usage: --window-smoke --linux-appimage path/to/GenieTerm.AppImage (run under xvfb-run)");
+    }
+    const temporary = mkdtempSync(path.join(tmpdir(), "genieterm-linux-smoke-"));
+    try {
+      const root = extractAppImage(image, temporary);
+      verifyLinuxTree(root, process.arch);
+      await windowSmoke(root);
+      log("Linux AppImage window smoke passed");
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+    return;
+  }
   if (process.platform !== "darwin") {
     fail(Scope, "installed app verification is currently implemented for macOS only");
   }

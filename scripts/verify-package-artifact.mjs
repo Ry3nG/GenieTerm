@@ -4,6 +4,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fail, MacAppExpectations, verifyDirectory, verifyMacAppBundle } from "./macos-app-verifier.mjs";
+import { verifyLinuxPackages } from "./verify-linux-package.mjs";
 import { verifyUpdateMetadata } from "./verify-update-metadata.mjs";
 
 const Args = process.argv.slice(2);
@@ -51,6 +52,10 @@ function findZipArtifacts(dir) {
 }
 
 function main() {
+  if (process.platform === "linux") {
+    verifyLinuxPackages({ dir: OutputDir, requiredArches: RequiredArches });
+    return;
+  }
   if (process.platform !== "darwin") {
     fail(Scope, "package artifact verification is currently implemented for macOS only");
   }
