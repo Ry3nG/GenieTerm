@@ -66,6 +66,8 @@ export default defineConfig({
         build: {
             target: CHROME,
             sourcemap: process.env.GENIETERM_SOURCEMAP === "1",
+            // gzip-sizing ~900 chunks only feeds the build log
+            reportCompressedSize: false,
             outDir: "dist/frontend",
             rollupOptions: {
                 input: {

@@ -15,7 +15,7 @@ Each package's integrity is covered by the update manifests (`latest-mac.yml`, `
 
 ## Before tagging
 
-1. Land everything on `main` and make sure CI is green there. CI runs the merge gate (`scripts/v1-gate.mjs`), and it packages and launch-tests Linux x64 (including a `.deb` install on Ubuntu 24.04), Windows x64 and macOS arm64.
+1. Land everything on `main` and make sure CI is green there. CI runs the merge gate (`scripts/v1-gate.mjs`), and it packages and launch-tests Linux x64 (including a `.deb` install on Ubuntu 24.04), Windows x64 and macOS arm64. Pull requests run the gate, Linux packaging and the Windows tests; Windows and macOS packaging run on pushes to `main`.
 2. On a Mac, run `task check:release`. It runs the merge gate, packages arm64, verifies the bundle, and launches it.
 3. Write `docs/releases/vX.Y.Z.md`:
    - Start with `# GenieTerm X.Y`, then one short paragraph that sums up the release. The in-app update prompt shows that paragraph, with a What's New link to the rest.
