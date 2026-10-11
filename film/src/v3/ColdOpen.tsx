@@ -16,7 +16,9 @@ export const ColdTimes = {
     close: 150,
     dark: [196, 300] as const,
     open: 300,
-    push: [380, 520] as const,
+    push: [380, 500] as const,
+    // once the glass fills the frame the device is gone; the rest of the move is flat
+    zoom: [500, 560] as const,
     fadeOut: [600, 640] as const,
 };
 
@@ -70,7 +72,7 @@ export const ColdOpen: React.FC = () => {
     const dolly = lerpPose(DevicePose.wide, DevicePose.near, ramp(f, 0, T.open, Ease.linear));
     const front = frontalPose(0, distanceForFill(24, 1.0), 24);
     const pose = f < T.push[0] ? dolly : lerpPose(DevicePose.near, front, pushT);
-    const land = ramp(f, T.push[0] + 40, T.push[1], Ease.camera);
+    const land = ramp(f, T.zoom[0], T.zoom[1], Ease.camera);
 
     const ticking = Math.min(LAST_EPOCH, 8 + Math.floor(f / 24));
     const after = f >= T.open;
@@ -90,7 +92,7 @@ export const ColdOpen: React.FC = () => {
     return (
         <AbsoluteFill style={{ background: "#000" }}>
             <AbsoluteFill style={{ opacity: fadeIn }}>
-                <AbsoluteFill style={{ opacity: f >= T.push[1] ? textFade : 1 }}>
+                <AbsoluteFill style={{ opacity: f >= T.zoom[0] ? textFade : 1 }}>
                     <Studio light={room} />
                 </AbsoluteFill>
                 <LaptopShot
@@ -100,17 +102,17 @@ export const ColdOpen: React.FC = () => {
                     room={room}
                     land={land}
                     target={rectQuad(landRect.x, landRect.y, landRect.w, landRect.h)}
-                    device={1 - ramp(f, T.push[1] - 10, T.push[1], Ease.linear)}
-                    bleed={{ color: "#1c1c1e", amount: ramp(f, T.push[1] - 30, T.push[1] - 10, Ease.linear) * textFade }}
+                    device={f < T.zoom[0] ? 1 : 0}
+                    bleed={{ color: "#1c1c1e", amount: (f < T.zoom[0] ? 0 : 1) * textFade }}
                     screen={
                         <div style={{ position: "absolute", inset: 0, opacity: textFade }}>
-                            <PlainTerminal lines={lines} caret={after && f < T.push[1] ? caretOn : 0} size={SIZE} />
+                            <PlainTerminal lines={lines} caret={after && f < T.zoom[1] ? caretOn : 0} size={SIZE} />
                         </div>
                     }
                 />
             </AbsoluteFill>
             {/* the caret is drawn in frame space once landed so it can survive the fade */}
-            {f >= T.push[1] && (
+            {f >= T.zoom[1] && (
                 <div style={{ position: "absolute", left: ColdCaret.x, top: ColdCaret.y, width: ColdCaret.w, height: ColdCaret.h, background: "#d0d0d0", opacity: caretOn }} />
             )}
         </AbsoluteFill>

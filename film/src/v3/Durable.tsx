@@ -5,7 +5,7 @@ import { IconMoon, IconServer } from "../kit/icons";
 import { Label } from "../kit/label";
 import { LaptopShot, lidClose, lidContact, lidOpen } from "../kit/laptopshot";
 import { Ease, mix, ramp } from "../kit/motion";
-import { BASE, type CamPose, distanceForFill, frontalPose, lerpPose, makeCamera, rectQuad } from "../kit/project";
+import { BASE, type CamPose, distanceForFill, frontalPose, lerpPose, makeCamera } from "../kit/project";
 import { FRAME_H, FRAME_W, Studio, World, camPath, recede, toScreen, withDrift } from "../kit/stage";
 import { T } from "../kit/tokens";
 import { CmdBar, WIN_H, WIN_W, formatDuration } from "../kit/ui";
@@ -33,7 +33,6 @@ export const D = {
 };
 
 const FULL = { x: WIN_W / 2, y: WIN_H / 2, zoom: FRAME_W / WIN_W };
-const FULL_RECT = rectQuad(FRAME_W / 2 - (WIN_W * FULL.zoom) / 2, FRAME_H / 2 - (WIN_H * FULL.zoom) / 2, WIN_W * FULL.zoom, WIN_H * FULL.zoom);
 const FRONT: CamPose = frontalPose(0, distanceForFill(24, 1.0), 24);
 // while the laptop sleeps the camera eases back and left so the server has its own space
 const NIGHT: CamPose = { pos: [-34, 30, 78], look: [10, 3, -3], fov: 24 };
@@ -132,8 +131,9 @@ export const Durable: React.FC = () => {
     const nightT = ramp(f, D.close + 30, D.server + 90, Ease.move) * (1 - ramp(f, D.open - 40, D.push[0], Ease.move));
     const devicePose = lerpPose(DevicePose.near, NIGHT, nightT);
     const pose = f < D.push[0] ? lerpPose(FRONT, devicePose, revealT) : lerpPose(devicePose, FRONT, pushT);
-    const land = f < D.push[0] ? 1 - revealT : ramp(f, D.push[0] + 40, D.push[1], Ease.camera);
-    const device = f < D.push[0] ? ramp(f, D.reveal[0], D.reveal[0] + 30, Ease.linear) : 1 - ramp(f, D.push[1] - 10, D.push[1], Ease.linear);
+    // the frontal pose projects the glass exactly onto the frame, so the camera alone carries
+    // the hand-off in both directions; blending the layer toward the frame would lift it off
+    // the glass while the camera moves
 
     const link: LinkState = f < D.open ? { kind: "live" } : f < D.reconnected ? { kind: "reconnecting" } : { kind: "reconnected", t: f - D.reconnected };
     const screen = <TrainingWindow frame={f} epoch={epoch} seconds={seconds} link={link} radius={0} />;
@@ -181,7 +181,7 @@ export const Durable: React.FC = () => {
             ) : (
                 <>
                     <Studio light={room} />
-                    <LaptopShot pose={pose} lid={lid} glow={glow} room={room} land={land} target={FULL_RECT} device={device} screen={screen} />
+                    <LaptopShot pose={pose} lid={lid} glow={glow} room={room} screen={screen} />
                     <svg width={FRAME_W} height={FRAME_H} style={{ position: "absolute", left: 0, top: 0, opacity: linkAlpha }}>
                         <defs>
                             <linearGradient id="linkGrad" x1={anchor.x} y1={anchor.y} x2={linkEnd.x} y2={linkEnd.y} gradientUnits="userSpaceOnUse">
