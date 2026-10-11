@@ -101,7 +101,7 @@ function UpgradeNotesV() {
         <OnboardingModalWrapper width="w-[560px]">
             <header className="flex flex-col gap-2 items-center unselectable mb-6">
                 <Logo />
-                <div className="text-[25px] font-normal text-foreground">GenieTerm 1.3</div>
+                <div className="text-[25px] font-normal text-foreground">GenieTerm 1.4</div>
                 <div className="text-[14px] text-secondary">What's new since your last update.</div>
             </header>
             <UpgradeNotes lastVersion="v1.1.0" />

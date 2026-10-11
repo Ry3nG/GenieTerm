@@ -32,6 +32,7 @@
     "term:bellsound": false,
     "term:bellindicator": true,
     "term:notifyafter": 10,
+    "term:forwardoffer": true,
     "term:osc52": "always",
     "term:presentation": "semantic",
     "term:commandcomposer": true,

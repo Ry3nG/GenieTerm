@@ -59,6 +59,7 @@ import {
     isClaudeCodeCommand,
     type ShellIntegrationStatus,
 } from "./osc-handlers";
+import { LocalUrlScanner, type LocalUrl } from "./term-forward";
 import { makeTermLinkHandlers } from "./term-links";
 import { TerminalStreamBoundaryTracker } from "./terminal-stream-boundary";
 import {
@@ -203,6 +204,10 @@ export class TermWrap {
     nodeModel: BlockNodeModel; // this can be null
     hoveredLinkUri: string | null = null;
     onLinkHover?: (uri: string | null, mouseX: number, mouseY: number, showUrl: boolean) => void;
+    // returns true when it opened the link itself (a remote loopback URL that needs a forward)
+    onOpenLink?: (uri: string) => boolean;
+    onLocalUrls?: (urls: LocalUrl[]) => void;
+    localUrlScanner = new LocalUrlScanner();
 
     // Paste deduplication
     // xterm.js paste() method triggers onData event, which can cause duplicate sends
@@ -255,7 +260,12 @@ export class TermWrap {
         // default handler confirms and then never opens them
         const linkHandlers = makeTermLinkHandlers(
             PLATFORM === PlatformMacOS,
-            (uri) => fireAndForget(() => openLink(uri)),
+            (uri) => {
+                if (this.onOpenLink?.(uri)) {
+                    return;
+                }
+                fireAndForget(() => openLink(uri));
+            },
             (uri, x, y, showUrl) => {
                 this.hoveredLinkUri = uri;
                 this.onLinkHover?.(uri, x, y, showUrl);
@@ -866,6 +876,7 @@ export class TermWrap {
             this.pendingAppends = [];
             this.ptyOffset = 0;
             this.streamBoundary.reset();
+            this.localUrlScanner.reset();
             this.resetCmdBlocks();
         } else if (msg.fileop == "append") {
             const decodedData = base64ToArray(msg.data64);
@@ -921,6 +932,7 @@ export class TermWrap {
                 return;
             }
             if (missing?.length && fileInfo != null) {
+                this.scanLocalUrls(missing);
                 await this.doTerminalWrite(missing, fileInfo.size, true, true);
             }
         }
@@ -928,7 +940,19 @@ export class TermWrap {
         if (overlap >= data.length || this.disposed || epoch !== this.fileEpoch) {
             return;
         }
-        await this.doTerminalWrite(data.slice(overlap), offset + data.length, true, true);
+        const fresh = data.slice(overlap);
+        this.scanLocalUrls(fresh);
+        await this.doTerminalWrite(fresh, offset + data.length, true, true);
+    }
+
+    scanLocalUrls(data: Uint8Array) {
+        if (this.onLocalUrls == null) {
+            return;
+        }
+        const urls = this.localUrlScanner.feed(data);
+        if (urls.length > 0) {
+            this.onLocalUrls(urls);
+        }
     }
 
     doTerminalWrite(

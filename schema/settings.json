@@ -144,6 +144,9 @@
         "term:notifyafter": {
           "type": "number"
         },
+        "term:forwardoffer": {
+          "type": "boolean"
+        },
         "term:osc52": {
           "type": "string",
           "enum": [

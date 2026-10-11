@@ -31,6 +31,7 @@ import {
     getOverrideConfigAtom,
     getSettingsKeyAtom,
     globalStore,
+    openLink,
     readAtom,
     recordTEvent,
     useBlockAtom,
@@ -53,6 +54,7 @@ import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
 import { makeGitChip } from "./gitchip";
 import { TermCommandAiModel } from "./term-commandai";
+import { TermForwardModel } from "./term-forward";
 import {
     computeTheme,
     isLikelyOnSameHost,
@@ -108,6 +110,7 @@ export class TermViewModel implements ViewModel {
     searchAtoms?: SearchAtoms;
     commandAi: TermCommandAiModel;
     commandAiEnabledAtom: jotai.Atom<boolean>;
+    forward: TermForwardModel;
     completionModel = new TermCompletionModel();
     gitStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<GitStatusResponse>;
     gitRefreshEpoch = 0;
@@ -140,6 +143,15 @@ export class TermViewModel implements ViewModel {
             suppressCompletionFor: (command) => this.completionModel.suppressAutoFor(command),
             includeOutputByDefault: () => globalStore.get(getSettingsKeyAtom("commandai:includeoutput")) !== false,
             inlineSuggestionsEnabled: () => globalStore.get(getSettingsKeyAtom("commandai:inline")) !== false,
+        });
+        const forwardOfferAtom = getOverrideConfigAtom(blockId, "term:forwardoffer");
+        this.forward = new TermForwardModel({
+            getConnName: () => globalStore.get(this.blockAtom)?.meta?.connection ?? "",
+            offerEnabled: () => globalStore.get(forwardOfferAtom) !== false,
+            getRunningCmdBlockId: () => this.getRunningCmdBlockId(),
+            startForward: (data) => RpcApi.PortForwardStartCommand(TabRpcClient, data),
+            listForwards: (connName) => RpcApi.PortForwardListCommand(TabRpcClient, { connname: connName }),
+            openUrl: (url) => fireAndForget(() => openLink(url)),
         });
         this.vdomBlockId = jotai.atom((get) => {
             const blockData = get(this.blockAtom);
@@ -843,7 +855,20 @@ export class TermViewModel implements ViewModel {
     }
 
     // Branch and dirty state change when a command finishes (git checkout, commit, edits), not on a timer.
+    // undefined when the shell doesn't report command state, so callers can't tell
+    getRunningCmdBlockId(): number | null | undefined {
+        const termWrap = this.termRef.current;
+        if (termWrap == null || globalStore.get(termWrap.shellIntegrationStatusAtom) == null) {
+            return undefined;
+        }
+        const blocks = globalStore.get(termWrap.cmdBlocksAtom);
+        const last = blocks[blocks.length - 1];
+        return last?.state === "running" ? last.id : null;
+    }
+
     noteCmdBlocks(blocks: CmdBlock[]) {
+        const last = blocks[blocks.length - 1];
+        this.forward.noteRunningCmdBlock(last?.state === "running" ? last.id : null);
         const done = blocks.filter((b) => b.state === "done").length;
         if (done === this.lastDoneBlockCount) {
             return;
@@ -853,6 +878,7 @@ export class TermViewModel implements ViewModel {
     }
 
     dispose() {
+        this.forward.dispose();
         clearTimeout(this.gitRefreshTimer);
         this.gitRefreshEpoch++;
         this.gitCwdUnsubFn?.();

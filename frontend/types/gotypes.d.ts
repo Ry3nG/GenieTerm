@@ -764,6 +764,7 @@ declare global {
         "term:theme"?: string;
         "term:durable"?: boolean;
         "term:commandcomposer"?: boolean;
+        "term:forwardoffer"?: boolean;
         "cmd:env"?: {[key: string]: string};
         "cmd:initscript"?: string;
         "cmd:initscript.sh"?: string;
@@ -1165,6 +1166,7 @@ declare global {
         "term:bellsound"?: boolean;
         "term:bellindicator"?: boolean;
         "term:notifyafter"?: number;
+        "term:forwardoffer"?: boolean;
         "term:osc52"?: string;
         "term:durable"?: boolean;
         "term:durableprompted"?: boolean;
@@ -1370,6 +1372,7 @@ declare global {
         "term:bellsound"?: boolean;
         "term:bellindicator"?: boolean;
         "term:notifyafter"?: number;
+        "term:forwardoffer"?: boolean;
         "term:osc52"?: string;
         "term:durable"?: boolean;
         "term:showsplitbuttons"?: boolean;

@@ -211,6 +211,12 @@ const SessionSettings: SettingDefinition[] = [
         kind: "toggle",
     },
     {
+        key: "term:forwardoffer",
+        label: "Offer to open remote servers",
+        description: "When a server in an SSH terminal prints a localhost URL, offer to forward it and open it here.",
+        kind: "toggle",
+    },
+    {
         key: "conn:wshenabled",
         label: "Install the genie helper on hosts",
         description: "Needed for durable sessions and genie commands. Files fall back to SFTP without it.",

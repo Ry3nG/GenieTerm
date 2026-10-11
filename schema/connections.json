@@ -45,6 +45,9 @@
         "term:commandcomposer": {
           "type": "boolean"
         },
+        "term:forwardoffer": {
+          "type": "boolean"
+        },
         "cmd:env": {
           "additionalProperties": {
             "type": "string"

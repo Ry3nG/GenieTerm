@@ -19,7 +19,7 @@ GenieTerm puts your shell, the machine it runs on, and that machine's files in o
 - **Command blocks.** Each command keeps its output, status and duration together, so you can copy it, run it again, or jump to the previous one. Underneath, it's an ordinary xterm session.
 - **Durable SSH.** A session keeps running on the host through sleep, network changes and restarts. When it reattaches, everything it printed while you were away streams back.
 - **Remote files.** Browse, preview and edit files on any host, right beside the shell that's using them. Drag files in to upload, or download a whole folder.
-- **Host.** See CPU, memory, every NVIDIA GPU and the processes holding it, and the ports in use. Forward a remote port to `localhost` in one click.
+- **Host.** See CPU, memory, every NVIDIA GPU and the processes holding it, and the ports in use. When a server there prints its `localhost` URL, one click forwards the port and opens it here.
 - **Command AI.** Describe what you want, or click the sparkle on a failed command, and get commands to review that fit the machine you're on. It uses the AI you already have: your Codex or Claude Code sign-in, Ollama, or your own API key. It never runs a command on its own.
 
 There's no account and no telemetry, and GenieTerm has no AI service of its own. Command AI sends a request only when you ask, with keys and tokens removed, and shows you exactly what it sends. See [Command AI](docs/architecture/command-ai.md).

@@ -12,7 +12,6 @@ GenieTerm is a terminal for people who work on remote machines. It brings three 
 ## Next
 
 - Signed and notarized macOS builds, and signed Windows builds on the stable channel.
-- An offer to forward a port when a remote terminal prints a `localhost` URL.
 - A per-host list of durable sessions.
 - Selecting several remote files for one transfer.
 - Port forwards that persist across restarts.

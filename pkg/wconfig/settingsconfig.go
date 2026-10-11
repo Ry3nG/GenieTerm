@@ -76,6 +76,7 @@ type SettingsType struct {
 	TermBellSound              *bool    `json:"term:bellsound,omitempty"`
 	TermBellIndicator          *bool    `json:"term:bellindicator,omitempty"`
 	TermNotifyAfter            *float64 `json:"term:notifyafter,omitempty"`
+	TermForwardOffer           *bool    `json:"term:forwardoffer,omitempty"`
 	TermOsc52                  string   `json:"term:osc52,omitempty" jsonschema:"enum=focus,enum=always"`
 	TermDurable                *bool    `json:"term:durable,omitempty"`
 	TermShowSplitButtons       bool     `json:"term:showsplitbuttons,omitempty"`
@@ -251,6 +252,7 @@ type ConnKeywords struct {
 	TermDurable    *bool   `json:"term:durable,omitempty"`
 
 	TermCommandComposer *bool `json:"term:commandcomposer,omitempty"`
+	TermForwardOffer    *bool `json:"term:forwardoffer,omitempty"`
 
 	CmdEnv            map[string]string `json:"cmd:env,omitempty"`
 	CmdInitScript     string            `json:"cmd:initscript,omitempty"`
