@@ -12,12 +12,14 @@ import { useMemo } from "react";
 import { DefaultFullConfig } from "../mock/defaultconfig";
 import { makeMockNodeModel } from "../mock/mock-node-model";
 import { applyMockEnvOverrides } from "../mock/mockwaveenv";
+import { makeMockCommandAiStatus } from "./commandai.preview-util";
 
 export function WaveConfigPreview() {
     const baseEnv = useWaveEnv();
     const tabModel = useTabModel();
     const { env, model } = useMemo(() => {
         const files: Record<string, string> = { "settings.json": "{}", "connections.json": "{}" };
+        const secrets: Record<string, string> = {};
         const env = applyMockEnvOverrides(baseEnv, {
             platform: "darwin",
             electron: {
@@ -33,6 +35,29 @@ export function WaveConfigPreview() {
                     const name = data.info.path.split("/").pop();
                     files[name] = base64ToString(data.data64);
                     if (name === "settings.json") refreshSettings();
+                },
+                CommandAiStatusCommand: async () =>
+                    makeMockCommandAiStatus(JSON.parse(files["settings.json"])["commandai:engine"], secrets),
+                CommandAiModelsCommand: async (_client, data) => ({
+                    models:
+                        data.engine === "anthropic"
+                            ? ["claude-haiku-5-5", "claude-sonnet-5-5"]
+                            : ["gpt-5.5", "gpt-5.5-mini"],
+                }),
+                CommandAiRunCommand: async (_client, data) => {
+                    await new Promise((resolve) => setTimeout(resolve, 900));
+                    return {
+                        requestid: data.requestid,
+                        status: "ok",
+                        durationms: 2140,
+                        proposals: [{ command: "pwd", explanation: "Prints the current directory." }],
+                    };
+                },
+                SetSecretsCommand: async (_client, data) => {
+                    for (const [key, value] of Object.entries(data)) {
+                        if (value == null) delete secrets[key];
+                        else secrets[key] = String(value);
+                    }
                 },
                 SetConfigCommand: async (_client, changes) => {
                     const settings = { ...JSON.parse(files["settings.json"]), ...changes };

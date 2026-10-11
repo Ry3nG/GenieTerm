@@ -39,16 +39,18 @@ export function SettingsSection({
     children,
     footer,
 }: {
-    title: string;
+    title?: string;
     children: ReactNode;
     footer?: ReactNode;
 }) {
     const id = useId();
     return (
-        <section aria-labelledby={id} className="space-y-2.5">
-            <h2 id={id} className="px-1 text-sm font-semibold">
-                {title}
-            </h2>
+        <section aria-labelledby={title ? id : undefined} className="space-y-2.5">
+            {title && (
+                <h2 id={id} className="px-1 text-sm font-semibold">
+                    {title}
+                </h2>
+            )}
             <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-panel">
                 {children}
             </div>

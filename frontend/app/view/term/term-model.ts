@@ -25,6 +25,7 @@ import {
     getBlockComponentModel,
     getBlockMetaKeyAtom,
     getBlockTermDurableAtom,
+    getConnConfigKeyAtom,
     getConnStatusAtom,
     getOverrideConfigAtom,
     getSettingsKeyAtom,
@@ -42,25 +43,12 @@ import { fireAndForget, isLocalConnName, isSshConnName, stringToBase64 } from "@
 import * as jotai from "jotai";
 import * as React from "react";
 import { blockEndLine, blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
-import {
-    buildCommandComposerContext,
-    ErrorFallbackCommandAIProviderStatus,
-    getCommandProposalApplyMode,
-    UnknownCommandAIProviderStatus,
-    type CommandComposerBackend,
-    type CommandComposerContextInput,
-    type CommandComposerProviderStatus,
-    type CommandInlineAIAction,
-    type CommandInlineAIRequestOptions,
-    type CommandInlineAIState,
-    type CommandProposal,
-    type CommandProposalApplyMode,
-} from "./command-composer";
-import { LLMCommandComposerBackend } from "./command-composer-llm";
+import { isLikelyNaturalLanguageCommand, type CommandInlineAIRequestOptions } from "./command-composer";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
 import { makeGitChip } from "./gitchip";
 import { getBlockingCommand } from "./shellblocking";
+import { TermCommandAiModel } from "./term-commandai";
 import {
     computeTheme,
     isLikelyOnSameHost,
@@ -114,27 +102,14 @@ export class TermViewModel implements ViewModel {
     shellStatusInputsAtom = jotai.atom<TerminalBlockStatusInputs>({}) as jotai.PrimitiveAtom<TerminalBlockStatusInputs>;
     blockStatusInputsAtom: jotai.Atom<TerminalBlockStatusInputs>;
     searchAtoms?: SearchAtoms;
-    commandComposerOpenAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
-    commandComposerInputAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
-    commandComposerProposalsAtom = jotai.atom<CommandProposal[]>([]) as jotai.PrimitiveAtom<CommandProposal[]>;
-    commandComposerStatusAtom = jotai.atom("idle") as jotai.PrimitiveAtom<string>;
-    commandComposerErrorAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
-    commandComposerConfirmProposalIdAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
-    commandComposerProviderStatusAtom = jotai.atom<CommandComposerProviderStatus>(
-        UnknownCommandAIProviderStatus
-    ) as jotai.PrimitiveAtom<CommandComposerProviderStatus>;
-    inlineCommandAIStatesAtom = jotai.atom<Record<number, CommandInlineAIState>>({}) as jotai.PrimitiveAtom<
-        Record<number, CommandInlineAIState>
-    >;
-    commandComposerBackend: CommandComposerBackend = new LLMCommandComposerBackend();
+    commandAi: TermCommandAiModel;
+    commandAiEnabledAtom: jotai.Atom<boolean>;
     completionModel = new TermCompletionModel();
     gitStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<GitStatusResponse>;
     gitRefreshEpoch = 0;
     gitRefreshTimer: ReturnType<typeof setTimeout> = null;
     gitCwdUnsubFn: () => void;
     lastDoneBlockCount = 0;
-    commandComposerRequestCounter = 0;
-    inlineCommandAIRequestCounter = 0;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.viewType = "term";
@@ -144,6 +119,23 @@ export class TermViewModel implements ViewModel {
         DefaultRouter.registerRoute(makeFeBlockRouteId(blockId), this.termWshClient);
         this.nodeModel = nodeModel;
         this.blockAtom = WOS.getWaveObjectAtom<Block>(`block:${blockId}`);
+        this.commandAiEnabledAtom = jotai.atom((get) => {
+            if (get(getSettingsKeyAtom("term:commandcomposer")) === false) {
+                return false;
+            }
+            const connName = get(getBlockMetaKeyAtom(blockId, "connection"));
+            return get(getConnConfigKeyAtom(connName, "term:commandcomposer")) !== false;
+        });
+        this.commandAi = new TermCommandAiModel({
+            blockId,
+            getBlockMeta: () => globalStore.get(this.blockAtom)?.meta,
+            getTermWrap: () => this.termRef.current,
+            isEnabled: () => this.isCommandComposerEnabled(),
+            giveFocus: () => this.giveFocus(),
+            dismissCompletion: () => this.completionModel.dismiss(),
+            includeOutputByDefault: () => globalStore.get(getSettingsKeyAtom("commandai:includeoutput")) !== false,
+            inlineSuggestionsEnabled: () => globalStore.get(getSettingsKeyAtom("commandai:inline")) !== false,
+        });
         this.vdomBlockId = jotai.atom((get) => {
             const blockData = get(this.blockAtom);
             return blockData?.meta?.["term:vdomblockid"];
@@ -739,257 +731,34 @@ export class TermViewModel implements ViewModel {
     }
 
     isCommandComposerEnabled(): boolean {
-        return globalStore.get(getSettingsKeyAtom("term:commandcomposer")) !== false;
+        return globalStore.get(this.commandAiEnabledAtom);
     }
 
+    // The shortcut toggles the sheet. A request typed at the prompt (rather than a
+    // command) is carried into the sheet so it doesn't have to be typed twice.
     openCommandComposer(initialInput?: string): boolean {
-        if (!this.isCommandComposerEnabled()) {
-            return false;
+        if (this.commandAi.isOpen()) {
+            this.commandAi.close();
+            return true;
         }
-        this.completionModel.dismiss();
-        this.commandComposerRequestCounter++;
-        if (initialInput != null) {
-            globalStore.set(this.commandComposerInputAtom, initialInput);
+        let prompt = initialInput;
+        const typed = this.getCurrentInputBuffer()?.text?.trim();
+        if (prompt == null && typed && isLikelyNaturalLanguageCommand(typed)) {
+            prompt = typed;
         }
-        globalStore.set(this.commandComposerOpenAtom, true);
-        globalStore.set(this.commandComposerProposalsAtom, []);
-        globalStore.set(this.commandComposerStatusAtom, "idle");
-        globalStore.set(this.commandComposerErrorAtom, "");
-        globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
-        globalStore.set(this.commandComposerProviderStatusAtom, UnknownCommandAIProviderStatus);
-        return true;
+        return this.commandAi.open({ task: "compose", prompt });
     }
 
     closeCommandComposer() {
-        this.commandComposerRequestCounter++;
-        globalStore.set(this.commandComposerOpenAtom, false);
-        globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
-        this.giveFocus();
-    }
-
-    async generateCommandProposals(prompt: string, contextInput: CommandComposerContextInput) {
-        const requestId = ++this.commandComposerRequestCounter;
-        const isCurrent = () =>
-            requestId === this.commandComposerRequestCounter && globalStore.get(this.commandComposerOpenAtom);
-        const trimmedPrompt = prompt.trim();
-        if (!trimmedPrompt) {
-            globalStore.set(this.commandComposerProposalsAtom, []);
-            globalStore.set(this.commandComposerStatusAtom, "idle");
-            return;
-        }
-        const context = buildCommandComposerContext(contextInput);
-        globalStore.set(this.commandComposerStatusAtom, "loading");
-        globalStore.set(this.commandComposerErrorAtom, "");
-        globalStore.set(this.commandComposerConfirmProposalIdAtom, "");
-        try {
-            const result = await this.commandComposerBackend.compose(trimmedPrompt, context);
-            if (!isCurrent()) {
-                return;
-            }
-            globalStore.set(this.commandComposerProviderStatusAtom, result.providerStatus);
-            globalStore.set(this.commandComposerProposalsAtom, result.proposals);
-            globalStore.set(this.commandComposerStatusAtom, "ready");
-        } catch (e) {
-            console.error("command composer failed", e);
-            if (!isCurrent()) {
-                return;
-            }
-            globalStore.set(this.commandComposerProposalsAtom, []);
-            globalStore.set(this.commandComposerProviderStatusAtom, {
-                ...ErrorFallbackCommandAIProviderStatus,
-                detail: e instanceof Error ? e.message : String(e),
-            });
-            globalStore.set(this.commandComposerStatusAtom, "error");
-            globalStore.set(this.commandComposerErrorAtom, e instanceof Error ? e.message : String(e));
-        }
-    }
-
-    getCommandComposerContextInputForBlock(block: CmdBlock): CommandComposerContextInput {
-        const termWrap = this.termRef.current;
-        return {
-            blockMeta: globalStore.get(this.blockAtom)?.meta,
-            connStatus: globalStore.get(this.connStatus),
-            selectedOutput: termWrap?.terminal != null ? getBlockOutputText(block, termWrap.terminal) : "",
-            recentBlocks: termWrap?.cmdBlocks ?? [],
-        };
-    }
-
-    getInlineCommandAIState(block: CmdBlock): CommandInlineAIState {
-        return globalStore.get(this.inlineCommandAIStatesAtom)[block.id];
-    }
-
-    setInlineCommandAIState(block: CmdBlock, state: CommandInlineAIState) {
-        const states = globalStore.get(this.inlineCommandAIStatesAtom);
-        globalStore.set(this.inlineCommandAIStatesAtom, { ...states, [block.id]: state });
-        this.termRef.current?.scheduleCmdDecorationSync();
-    }
-
-    clearInlineCommandAIState(block: CmdBlock) {
-        const states = globalStore.get(this.inlineCommandAIStatesAtom);
-        if (states[block.id] == null) {
-            return;
-        }
-        const nextStates = { ...states };
-        delete nextStates[block.id];
-        globalStore.set(this.inlineCommandAIStatesAtom, nextStates);
-        this.termRef.current?.scheduleCmdDecorationSync();
-    }
-
-    dismissInlineCommandAI() {
-        const states = globalStore.get(this.inlineCommandAIStatesAtom);
-        if (Object.keys(states).length === 0) {
-            return;
-        }
-        globalStore.set(this.inlineCommandAIStatesAtom, {});
-        this.termRef.current?.scheduleCmdDecorationSync();
-    }
-
-    async generateInlineCommandAI(prompt: string, block: CmdBlock) {
-        if (!this.isCommandComposerEnabled()) {
-            this.clearInlineCommandAIState(block);
-            return;
-        }
-        const trimmedPrompt = prompt.trim();
-        if (!trimmedPrompt) {
-            this.clearInlineCommandAIState(block);
-            return;
-        }
-        const requestId = ++this.inlineCommandAIRequestCounter;
-        // dismissing (or a newer request) replaces/removes the state, so a late result
-        // for this request must not bring the suggestion back.
-        const isCurrent = () => this.getInlineCommandAIState(block)?.requestId === requestId;
-        this.setInlineCommandAIState(block, { prompt: trimmedPrompt, status: "loading", requestId });
-        try {
-            const context = buildCommandComposerContext(this.getCommandComposerContextInputForBlock(block));
-            const result = await this.commandComposerBackend.compose(trimmedPrompt, context);
-            if (!isCurrent()) {
-                return;
-            }
-            const proposal = result.proposals[0];
-            if (proposal == null) {
-                this.setInlineCommandAIState(block, {
-                    prompt: trimmedPrompt,
-                    status: "error",
-                    providerStatus: result.providerStatus,
-                    error: "No command suggestion",
-                    requestId,
-                });
-                return;
-            }
-            this.setInlineCommandAIState(block, {
-                prompt: trimmedPrompt,
-                status: "ready",
-                proposal,
-                providerStatus: result.providerStatus,
-                requestId,
-            });
-        } catch (e) {
-            console.error("inline command AI failed", e);
-            if (!isCurrent()) {
-                return;
-            }
-            this.setInlineCommandAIState(block, {
-                prompt: trimmedPrompt,
-                requestId,
-                status: "error",
-                providerStatus: {
-                    ...ErrorFallbackCommandAIProviderStatus,
-                    detail: e instanceof Error ? e.message : String(e),
-                },
-                error: e instanceof Error ? e.message : String(e),
-            });
-        }
-    }
-
-    async applyCommandProposal(proposal: CommandProposal, confirmed: boolean): Promise<CommandProposalApplyMode> {
-        const shellIntegrationStatus = readAtom(this.termRef?.current?.shellIntegrationStatusAtom);
-        const mode = getCommandProposalApplyMode(proposal, { confirmed, shellIntegrationStatus });
-        if (mode === "confirm") {
-            globalStore.set(this.commandComposerConfirmProposalIdAtom, proposal.id);
-            return mode;
-        }
-        if (mode === "copy") {
-            await navigator.clipboard?.writeText(proposal.command);
-            this.closeCommandComposer();
-            return mode;
-        }
-        this.termRef.current?.terminal?.paste(proposal.command);
-        this.closeCommandComposer();
-        return mode;
-    }
-
-    async applyInlineCommandAI(
-        block: CmdBlock,
-        action: CommandInlineAIAction
-    ): Promise<CommandProposalApplyMode | null> {
-        const state = this.getInlineCommandAIState(block);
-        const proposal = state?.proposal;
-        if (proposal == null) {
-            return null;
-        }
-        const termWrap = this.termRef.current;
-        if (action === "run" && (termWrap == null || termWrap.getRunBlockedReason(proposal.command) != null)) {
-            return null;
-        }
-        const shellIntegrationStatus = readAtom(termWrap?.shellIntegrationStatusAtom);
-        const mode = getCommandProposalApplyMode(proposal, {
-            confirmed: state?.confirmAction === action,
-            shellIntegrationStatus,
-        });
-        if (mode === "confirm") {
-            this.setInlineCommandAIState(block, { ...state, confirmAction: action });
-            return mode;
-        }
-        if (mode === "copy") {
-            await navigator.clipboard?.writeText(proposal.command);
-            this.clearInlineCommandAIState(block);
-            return mode;
-        }
-        if (action === "run") {
-            if (!termWrap.runCommand(proposal.command)) {
-                return null;
-            }
-        } else {
-            termWrap?.terminal?.paste(proposal.command);
-        }
-        this.clearInlineCommandAIState(block);
-        this.giveFocus();
-        return mode;
-    }
-
-    handleInlineCommandAIAction(block: CmdBlock, action: CommandInlineAIAction) {
-        if (action === "dismiss") {
-            this.clearInlineCommandAIState(block);
-            return;
-        }
-        if (action === "open") {
-            const prompt = this.getInlineCommandAIState(block)?.prompt || block.command || "";
-            this.clearInlineCommandAIState(block);
-            this.openInlineCommandAI(prompt, block);
-            return;
-        }
-        fireAndForget(() => this.applyInlineCommandAI(block, action));
+        this.commandAi.close();
     }
 
     openInlineCommandAI(prompt: string, block: CmdBlock, options?: CommandInlineAIRequestOptions) {
-        if (!this.isCommandComposerEnabled()) {
-            return;
-        }
-        this.completionModel.dismiss();
-        const trimmedPrompt = prompt.trim();
-        if (!trimmedPrompt) {
-            return;
-        }
-        if (options?.auto) {
-            fireAndForget(() => this.generateInlineCommandAI(trimmedPrompt, block));
-            return;
-        }
-        if (!this.openCommandComposer(trimmedPrompt)) {
-            return;
-        }
-        fireAndForget(() =>
-            this.generateCommandProposals(trimmedPrompt, this.getCommandComposerContextInputForBlock(block))
-        );
+        this.commandAi.requestInline(prompt, block, options);
+    }
+
+    dismissInlineCommandAI() {
+        this.commandAi.dismissInline();
     }
 
     triggerRestartAtom() {
@@ -1476,6 +1245,14 @@ export class TermViewModel implements ViewModel {
                     }
                 },
             });
+            if (selection?.trim() && this.isCommandComposerEnabled()) {
+                menu.push({
+                    label: "Explain Selection with AI",
+                    click: () => {
+                        this.commandAi.open({ task: "explain", selection, submit: true });
+                    },
+                });
+            }
             menu.push({ type: "separator" });
         }
 

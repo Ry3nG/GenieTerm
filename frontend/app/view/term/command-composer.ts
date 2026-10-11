@@ -2,57 +2,63 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { isUserInterruptExit } from "./cmdblockdisplay";
-import { type CmdBlock, blockHasCommand, isCmdBlockCommandPlaceholder } from "./cmdblocks";
+import { blockHasCommand, isCmdBlockCommandPlaceholder, type CmdBlock } from "./cmdblocks";
+import { classifyCommandRisk, commandHasHiddenCharacters, type CommandRisk } from "./command-risk";
 import type { ShellIntegrationStatus } from "./osc-handlers";
 
 export const CommandComposerActionId = "term:command-composer";
 export const CommandComposerDefaultBinding = "Cmd:Shift:Space";
 
-export type CommandRiskLabel = "low" | "write" | "network" | "destructive";
-export type CommandProposalSource = "model" | "local";
-export type CommandProposalApplyMode = "insert" | "copy" | "confirm";
+export type CommandAiTask = "compose" | "fix" | "explain";
+export type CommandAiApplyAction = "insert" | "run" | "copy";
+export type CommandAiApplyMode = CommandAiApplyAction | "confirm";
 
-export type CommandRisk = {
-    label: CommandRiskLabel;
-    reasons: string[];
-    requiresConfirmation: boolean;
-};
-
-export type CommandComposerContext = {
-    connection: string;
-    cwd: string;
-    shell: string;
-    os: string;
-    recentCommands: string[];
-    selectedOutput?: string;
-};
-
-export type CommandProposal = {
+export type CommandAiProposalView = {
     id: string;
     command: string;
     explanation: string;
-    target: string;
     risk: CommandRisk;
-    source: CommandProposalSource;
+    hiddenChars: boolean;
 };
 
-export type CommandComposerProviderState = "unknown" | "codex" | "fallback" | "error";
-export type CommandComposerProviderReason = "ready" | "loginrequired" | "expired" | "requestfailed" | "emptyresponse";
-
-export type CommandComposerProviderStatus = {
-    state: CommandComposerProviderState;
-    label: string;
-    detail: string;
-    reason?: CommandComposerProviderReason;
-    actionLabel?: string;
-    actionCommand?: string;
-    secondaryActionLabel?: string;
-    secondaryActionCommand?: string;
+export type CommandAiTarget = {
+    blockId: number;
+    command: string;
+    exitCode?: number;
+    output?: string;
+    outputLines?: number;
 };
 
-export type CommandComposerResult = {
-    proposals: CommandProposal[];
-    providerStatus: CommandComposerProviderStatus;
+export type CommandAiExchange = {
+    prompt: string;
+    result: CommandAiResult;
+    proposals: CommandAiProposalView[];
+};
+
+export type CommandAiDisclosureState = {
+    loading: boolean;
+    preview?: CommandAiPreview;
+    error?: string;
+};
+
+export type CommandAiPending = {
+    requestId: string;
+    prompt: string;
+    startedAt: number;
+};
+
+export type CommandAiSheetState = {
+    task: CommandAiTask;
+    input: string;
+    exchanges: CommandAiExchange[];
+    pending?: CommandAiPending;
+    selected: number;
+    confirmId?: string;
+    target?: CommandAiTarget;
+    selection?: string;
+    includeOutput: boolean;
+    disclosure?: CommandAiDisclosureState;
+    notice?: string;
 };
 
 export type CommandInlineAIStatus = "loading" | "ready" | "error";
@@ -61,11 +67,10 @@ export type CommandInlineAIAction = "insert" | "run" | "open" | "dismiss";
 export type CommandInlineAIState = {
     prompt: string;
     status: CommandInlineAIStatus;
-    proposal?: CommandProposal;
-    providerStatus?: CommandComposerProviderStatus;
-    error?: string;
+    proposal?: CommandAiProposalView;
+    result?: CommandAiResult;
     confirmAction?: CommandInlineAIAction;
-    requestId?: number;
+    requestId?: string;
 };
 
 export type CommandInlineAIRequestOptions = {
@@ -77,144 +82,28 @@ export type CommandInlineAIRequestHandler = (
     block: CmdBlock,
     options?: CommandInlineAIRequestOptions
 ) => void;
-export type CommandInlineAIStateProvider = (block: CmdBlock) => CommandInlineAIState;
-export type CommandInlineAIActionHandler = (block: CmdBlock, action: CommandInlineAIAction) => void;
 
-export type CommandComposerContextInput = {
+export type CommandAiContextInput = {
     blockMeta?: MetaType;
-    connStatus?: ConnStatus;
-    shellType?: string;
-    shellUname?: string;
-    selectedOutput?: string;
     recentBlocks?: CmdBlock[];
+    shellType?: string;
+    connection?: string;
 };
 
-export interface CommandComposerBackend {
-    compose(prompt: string, context: CommandComposerContext): Promise<CommandComposerResult>;
-}
-
-export const UnknownCommandAIProviderStatus: CommandComposerProviderStatus = {
-    state: "unknown",
-    label: "Checking AI",
-    detail: "Checking Codex login status",
+export type CommandAiProblem = {
+    title: string;
+    detail: string;
+    fixCommand?: string;
+    openSettings?: boolean;
+    retry?: boolean;
 };
 
-export const CodexCommandAIProviderStatus: CommandComposerProviderStatus = {
-    state: "codex",
-    label: "Codex",
-    detail: "Using your local Codex login",
-};
+const MaxRecentCommands = 8;
+const MaxOutputLines = 120;
+const MaxProposals = 3;
 
-export const LocalFallbackCommandAIProviderStatus: CommandComposerProviderStatus = {
-    state: "fallback",
-    label: "Local fallback",
-    detail: "Using deterministic local command suggestions.",
-};
-
-export const ErrorFallbackCommandAIProviderStatus: CommandComposerProviderStatus = {
-    state: "error",
-    label: "Command AI unavailable",
-    detail: "Codex request failed",
-    reason: "requestfailed",
-};
-
-const MaxSelectedOutputChars = 4000;
-const MaxRecentCommands = 6;
-
-const DestructivePatterns: Array<[RegExp, string]> = [
-    [/(^|[;&|]\s*)sudo\b/, "sudo"],
-    [/(^|[;&|]\s*)rm\s+(-[^\s]*[rf][^\s]*|-r|-f)\b/, "rm"],
-    [/(^|[;&|]\s*)dd\s+/, "dd"],
-    [/(^|[;&|]\s*)mkfs(?:\.|\s)/, "mkfs"],
-    [/(^|[;&|]\s*)shutdown\b/, "shutdown"],
-    [/(^|[;&|]\s*)reboot\b/, "reboot"],
-    [/(^|[;&|]\s*)killall\b/, "killall"],
-    [/(^|[;&|]\s*)chmod\s+-R\s+777\b/, "chmod"],
-];
-
-const NetworkPatterns: Array<[RegExp, string]> = [
-    [/(^|[;&|]\s*)curl\b/, "curl"],
-    [/(^|[;&|]\s*)wget\b/, "wget"],
-    [/(^|[;&|]\s*)ssh\b/, "ssh"],
-    [/(^|[;&|]\s*)scp\b/, "scp"],
-    [/(^|[;&|]\s*)rsync\b/, "rsync"],
-    [/(^|[;&|]\s*)git\s+(clone|fetch|pull|push)\b/, "git"],
-    [/(^|[;&|]\s*)(npm|pnpm|yarn|pip|brew|apt|apt-get)\s+.*\b(install|update|upgrade)\b/, "package-manager"],
-];
-
-const WritePatterns: Array<[RegExp, string]> = [
-    [/(^|[;&|]\s*)mkdir\b/, "mkdir"],
-    [/(^|[;&|]\s*)touch\b/, "touch"],
-    [/(^|[;&|]\s*)cp\b/, "cp"],
-    [/(^|[;&|]\s*)mv\b/, "mv"],
-    [/(^|[;&|]\s*)chmod\b/, "chmod"],
-    [/(^|[;&|]\s*)chown\b/, "chown"],
-    [/(^|[;&|]\s*)tee\b/, "tee"],
-    [/(^|[;&|]\s*)sed\s+(-i|.*\s-i)\b/, "sed"],
-    [/(^|[^>])>>?($|[^&])/, "redirect"],
-];
-
-function collectReasons(command: string, patterns: Array<[RegExp, string]>): string[] {
-    const reasons: string[] = [];
-    for (const [pattern, reason] of patterns) {
-        if (pattern.test(command)) {
-            reasons.push(reason);
-        }
-    }
-    return reasons;
-}
-
-export function classifyCommandRisk(command: string): CommandRisk {
-    const destructiveReasons = collectReasons(command, DestructivePatterns);
-    if (destructiveReasons.length > 0) {
-        return { label: "destructive", reasons: destructiveReasons, requiresConfirmation: true };
-    }
-    const networkReasons = collectReasons(command, NetworkPatterns);
-    if (networkReasons.length > 0) {
-        return { label: "network", reasons: networkReasons, requiresConfirmation: true };
-    }
-    const writeReasons = collectReasons(command, WritePatterns);
-    if (writeReasons.length > 0) {
-        return { label: "write", reasons: writeReasons, requiresConfirmation: true };
-    }
-    return { label: "low", reasons: [], requiresConfirmation: false };
-}
-
-function trimSelectedOutput(selectedOutput: string): string {
-    const trimmed = selectedOutput.trim();
-    if (trimmed.length <= MaxSelectedOutputChars) {
-        return trimmed;
-    }
-    return trimmed.slice(0, MaxSelectedOutputChars);
-}
-
-export function buildCommandComposerContext(input: CommandComposerContextInput): CommandComposerContext {
-    const blockMeta = input.blockMeta ?? {};
-    const recentBlocks = input.recentBlocks ?? [];
-    const recentCommands = recentBlocks
-        .filter((block) => blockHasCommand(block))
-        .slice(-MaxRecentCommands)
-        .map((block) => block.command.trim());
-    let recentCwd = "";
-    for (let i = recentBlocks.length - 1; i >= 0; i--) {
-        if (recentBlocks[i].cwd) {
-            recentCwd = recentBlocks[i].cwd;
-            break;
-        }
-    }
-    const cwd = (blockMeta["cmd:cwd"] as string) || recentCwd || "~";
-    const connection = input.connStatus?.connection || (blockMeta.connection as string) || "local";
-    const context: CommandComposerContext = {
-        connection,
-        cwd,
-        os: input.shellUname || "unknown",
-        shell: input.shellType || "shell",
-        recentCommands,
-    };
-    if (input.selectedOutput?.trim()) {
-        context.selectedOutput = trimSelectedOutput(input.selectedOutput);
-    }
-    return context;
+export function isCommandComposerEnabled(settings: Record<string, any>): boolean {
+    return settings?.["term:commandcomposer"] !== false;
 }
 
 function proposalId(command: string, index: number): string {
@@ -225,198 +114,176 @@ function proposalId(command: string, index: number): string {
     return `cmd-${index}-${hash.toString(16)}`;
 }
 
-function proposalTarget(context: CommandComposerContext): string {
-    return `${context.connection}:${context.cwd}`;
+export function makeProposalViews(result: CommandAiResult): CommandAiProposalView[] {
+    const seen = new Set<string>();
+    const views: CommandAiProposalView[] = [];
+    for (const proposal of result?.proposals ?? []) {
+        const command = (proposal?.command ?? "").trim();
+        if (!command || seen.has(command)) {
+            continue;
+        }
+        seen.add(command);
+        views.push({
+            id: proposalId(command, views.length),
+            command,
+            explanation: (proposal.explanation ?? "").trim(),
+            risk: classifyCommandRisk(command),
+            hiddenChars: commandHasHiddenCharacters(command),
+        });
+        if (views.length >= MaxProposals) {
+            break;
+        }
+    }
+    return views;
 }
 
-function makeProposal(
-    command: string,
-    explanation: string,
-    context: CommandComposerContext,
-    index: number,
-    source: CommandProposalSource,
-    target?: string
-): CommandProposal {
+export function needsRunConfirmation(proposal: CommandAiProposalView): boolean {
+    return proposal.risk.level === "danger" || proposal.hiddenChars;
+}
+
+// Inserting only types the command at the prompt, so it never needs confirmation; the
+// exception is a multi-line command without bracketed paste, where each newline would
+// run a line, so it is copied instead.
+export function getCommandAiApplyMode(
+    proposal: CommandAiProposalView,
+    action: CommandAiApplyAction,
+    opts: { confirmed: boolean; shellIntegrationStatus?: ShellIntegrationStatus; bracketedPaste?: boolean }
+): CommandAiApplyMode {
+    if (action === "copy") {
+        return "copy";
+    }
+    if (opts.shellIntegrationStatus === "running-command") {
+        return "copy";
+    }
+    if (action === "insert") {
+        if (/[\r\n]/.test(proposal.command) && !opts.bracketedPaste) {
+            return "copy";
+        }
+        return "insert";
+    }
+    if (needsRunConfirmation(proposal) && !opts.confirmed) {
+        return "confirm";
+    }
+    return "run";
+}
+
+export function buildCommandAiContext(input: CommandAiContextInput): CommandAiContext {
+    const blockMeta = input.blockMeta ?? {};
+    const recentBlocks = input.recentBlocks ?? [];
+    const recentCommands: string[] = [];
+    for (const block of recentBlocks) {
+        if (!blockHasCommand(block) || isCmdBlockCommandPlaceholder(block.command)) {
+            continue;
+        }
+        const command = block.command.trim();
+        if (recentCommands[recentCommands.length - 1] === command) {
+            continue;
+        }
+        recentCommands.push(command);
+    }
+    let recentCwd = "";
+    for (let i = recentBlocks.length - 1; i >= 0; i--) {
+        if (recentBlocks[i].cwd) {
+            recentCwd = recentBlocks[i].cwd;
+            break;
+        }
+    }
+    const context: CommandAiContext = {
+        connection: input.connection || (blockMeta.connection as string) || "",
+        cwd: (blockMeta["cmd:cwd"] as string) || recentCwd || "",
+        recentcommands: recentCommands.slice(-MaxRecentCommands),
+    };
+    if (input.shellType && input.shellType !== "unknown") {
+        context.shell = input.shellType;
+    }
+    return context;
+}
+
+export function tailLines(text: string, maxLines = MaxOutputLines): { text: string; lines: number } {
+    const lines = (text ?? "").replace(/\s+$/, "").split("\n");
+    if (lines.length === 1 && lines[0] === "") {
+        return { text: "", lines: 0 };
+    }
+    const kept = lines.slice(-maxLines);
+    return { text: kept.join("\n"), lines: kept.length };
+}
+
+export function makeCommandAiTarget(block: CmdBlock, outputText: string): CommandAiTarget {
+    const tail = tailLines(outputText);
     return {
-        id: proposalId(command, index),
-        command,
-        explanation,
-        target: target || proposalTarget(context),
-        risk: classifyCommandRisk(command),
-        source,
+        blockId: block.id,
+        command: block.command?.trim() ?? "",
+        exitCode: block.exitCode ?? undefined,
+        output: tail.text,
+        outputLines: tail.lines,
     };
 }
 
-function stripJsonFence(raw: string): string {
-    const trimmed = raw.trim();
-    const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-    return fenceMatch?.[1]?.trim() ?? trimmed;
+export function getBlockAiTask(block: CmdBlock): CommandAiTask | null {
+    if (block?.state !== "done" || !blockHasCommand(block) || isCmdBlockCommandPlaceholder(block.command)) {
+        return null;
+    }
+    if (block.exitCode != null && block.exitCode !== 0 && !isUserInterruptExit(block.exitCode)) {
+        return "fix";
+    }
+    return "explain";
 }
 
-function normalizeParsedProposals(parsed: any): any[] {
-    if (Array.isArray(parsed)) {
-        return parsed;
-    }
-    if (Array.isArray(parsed?.proposals)) {
-        return parsed.proposals;
-    }
-    if (Array.isArray(parsed?.commands)) {
-        return parsed.commands;
-    }
-    return [];
+export function makePreviousTurns(exchanges: CommandAiExchange[]): CommandAiTurn[] {
+    return exchanges.slice(-4).map((exchange) => ({
+        prompt: exchange.prompt,
+        commands: exchange.proposals.map((proposal) => proposal.command),
+    }));
 }
 
-export function parseCommandProposalResponse(raw: string, context: CommandComposerContext): CommandProposal[] {
-    try {
-        const parsed = JSON.parse(stripJsonFence(raw));
-        return normalizeParsedProposals(parsed)
-            .map((entry, index) => {
-                const command = typeof entry === "string" ? entry : entry?.command;
-                if (typeof command !== "string" || command.trim() === "") {
-                    return null;
-                }
-                const explanation =
-                    typeof entry?.explanation === "string" && entry.explanation.trim()
-                        ? entry.explanation.trim()
-                        : "Suggested shell command";
-                const target = typeof entry?.target === "string" ? entry.target : undefined;
-                return makeProposal(command.trim(), explanation, context, index, "model", target);
-            })
-            .filter(Boolean);
-    } catch (_e) {
-        const lines = raw
-            .split("\n")
-            .map((line) => line.trim())
-            .filter((line) => line && !line.startsWith("#"));
-        return lines.map((line, index) => makeProposal(line, "Suggested shell command", context, index, "model"));
+export function describeCommandAiProblem(result: CommandAiResult): CommandAiProblem | null {
+    const engine = result?.enginelabel || "The AI";
+    switch (result?.status) {
+        case "ok":
+        case "canceled":
+            return null;
+        case "empty":
+            return {
+                title: "No command came back",
+                detail: result.statusdetail || "Try describing the result you want, such as a file, port or process.",
+                retry: true,
+            };
+        case "disabled":
+            return { title: "Command AI is off", detail: result.statusdetail || "", openSettings: true };
+        case "notconfigured":
+            return {
+                title: "Finish setting up Command AI",
+                detail: result.statusdetail || "Choose the AI that Command AI should use.",
+                openSettings: true,
+            };
+        case "unavailable":
+            return {
+                title: `${engine} isn't available`,
+                detail: result.statusdetail || `GenieTerm couldn't find ${engine} on this computer.`,
+                fixCommand: result.fixcommand,
+                openSettings: true,
+            };
+        case "signedout":
+            return {
+                title: `Sign in to ${engine}`,
+                detail: result.statusdetail || `${engine} needs you to sign in before it can answer.`,
+                fixCommand: result.fixcommand,
+                retry: true,
+            };
+        case "timeout":
+            return {
+                title: `${engine} took too long`,
+                detail: result.statusdetail || "Try again, or choose a faster model in Settings.",
+                retry: true,
+            };
+        default:
+            return {
+                title: `${engine} couldn't answer`,
+                detail: result?.statusdetail || "Something went wrong. Try again.",
+                fixCommand: result?.fixcommand,
+                retry: true,
+            };
     }
-}
-
-function quoteForShell(value: string): string {
-    if (/^[A-Za-z0-9_./:-]+$/.test(value)) {
-        return value;
-    }
-    return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function extractQuotedSearch(prompt: string): string {
-    const quoted = prompt.match(/["']([^"']+)["']/);
-    if (quoted?.[1]) {
-        return quoted[1];
-    }
-    return prompt
-        .replace(/\b(search|find|grep|look for|show me)\b/gi, "")
-        .trim()
-        .split(/\s+/)
-        .slice(0, 4)
-        .join(" ");
-}
-
-const ProjectDirectoryStopWords = new Set([
-    "a",
-    "an",
-    "check",
-    "directory",
-    "dir",
-    "find",
-    "folder",
-    "for",
-    "locate",
-    "location",
-    "look",
-    "me",
-    "my",
-    "path",
-    "please",
-    "project",
-    "repo",
-    "repository",
-    "show",
-    "the",
-    "where",
-]);
-
-function isProjectDirectoryLookup(prompt: string): boolean {
-    return (
-        /\b(project|repo|repository)\b.*\b(directory|dir|folder|path|where|locat)/i.test(prompt) ||
-        /\b(directory|dir|folder|path|where|locat).*\b(project|repo|repository)\b/i.test(prompt) ||
-        /项目.*(目录|文件夹|路径|在哪|哪里|位置)|(?:目录|文件夹|路径|在哪|哪里|位置).*项目/u.test(prompt)
-    );
-}
-
-function extractProjectDirectorySearchTerms(prompt: string): string[] {
-    const terms = (prompt.match(/[A-Za-z0-9][A-Za-z0-9_.-]*/g) ?? [])
-        .map((word) => word.toLowerCase())
-        .filter((word) => !ProjectDirectoryStopWords.has(word));
-    return [...new Set(terms)].slice(0, 4);
-}
-
-function makeFindProjectDirectoryCommand(terms: string[]): string {
-    if (terms.length === 0) {
-        return "find ~/projects -maxdepth 3 -type d";
-    }
-    if (terms.length === 1) {
-        return `find ~/projects -maxdepth 5 -type d -iname ${quoteForShell(`*${terms[0]}*`)}`;
-    }
-    const predicates = terms.map((term) => `-iname ${quoteForShell(`*${term}*`)}`).join(" ");
-    return `find ~/projects -maxdepth 5 -type d ${predicates}`;
-}
-
-export function makeLocalCommandProposals(prompt: string, context: CommandComposerContext): CommandProposal[] {
-    const normalized = prompt.trim().toLowerCase();
-    const proposals: Array<{ command: string; explanation: string }> = [];
-
-    if (isProjectDirectoryLookup(prompt)) {
-        proposals.push({
-            command: makeFindProjectDirectoryCommand(extractProjectDirectorySearchTerms(prompt)),
-            explanation: "Search your projects folder for matching project directories.",
-        });
-    } else if (/\bgit\b.*\b(status|changes|changed)\b|\bstatus\b.*\bgit\b/.test(normalized)) {
-        proposals.push({
-            command: "git status --short --branch",
-            explanation: "Show the current branch and changed files.",
-        });
-    } else if (/\b(list|show)\b.*\b(files|directory)\b|\bls\b/.test(normalized)) {
-        proposals.push({ command: "ls -la", explanation: "List files with hidden entries and details." });
-    } else if (/\b(disk|space|filesystem)\b|磁盘|空间|容量|文件系统/.test(normalized)) {
-        proposals.push({ command: "df -h", explanation: "Show filesystem space in human-readable units." });
-    } else if (/\b(port)\b/.test(normalized)) {
-        const port = prompt.match(/\b\d{2,5}\b/)?.[0] ?? "3000";
-        proposals.push({ command: `lsof -i :${port}`, explanation: `Show processes listening on port ${port}.` });
-    } else if (/\b(make|create)\b.*\b(dir|directory|folder)\b/.test(normalized)) {
-        proposals.push({
-            command: "mkdir -p new-directory",
-            explanation: "Create a directory without error if it already exists.",
-        });
-    } else if (/\b(search|grep|find|look for)\b/.test(normalized)) {
-        const searchText = extractQuotedSearch(prompt);
-        proposals.push({
-            command: `rg -n ${quoteForShell(searchText || "pattern")}`,
-            explanation: "Search files recursively with ripgrep.",
-        });
-    } else {
-        proposals.push({
-            command: `echo ${quoteForShell(prompt.trim() || "Describe the command you want")}`,
-            explanation: "Local fallback echoes the request; configure a model provider for richer proposals.",
-        });
-    }
-
-    return proposals.map((proposal, index) =>
-        makeProposal(proposal.command, proposal.explanation, context, index, "local")
-    );
-}
-
-export class LocalCommandComposerBackend implements CommandComposerBackend {
-    async compose(prompt: string, context: CommandComposerContext): Promise<CommandComposerResult> {
-        return {
-            proposals: makeLocalCommandProposals(prompt, context),
-            providerStatus: LocalFallbackCommandAIProviderStatus,
-        };
-    }
-}
-
-export function isCommandComposerEnabled(settings: Record<string, any>): boolean {
-    return settings?.["term:commandcomposer"] !== false;
 }
 
 export function getInlineAICommandPrompt(block: CmdBlock): string {
@@ -446,7 +313,7 @@ function startsLikeShellCommand(command: string): boolean {
 }
 
 function containsCJKText(command: string): boolean {
-    return /[\u3400-\u9fff]/u.test(command);
+    return /[㐀-鿿]/u.test(command);
 }
 
 export function isLikelyNaturalLanguageCommand(command: string): boolean {
@@ -477,17 +344,4 @@ export function shouldAutoComposeInlineAI(block: CmdBlock): boolean {
         return false;
     }
     return isLikelyNaturalLanguageCommand(prompt);
-}
-
-export function getCommandProposalApplyMode(
-    proposal: CommandProposal,
-    opts: { confirmed: boolean; shellIntegrationStatus?: ShellIntegrationStatus }
-): CommandProposalApplyMode {
-    if (proposal.risk.requiresConfirmation && !opts.confirmed) {
-        return "confirm";
-    }
-    if (opts.shellIntegrationStatus === "running-command") {
-        return "copy";
-    }
-    return "insert";
 }

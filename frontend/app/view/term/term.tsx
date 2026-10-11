@@ -14,7 +14,9 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { TermViewModel } from "@/app/view/term/term-model";
 import { atoms, getApi, getOverrideConfigAtom, getSettingsKeyAtom, WOS } from "@/store/global";
-import { fireAndForget, useAtomValueSafe } from "@/util/util";
+import { formatCwdLabel } from "@/util/pathlabel";
+import { isMacOS } from "@/util/platformutil";
+import { cn, fireAndForget, isLocalConnName, useAtomValueSafe } from "@/util/util";
 import { computeBgStyleFromMeta } from "@/util/waveutil";
 import { ISearchOptions } from "@xterm/addon-search";
 import clsx from "clsx";
@@ -24,12 +26,8 @@ import * as React from "react";
 import { useDrop } from "react-dnd";
 import { formatCmdBlockDuration, getCmdBlockStatus, getCommandRunBlockedReason } from "./cmdblockdisplay";
 import { blockHasCommand, getBlockOutputText, isCmdBlockCommandPlaceholder, type CmdBlock } from "./cmdblocks";
-import {
-    getInlineAICommandPrompt,
-    UnknownCommandAIProviderStatus,
-    type CommandInlineAIAction,
-} from "./command-composer";
-import { TermCommandComposer } from "./command-composer-ui";
+import { describeCommandAiProblem, getBlockAiTask, type CommandInlineAIAction } from "./command-composer";
+import { RiskBadge, TermCommandComposer } from "./command-composer-ui";
 import { TermCompletion } from "./completion/completion-ui";
 import type { ShellType } from "./completion/types";
 import { TermLinkTooltip } from "./term-tooltip";
@@ -217,8 +215,12 @@ const TermToolbarVDomNode = ({ blockId, model }: TerminalViewProps) => {
     );
 };
 
+const InlineDockButtonClass =
+    "inline-flex h-7 items-center rounded-md px-2.5 text-[12px] font-medium whitespace-nowrap transition-colors cursor-pointer disabled:cursor-default disabled:opacity-40";
+
 const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel; termWrap: TermWrap | null }) => {
-    const inlineAIStates = jotai.useAtomValue(model.inlineCommandAIStatesAtom);
+    const inlineAIStates = jotai.useAtomValue(model.commandAi.inlineStatesAtom);
+    const sheet = jotai.useAtomValue(model.commandAi.sheetAtom);
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
     const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
     const altScreenActive = useAtomValueSafe<boolean>(termWrap?.altScreenActiveAtom) ?? false;
@@ -238,92 +240,118 @@ const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel
             if (activeItem == null) {
                 return;
             }
-            model.handleInlineCommandAIAction(activeItem.block, action);
+            model.commandAi.handleInlineAction(activeItem.block, action);
         },
         [activeItem, model]
     );
 
-    if (activeItem == null) {
+    if (activeItem == null || sheet != null) {
         return null;
     }
 
-    const { block, state } = activeItem;
+    const { state } = activeItem;
     const proposal = state.proposal;
-    const commandText = block.command || state.prompt;
-    const providerStatus = state.providerStatus ?? UnknownCommandAIProviderStatus;
+    const problem = state.status === "error" && state.result != null ? describeCommandAiProblem(state.result) : null;
     const runBlockedReason =
         proposal == null || termWrap == null
-            ? "Terminal is not ready"
+            ? "The terminal isn't ready"
             : getCommandRunBlockedReason(proposal.command, { shellIntegrationStatus, altScreenActive });
+    const confirmingRun = state.confirmAction === "run";
 
     return (
-        <div className={`term-inline-ai-dock is-${state.status}`} role="status" aria-live="polite">
-            <i className="fa-solid fa-wand-magic-sparkles term-inline-ai-dock-icon" aria-hidden="true" />
-            <div className="term-inline-ai-dock-main">
-                <div className="term-inline-ai-dock-context">
-                    <span>{commandText}</span>
-                    <span
-                        className={`term-inline-ai-provider is-${providerStatus.state}`}
-                        title={providerStatus.detail}
-                    >
-                        <i className="fa-solid fa-circle" aria-hidden="true" />
-                        {providerStatus.label}
-                    </span>
+        <div className="term-inline-ai-dock flex justify-center px-2 pt-1 pb-2">
+            <div
+                role="status"
+                aria-live="polite"
+                aria-label="Command AI suggestion"
+                className="flex w-full max-w-[720px] items-center gap-3 rounded-xl border border-white/[0.09] bg-[#232325] py-2 pr-2 pl-3.5 font-sans text-[13px] shadow-[0_6px_20px_rgba(0,0,0,0.35)]"
+            >
+                <i
+                    className={cn(
+                        "fa-solid fa-wand-magic-sparkles shrink-0 text-[12px] text-accent",
+                        state.status === "loading" && "animate-pulse"
+                    )}
+                    aria-hidden="true"
+                />
+                <div className="min-w-0 flex-1">
+                    {state.status === "loading" && (
+                        <div className="truncate text-[12.5px] text-secondary">
+                            Turning “{state.prompt}” into a command…
+                        </div>
+                    )}
+                    {state.status === "ready" && proposal != null && (
+                        <>
+                            <div className="flex min-w-0 items-center gap-2">
+                                <code
+                                    className="min-w-0 truncate font-mono text-[12.5px] text-primary"
+                                    title={proposal.command}
+                                >
+                                    {proposal.command}
+                                </code>
+                                <RiskBadge risk={proposal.risk} hiddenChars={proposal.hiddenChars} />
+                            </div>
+                            {proposal.explanation && (
+                                <div className="truncate text-[11.5px] text-muted">{proposal.explanation}</div>
+                            )}
+                        </>
+                    )}
+                    {state.status === "error" && (
+                        <div className="truncate text-[12.5px] text-secondary">
+                            {problem?.title ?? "No command came back"}
+                            {problem?.detail ? <span className="text-muted"> · {problem.detail}</span> : null}
+                        </div>
+                    )}
                 </div>
-                {state.status === "loading" && (
-                    <div className="term-inline-ai-dock-summary">Genie is translating this into a command...</div>
-                )}
-                {state.status === "error" && (
-                    <div className="term-inline-ai-dock-summary">
-                        {state.error || "Genie could not suggest a command"}
-                    </div>
-                )}
-                {state.status === "ready" && proposal != null && (
-                    <div className="term-inline-ai-dock-summary">
-                        <span>Try</span>
-                        <code>{proposal.command}</code>
-                    </div>
-                )}
-            </div>
-            <div className="term-inline-ai-dock-actions">
-                {state.status === "ready" && proposal != null && (
-                    <>
+                <div className="flex shrink-0 items-center gap-1.5">
+                    {state.status === "ready" && proposal != null && (
+                        <>
+                            <button
+                                type="button"
+                                className={cn(InlineDockButtonClass, "bg-accent/80 text-primary hover:bg-accent")}
+                                onClick={() => runAction("insert")}
+                            >
+                                Insert
+                            </button>
+                            <button
+                                type="button"
+                                title={
+                                    runBlockedReason ?? (confirmingRun ? "Run this command anyway" : "Run this command")
+                                }
+                                disabled={runBlockedReason != null}
+                                className={cn(
+                                    InlineDockButtonClass,
+                                    confirmingRun
+                                        ? "bg-error/80 text-primary hover:bg-error"
+                                        : "bg-white/[0.06] text-secondary hover:bg-white/[0.1] hover:text-primary"
+                                )}
+                                onClick={() => runAction("run")}
+                            >
+                                {confirmingRun ? "Run Anyway" : "Run"}
+                            </button>
+                        </>
+                    )}
+                    {state.status === "error" && (
                         <button
                             type="button"
-                            className="term-inline-ai-dock-btn cursor-pointer"
-                            onClick={() => runAction("insert")}
+                            className={cn(
+                                InlineDockButtonClass,
+                                "bg-white/[0.06] text-secondary hover:bg-white/[0.1] hover:text-primary"
+                            )}
+                            onClick={() => runAction("open")}
                         >
-                            {state.confirmAction === "insert" ? "Confirm" : "Insert"}
+                            Open Command AI
                         </button>
-                        <button
-                            type="button"
-                            className="term-inline-ai-dock-btn cursor-pointer"
-                            title={runBlockedReason ?? "Run this command"}
-                            disabled={runBlockedReason != null}
-                            onClick={() => runAction("run")}
-                        >
-                            {state.confirmAction === "run" ? "Confirm" : "Run"}
-                        </button>
-                    </>
-                )}
-                {state.status === "error" && (
+                    )}
                     <button
                         type="button"
-                        className="term-inline-ai-dock-btn cursor-pointer"
-                        onClick={() => runAction("open")}
+                        title="Dismiss"
+                        aria-label="Dismiss AI suggestion"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-primary cursor-pointer"
+                        onClick={() => runAction("dismiss")}
                     >
-                        Open
+                        <i className="fa-solid fa-xmark text-[12px]" aria-hidden="true" />
                     </button>
-                )}
-                <button
-                    type="button"
-                    className="term-inline-ai-dock-close cursor-pointer"
-                    title="Dismiss AI suggestion"
-                    aria-label="Dismiss AI suggestion"
-                    onClick={() => runAction("dismiss")}
-                >
-                    <i className="fa-solid fa-xmark" aria-hidden="true" />
-                </button>
+                </div>
             </div>
         </div>
     );
@@ -356,8 +384,8 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
     const [nowTs, setNowTs] = React.useState(Date.now());
     const status = activeBlock != null ? getCmdBlockStatus(activeBlock) : null;
     const duration = activeBlock != null ? formatCmdBlockDuration(activeBlock, nowTs) : "";
-    const inlineAIPrompt = activeBlock != null ? getInlineAICommandPrompt(activeBlock) : "";
-    const commandComposerEnabled = jotai.useAtomValue(getSettingsKeyAtom("term:commandcomposer")) !== false;
+    const commandAiEnabled = jotai.useAtomValue(model.commandAiEnabledAtom);
+    const aiTask = commandAiEnabled && activeBlock != null ? getBlockAiTask(activeBlock) : null;
 
     React.useEffect(() => {
         if (activeBlock?.state !== "running") {
@@ -404,12 +432,12 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
         model.jumpPastOutput();
     }, [model]);
 
-    const fixWithAI = React.useCallback(() => {
-        if (!inlineAIPrompt || activeBlock == null) {
+    const askCommandAi = React.useCallback(() => {
+        if (activeBlock == null) {
             return;
         }
-        model.openInlineCommandAI(inlineAIPrompt, activeBlock);
-    }, [activeBlock, inlineAIPrompt, model]);
+        model.commandAi.open({ block: activeBlock, submit: true });
+    }, [activeBlock, model]);
 
     const preventButtonFocus = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
@@ -483,14 +511,14 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                 >
                     <i className="fa-solid fa-arrow-down" aria-hidden="true" />
                 </button>
-                {commandComposerEnabled && inlineAIPrompt && (
+                {aiTask != null && (
                     <button
                         type="button"
                         className="term-command-action-btn cursor-pointer"
-                        title="Fix with AI"
-                        aria-label="Fix with AI"
+                        title={aiTask === "fix" ? "Fix with AI" : "Explain with AI"}
+                        aria-label={aiTask === "fix" ? "Fix with AI" : "Explain with AI"}
                         onMouseDown={preventButtonFocus}
-                        onClick={fixWithAI}
+                        onClick={askCommandAi}
                     >
                         <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
                     </button>
@@ -511,6 +539,17 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const shellIntegrationStatus = useAtomValueSafe(termWrapInst?.shellIntegrationStatusAtom);
     const integrationDisabled = useAtomValueSafe<boolean>(termWrapInst?.shellIntegrationDisabledAtom) ?? false;
     const shellType = useAtomValueSafe<ShellType>(termWrapInst?.shellTypeAtom) ?? "unknown";
+    const commandAiContextLabel = React.useMemo(() => {
+        const connName = blockData?.meta?.connection;
+        const cwd = blockData?.meta?.["cmd:cwd"];
+        return [
+            connName && !isLocalConnName(connName) ? connName : "This computer",
+            shellType !== "unknown" ? shellType : null,
+            cwd ? formatCwdLabel(cwd) : null,
+        ]
+            .filter(Boolean)
+            .join(" · ");
+    }, [blockData?.meta?.connection, blockData?.meta?.["cmd:cwd"], shellType]);
     React.useEffect(() => {
         globalStore.set(model.shellStatusInputsAtom, {
             report: { integrationDisabled, shellType },
@@ -815,7 +854,12 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <NullErrorBoundary debugName="TermLinkTooltip">
                 <TermLinkTooltip termWrap={termWrapInst} />
             </NullErrorBoundary>
-            <TermCommandComposer model={model} blockData={blockData} connStatus={connStatus} termWrap={termWrapInst} />
+            <TermCommandComposer
+                model={model}
+                termWrap={termWrapInst}
+                contextLabel={commandAiContextLabel}
+                isMac={isMacOS()}
+            />
             <Search {...searchProps} />
         </div>
     );

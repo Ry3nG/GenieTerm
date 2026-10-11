@@ -7,6 +7,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import type { TabModel } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { CommandAiSettingsContent } from "@/app/view/waveconfig/commandaicontent";
 import { ConnectionsContent } from "@/app/view/waveconfig/connectionscontent";
 import { GeneralSettingsContent, updateSettingsJsonValue } from "@/app/view/waveconfig/generalcontent";
 import { SecretsContent } from "@/app/view/waveconfig/secretscontent";
@@ -34,6 +35,8 @@ export type ConfigFile = {
     docsUrl?: string;
     validator?: ConfigValidator;
     isSecrets?: boolean;
+    // a settings page that isn't backed by a config file
+    isVirtual?: boolean;
     hasJsonView?: boolean;
     visualComponent?: React.ComponentType<{ model: WaveConfigViewModel }>;
 };
@@ -58,6 +61,13 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             description: isWindows ? "SSH hosts and WSL distros" : "SSH hosts",
             hasJsonView: true,
             visualComponent: ConnectionsContent,
+        },
+        {
+            name: "Command AI",
+            path: "commandai",
+            isVirtual: true,
+            hasJsonView: false,
+            visualComponent: CommandAiSettingsContent,
         },
         {
             name: "Widgets",
@@ -258,6 +268,16 @@ export class WaveConfigViewModel implements ViewModel {
         globalStore.set(this.isLoadingAtom, true);
         globalStore.set(this.errorMessageAtom, null);
         globalStore.set(this.hasEditedAtom, false);
+
+        if (file.isVirtual) {
+            globalStore.set(this.selectedFileAtom, file);
+            this.env.rpc.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: { file: file.path },
+            });
+            globalStore.set(this.isLoadingAtom, false);
+            return;
+        }
 
         if (file.isSecrets) {
             globalStore.set(this.selectedFileAtom, file);

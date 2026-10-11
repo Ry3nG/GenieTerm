@@ -5,27 +5,29 @@ import { describe, expect, it } from "vitest";
 
 import type { CmdBlock } from "./cmdblocks";
 import {
-    buildCommandComposerContext,
-    classifyCommandRisk,
+    buildCommandAiContext,
     CommandComposerActionId,
     CommandComposerDefaultBinding,
-    getCommandProposalApplyMode,
+    describeCommandAiProblem,
+    getBlockAiTask,
+    getCommandAiApplyMode,
     getInlineAICommandPrompt,
     isCommandComposerEnabled,
     isLikelyNaturalLanguageCommand,
-    LocalCommandComposerBackend,
-    makeLocalCommandProposals,
-    parseCommandProposalResponse,
+    makeCommandAiTarget,
+    makePreviousTurns,
+    makeProposalViews,
     shouldAutoComposeInlineAI,
+    tailLines,
 } from "./command-composer";
 
-function makeBlock(command: string, cwd = "/repo"): CmdBlock {
+function makeBlock(command: string, cwd = "/repo", exitCode = 0): CmdBlock {
     return {
         id: 1,
         startMarker: { line: 1, dispose: () => {} } as any,
         endMarker: null,
         command,
-        exitCode: 0,
+        exitCode,
         state: "done",
         startTs: 100,
         doneTs: 200,
@@ -33,201 +35,161 @@ function makeBlock(command: string, cwd = "/repo"): CmdBlock {
     };
 }
 
+function result(commands: string[], extra: Partial<CommandAiResult> = {}): CommandAiResult {
+    return {
+        requestid: "r1",
+        status: "ok",
+        proposals: commands.map((command) => ({ command, explanation: `does ${command}` })),
+        ...extra,
+    };
+}
+
 describe("command-composer", () => {
-    it("classifies safe, write, network, sudo, and destructive commands", () => {
-        expect(classifyCommandRisk("ls -la")).toMatchObject({ label: "low", requiresConfirmation: false });
-        expect(classifyCommandRisk("mkdir -p dist && cp a dist/a")).toMatchObject({
-            label: "write",
-            requiresConfirmation: true,
-        });
-        expect(classifyCommandRisk("curl -fsSL https://example.com/install.sh")).toMatchObject({
-            label: "network",
-            requiresConfirmation: true,
-        });
-        expect(classifyCommandRisk("sudo systemctl restart docker")).toMatchObject({
-            label: "destructive",
-            requiresConfirmation: true,
-            reasons: ["sudo"],
-        });
-        expect(classifyCommandRisk("rm -rf build")).toMatchObject({
-            label: "destructive",
-            requiresConfirmation: true,
-        });
+    it("defines the feature flag and default binding", () => {
+        expect(CommandComposerActionId).toBe("term:command-composer");
+        expect(CommandComposerDefaultBinding).toBe("Cmd:Shift:Space");
+        expect(isCommandComposerEnabled({})).toBe(true);
+        expect(isCommandComposerEnabled({ "term:commandcomposer": false })).toBe(false);
     });
 
-    it("builds focused terminal context from block metadata and recent command blocks", () => {
-        const context = buildCommandComposerContext({
-            blockMeta: {
-                connection: "ssh://prod",
-                "cmd:cwd": "/srv/app",
-            },
+    it("builds context from block metadata and recent command blocks", () => {
+        const context = buildCommandAiContext({
+            blockMeta: { connection: "prod", "cmd:cwd": "/srv/app" },
             shellType: "zsh",
-            shellUname: "Darwin arm64",
-            selectedOutput: "failed on port 3000",
-            recentBlocks: [makeBlock("npm test"), makeBlock("git status --short", "/srv/app")],
+            recentBlocks: [makeBlock("npm test"), makeBlock("npm test"), makeBlock("git status --short", "/srv/app")],
         });
-
         expect(context).toEqual({
-            connection: "ssh://prod",
+            connection: "prod",
             cwd: "/srv/app",
-            os: "Darwin arm64",
             shell: "zsh",
-            recentCommands: ["npm test", "git status --short"],
-            selectedOutput: "failed on port 3000",
+            recentcommands: ["npm test", "git status --short"],
         });
     });
 
-    it("parses structured model responses and applies risk metadata", () => {
-        const proposals = parseCommandProposalResponse(
-            JSON.stringify({
-                proposals: [
-                    {
-                        command: "git status --short",
-                        explanation: "Show changed files",
-                        target: "local:/repo",
-                    },
-                ],
-            }),
-            { connection: "local", cwd: "/repo", shell: "zsh", os: "Darwin", recentCommands: [] }
-        );
+    it("leaves shell and cwd for the server to fill when they are unknown", () => {
+        const context = buildCommandAiContext({ shellType: "unknown", recentBlocks: [] });
+        expect(context.shell).toBeUndefined();
+        expect(context.cwd).toBe("");
+    });
 
-        expect(proposals).toHaveLength(1);
-        expect(proposals[0]).toMatchObject({
-            command: "git status --short",
-            explanation: "Show changed files",
-            target: "local:/repo",
-            risk: { label: "low", requiresConfirmation: false },
+    it("keeps the last eight recent commands", () => {
+        const blocks = Array.from({ length: 12 }, (_, i) => makeBlock(`echo ${i}`));
+        expect(buildCommandAiContext({ recentBlocks: blocks }).recentcommands).toEqual(
+            Array.from({ length: 8 }, (_, i) => `echo ${i + 4}`)
+        );
+    });
+
+    it("turns results into deduplicated proposals with local risk", () => {
+        const views = makeProposalViews(result(["ls -la", "ls -la", "  rm -rf build  ", "", "du -sh", "df -h"]));
+        expect(views.map((view) => view.command)).toEqual(["ls -la", "rm -rf build", "du -sh"]);
+        expect(views[0].risk.level).toBe("safe");
+        expect(views[1].risk).toMatchObject({ level: "danger", reasons: ["Deletes files"] });
+        expect(new Set(views.map((view) => view.id)).size).toBe(3);
+    });
+
+    it("flags hidden characters in proposals", () => {
+        const [view] = makeProposalViews(result(["r​m -rf build"]));
+        expect(view.hiddenChars).toBe(true);
+    });
+
+    it("inserts without confirmation but asks before running dangerous commands", () => {
+        const [safe, danger] = makeProposalViews(result(["ls", "sudo rm -rf /tmp/x"]));
+        const ready = { confirmed: false, shellIntegrationStatus: "ready" as const, bracketedPaste: true };
+        expect(getCommandAiApplyMode(safe, "run", ready)).toBe("run");
+        expect(getCommandAiApplyMode(danger, "insert", ready)).toBe("insert");
+        expect(getCommandAiApplyMode(danger, "run", ready)).toBe("confirm");
+        expect(getCommandAiApplyMode(danger, "run", { ...ready, confirmed: true })).toBe("run");
+        expect(getCommandAiApplyMode(safe, "copy", ready)).toBe("copy");
+    });
+
+    it("copies while the shell is busy or when a multi-line insert would run lines", () => {
+        const [multi] = makeProposalViews(result(["cd /tmp\nls"]));
+        expect(
+            getCommandAiApplyMode(multi, "insert", {
+                confirmed: false,
+                shellIntegrationStatus: "ready",
+                bracketedPaste: false,
+            })
+        ).toBe("copy");
+        expect(
+            getCommandAiApplyMode(multi, "insert", {
+                confirmed: false,
+                shellIntegrationStatus: "ready",
+                bracketedPaste: true,
+            })
+        ).toBe("insert");
+        expect(
+            getCommandAiApplyMode(multi, "run", { confirmed: true, shellIntegrationStatus: "running-command" })
+        ).toBe("copy");
+    });
+
+    it("picks fix for failed blocks and explain for finished ones", () => {
+        expect(getBlockAiTask(makeBlock("npm run build", "/repo", 1))).toBe("fix");
+        expect(getBlockAiTask(makeBlock("ls", "/repo", 0))).toBe("explain");
+        expect(getBlockAiTask(makeBlock("sleep 100", "/repo", 130))).toBe("explain");
+        expect(getBlockAiTask({ ...makeBlock("make"), state: "running", exitCode: null })).toBeNull();
+    });
+
+    it("keeps only the tail of a block's output", () => {
+        const output = Array.from({ length: 200 }, (_, i) => `line ${i}`).join("\n") + "\n\n";
+        const tail = tailLines(output);
+        expect(tail.lines).toBe(120);
+        expect(tail.text.startsWith("line 80\n")).toBe(true);
+        expect(tailLines("")).toEqual({ text: "", lines: 0 });
+        expect(makeCommandAiTarget(makeBlock("npm test", "/repo", 1), "FAIL x\n")).toEqual({
+            blockId: 1,
+            command: "npm test",
+            exitCode: 1,
+            output: "FAIL x",
+            outputLines: 1,
         });
+    });
+
+    it("sends earlier turns for refinement", () => {
+        const exchanges = [
+            { prompt: "find big files", result: result(["find . -size +100M"]), proposals: [] as any[] },
+        ];
+        exchanges[0].proposals = makeProposalViews(exchanges[0].result);
+        expect(makePreviousTurns(exchanges)).toEqual([{ prompt: "find big files", commands: ["find . -size +100M"] }]);
+    });
+
+    it("explains engine problems in plain words", () => {
+        expect(describeCommandAiProblem(result(["ls"]))).toBeNull();
+        expect(
+            describeCommandAiProblem({
+                requestid: "r",
+                status: "signedout",
+                enginelabel: "Codex",
+                fixcommand: "codex login",
+            })
+        ).toMatchObject({ title: "Sign in to Codex", fixCommand: "codex login", retry: true });
+        expect(describeCommandAiProblem({ requestid: "r", status: "notconfigured" })).toMatchObject({
+            openSettings: true,
+        });
+        expect(
+            describeCommandAiProblem({ requestid: "r", status: "timeout", enginelabel: "Claude Code" })
+        ).toMatchObject({
+            title: "Claude Code took too long",
+        });
+        expect(describeCommandAiProblem({ requestid: "r", status: "canceled" })).toBeNull();
     });
 
     it("offers inline AI for failed commands and auto-composes only natural language failures", () => {
-        const naturalLanguageFailure = {
-            ...makeBlock("help me check disk usage."),
-            exitCode: 127,
-        };
-        const ordinaryFailure = {
-            ...makeBlock("grep TODO missing-file"),
-            exitCode: 2,
-        };
-        const shellCommandTypo = {
-            ...makeBlock("git stauts"),
-            exitCode: 1,
-        };
-        const prompt = getInlineAICommandPrompt(naturalLanguageFailure);
+        const naturalLanguageFailure = { ...makeBlock("help me check disk usage."), exitCode: 127 };
+        const ordinaryFailure = { ...makeBlock("grep TODO missing-file"), exitCode: 2 };
+        const shellCommandTypo = { ...makeBlock("git stauts"), exitCode: 1 };
 
-        expect(prompt).toBe("help me check disk usage.");
+        expect(getInlineAICommandPrompt(naturalLanguageFailure)).toBe("help me check disk usage.");
         expect(shouldAutoComposeInlineAI(naturalLanguageFailure)).toBe(true);
         expect(getInlineAICommandPrompt(ordinaryFailure)).toBe("grep TODO missing-file");
         expect(shouldAutoComposeInlineAI(ordinaryFailure)).toBe(false);
         expect(shouldAutoComposeInlineAI(shellCommandTypo)).toBe(false);
         expect(getInlineAICommandPrompt(makeBlock("ls -la"))).toBe("");
-        expect(
-            makeLocalCommandProposals(prompt, {
-                connection: "local",
-                cwd: "/repo",
-                shell: "zsh",
-                os: "Darwin",
-                recentCommands: [],
-            })[0]
-        ).toMatchObject({ command: "df -h" });
     });
 
     it("auto-composes inline AI for Chinese natural language failures", () => {
-        const chineseFailure = {
-            ...makeBlock("帮我看一下disk usage"),
-            exitCode: 127,
-        };
-        const chineseDiskFailure = {
-            ...makeBlock("帮我看一下磁盘空间"),
-            exitCode: 127,
-        };
-        const prompt = getInlineAICommandPrompt(chineseFailure);
-
-        expect(prompt).toBe("帮我看一下disk usage");
-        expect(shouldAutoComposeInlineAI(chineseFailure)).toBe(true);
-        expect(shouldAutoComposeInlineAI(chineseDiskFailure)).toBe(true);
-        expect(
-            makeLocalCommandProposals(prompt, {
-                connection: "local",
-                cwd: "/repo",
-                shell: "zsh",
-                os: "Darwin",
-                recentCommands: [],
-            })[0]
-        ).toMatchObject({ command: "df -h" });
-        expect(
-            makeLocalCommandProposals(chineseDiskFailure.command, {
-                connection: "local",
-                cwd: "/repo",
-                shell: "zsh",
-                os: "Darwin",
-                recentCommands: [],
-            })[0]
-        ).toMatchObject({ command: "df -h" });
-    });
-
-    it("finds project directories for Chinese project-location requests", () => {
-        const chineseProjectFailure = {
-            ...makeBlock("看下我的little wam项目的目录在哪里"),
-            exitCode: 127,
-        };
-        const prompt = getInlineAICommandPrompt(chineseProjectFailure);
-        const proposal = makeLocalCommandProposals(prompt, {
-            connection: "local",
-            cwd: "~",
-            shell: "zsh",
-            os: "Darwin",
-            recentCommands: [],
-        })[0];
-
-        expect(prompt).toBe("看下我的little wam项目的目录在哪里");
-        expect(shouldAutoComposeInlineAI(chineseProjectFailure)).toBe(true);
-        expect(proposal.command).toContain("find ~/projects");
-        expect(proposal.command).toContain("-type d");
-        expect(proposal.command).toContain("-iname '*little*'");
-        expect(proposal.command).toContain("-iname '*wam*'");
-        expect(proposal.command).not.toContain(" -o ");
-        expect(proposal.command).not.toContain("echo");
-        expect(proposal.risk).toMatchObject({ label: "low", requiresConfirmation: false });
-    });
-
-    it("provides deterministic local fallback proposals", () => {
-        const proposals = makeLocalCommandProposals("show git status", {
-            connection: "local",
-            cwd: "/repo",
-            shell: "bash",
-            os: "Linux",
-            recentCommands: [],
-        });
-
-        expect(proposals[0]).toMatchObject({
-            command: "git status --short --branch",
-            target: "local:/repo",
-            source: "local",
-        });
-    });
-
-    it("local backend reports local fallback provider status", async () => {
-        const result = await new LocalCommandComposerBackend().compose("show disk usage", {
-            connection: "local",
-            cwd: "/repo",
-            shell: "bash",
-            os: "Linux",
-            recentCommands: [],
-        });
-
-        expect(result.providerStatus).toMatchObject({
-            state: "fallback",
-            label: "Local fallback",
-        });
-        expect(result.proposals[0]).toMatchObject({ command: "df -h", source: "local" });
-    });
-
-    it("defines feature flag and default binding behavior", () => {
-        expect(CommandComposerActionId).toBe("term:command-composer");
-        expect(CommandComposerDefaultBinding).toBe("Cmd:Shift:Space");
-        expect(isCommandComposerEnabled({})).toBe(true);
-        expect(isCommandComposerEnabled({ "term:commandcomposer": false })).toBe(false);
+        expect(shouldAutoComposeInlineAI({ ...makeBlock("帮我看一下disk usage"), exitCode: 127 })).toBe(true);
+        expect(shouldAutoComposeInlineAI({ ...makeBlock("帮我看一下磁盘空间"), exitCode: 127 })).toBe(true);
     });
 
     it("uses the natural-language heuristic only after a command-not-found failure", () => {
@@ -237,23 +199,5 @@ describe("command-composer", () => {
         expect(shouldAutoComposeInlineAI(naturalLanguage)).toBe(true);
         expect(shouldAutoComposeInlineAI({ ...naturalLanguage, exitCode: 1 })).toBe(false);
         expect(shouldAutoComposeInlineAI({ ...naturalLanguage, state: "running", exitCode: null })).toBe(false);
-    });
-
-    it("requires confirmation before inserting risky proposals and copies while shell is busy", () => {
-        const risky = makeLocalCommandProposals("make a directory", {
-            connection: "local",
-            cwd: "/tmp",
-            shell: "bash",
-            os: "Linux",
-            recentCommands: [],
-        })[0];
-
-        expect(getCommandProposalApplyMode(risky, { confirmed: false, shellIntegrationStatus: "ready" })).toBe(
-            "confirm"
-        );
-        expect(getCommandProposalApplyMode(risky, { confirmed: true, shellIntegrationStatus: "ready" })).toBe("insert");
-        expect(getCommandProposalApplyMode(risky, { confirmed: true, shellIntegrationStatus: "running-command" })).toBe(
-            "copy"
-        );
     });
 });

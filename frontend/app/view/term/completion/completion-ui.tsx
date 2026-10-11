@@ -12,7 +12,6 @@ import * as React from "react";
 import { blockHasCommand, type CmdBlock } from "../cmdblocks";
 import type { TermViewModel } from "../term-model";
 import type { TermWrap } from "../termwrap";
-import { makeAICompletionProvider } from "./ai-provider";
 import { TermCompletionService } from "./completion-service";
 import { makeFileCompletionProvider, type ListDirectoryForCompletion } from "./file-provider";
 import { makeCompletionGhostText } from "./ghost";
@@ -187,9 +186,8 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
             makePathCommandCompletionProvider(runCompletionGenerator),
             makeHelpFallbackCompletionProvider(runCompletionGenerator, hasFigSpec),
             makeFileCompletionProvider(listDirectory),
-            makeAICompletionProvider(model.commandComposerBackend),
         ]);
-    }, [model.commandComposerBackend]);
+    }, []);
     const cursorPointRef = React.useRef({ x: 0, y: 0, cellHeight: 16 });
     cursorPointRef.current = getTerminalCursorMetrics(termWrap);
 

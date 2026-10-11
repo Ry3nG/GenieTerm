@@ -18,6 +18,11 @@ export type GeneralSettingKey =
     | "term:notifyafter"
     | "term:scrollback"
     | "term:commandcomposer"
+    | "commandai:engine"
+    | "commandai:model"
+    | "commandai:baseurl"
+    | "commandai:includeoutput"
+    | "commandai:inline"
     | "term:durable"
     | "conn:wshenabled"
     | "conn:askbeforewshinstall"
@@ -47,6 +52,9 @@ export type WaveConfigEnv = WaveEnvSubset<{
         GetSecretsNamesCommand: WaveEnv["rpc"]["GetSecretsNamesCommand"];
         GetSecretsCommand: WaveEnv["rpc"]["GetSecretsCommand"];
         SetSecretsCommand: WaveEnv["rpc"]["SetSecretsCommand"];
+        CommandAiStatusCommand: WaveEnv["rpc"]["CommandAiStatusCommand"];
+        CommandAiModelsCommand: WaveEnv["rpc"]["CommandAiModelsCommand"];
+        CommandAiRunCommand: WaveEnv["rpc"]["CommandAiRunCommand"];
     };
     atoms: {
         fullConfigAtom: WaveEnv["atoms"]["fullConfigAtom"];
