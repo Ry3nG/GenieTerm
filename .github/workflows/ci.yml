@@ -17,6 +17,11 @@ on:
 permissions:
     contents: read
 
+# A new push to a PR supersedes the run before it; pushes to main always finish.
+concurrency:
+    group: ci-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
     NODE_VERSION: 22
     GO_VERSION_FILE: go.mod
@@ -208,6 +213,12 @@ jobs:
         permissions:
             contents: read
         steps:
+            # Defender scans every file npm, Go, Vite and electron-builder write; on a throwaway runner that
+            # is the slowest part of the job.
+            - name: Turn off Defender real-time scanning
+              shell: pwsh
+              run: Set-MpPreference -DisableRealtimeMonitoring $true
+
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -242,14 +253,18 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Windows Vitest suite
-              run: npm test -- --run
+            # The full suite runs in the V1 gate; on Windows only the Electron main process tests take
+            # different paths (file system, transfer transport).
+            - name: Windows Vitest suite (Electron main)
+              run: npm test -- --run emain
 
             - name: Windows Go test suite
               run: go test ./...
 
-            - name: Build Windows x64 packages
-              run: task package -- --win --x64
+            # The installer is what users get and what the smoke installs; the release workflow also builds
+            # the zip.
+            - name: Build Windows x64 installer
+              run: task package -- --win nsis --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -261,11 +276,10 @@ jobs:
                   if-no-files-found: error
                   path: |
                       make/*.exe
-                      make/*.zip
                       make/*.yml
 
             - name: Verify Windows package and launch
-              run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
+              run: node scripts/verify-windows-package.mjs make --no-zip --window-smoke --installer-smoke
 
             - name: Verify packaging left the checkout unchanged
               shell: bash
