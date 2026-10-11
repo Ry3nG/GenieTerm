@@ -21,6 +21,10 @@ const connMonitorUrgentCheckDelay = time.Second
 const connMonitorInFlightCheckInterval = 2 * time.Second
 const connMonitorKeepAliveIdle = 10 * time.Second
 const connMonitorStalledThreshold = 10 * time.Second
+
+// on a few-KB/s link an upload's accepted chunks arrive seconds apart, so a moving transfer
+// vouches for the link this long after its last chunk
+const connMonitorTransferGrace = 30 * time.Second
 const connMonitorUrgentStalledThreshold = 5 * time.Second
 const connMonitorDeadTimeout = 15 * time.Second
 const connMonitorResumeProbeTimeout = 5 * time.Second
@@ -29,11 +33,15 @@ const connMonitorResumeProbeTimeout = 5 * time.Second
 // CRITICAL: Methods that hold cm.lock must NEVER call into SSHConn (deadlock - violates ordering).
 // Methods called from SSHConn while conn.lock is held should avoid acquiring cm.lock (keep locking simple).
 type ConnMonitor struct {
-	lock              *sync.Mutex
-	Conn              *SSHConn    // always non-nil, set at creation
-	Client            *ssh.Client // always non-nil, set at creation
-	LastActivityTime  atomic.Int64
-	LastInputTime     atomic.Int64
+	lock             *sync.Mutex
+	Conn             *SSHConn    // always non-nil, set at creation
+	Client           *ssh.Client // always non-nil, set at creation
+	LastActivityTime atomic.Int64
+	LastInputTime    atomic.Int64
+	// last time an upload (the helper install) got bytes accepted by the SSH channel; a
+	// keepalive queued behind a long upload on a slow link answers late without the link
+	// being stalled or dead
+	LastTransferTime  atomic.Int64
 	KeepAliveSentTime atomic.Int64
 	KeepAliveInFlight bool
 	KeepAlive         remote.KeepAliveSettings
@@ -85,6 +93,16 @@ func (cm *ConnMonitor) UpdateLastActivityTime() {
 	case cm.activityNotifyCh <- struct{}{}:
 	default:
 	}
+}
+
+func (cm *ConnMonitor) NotifyTransferProgress() {
+	cm.LastTransferTime.Store(time.Now().UnixMilli())
+	cm.setConnHealthStatus(ConnHealthStatus_Good)
+}
+
+func (cm *ConnMonitor) isTransferring(now int64, within int64) bool {
+	last := cm.LastTransferTime.Load()
+	return last > 0 && now-last < within
 }
 
 func (cm *ConnMonitor) NotifyInput() {
@@ -223,6 +241,9 @@ func (cm *ConnMonitor) checkConnection() {
 		stalledThreshold = connMonitorUrgentStalledThreshold.Milliseconds()
 	}
 	timeSinceKeepAlive := cm.getTimeSinceKeepAlive()
+	if cm.isTransferring(time.Now().UnixMilli(), connMonitorTransferGrace.Milliseconds()) {
+		return
+	}
 	if timeSinceKeepAlive > stalledThreshold {
 		cm.setConnHealthStatus(ConnHealthStatus_Stalled)
 	}

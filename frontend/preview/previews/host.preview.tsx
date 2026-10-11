@@ -44,6 +44,8 @@ export default function HostPreview() {
     const env = useWaveEnv();
     const historyRef = React.useRef(makeMockSysinfoHistory(DefaultSysinfoHistoryPoints, Date.now(), MockSshConnection));
     const forwardsRef = React.useRef(makeMockForwards());
+    // ?hostheight=320 renders a short overview block, the way a split pane can be
+    const overviewHeight = Number(new URLSearchParams(window.location.search).get("hostheight")) || 1180;
 
     React.useState(() => {
         globalStore.set(env.getConnStatusAtom(MockSshConnection), {
@@ -105,7 +107,7 @@ export default function HostPreview() {
     return (
         <div className="flex w-full max-w-[1240px] flex-col gap-4 px-6 py-6">
             <div className="font-mono text-xs text-muted">host block: overview (mock SSH host with 8 GPUs)</div>
-            <HostBlock blockId={SysinfoBlockId} nodeId="preview-host-overview" height={1180} />
+            <HostBlock blockId={SysinfoBlockId} nodeId="preview-host-overview" height={overviewHeight} />
             <div className="font-mono text-xs text-muted">host block: ports</div>
             <HostBlock blockId={HostPortsBlockId} nodeId="preview-host-ports" height={520} />
         </div>

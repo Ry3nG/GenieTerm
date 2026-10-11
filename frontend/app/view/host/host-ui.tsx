@@ -27,7 +27,7 @@ export function Card({
     onClick?: () => void;
     label?: string;
 }) {
-    const base = "min-w-0 rounded-xl border border-border bg-panel px-4 py-3.5 text-left";
+    const base = "@container/card min-w-0 rounded-xl border border-border bg-panel px-4 py-3.5 text-left";
     if (onClick == null) {
         return <section className={cn(base, className)}>{children}</section>;
     }
@@ -82,7 +82,14 @@ export function CardHeader({
                 >
                     {title}
                 </div>
-                {detail && <div className="truncate text-[12px] leading-4 text-muted">{detail}</div>}
+                {detail && (
+                    <div
+                        className={cn("text-[12px] leading-4 text-muted", large ? "line-clamp-2" : "truncate")}
+                        title={typeof detail === "string" ? detail : undefined}
+                    >
+                        {detail}
+                    </div>
+                )}
             </div>
             {value != null && (
                 <div
@@ -153,6 +160,31 @@ export function formatGpuPower(gpu: GpuData): string {
     return "—";
 }
 
+// Summary-card chart: the frame and midline keep a low, flat series reading as a chart, not empty space.
+export function MiniChart({
+    series,
+    max = 100,
+    label,
+    className,
+}: {
+    series: { values: number[]; color: string; fill?: boolean }[];
+    max?: number;
+    label: string;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                "relative h-14 overflow-hidden rounded-md border border-border/60 bg-background/40",
+                className
+            )}
+        >
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-foreground/[0.07]" />
+            <Sparkline className="absolute inset-0 h-full" series={series} max={max} label={label} />
+        </div>
+    );
+}
+
 type ChartSeries = { values: number[]; color: string; fill?: boolean; label?: string };
 
 // A larger chart for detail views: gridlines at quarters, a y-axis label, and the time span.
@@ -185,7 +217,7 @@ export function DetailChart({
                     <span className="tabular-nums">{topLabel}</span>
                 </span>
             </div>
-            <div className="relative h-40 rounded-lg border border-border bg-background/40">
+            <div className="relative h-28 rounded-lg border border-border bg-background/40 @[560px]:h-40">
                 {[25, 50, 75].map((y) => (
                     <div
                         key={y}

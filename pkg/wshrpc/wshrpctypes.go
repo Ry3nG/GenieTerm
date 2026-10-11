@@ -469,6 +469,7 @@ type ConnStatus struct {
 	WshError                      string `json:"wsherror,omitempty"`
 	NoWshReason                   string `json:"nowshreason,omitempty"`
 	WshVersion                    string `json:"wshversion,omitempty"`
+	WshInstallPct                 int    `json:"wshinstallpct,omitempty"` // 1-100 while the helper is being copied
 	LastActivityBeforeStalledTime int64  `json:"lastactivitybeforestalledtime,omitempty"`
 	KeepAliveSentTime             int64  `json:"keepalivesenttime,omitempty"`
 	Reconnecting                  bool   `json:"reconnecting,omitempty"`

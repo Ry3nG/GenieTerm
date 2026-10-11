@@ -8,7 +8,16 @@ export const MockSshConnection = "me@gpu-01";
 const MockMemoryTotal = 503;
 const MockSwapTotal = 8;
 const MockCoreCount = 64;
-const MockGpuCount = 8;
+// ?gpus=1 previews a single-GPU workstation; the default is an 8-GPU server
+function mockGpuCount(): number {
+    if (typeof window === "undefined") {
+        return 8;
+    }
+    const raw = new URLSearchParams(window.location.search).get("gpus");
+    const n = Number(raw);
+    return raw != null && Number.isInteger(n) && n >= 0 && n <= 16 ? n : 8;
+}
+
 const MiB = 1024 * 1024;
 const GpuMemTotal = 81559 * MiB;
 
@@ -22,7 +31,8 @@ function round1(value: number): number {
 
 export function makeMockGpus(step: number): GpuData[] {
     const gpus: GpuData[] = [];
-    for (let i = 0; i < MockGpuCount; i++) {
+    const count = mockGpuCount();
+    for (let i = 0; i < count; i++) {
         const idle = i === 7;
         const util = idle ? 0 : clamp(86 + 10 * Math.sin(step / 5 + i) + 3 * Math.cos(step / 2), 40, 100);
         gpus.push({

@@ -92,6 +92,7 @@ type SSHConn struct {
 	WshError           string
 	NoWshReason        string
 	WshVersion         string
+	WshInstallPct      int
 	LastConnectTime    int64
 	ActiveConnNum      int
 	Monitor            *ConnMonitor // will not be nil
@@ -191,6 +192,7 @@ func (conn *SSHConn) DeriveConnStatus() wshrpc.ConnStatus {
 		WshError:                      conn.WshError,
 		NoWshReason:                   conn.NoWshReason,
 		WshVersion:                    conn.WshVersion,
+		WshInstallPct:                 conn.WshInstallPct,
 		ConnHealthStatus:              conn.ConnHealthStatus,
 		LastActivityBeforeStalledTime: lastActivityBeforeStalledTime,
 		KeepAliveSentTime:             keepAliveSentTime,
@@ -781,7 +783,8 @@ func (conn *SSHConn) UpdateWsh(ctx context.Context, clientDisplayName string, re
 	if client == nil {
 		return fmt.Errorf("cannot update wsh: ssh client is not connected")
 	}
-	err := remote.CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch, conn.getWshPath())
+	defer conn.clearInstallProgress()
+	err := remote.CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch, conn.getWshPath(), conn.noteInstallProgress)
 	if err != nil {
 		return fmt.Errorf("error installing wsh to remote: %w", err)
 	}
@@ -835,6 +838,41 @@ func (conn *SSHConn) getPermissionToInstallWsh(ctx context.Context, clientDispla
 	return true, nil
 }
 
+// noteInstallProgress keeps the health monitor from reading a busy upload as a stalled link and
+// publishes the install percentage for the UI.
+func (conn *SSHConn) noteInstallProgress(sent int64, total int64) {
+	if monitor := conn.GetMonitor(); monitor != nil {
+		monitor.NotifyTransferProgress()
+	}
+	if total <= 0 {
+		return
+	}
+	pct := int(min(max(sent*100/total, 1), 100))
+	changed := WithLockRtn(conn, func() bool {
+		if conn.WshInstallPct == pct {
+			return false
+		}
+		conn.WshInstallPct = pct
+		return true
+	})
+	if changed {
+		conn.FireConnChangeEvent()
+	}
+}
+
+func (conn *SSHConn) clearInstallProgress() {
+	changed := WithLockRtn(conn, func() bool {
+		if conn.WshInstallPct == 0 {
+			return false
+		}
+		conn.WshInstallPct = 0
+		return true
+	})
+	if changed {
+		conn.FireConnChangeEvent()
+	}
+}
+
 func (conn *SSHConn) InstallWsh(ctx context.Context, osArchStr string) error {
 	conn.Infof(ctx, "running installWsh...\n")
 	client := conn.GetClient()
@@ -854,7 +892,8 @@ func (conn *SSHConn) InstallWsh(ctx context.Context, osArchStr string) error {
 		return fmt.Errorf("error detecting client platform: %w", err)
 	}
 	conn.Infof(ctx, "detected remote platform os:%s arch:%s\n", clientOs, clientArch)
-	err = remote.CpWshToRemote(ctx, client, clientOs, clientArch, conn.getWshPath())
+	defer conn.clearInstallProgress()
+	err = remote.CpWshToRemote(ctx, client, clientOs, clientArch, conn.getWshPath(), conn.noteInstallProgress)
 	if err != nil {
 		conn.Infof(ctx, "ERROR copying wsh binary to remote: %v\n", err)
 		return fmt.Errorf("error copying wsh binary to remote: %w", err)
@@ -1130,12 +1169,13 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 		// failure fall back to a background install and connect in no-wsh mode now —
 		// the connection upgrades in place once the slow copy finishes, and new
 		// shells started after that pick up shell integration.
-		installCtx, installCancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
-		err = conn.InstallWsh(installCtx, osArchStr)
-		installCancel()
+		installed, err := conn.installWshWithHandoff(osArchStr, 60*time.Second)
 		if err != nil {
-			conn.Infof(ctx, "inline wsh install did not finish (%v); continuing without wsh, installing in background\n", err)
-			conn.startBackgroundWshInstall(osArchStr)
+			conn.Infof(ctx, "ERROR installing wsh: %v\n", err)
+			return WshCheckResult{NoWshReason: "error installing wsh", NoWshCode: NoWshCode_InstallError, WshError: err}
+		}
+		if !installed {
+			conn.Infof(ctx, "wsh install still copying after 60s; continuing without wsh, it finishes in the background\n")
 			return WshCheckResult{NoWshReason: "installing wsh in background", NoWshCode: NoWshCode_InstallingBackground}
 		}
 		// the install may have consumed most of the caller's (RPC) deadline; give the
@@ -1159,18 +1199,48 @@ func (conn *SSHConn) tryEnableWsh(ctx context.Context, clientDisplayName string)
 	}
 }
 
-// startBackgroundWshInstall copies the helper binary and upgrades an
-// already-connected (no-wsh) connection to wsh in place once the (potentially
-// very slow) copy finishes. The terminal is usable in no-wsh mode meanwhile;
-// shells started after the upgrade pick up shell integration. Safe on a slow
-// link: cancelled on disconnect, deduped, and a no-op on failure.
-func (conn *SSHConn) startBackgroundWshInstall(osArchStr string) {
+// installHandoff hands an install that outlives the connect path's wait to the background without
+// restarting the copy (on a slow link a restart throws away minutes of upload). Whichever side
+// claims it first owns starting the connserver, so it starts exactly once.
+type installHandoff struct {
+	claimed atomic.Bool
+	done    chan error
+}
+
+// installWshWithHandoff returns installed=true when the copy finished within wait (the caller starts
+// the connserver), or false when it is still copying and will upgrade the connection itself.
+func (conn *SSHConn) installWshWithHandoff(osArchStr string, wait time.Duration) (bool, error) {
+	handoff := &installHandoff{done: make(chan error, 1)}
+	if !conn.startBackgroundWshInstall(osArchStr, handoff) {
+		// an earlier attempt is still copying and upgrades the connection when it lands
+		return false, nil
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case err := <-handoff.done:
+		return err == nil, err
+	case <-timer.C:
+		if handoff.claimed.CompareAndSwap(false, true) {
+			return false, nil
+		}
+		err := <-handoff.done
+		return err == nil, err
+	}
+}
+
+// startBackgroundWshInstall copies the helper binary and, unless the connect path is still waiting
+// on it (handoff), upgrades the already-connected (no-wsh) connection in place once the copy
+// finishes. The terminal is usable in no-wsh mode meanwhile; shells started after the upgrade
+// pick up shell integration. Cancelled on disconnect and deduped; returns false when an install is
+// already running.
+func (conn *SSHConn) startBackgroundWshInstall(osArchStr string, handoff *installHandoff) bool {
 	if !conn.wshInstalling.CompareAndSwap(false, true) {
-		return
+		return false
 	}
 	// Detached from the connect RPC context; bounded generously for slow links and
 	// cancelled by closeInternal on disconnect.
-	bgCtx, bgCancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	bgCtx, bgCancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	conn.WithLock(func() { conn.installCancel = bgCancel })
 	go func() {
 		defer func() {
@@ -1182,16 +1252,19 @@ func (conn *SSHConn) startBackgroundWshInstall(osArchStr string) {
 		// own handle, and calling an already-finished attempt's cancel is a harmless
 		// no-op. closeInternal cancels whatever the latest handle is.
 		defer bgCancel()
-		conn.Infof(bgCtx, "background wsh install starting (terminal stays usable in no-wsh mode)...\n")
-		if err := conn.InstallWsh(bgCtx, osArchStr); err != nil {
+		conn.Infof(bgCtx, "wsh install starting (terminal stays usable in no-wsh mode)...\n")
+		err := conn.InstallWsh(bgCtx, osArchStr)
+		if handoff != nil && handoff.claimed.CompareAndSwap(false, true) {
+			handoff.done <- err
+			return
+		}
+		if err != nil {
 			conn.Infof(bgCtx, "background wsh install failed: %v\n", err)
 			return
 		}
-		// Bail if the connection was torn down (or replaced) while we were copying.
-		live := WithLockRtn(conn, func() bool {
-			return conn.Status == Status_Connected && conn.Client != nil
-		})
-		if !live || bgCtx.Err() != nil {
+		// the connect path may have handed this off a moment ago and not yet marked the
+		// connection connected
+		if !conn.waitForConnectedAfterHandoff(bgCtx, 30*time.Second) {
 			conn.Infof(bgCtx, "background wsh install: connection no longer live, skipping upgrade\n")
 			return
 		}
@@ -1204,6 +1277,28 @@ func (conn *SSHConn) startBackgroundWshInstall(osArchStr string) {
 		conn.FireConnChangeEvent()
 		conn.Infof(bgCtx, "background wsh install complete — new shells on this connection get command blocks\n")
 	}()
+	return true
+}
+
+type connLiveState struct {
+	status    string
+	hasClient bool
+}
+
+func (conn *SSHConn) waitForConnectedAfterHandoff(ctx context.Context, limit time.Duration) bool {
+	deadline := time.Now().Add(limit)
+	for {
+		state := WithLockRtn(conn, func() connLiveState {
+			return connLiveState{status: conn.Status, hasClient: conn.Client != nil}
+		})
+		if state.status == Status_Connected && state.hasClient {
+			return true
+		}
+		if state.status != Status_Connecting || ctx.Err() != nil || time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
 }
 
 func (conn *SSHConn) getConnectionConfig() (wconfig.ConnKeywords, bool) {

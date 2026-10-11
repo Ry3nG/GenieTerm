@@ -107,3 +107,49 @@ func TestInstallScriptRemovesTempFileWhenCopyFails(t *testing.T) {
 		t.Fatal("a failed copy must not install anything")
 	}
 }
+
+func TestProgressReaderReportsUncompressedBytes(t *testing.T) {
+	data := strings.Repeat("x", 10000)
+	var lastSent, lastTotal int64
+	calls := 0
+	pr := &progressReader{r: strings.NewReader(data), total: int64(len(data)), onProgress: func(sent, total int64) {
+		calls++
+		lastSent, lastTotal = sent, total
+	}}
+	buf := make([]byte, 1024)
+	for {
+		_, err := pr.Read(buf)
+		if err != nil {
+			break
+		}
+	}
+	if calls == 0 || lastSent != int64(len(data)) || lastTotal != int64(len(data)) {
+		t.Fatalf("calls=%d sent=%d total=%d", calls, lastSent, lastTotal)
+	}
+	if calls > 3 {
+		t.Fatalf("progress should be throttled, got %d calls for a fast copy", calls)
+	}
+}
+
+type recordingWriter struct{ writes []int }
+
+func (rw *recordingWriter) Write(p []byte) (int, error) {
+	rw.writes = append(rw.writes, len(p))
+	return len(p), nil
+}
+
+func TestChunkedWriterFeedsTheChannelInSmallPieces(t *testing.T) {
+	rec := &recordingWriter{}
+	reports := 0
+	cw := &chunkedWriter{w: rec, chunk: 4096, onAccepted: func() { reports++ }}
+	n, err := cw.Write(make([]byte, 10000))
+	if err != nil || n != 10000 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	if len(rec.writes) != 3 || rec.writes[0] != 4096 || rec.writes[2] != 10000-2*4096 {
+		t.Fatalf("writes = %v", rec.writes)
+	}
+	if reports != 1 {
+		t.Fatalf("reports should be throttled to one per second, got %d", reports)
+	}
+}

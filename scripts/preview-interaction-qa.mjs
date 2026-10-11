@@ -244,6 +244,33 @@ async function runFilesUploadDropInteractions(browser, baseUrl) {
   log("files upload drop interaction smoke passed");
 }
 
+async function runBlockStatusInteractions(browser, baseUrl) {
+  const { page, assertClean } = await newCheckedPage(browser, baseUrl, "blockstatus", { width: 1100, height: 1000 });
+  const stalled = page.locator('[data-status-preview="Stalled-320"]');
+  const reconnect = stalled.getByRole("button", { name: "Reconnect", exact: true });
+  await reconnect.click();
+  if (!(await reconnect.isDisabled())) {
+    throw new Error("Status actions must be disabled while recovery runs");
+  }
+  await assertCount(stalled.locator("button .fa-spin"), 1, "busy action spinner");
+  await assertVisible(page.locator("output").filter({ hasText: "Completed reconnect-stalled" }), "reconnect completed");
+  await page.getByLabel("Simulate RPC failure").check();
+  await reconnect.click();
+  await assertVisible(stalled.getByRole("status").filter({ hasText: "The host did not reply" }), "inline RPC error");
+  const retry = stalled.getByRole("button", { name: "Retry", exact: true });
+  await assertVisible(retry, "failed action retry");
+  await page.getByLabel("Simulate RPC failure").uncheck();
+  await retry.click();
+  await assertVisible(reconnect, "recovery actions restored");
+  await assertVisible(page.locator("output").filter({ hasText: "Completed reconnect-stalled" }), "retry completed");
+  const helper = page.locator('[data-status-preview="Helper failed-640"]');
+  await helper.getByRole("button", { name: "Retry", exact: true }).click();
+  await assertVisible(page.locator("output").filter({ hasText: "Completed retry-helper" }), "in-place helper repair");
+  await assertClean();
+  await page.close();
+  log("block status interactions passed");
+}
+
 async function main() {
   const port = await findFreePort();
   const baseUrl = `http://${Host}:${port}`;
@@ -259,6 +286,7 @@ async function main() {
       );
     }
     browser = await chromium.launch({ executablePath });
+    await runBlockStatusInteractions(browser, baseUrl);
     await runPreviewIndexInteraction(browser, baseUrl);
     await runTransferQueueInteractions(browser, baseUrl);
     await runHostInteractions(browser, baseUrl);

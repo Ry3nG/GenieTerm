@@ -17,6 +17,12 @@ import {
     isWslConnName,
 } from "./hostutil";
 
+// Panes under 440px tall keep the header to the host name and tabs.
+const ShortBlock = {
+    header: "[@container_host_(max-height:440px)]:gap-2 [@container_host_(max-height:440px)]:py-2",
+    subtitle: "[@container_host_(max-height:440px)]:hidden",
+};
+
 const TabLabels: Record<HostTab, string> = {
     overview: "Overview",
     processes: "Processes",
@@ -51,16 +57,30 @@ const HostHeader = memo(({ model }: { model: HostViewModel }) => {
     const activeForwards = forwards.filter((f) => f.status === "active").length;
     const title = hostInfo?.hostname || (isLocalConnName(conn) ? "This computer" : conn);
     const subtitle = formatHostSubtitle(hostInfo, now);
+    const kindLabel = connKindLabel(conn);
     return (
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-3">
+        // Narrow blocks give the host name its own row and stretch the tabs across the block, so
+        // neither has to truncate the other.
+        <div
+            className={cn(
+                "flex shrink-0 flex-col items-stretch gap-2.5 border-b border-border px-4 py-3 @[520px]/host:flex-row @[520px]/host:items-center @[520px]/host:gap-4",
+                ShortBlock.header
+            )}
+        >
             <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                    <h2 className="truncate text-[15px] font-semibold leading-5 text-primary">{title}</h2>
-                    <span className="shrink-0 rounded-full border border-border px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] text-muted">
-                        {connKindLabel(conn)}
-                    </span>
+                    <h2 className="truncate text-[15px] font-semibold leading-5 text-primary" title={title}>
+                        {title}
+                    </h2>
+                    {kindLabel !== title && (
+                        <span className="shrink-0 rounded-full border border-border px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] text-muted">
+                            {kindLabel}
+                        </span>
+                    )}
                 </div>
-                <div className="truncate text-[12px] leading-4 text-muted">{subtitle || " "}</div>
+                <div className={cn("truncate text-[12px] leading-4 text-muted", ShortBlock.subtitle)} title={subtitle}>
+                    {subtitle || " "}
+                </div>
             </div>
             <div
                 role="tablist"
@@ -74,7 +94,7 @@ const HostHeader = memo(({ model }: { model: HostViewModel }) => {
                         aria-selected={tab === key}
                         onClick={() => fireAndForget(() => model.setTab(key))}
                         className={cn(
-                            "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent",
+                            "inline-flex h-7 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[12px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent @[520px]/host:flex-none",
                             tab === key ? "bg-hoverbg text-primary" : "text-secondary hover:bg-hover hover:text-primary"
                         )}
                     >
@@ -213,7 +233,8 @@ export function HostView(props: ViewComponentProps<HostViewModel>) {
         content = <HostOverviewPane model={model} />;
     }
     return (
-        <div className="flex h-full w-full min-w-0 flex-col">
+        // size containment so short panes can drop the header's second line (see ShortBlock)
+        <div className="@container/host flex h-full w-full min-w-0 flex-col" style={{ containerType: "size" }}>
             <HostHeader model={model} />
             {connected && <HelperUpdateBanner model={model} />}
             <div className="min-h-0 flex-1">{content}</div>

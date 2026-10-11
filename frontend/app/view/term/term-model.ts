@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { BlockStatusActionId, TerminalBlockStatusInputs } from "@/app/block/blockstatus";
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import { appHandleKeyDown } from "@/app/store/keymodel";
 import { getLocalHomeDir } from "@/app/store/localhome";
@@ -37,7 +38,7 @@ import * as services from "@/store/services";
 import * as keyutil from "@/util/keyutil";
 import { formatCwdLabel } from "@/util/pathlabel";
 import { isMacOS, isWindows } from "@/util/platformutil";
-import { fireAndForget, isLocalConnName, stringToBase64 } from "@/util/util";
+import { fireAndForget, isLocalConnName, isSshConnName, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { blockEndLine, blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
@@ -110,6 +111,8 @@ export class TermViewModel implements ViewModel {
     isRestarting: jotai.PrimitiveAtom<boolean>;
     termDurableStatus: jotai.Atom<BlockJobStatusData | null>;
     termConfigedDurable: jotai.Atom<null | boolean>;
+    shellStatusInputsAtom = jotai.atom<TerminalBlockStatusInputs>({}) as jotai.PrimitiveAtom<TerminalBlockStatusInputs>;
+    blockStatusInputsAtom: jotai.Atom<TerminalBlockStatusInputs>;
     searchAtoms?: SearchAtoms;
     commandComposerOpenAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
     commandComposerInputAtom = jotai.atom("") as jotai.PrimitiveAtom<string>;
@@ -435,6 +438,16 @@ export class TermViewModel implements ViewModel {
             return blockJobStatus;
         });
         this.termConfigedDurable = getBlockTermDurableAtom(this.blockId);
+        this.blockStatusInputsAtom = jotai.atom((get) => {
+            const meta = get(this.blockAtom)?.meta;
+            return {
+                ...get(this.shellStatusInputsAtom),
+                durableEligible:
+                    isSshConnName(meta?.connection) &&
+                    !get(this.termConfigedDurable) &&
+                    !meta?.["term:durableprompted"],
+            };
+        });
         this.blockJobStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<BlockJobStatusData>;
         this.blockJobStatusVersionTs = 0;
         const initialBlockJobStatus = RpcApi.BlockJobStatusCommand(TabRpcClient, blockId);
@@ -1338,6 +1351,41 @@ export class TermViewModel implements ViewModel {
             oref: WOS.makeORef("block", this.blockId),
             meta: { "term:theme": themeName },
         });
+    }
+
+    async handleBlockStatusAction(action: BlockStatusActionId) {
+        if (action == "keep-running" || action == "not-now") {
+            await RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", this.blockId),
+                meta: { "term:durableprompted": true },
+            });
+            if (action == "keep-running") {
+                await this.restartSessionWithDurability(true);
+            }
+            return;
+        }
+        const connection = globalStore.get(this.connStatus)?.connection;
+        if (action == "enable") {
+            const metamaptype: unknown = { "conn:wshenabled": true };
+            await RpcApi.SetConnectionsConfigCommand(TabRpcClient, {
+                host: connection,
+                metamaptype,
+            });
+        }
+        if (action == "enable" || action == "recover-connection") {
+            await RpcApi.ConnDisconnectCommand(TabRpcClient, connection, { timeout: 10000 });
+            await RpcApi.ConnConnectCommand(
+                TabRpcClient,
+                { host: connection, logblockid: this.blockId },
+                { timeout: 120000 }
+            );
+            if (!globalStore.get(this.connStatus)?.wshenabled) {
+                return;
+            }
+        }
+        if (globalStore.get(this.connStatus)?.connection == connection) {
+            await this.forceRestartController();
+        }
     }
 
     async forceRestartController() {

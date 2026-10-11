@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
     addressScope,
     canForwardPorts,
+    formatCpuModel,
     formatGiB,
+    formatGiBPair,
     formatHostSubtitle,
     formatRate,
     formatUptime,
@@ -236,5 +238,16 @@ describe("ports", () => {
         expect(
             getHelperMissing({ ...base, wshenabled: false, nowshreason: "error starting connserver", wsherror: "boom" })
         ).toEqual({ kind: "failed", reason: "boom", turnedOff: false });
+    });
+
+    it("shortens CPU model strings and memory pairs for cards", () => {
+        expect(formatCpuModel("Intel(R) Core(TM) i9-14900K")).toBe("Intel Core i9-14900K");
+        expect(formatCpuModel("Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz")).toBe("Intel Xeon Platinum 8358");
+        expect(formatCpuModel("AMD EPYC 9454 48-Core Processor")).toBe("AMD EPYC 9454");
+        expect(formatCpuModel("Apple M3 Max")).toBe("Apple M3 Max");
+        expect(formatCpuModel("")).toBe("");
+        expect(formatGiBPair(4.7, 8)).toBe("4.7 / 8.0 GB");
+        expect(formatGiBPair(16.4, 126)).toBe("16.4 / 126 GB");
+        expect(formatGiBPair(900, 2048)).toBe("900 GB / 2.0 TB");
     });
 });
