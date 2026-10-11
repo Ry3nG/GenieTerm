@@ -92,6 +92,7 @@ type SSHConn struct {
 	WshError           string
 	NoWshReason        string
 	WshVersion         string
+	WshInstallPct      int
 	LastConnectTime    int64
 	ActiveConnNum      int
 	Monitor            *ConnMonitor // will not be nil
@@ -191,6 +192,7 @@ func (conn *SSHConn) DeriveConnStatus() wshrpc.ConnStatus {
 		WshError:                      conn.WshError,
 		NoWshReason:                   conn.NoWshReason,
 		WshVersion:                    conn.WshVersion,
+		WshInstallPct:                 conn.WshInstallPct,
 		ConnHealthStatus:              conn.ConnHealthStatus,
 		LastActivityBeforeStalledTime: lastActivityBeforeStalledTime,
 		KeepAliveSentTime:             keepAliveSentTime,
@@ -781,7 +783,8 @@ func (conn *SSHConn) UpdateWsh(ctx context.Context, clientDisplayName string, re
 	if client == nil {
 		return fmt.Errorf("cannot update wsh: ssh client is not connected")
 	}
-	err := remote.CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch, conn.getWshPath())
+	defer conn.clearInstallProgress()
+	err := remote.CpWshToRemote(ctx, client, remoteInfo.ClientOs, remoteInfo.ClientArch, conn.getWshPath(), conn.noteInstallProgress)
 	if err != nil {
 		return fmt.Errorf("error installing wsh to remote: %w", err)
 	}
@@ -835,6 +838,41 @@ func (conn *SSHConn) getPermissionToInstallWsh(ctx context.Context, clientDispla
 	return true, nil
 }
 
+// noteInstallProgress keeps the health monitor from reading a busy upload as a stalled link and
+// publishes the install percentage for the UI.
+func (conn *SSHConn) noteInstallProgress(sent int64, total int64) {
+	if monitor := conn.GetMonitor(); monitor != nil {
+		monitor.NotifyTransferProgress()
+	}
+	if total <= 0 {
+		return
+	}
+	pct := int(min(max(sent*100/total, 1), 100))
+	changed := WithLockRtn(conn, func() bool {
+		if conn.WshInstallPct == pct {
+			return false
+		}
+		conn.WshInstallPct = pct
+		return true
+	})
+	if changed {
+		conn.FireConnChangeEvent()
+	}
+}
+
+func (conn *SSHConn) clearInstallProgress() {
+	changed := WithLockRtn(conn, func() bool {
+		if conn.WshInstallPct == 0 {
+			return false
+		}
+		conn.WshInstallPct = 0
+		return true
+	})
+	if changed {
+		conn.FireConnChangeEvent()
+	}
+}
+
 func (conn *SSHConn) InstallWsh(ctx context.Context, osArchStr string) error {
 	conn.Infof(ctx, "running installWsh...\n")
 	client := conn.GetClient()
@@ -854,7 +892,8 @@ func (conn *SSHConn) InstallWsh(ctx context.Context, osArchStr string) error {
 		return fmt.Errorf("error detecting client platform: %w", err)
 	}
 	conn.Infof(ctx, "detected remote platform os:%s arch:%s\n", clientOs, clientArch)
-	err = remote.CpWshToRemote(ctx, client, clientOs, clientArch, conn.getWshPath())
+	defer conn.clearInstallProgress()
+	err = remote.CpWshToRemote(ctx, client, clientOs, clientArch, conn.getWshPath(), conn.noteInstallProgress)
 	if err != nil {
 		conn.Infof(ctx, "ERROR copying wsh binary to remote: %v\n", err)
 		return fmt.Errorf("error copying wsh binary to remote: %w", err)

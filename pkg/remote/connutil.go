@@ -108,7 +108,32 @@ var installTemplate = template.Must(template.New("wsh-install-template").Parse(i
 
 // remotePath must be the same path the connserver is launched from (conn:wshpath or the
 // default helper path); "" means the default.
-func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, clientArch string, remotePath string) error {
+// InstallProgressFunc reports how much of the helper binary has been sent, in uncompressed bytes.
+type InstallProgressFunc func(sent int64, total int64)
+
+const installProgressInterval = 500 * time.Millisecond
+
+// progressReader counts what gzip has read from the binary; the SSH channel's backpressure keeps
+// that within a buffer of what has actually been sent.
+type progressReader struct {
+	r          io.Reader
+	sent       int64
+	total      int64
+	lastReport time.Time
+	onProgress InstallProgressFunc
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.r.Read(p)
+	pr.sent += int64(n)
+	if pr.onProgress != nil && (time.Since(pr.lastReport) >= installProgressInterval || err == io.EOF) {
+		pr.lastReport = time.Now()
+		pr.onProgress(pr.sent, pr.total)
+	}
+	return n, err
+}
+
+func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, clientArch string, remotePath string, onProgress InstallProgressFunc) error {
 	genieLocalPath, err := shellutil.GetLocalGenieBinaryPath(wavebase.WaveVersion, clientOs, clientArch)
 	if err != nil {
 		return err
@@ -120,10 +145,10 @@ func CpWshToRemote(ctx context.Context, client *ssh.Client, clientOs string, cli
 	// use. We no longer push a second (redundant) wsh binary on every install; the
 	// connserver still falls back to a legacy remote's ~/.waveterm/bin/wsh if one is
 	// already present. This halves the bytes copied (matters on slow/proxied links).
-	return cpHelperToRemote(ctx, client, genieLocalPath, remotePath)
+	return cpHelperToRemote(ctx, client, genieLocalPath, remotePath, onProgress)
 }
 
-func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string, remotePath string) error {
+func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string, remotePath string, onProgress InstallProgressFunc) error {
 	deadline, ok := ctx.Deadline()
 	if ok {
 		blocklogger.Debugf(ctx, "[conndebug] CpWshToRemote, timeout: %v\n", time.Until(deadline))
@@ -133,6 +158,11 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 		return fmt.Errorf("cannot open local file %s: %w", localPath, err)
 	}
 	defer input.Close()
+	var total int64
+	if info, statErr := input.Stat(); statErr == nil {
+		total = info.Size()
+	}
+	source := &progressReader{r: input, total: total, onProgress: onProgress}
 	installWords := map[string]string{
 		"installDir": shellutil.SoftQuote(filepath.ToSlash(filepath.Dir(remotePath))),
 		// Unique temp path per copy so a retry/background install can't collide with
@@ -173,7 +203,7 @@ func cpHelperToRemote(ctx context.Context, client *ssh.Client, localPath string,
 			copyDone <- fmt.Errorf("failed to init gzip: %w", gzErr)
 			return
 		}
-		if _, err := io.Copy(gz, input); err != nil && err != io.EOF {
+		if _, err := io.Copy(gz, source); err != nil && err != io.EOF {
 			copyDone <- fmt.Errorf("failed to copy data: %w", err)
 			return
 		}

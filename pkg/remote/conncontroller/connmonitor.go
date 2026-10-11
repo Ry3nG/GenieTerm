@@ -34,6 +34,10 @@ type ConnMonitor struct {
 	Client            *ssh.Client // always non-nil, set at creation
 	LastActivityTime  atomic.Int64
 	LastInputTime     atomic.Int64
+	// last time an upload (the helper install) got bytes accepted by the SSH channel; a
+	// keepalive queued behind a long upload on a slow link answers late without the link
+	// being stalled or dead
+	LastTransferTime  atomic.Int64
 	KeepAliveSentTime atomic.Int64
 	KeepAliveInFlight bool
 	KeepAlive         remote.KeepAliveSettings
@@ -85,6 +89,16 @@ func (cm *ConnMonitor) UpdateLastActivityTime() {
 	case cm.activityNotifyCh <- struct{}{}:
 	default:
 	}
+}
+
+func (cm *ConnMonitor) NotifyTransferProgress() {
+	cm.LastTransferTime.Store(time.Now().UnixMilli())
+	cm.setConnHealthStatus(ConnHealthStatus_Good)
+}
+
+func (cm *ConnMonitor) isTransferring(now int64, within int64) bool {
+	last := cm.LastTransferTime.Load()
+	return last > 0 && now-last < within
 }
 
 func (cm *ConnMonitor) NotifyInput() {
@@ -223,6 +237,9 @@ func (cm *ConnMonitor) checkConnection() {
 		stalledThreshold = connMonitorUrgentStalledThreshold.Milliseconds()
 	}
 	timeSinceKeepAlive := cm.getTimeSinceKeepAlive()
+	if cm.isTransferring(time.Now().UnixMilli(), stalledThreshold) {
+		return
+	}
 	if timeSinceKeepAlive > stalledThreshold {
 		cm.setConnHealthStatus(ConnHealthStatus_Stalled)
 	}

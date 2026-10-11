@@ -722,6 +722,7 @@ declare global {
         wsherror?: string;
         nowshreason?: string;
         wshversion?: string;
+        wshinstallpct?: number;
         lastactivitybeforestalledtime?: number;
         keepalivesenttime?: number;
         reconnecting?: boolean;

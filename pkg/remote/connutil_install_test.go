@@ -107,3 +107,26 @@ func TestInstallScriptRemovesTempFileWhenCopyFails(t *testing.T) {
 		t.Fatal("a failed copy must not install anything")
 	}
 }
+
+func TestProgressReaderReportsUncompressedBytes(t *testing.T) {
+	data := strings.Repeat("x", 10000)
+	var lastSent, lastTotal int64
+	calls := 0
+	pr := &progressReader{r: strings.NewReader(data), total: int64(len(data)), onProgress: func(sent, total int64) {
+		calls++
+		lastSent, lastTotal = sent, total
+	}}
+	buf := make([]byte, 1024)
+	for {
+		_, err := pr.Read(buf)
+		if err != nil {
+			break
+		}
+	}
+	if calls == 0 || lastSent != int64(len(data)) || lastTotal != int64(len(data)) {
+		t.Fatalf("calls=%d sent=%d total=%d", calls, lastSent, lastTotal)
+	}
+	if calls > 3 {
+		t.Fatalf("progress should be throttled, got %d calls for a fast copy", calls)
+	}
+}
