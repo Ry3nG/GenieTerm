@@ -68,6 +68,7 @@ export class TermCommandAiModel {
     sheetAtom = jotai.atom(null) as jotai.PrimitiveAtom<CommandAiSheetState>;
     inlineStatesAtom = jotai.atom({}) as jotai.PrimitiveAtom<Record<number, CommandInlineAIState>>;
     noticeTimer: ReturnType<typeof setTimeout> = null;
+    inlineEpoch = 0;
 
     constructor(host: CommandAiHost, runner?: CommandAiRunner) {
         this.host = host;
@@ -200,6 +201,23 @@ export class TermCommandAiModel {
                 ? sheet.exchanges.slice(0, -1)
                 : sheet.exchanges;
         await this.runPrompt(sheet.input.trim(), { ...sheet, exchanges });
+    }
+
+    // Called after the person picks an engine on the setup screen. A request that already
+    // came back "not configured" (Fix and Explain send one straight away) is asked again.
+    async resumeAfterSetup(): Promise<void> {
+        const sheet = this.getSheet();
+        if (sheet == null || sheet.pending != null) {
+            return;
+        }
+        const last = sheet.exchanges[sheet.exchanges.length - 1];
+        if (last != null && last.result.status !== "ok") {
+            await this.retry();
+            return;
+        }
+        if (this.canSubmit(sheet)) {
+            await this.submit();
+        }
     }
 
     async retry(): Promise<void> {
@@ -359,11 +377,18 @@ export class TermCommandAiModel {
             this.setSheet({ disclosure: undefined });
             return;
         }
+        // Show what the request in flight (or the last one) sent; text typed since then is
+        // what the next request would send.
         const last = sheet.exchanges[sheet.exchanges.length - 1];
-        const pendingPrompt = sheet.input.trim();
-        const prompt = pendingPrompt || last?.prompt || "";
-        const base =
-            pendingPrompt === "" && last != null ? { ...sheet, exchanges: sheet.exchanges.slice(0, -1) } : sheet;
+        const typed = sheet.input.trim();
+        let prompt = typed;
+        let base = sheet;
+        if (!typed && sheet.pending != null) {
+            prompt = sheet.pending.prompt;
+        } else if (!typed && last != null) {
+            prompt = last.prompt;
+            base = { ...sheet, exchanges: sheet.exchanges.slice(0, -1) };
+        }
         const request = this.buildRequest(base, prompt, "preview");
         this.setSheet({ disclosure: { loading: true } });
         try {
@@ -402,6 +427,7 @@ export class TermCommandAiModel {
     }
 
     dismissInline() {
+        this.inlineEpoch++;
         const states = globalStore.get(this.inlineStatesAtom);
         for (const state of Object.values(states)) {
             if (state.status === "loading" && state.requestId) {
@@ -439,10 +465,12 @@ export class TermCommandAiModel {
             this.clearInlineState(block);
             return;
         }
+        const epoch = this.inlineEpoch;
         const status = await this.runner.loadStatus().catch((): CommandAiStatus => null);
         // Typing a request at the prompt only gets an automatic answer once an engine has
-        // been chosen; nothing is sent before that.
-        if (status == null || !status.engine || !status.ready) {
+        // been chosen; nothing is sent before that. Typing again while the status loads
+        // dismisses the suggestion before it exists, so the epoch is checked too.
+        if (status == null || !status.engine || !status.ready || epoch !== this.inlineEpoch) {
             return;
         }
         const requestId = makeCommandAiRequestId();

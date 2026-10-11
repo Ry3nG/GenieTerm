@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -24,14 +25,29 @@ var getSecret = secretstore.GetSecret
 
 type openaiEngine struct{}
 
-func apiKey(id string) string {
-	name := ""
-	switch id {
-	case EngineOpenAI:
-		name = SecretOpenAIKey
-	case EngineAnthropic:
-		name = SecretAnthropicKey
-	default:
+var nonSecretNameChars = regexp.MustCompile(`[^A-Z0-9]+`)
+
+// A key belongs to the service it was entered for. Each endpoint has its own secret, so
+// pointing the engine at another server never sends it a key saved for a different one.
+func apiKeySecretName(id, base string) string {
+	host := baseHost(base)
+	if u, err := url.Parse(base); err == nil && u.Port() != "" {
+		host += "_" + u.Port()
+	}
+	switch {
+	case id == EngineOpenAI && host == "api.openai.com":
+		return SecretOpenAIKey
+	case id == EngineAnthropic && host == "api.anthropic.com":
+		return SecretAnthropicKey
+	case id != EngineOpenAI && id != EngineAnthropic, host == "":
+		return ""
+	}
+	return "COMMANDAI_KEY_" + strings.Trim(nonSecretNameChars.ReplaceAllString(strings.ToUpper(host), "_"), "_")
+}
+
+func apiKey(s settings) string {
+	name := apiKeySecretName(s.engine, s.base)
+	if name == "" {
 		return ""
 	}
 	value, ok, err := getSecret(name)
@@ -58,7 +74,7 @@ func httpRequest(ctx context.Context, s settings, method, path string, body any)
 		return nil, 0, failure("Could not prepare the API request.")
 	}
 	req.Header.Set("Content-Type", "application/json")
-	key := apiKey(s.engine)
+	key := apiKey(s)
 	if s.engine == EngineAnthropic {
 		if key != "" {
 			req.Header.Set("x-api-key", key)
@@ -108,7 +124,7 @@ func schemaRejected(code int, data []byte) bool {
 }
 
 func (openaiEngine) run(ctx context.Context, s settings, system, message string) (string, error) {
-	if s.engine == EngineOpenAI && apiKey(s.engine) == "" && !localBase(s.base) {
+	if s.engine == EngineOpenAI && apiKey(s) == "" && !localBase(s.base) {
 		return "", &engineError{status: StatusNotConfigured, detail: "Add an API key in Settings → Command AI."}
 	}
 	if s.engine == EngineOllama {

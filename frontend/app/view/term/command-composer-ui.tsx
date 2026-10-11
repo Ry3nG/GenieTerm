@@ -924,9 +924,7 @@ const TermCommandComposer = React.memo(({ model, termWrap, contextLabel, isMac }
             chooseEngine: (engine) =>
                 fireAndForget(async () => {
                     await client.setEngine(engine as any);
-                    if (commandAi.canSubmit()) {
-                        await commandAi.submit();
-                    }
+                    await commandAi.resumeAfterSetup();
                 }),
             openSettings: () => {
                 commandAi.close();

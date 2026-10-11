@@ -26,7 +26,7 @@ CLI errors are matched against known kinds (signed out, usage limit, network). O
 
 The macOS app inherits a minimal `PATH` from launchd, so `shellpath.go` resolves the user's login-shell `PATH` once (`$SHELL -ilc`, 4 s limit) and adds common install locations such as Homebrew, `~/.local/bin` and nvm.
 
-API keys live in the system keychain through `pkg/secretstore`, under `COMMANDAI_OPENAI_KEY` and `COMMANDAI_ANTHROPIC_KEY`, never in `settings.json`. On Linux without a keyring (`basic_text`), the settings page refuses to store a key.
+API keys live in the system keychain through `pkg/secretstore`, never in `settings.json`. Each endpoint has its own key: `COMMANDAI_OPENAI_KEY` for api.openai.com, `COMMANDAI_ANTHROPIC_KEY` for api.anthropic.com, and `COMMANDAI_KEY_<HOST>` for anything else (for example `COMMANDAI_KEY_OPENROUTER_AI`). Pointing the engine at another server therefore never sends it a key saved for a different one. On Linux without a keyring (`basic_text`), the settings page refuses to store a key.
 
 ## Request flow
 

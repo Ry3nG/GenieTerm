@@ -347,7 +347,7 @@ var queryTextTemplate = strings.TrimSpace(`
 GenieTerm installs a small helper, genie, on %q.
 It powers command blocks, durable sessions, the Host view and genie commands there.
 
-Without it the terminal still works, and files use SFTP.
+Without it the terminal still works, but GenieTerm can't browse files or show the Host view there.
 `)
 
 func (conn *WslConn) UpdateWsh(ctx context.Context, clientDisplayName string, remoteInfo *wshrpc.RemoteInfo) error {

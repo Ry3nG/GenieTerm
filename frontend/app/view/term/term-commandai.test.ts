@@ -262,4 +262,41 @@ describe("TermCommandAiModel", () => {
         await flush();
         expect(runner.calls).toHaveLength(0);
     });
+
+    it("asks again after an engine is chosen on the setup screen", async () => {
+        const { model, runner } = makeModel();
+        model.open({ block: failedBlock, submit: false });
+        const first = model.submit();
+        runner.calls[0].resolve({ requestid: runner.calls[0].request.requestid, status: "notconfigured" });
+        await first;
+        const resumed = model.resumeAfterSetup();
+        expect(runner.calls).toHaveLength(2);
+        expect(runner.calls[1].request.task).toBe("fix");
+        runner.calls[1].resolve(ok(runner.calls[1].request, ["npm install"]));
+        await resumed;
+        expect(model.getSheet().exchanges).toHaveLength(1);
+        expect(model.getLastExchange().result.status).toBe("ok");
+    });
+
+    it("previews the request that is in flight", async () => {
+        const { model } = makeModel();
+        model.open({ prompt: "list files" });
+        void model.submit();
+        await model.toggleDisclosure();
+        expect(model.getSheet().disclosure.preview.message).toBe("msg:list files");
+    });
+
+    it("does not send an inline request that was dismissed while status loaded", async () => {
+        let resolveStatus: (status: CommandAiStatus) => void;
+        const runner = makeRunner();
+        runner.loadStatus = () => new Promise((resolve) => (resolveStatus = resolve));
+        const { model } = makeModel(runner);
+        const block = { ...failedBlock, id: 11, command: "show disk usage", exitCode: 127 } as CmdBlock;
+        const pending = model.generateInline("show disk usage", block);
+        model.dismissInline();
+        resolveStatus({ engine: "claude", ready: true, enabled: true, engines: [] });
+        await pending;
+        expect(runner.calls).toHaveLength(0);
+        expect(model.getInlineState(block)).toBeUndefined();
+    });
 });

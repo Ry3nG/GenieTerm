@@ -165,7 +165,8 @@ func detectOne(ctx context.Context, s settings, refresh bool) wshrpc.CommandAiEn
 	case EngineOpenAI, EngineAnthropic:
 		info.Kind = KindApi
 		info.NeedsKey = true
-		info.HasKey = apiKey(s.engine) != ""
+		info.SecretName = apiKeySecretName(s.engine, s.base)
+		info.HasKey = apiKey(s) != ""
 		info.Available = info.HasKey || (s.engine == EngineOpenAI && localBase(s.base))
 		info.SignedIn = info.Available
 		if s.engine == EngineAnthropic {

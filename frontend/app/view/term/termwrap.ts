@@ -748,7 +748,9 @@ export class TermWrap {
     // ctrl-e ctrl-u drops whatever is already typed at the prompt (works in the default
     // emacs keymaps of bash, zsh and fish).
     private makePromptLineData(command: string): string {
-        if (this.hasBracketedPaste() && /[\r\n]/.test(command)) {
+        // Newlines and tabs would act as keystrokes (run a line, trigger completion), so
+        // they go through bracketed paste.
+        if (this.hasBracketedPaste() && /[\r\n\t]/.test(command)) {
             return `\x05\x15\x1b[200~${command}\x1b[201~`;
         }
         return "\x05\x15" + command;
@@ -776,7 +778,7 @@ export class TermWrap {
         if (globalStore.get(this.altScreenActiveAtom) || shellState === "running-command") {
             return false;
         }
-        if (/[\r\n]/.test(command) && !this.hasBracketedPaste()) {
+        if (/[\r\n\t]/.test(command) && !this.hasBracketedPaste()) {
             return false;
         }
         this.terminal.focus();

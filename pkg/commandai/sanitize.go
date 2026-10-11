@@ -108,7 +108,9 @@ func cleanCommand(s string) string {
 		}
 	}
 	s = strings.Trim(strings.TrimSpace(s), "`")
-	s = strings.TrimSpace(cleanText(s, false))
+	// A multi-line answer stays multi-line: joining the lines would change the command,
+	// and the sheet only inserts multi-line text through bracketed paste.
+	s = strings.TrimSpace(cleanText(s, true))
 	if strings.HasPrefix(s, "$ ") || strings.HasPrefix(s, "% ") {
 		s = strings.TrimSpace(s[2:])
 	}

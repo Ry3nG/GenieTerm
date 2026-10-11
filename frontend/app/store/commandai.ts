@@ -12,11 +12,6 @@ export type CommandAiEngineId = "codex" | "claude" | "ollama" | "openai" | "anth
 
 export const CommandAiEngineOrder: CommandAiEngineId[] = ["codex", "claude", "ollama", "openai", "anthropic"];
 
-export const CommandAiSecretNames: Partial<Record<CommandAiEngineId, string>> = {
-    openai: "COMMANDAI_OPENAI_KEY",
-    anthropic: "COMMANDAI_ANTHROPIC_KEY",
-};
-
 // CLI engines answer in roughly 5-10 seconds but can take much longer on a slow model;
 // the server gives up at 90 s, so the RPC waits a little longer than that.
 const RunTimeoutMs = 100000;

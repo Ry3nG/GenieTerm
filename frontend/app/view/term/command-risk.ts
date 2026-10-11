@@ -581,10 +581,79 @@ function classifyGit(args: string[], findings: Finding[]) {
     }
 }
 
+// Options that take a separate value in the container, cluster and cloud CLIs, so that
+// `kubectl --context prod delete …` finds `delete` rather than `prod`.
+const ToolOptionsWithValue = new Set([
+    "-c",
+    "--context",
+    "-H",
+    "--host",
+    "--config",
+    "-l",
+    "--log-level",
+    "-f",
+    "--file",
+    "--filename",
+    "-p",
+    "--project-name",
+    "--project-directory",
+    "--profile",
+    "--env-file",
+    "-n",
+    "--namespace",
+    "--kubeconfig",
+    "--kube-context",
+    "--cluster",
+    "--user",
+    "-s",
+    "--server",
+    "--as",
+    "--as-group",
+    "--token",
+    "--selector",
+    "-o",
+    "--output",
+    "-R",
+    "--repo",
+    "--region",
+    "--endpoint-url",
+    "--query",
+    "--project",
+    "--zone",
+    "--format",
+    "--account",
+    "--subscription",
+    "-g",
+    "--resource-group",
+    "-var",
+    "-var-file",
+    "-target",
+]);
+
+function positionalWords(args: string[]): string[] {
+    const words: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        if (arg === "--") {
+            words.push(...args.slice(i + 1));
+            break;
+        }
+        if (arg.startsWith("-")) {
+            if (!arg.includes("=") && ToolOptionsWithValue.has(arg)) {
+                i++;
+            }
+            continue;
+        }
+        words.push(arg);
+    }
+    return words;
+}
+
 function classifyDocker(program: string, args: string[], findings: Finding[]) {
-    const sub = args.find((arg) => !arg.startsWith("-"));
+    const words = positionalWords(args);
+    const sub = words[0];
+    const next = words[1];
     const rest = sub == null ? [] : args.slice(args.indexOf(sub) + 1);
-    const next = rest.find((arg) => !arg.startsWith("-"));
     if (sub === "rm" || sub === "rmi" || (sub === "system" && next === "prune")) {
         findings.push({ level: "danger", reason: Reason.DeletesResources });
         return;
@@ -620,7 +689,7 @@ function classifyDocker(program: string, args: string[], findings: Finding[]) {
 }
 
 function classifyKubectl(args: string[], findings: Finding[]) {
-    const sub = args.find((arg) => !arg.startsWith("-"));
+    const sub = positionalWords(args)[0];
     if (sub === "delete" || sub === "drain") {
         findings.push({ level: "danger", reason: Reason.DeletesResources });
         return;
@@ -647,7 +716,7 @@ function classifyKubectl(args: string[], findings: Finding[]) {
 }
 
 function classifyCloud(program: string, args: string[], findings: Finding[]) {
-    const words = args.filter((arg) => !arg.startsWith("-")).map((arg) => arg.toLowerCase());
+    const words = positionalWords(args).map((arg) => arg.toLowerCase());
     const destroys = words.some((word) =>
         /^(delete|destroy|remove|rm|rb|terminate|terminate-instances|delete-.*|purge|uninstall)$/.test(word)
     );

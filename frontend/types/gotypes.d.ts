@@ -176,6 +176,7 @@ declare global {
         models?: string[];
         needskey?: boolean;
         haskey?: boolean;
+        secretname?: string;
         baseurl?: string;
     };
 

@@ -19,11 +19,11 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b`),
 }
 
-var authPattern = regexp.MustCompile(`(?i)("?Authorization"?\s*:\s*["']?(?:Bearer|Basic)\s+)[^\s"'<>]+`)
+var authPattern = regexp.MustCompile(`(?i)(["']?Authorization["']?\s*[:=]\s*["']?(?:Bearer|Basic|Token)\s+)[^\s"'<>]+`)
 
 var userinfoPattern = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://)[^\s/@:]+:[^\s/@]*@`)
 
-var assignmentPattern = regexp.MustCompile(`(?i)("?[A-Za-z_][A-Za-z0-9_.-]*"?\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;\n}]+)`)
+var assignmentPattern = regexp.MustCompile(`(?i)(["']?[A-Za-z_][A-Za-z0-9_.-]*["']?\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;\n}]+)`)
 
 var flagPattern = regexp.MustCompile(`(?i)(--(?:password|passwd|token|api-key|secret|access-key|private-key|credential)(?:=|\s+))("[^"\n]*"|'[^'\n]*'|[^\s]+)`)
 
@@ -84,7 +84,7 @@ func Redact(s string) (string, int) {
 	s = userinfoPattern.ReplaceAllStringFunc(s, func(v string) string { count++; return userinfoPattern.FindStringSubmatch(v)[1] + "[REDACTED]@" })
 	s = assignmentPattern.ReplaceAllStringFunc(s, func(v string) string {
 		m := assignmentPattern.FindStringSubmatch(v)
-		key := strings.Trim(strings.TrimSpace(strings.TrimRight(strings.TrimSpace(m[1]), "=:")), "\"")
+		key := strings.Trim(strings.TrimSpace(strings.TrimRight(strings.TrimSpace(m[1]), "=:")), "\"'")
 		if !isSensitiveName(key) {
 			return v
 		}

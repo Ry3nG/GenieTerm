@@ -161,7 +161,7 @@ export function getCommandAiApplyMode(
         return "copy";
     }
     if (action === "insert") {
-        if (/[\r\n]/.test(proposal.command) && !opts.bracketedPaste) {
+        if (/[\r\n\t]/.test(proposal.command) && !opts.bracketedPaste) {
             return "copy";
         }
         return "insert";

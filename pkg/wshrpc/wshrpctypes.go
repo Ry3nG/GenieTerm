@@ -437,6 +437,7 @@ type CommandAiEngineInfo struct {
 	Models       []string `json:"models,omitempty"`
 	NeedsKey     bool     `json:"needskey,omitempty"`
 	HasKey       bool     `json:"haskey,omitempty"`
+	SecretName   string   `json:"secretname,omitempty"`
 	BaseUrl      string   `json:"baseurl,omitempty"`
 }
 

@@ -1,12 +1,7 @@
 // Copyright 2026, GenieTerm
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    CommandAiClient,
-    CommandAiEngineOrder,
-    CommandAiSecretNames,
-    makeCommandAiRequestId,
-} from "@/app/store/commandai";
+import { CommandAiClient, CommandAiEngineOrder, makeCommandAiRequestId } from "@/app/store/commandai";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { formatCommandAiShortcut } from "@/app/view/term/command-composer";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
@@ -206,12 +201,13 @@ function ApiKeyRow({
     onChanged: () => void;
 }) {
     const id = useId();
-    const secretName = CommandAiSecretNames[engine];
+    const secretName = info?.secretname;
     const [draft, setDraft] = useState("");
     const [editing, setEditing] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const insecure = secretBackend === "basic_text" || secretBackend === "unknown";
+    const noEndpoint = !secretName;
     const hasKey = info?.haskey ?? false;
     const store = PLATFORM === PlatformMacOS ? "your Keychain" : "your system keyring";
 
@@ -233,13 +229,15 @@ function ApiKeyRow({
     let description = hasKey ? `Saved in ${store}.` : `Stored in ${store}, never in settings.json.`;
     if (insecure) {
         description = "This system has no keyring, so GenieTerm can't store an API key safely.";
+    } else if (noEndpoint) {
+        description = "Enter a valid endpoint first. Each endpoint keeps its own key.";
     }
     if (error) {
         description = error;
     }
 
     let control;
-    if (insecure) {
+    if (insecure || noEndpoint) {
         control = <span className="text-xs text-muted">Unavailable</span>;
     } else if (hasKey && !editing) {
         control = (

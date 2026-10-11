@@ -43,7 +43,7 @@ func TestNeutralizeTags(t *testing.T) {
 }
 
 func TestCleanCommand(t *testing.T) {
-	for _, tt := range []struct{ in, want string }{{" $ ls -la ", "ls -la"}, {"% pwd", "pwd"}, {"`git status`", "git status"}, {"a\rb", "ab"}, {"\x1b[31mls\x1b[0m", "ls"}, {"```sh\nls -la\n```", "ls -la"}, {"a\x00b\nc\td", "abc\td"}, {strings.Repeat("界", 4001), ""}, {"\n\x00", ""}} {
+	for _, tt := range []struct{ in, want string }{{" $ ls -la ", "ls -la"}, {"% pwd", "pwd"}, {"`git status`", "git status"}, {"a\rb", "ab"}, {"\x1b[31mls\x1b[0m", "ls"}, {"```sh\nls -la\n```", "ls -la"}, {"a\x00b\nc\td", "ab\nc\td"}, {"echo first\necho second", "echo first\necho second"}, {strings.Repeat("界", 4001), ""}, {"\n\x00", ""}} {
 		if got := cleanCommand(tt.in); got != tt.want {
 			t.Errorf("got %q want %q", got, tt.want)
 		}

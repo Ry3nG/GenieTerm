@@ -33,6 +33,9 @@ func TestRedact(t *testing.T) {
 		{"ids", "abc123def456789012345678901234567890123456 550e8400-e29b-41d4-a716-446655440000", "abc123def456789012345678901234567890123456 550e8400-e29b-41d4-a716-446655440000", 0},
 		{"base64", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==", 0},
 		{"single replacement", "API_KEY=sk-abcdefghijklm", "API_KEY=[REDACTED]", 1},
+		{"python dict", `{'password': 'hunter2', 'user': 'me'}`, `{'password': '[REDACTED]', 'user': 'me'}`, 1},
+		{"python auth", `{'Authorization': 'Bearer opaque-credential'}`, `{'Authorization': 'Bearer [REDACTED]'}`, 1},
+		{"token header", `Authorization: Token abc123`, `Authorization: Token [REDACTED]`, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -41,5 +44,23 @@ func TestRedact(t *testing.T) {
 				t.Fatalf("got %q (%d), want %q (%d)", got, count, tt.want, tt.count)
 			}
 		})
+	}
+}
+
+func TestAPIKeySecretName(t *testing.T) {
+	tests := []struct{ engine, base, want string }{
+		{EngineOpenAI, "https://api.openai.com/v1", SecretOpenAIKey},
+		{EngineOpenAI, "https://openrouter.ai/api/v1", "COMMANDAI_KEY_OPENROUTER_AI"},
+		{EngineOpenAI, "https://generativelanguage.googleapis.com/v1beta/openai", "COMMANDAI_KEY_GENERATIVELANGUAGE_GOOGLEAPIS_COM"},
+		{EngineOpenAI, "http://localhost:1234/v1", "COMMANDAI_KEY_LOCALHOST_1234"},
+		{EngineAnthropic, "https://api.anthropic.com", SecretAnthropicKey},
+		{EngineAnthropic, "https://proxy.example.com", "COMMANDAI_KEY_PROXY_EXAMPLE_COM"},
+		{EngineOllama, "http://127.0.0.1:11434", ""},
+		{EngineOpenAI, "not a url", ""},
+	}
+	for _, tt := range tests {
+		if got := apiKeySecretName(tt.engine, tt.base); got != tt.want {
+			t.Errorf("%s %s: got %q, want %q", tt.engine, tt.base, got, tt.want)
+		}
 	}
 }

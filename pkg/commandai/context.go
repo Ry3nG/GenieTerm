@@ -178,9 +178,9 @@ func probeSSHFacts(ctx context.Context, conn string) sshFacts {
 	if client == nil {
 		return sshFacts{}
 	}
-	spec := genconn.CommandSpec{Cmd: `uname -srm; basename "${SHELL:-sh}"; sed -n 's/^PRETTY_NAME=//p' /etc/os-release 2>/dev/null`}
+	spec := genconn.CommandSpec{Cmd: `uname -srm; basename "${SHELL:-sh}"; sed -n 's/^PRETTY_NAME=//p' /etc/os-release 2>/dev/null; true`}
 	out, _, err := genconn.RunSimpleCommand(ctx, genconn.MakeSSHShellClient(client), spec)
-	if err != nil {
+	if err != nil && strings.TrimSpace(out) == "" {
 		return sshFacts{}
 	}
 	return parseSSHFacts(out)
