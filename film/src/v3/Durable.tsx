@@ -32,10 +32,10 @@ export const D = {
     end: 1120,
 };
 
-const FULL = { x: WIN_W / 2, y: WIN_H / 2, zoom: FRAME_W / WIN_W };
-const FRONT: CamPose = frontalPose(0, distanceForFill(24, 1.0), 24);
+export const FULL = { x: WIN_W / 2, y: WIN_H / 2, zoom: FRAME_W / WIN_W };
+export const FRONT: CamPose = frontalPose(0, distanceForFill(24, 1.0), 24);
 // while the laptop sleeps the camera eases back and left so the server has its own space
-const NIGHT: CamPose = { pos: [-34, 30, 78], look: [10, 3, -3], fov: 24 };
+export const NIGHT: CamPose = { pos: [-34, 30, 78], look: [10, 3, -3], fov: 24 };
 
 const START_EPOCH = 41;
 const END_EPOCH = 87;
@@ -90,14 +90,14 @@ const ServerCard: React.FC<{ x: number; y: number; epoch: number; seconds: numbe
     </div>
 );
 
-function projectPoint(pose: CamPose, x: number, y: number, z: number) {
+export function projectPoint(pose: CamPose, x: number, y: number, z: number) {
     const cam = makeCamera(pose, FRAME_W, FRAME_H);
     const p = new THREE.Vector3(x, y, z).project(cam);
     return { x: ((p.x + 1) / 2) * FRAME_W, y: ((1 - p.y) / 2) * FRAME_H };
 }
 
 // Anchor of the link on the laptop: the back of the base, which stays put while the lid moves.
-const laptopAnchor = (pose: CamPose) => projectPoint(pose, BASE.w / 2 - 3, BASE.h, -BASE.d / 2 + 2);
+export const laptopAnchor = (pose: CamPose) => projectPoint(pose, BASE.w / 2 - 3, BASE.h, -BASE.d / 2 + 2);
 
 export const Durable: React.FC = () => {
     const f = useCurrentFrame();
@@ -213,7 +213,7 @@ export const Durable: React.FC = () => {
 };
 
 // The reconnect, drawn as one bright point running from the server back to the laptop.
-const PulseDot: React.FC<{ from: { x: number; y: number }; to: { x: number; y: number }; t: number }> = ({ from, to, t }) => {
+export const PulseDot: React.FC<{ from: { x: number; y: number }; to: { x: number; y: number }; t: number }> = ({ from, to, t }) => {
     if (t <= 0 || t >= 1) {
         return null;
     }

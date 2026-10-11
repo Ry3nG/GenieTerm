@@ -1,0 +1,539 @@
+{
+ "id": "ShortAgent",
+ "seconds": 34.666666666666664,
+ "frames": 1960,
+ "cues": [
+  {
+   "kind": "key",
+   "frame": 12,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 15,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 18,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 19,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 22,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 26,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 29,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 32,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 37,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 40,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 41,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 44,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 47,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 48,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 51,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 54,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 55,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 61,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 62,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 65,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 68,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 70,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 76,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 77,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 80,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 83,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 84,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 90,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 91,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 94,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 97,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 98,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 101,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 104,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 106,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 174,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 176,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 178,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 179,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 181,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 183,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 183,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 185,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 188,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 188,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 190,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 192,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 193,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 195,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 197,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 199,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 202,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 202,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 204,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 206,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 207,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 209,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 211,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 213,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 216,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 216,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 218,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 220,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 221,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 223,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 225,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 225,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 227,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 229,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 230,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 232,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 234,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 234,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 237,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 239,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 239,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 241,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 243,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 244,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 246,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 248,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 248,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 251,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 253,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 253,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 255,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 257,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 258,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 260,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 262,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 262,
+   "db": -2
+  },
+  {
+   "kind": "enter",
+   "frame": 272
+  },
+  {
+   "kind": "whoosh",
+   "frame": 620,
+   "dur": 1.1,
+   "db": -10,
+   "up": false
+  },
+  {
+   "kind": "thump",
+   "frame": 783,
+   "db": -4
+  },
+  {
+   "kind": "tick",
+   "frame": 860,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 908,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 956,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1004,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1052,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1100,
+   "db": -5
+  },
+  {
+   "kind": "open",
+   "frame": 1132
+  },
+  {
+   "kind": "chime",
+   "frame": 1196,
+   "db": -3
+  },
+  {
+   "kind": "whoosh",
+   "frame": 1316,
+   "dur": 1.2,
+   "db": -9
+  }
+ ],
+ "music": {
+  "quiet": [
+   [
+    783,
+    1196
+   ]
+  ],
+  "blooms": [
+   1196
+  ],
+  "dark": [],
+  "bright": [
+   1410
+  ],
+  "end": 1660
+ }
+}

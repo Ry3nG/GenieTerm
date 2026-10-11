@@ -12,3 +12,4 @@ audio/score*.json
 audio/cues_v3.json
 blender/previews/pass-*
 blender/codex.log
+audio/shorts/*.wav
