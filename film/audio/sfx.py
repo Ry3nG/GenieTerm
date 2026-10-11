@@ -85,6 +85,34 @@ def lid_thump():
     return np.sin(2 * np.pi * 52 * t) * np.exp(-t / 0.12) * 0.8 + bandnoise(n, 100, 900) * np.exp(-t / 0.03) * 0.25
 
 
+def lid_open():
+    """The lid lifting off its magnet: a soft unstick, then a little hinge friction."""
+    n = int(0.5 * SR)
+    t = np.arange(n) / SR
+    pop = bandnoise(n, 300, 1400) * np.exp(-t / 0.012) * 0.5
+    creak = bandnoise(n, 900, 2200, order=3) * np.exp(-((t - 0.18) / 0.12) ** 2) * 0.12
+    return pop + creak
+
+
+def server_tick():
+    """A distant, regular tick: the server still at work while the room is quiet."""
+    n = int(0.12 * SR)
+    t = np.arange(n) / SR
+    return (np.sin(2 * np.pi * 1850 * t) * 0.5 + bandnoise(n, 2500, 6000) * 0.3) * np.exp(-t / 0.01)
+
+
+def error_tone():
+    """Two low felt notes stepping down, the shape of a failed command, never an alarm."""
+    y = np.zeros(int(1.2 * SR))
+    for k, (f0, off) in enumerate([(220.0, 0.0), (185.0, 0.14)]):
+        n = int(0.9 * SR)
+        t = np.arange(n) / SR
+        note = (np.sin(2 * np.pi * f0 * t) + 0.25 * np.sin(4 * np.pi * f0 * t)) * np.minimum(1, t / 0.01) * np.exp(-t / 0.35)
+        s0 = int(off * SR)
+        y[s0 : s0 + n] += note * (0.5 if k == 0 else 0.42)
+    return y
+
+
 def place(buf, sig, at_frame, gain=1.0, pan=0.0):
     s0 = int(round(at_frame / FPS * SR))
     if s0 < 0 or s0 >= buf.shape[1]:
@@ -116,6 +144,12 @@ def render(cues, seconds):
             place(buf, chime(), f, 0.16 * g)
         elif kind == "thump":
             place(buf, lid_thump(), f, 0.3 * g)
+        elif kind == "open":
+            place(buf, lid_open(), f, 0.18 * g)
+        elif kind == "tick":
+            place(buf, server_tick(), f, 0.05 * g, 0.55)
+        elif kind == "error":
+            place(buf, error_tone(), f, 0.12 * g)
     return buf
 
 

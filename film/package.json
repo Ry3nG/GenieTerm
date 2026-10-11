@@ -8,14 +8,18 @@
         "render": "remotion render src/index.ts GenieFilm out/master.mov"
     },
     "dependencies": {
+        "@react-three/fiber": "^9.3.0",
         "@remotion/cli": "4.0.534",
         "@remotion/google-fonts": "4.0.534",
         "@remotion/media": "4.0.534",
         "@remotion/motion-blur": "4.0.534",
+        "@remotion/three": "^4.0.534",
         "@remotion/transitions": "4.0.534",
+        "@types/three": "^0.180.0",
         "react": "19.1.1",
         "react-dom": "19.1.1",
-        "remotion": "4.0.534"
+        "remotion": "4.0.534",
+        "three": "^0.180.0"
     },
     "devDependencies": {
         "@types/react": "19.1.12",
