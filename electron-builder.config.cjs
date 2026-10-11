@@ -101,7 +101,9 @@ const config = {
     linux: {
         // Linux wavesrv is built for the host architecture. Avoid builder's x86_64/amd64 filename aliases.
         artifactName: `\${productName}-linux-${process.arch}-\${version}.\${ext}`,
-        category: "System",
+        // electron-builder writes this as the desktop entry's Categories: one main category (System) plus
+        // TerminalEmulator, as GNOME Terminal does; desktop-file-validate flags more than one main category
+        category: "System;TerminalEmulator",
         executableName: pkg.name,
         target: linuxTargets,
         synopsis: pkg.description,
@@ -111,8 +113,6 @@ const config = {
                 Name: pkg.productName,
                 Comment: pkg.description,
                 Keywords: "developer;terminal;emulator;",
-                // one main category (System) plus TerminalEmulator, as GNOME Terminal does; desktop-file-validate flags more
-                Categories: "System;TerminalEmulator;",
                 StartupWMClass: pkg.productName,
             },
         },
