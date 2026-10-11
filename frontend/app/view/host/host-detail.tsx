@@ -11,6 +11,7 @@ import { Sparkline } from "./host-sparkline";
 import { CardHeader, coreCellColor, coreKeys, DetailChart, formatGpuPower, Meter, Stat, toneColor } from "./host-ui";
 import {
     formatBytesAsGiB,
+    formatCpuModel,
     formatGiB,
     formatGpuMemory,
     formatPct,
@@ -287,7 +288,7 @@ const CpuDetail = memo(({ model }: { model: HostViewModel }) => {
                 large
                 icon="fa-microchip"
                 title="CPU"
-                detail={[hostInfo?.cpumodel, `${cores.length} cores`].filter(Boolean).join(" · ")}
+                detail={[formatCpuModel(hostInfo?.cpumodel), `${cores.length} cores`].filter(Boolean).join(" · ")}
                 value={formatPct(values["cpu"])}
                 valueColor={toneColor(values["cpu"])}
             />

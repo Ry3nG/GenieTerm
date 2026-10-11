@@ -60,6 +60,33 @@ export function formatGiB(gib: number): string {
     return `${gib.toFixed(1)} GB`;
 }
 
+// "4.7 / 8.0 GB": one unit when both sides share it, so the pair stays short enough for a card
+export function formatGiBPair(used: number, total: number): string {
+    const usedText = formatGiB(used);
+    const totalText = formatGiB(total);
+    const usedUnit = usedText.split(" ")[1];
+    const totalUnit = totalText.split(" ")[1];
+    if (usedUnit != null && usedUnit === totalUnit) {
+        return `${usedText.split(" ")[0]} / ${totalText}`;
+    }
+    return `${usedText} / ${totalText}`;
+}
+
+// "Intel(R) Core(TM) i9-14900K CPU @ 3.20GHz" → "Intel Core i9-14900K"
+export function formatCpuModel(model: string): string {
+    if (!model) {
+        return "";
+    }
+    return model
+        .replace(/\((R|TM|tm|r)\)/g, "")
+        .replace(/\s+@\s*[\d.]+\s*[GM]Hz/i, "")
+        .replace(/\s+\d+-Core Processor$/i, "")
+        .replace(/\s+(CPU|Processor)$/i, "")
+        .replace(/\s+CPU\s+/i, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+}
+
 export function formatBytesAsGiB(bytes: number): string {
     if (!isValidNumber(bytes)) {
         return "—";

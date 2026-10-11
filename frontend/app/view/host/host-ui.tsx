@@ -160,6 +160,31 @@ export function formatGpuPower(gpu: GpuData): string {
     return "—";
 }
 
+// Summary-card chart: the frame and midline keep a low, flat series reading as a chart, not empty space.
+export function MiniChart({
+    series,
+    max = 100,
+    label,
+    className,
+}: {
+    series: { values: number[]; color: string; fill?: boolean }[];
+    max?: number;
+    label: string;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                "relative h-14 overflow-hidden rounded-md border border-border/60 bg-background/40",
+                className
+            )}
+        >
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-foreground/[0.07]" />
+            <Sparkline className="absolute inset-0 h-full" series={series} max={max} label={label} />
+        </div>
+    );
+}
+
 type ChartSeries = { values: number[]; color: string; fill?: boolean; label?: string };
 
 // A larger chart for detail views: gridlines at quarters, a y-axis label, and the time span.
