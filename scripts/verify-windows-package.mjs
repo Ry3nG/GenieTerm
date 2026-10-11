@@ -209,10 +209,11 @@ async function windowSmoke(executablePath) {
             .isVisible()
             .catch(() => false))
         ) {
-          await candidate.getByRole("button", { name: "Continue", exact: true }).click();
-          const skipTour = candidate.getByRole("button", { name: "Skip tour", exact: true });
-          await skipTour.waitFor({ state: "visible", timeout: 15000 });
-          await skipTour.click();
+          // "Skip" agrees to the terms and closes the welcome without starting Quick Start
+          await candidate.getByRole("button", { name: "Skip", exact: true }).click();
+          await candidate
+            .getByText("Welcome to GenieTerm", { exact: true })
+            .waitFor({ state: "hidden", timeout: 15000 });
           onboardingCompleted.add(candidate);
           console.log(`[${Scope}] completed isolated first-run onboarding`);
         }

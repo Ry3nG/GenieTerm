@@ -225,7 +225,7 @@ async function measureSession(opts, dataDir, report) {
   try {
     const browser = await connect(session);
     let page = await visibleAppPage(browser, 30000);
-    for (const label of ["Continue", "Skip tour"]) {
+    for (const label of ["Skip"]) {
       const button = page.getByText(label, { exact: true });
       await button
         .first()
@@ -352,7 +352,7 @@ async function measureStartupRuns(opts, dataDir, report) {
   const first = launchApp(opts.app, dataDir);
   try {
     const page = await visibleAppPage(await connect(first), 30000);
-    for (const label of ["Continue", "Skip tour"]) {
+    for (const label of ["Skip"]) {
       const button = page.getByText(label, { exact: true });
       await button
         .first()
