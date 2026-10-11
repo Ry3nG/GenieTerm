@@ -175,6 +175,31 @@
         "editor:inlinediff": {
           "type": "boolean"
         },
+        "commandai:*": {
+          "type": "boolean"
+        },
+        "commandai:engine": {
+          "type": "string",
+          "enum": [
+            "codex",
+            "claude",
+            "ollama",
+            "openai",
+            "anthropic"
+          ]
+        },
+        "commandai:model": {
+          "type": "string"
+        },
+        "commandai:baseurl": {
+          "type": "string"
+        },
+        "commandai:includeoutput": {
+          "type": "boolean"
+        },
+        "commandai:inline": {
+          "type": "boolean"
+        },
         "web:*": {
           "type": "boolean"
         },

@@ -71,7 +71,11 @@ type WshRpcInterface interface {
 	SetConfigCommand(ctx context.Context, data MetaSettingsType) error
 	SetConnectionsConfigCommand(ctx context.Context, data ConnConfigRequest) error
 	GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error)
-	AiCommandComposeCommand(ctx context.Context, data AiCommandComposeData) (AiCommandComposeRtn, error)
+	CommandAiStatusCommand(ctx context.Context, data CommandAiStatusRequest) (CommandAiStatus, error)
+	CommandAiModelsCommand(ctx context.Context, data CommandAiModelsRequest) (CommandAiModels, error)
+	CommandAiPreviewCommand(ctx context.Context, data CommandAiRequest) (CommandAiPreview, error)
+	CommandAiRunCommand(ctx context.Context, data CommandAiRequest) (CommandAiResult, error)
+	CommandAiCancelCommand(ctx context.Context, requestId string) error
 	BlockInfoCommand(ctx context.Context, blockId string) (*BlockInfoData, error)
 	DebugTermCommand(ctx context.Context, data CommandDebugTermData) (*CommandDebugTermRtnData, error)
 	BlocksListCommand(ctx context.Context, data BlocksListRequest) ([]BlocksListEntry, error)
@@ -343,24 +347,107 @@ const (
 	TimeSeries_Cpu = "cpu"
 )
 
-type AiCommandComposeData struct {
-	Prompt         string   `json:"prompt"`
-	Cwd            string   `json:"cwd,omitempty"`
-	Shell          string   `json:"shell,omitempty"`
-	Os             string   `json:"os,omitempty"`
-	Connection     string   `json:"connection,omitempty"`
-	RecentCommands []string `json:"recentcommands,omitempty"`
+// CommandAiRequest asks the configured engine to compose, fix or explain a command.
+// The frontend sends what only it knows (the terminal buffer); the server fills
+// shell, OS and cwd from the block when they are blank, then redacts everything.
+type CommandAiRequest struct {
+	RequestId string           `json:"requestid"`
+	Task      string           `json:"task"`
+	Prompt    string           `json:"prompt,omitempty"`
+	BlockId   string           `json:"blockid,omitempty"`
+	Context   CommandAiContext `json:"context"`
+	Previous  []CommandAiTurn  `json:"previous,omitempty"`
+	Engine    string           `json:"engine,omitempty"`
+	Model     string           `json:"model,omitempty"`
+	BaseUrl   string           `json:"baseurl,omitempty"`
 }
 
-type AiCommandComposeRtn struct {
-	Text           string `json:"text"`
-	Available      bool   `json:"available"`
-	Status         string `json:"status,omitempty"`
-	StatusDetail   string `json:"statusdetail,omitempty"`
-	LoginCommand   string `json:"logincommand,omitempty"`
-	InstallCommand string `json:"installcommand,omitempty"`
-	CliFound       bool   `json:"clifound,omitempty"`
-	HttpStatus     int    `json:"httpstatus,omitempty"`
+type CommandAiContext struct {
+	Connection     string   `json:"connection,omitempty"`
+	Cwd            string   `json:"cwd,omitempty"`
+	Shell          string   `json:"shell,omitempty"`
+	ShellVersion   string   `json:"shellversion,omitempty"`
+	Os             string   `json:"os,omitempty"`
+	Distro         string   `json:"distro,omitempty"`
+	RecentCommands []string `json:"recentcommands,omitempty"`
+	Command        string   `json:"command,omitempty"`
+	ExitCode       *int     `json:"exitcode,omitempty"`
+	Output         string   `json:"output,omitempty"`
+	Selection      string   `json:"selection,omitempty"`
+}
+
+type CommandAiTurn struct {
+	Prompt   string   `json:"prompt"`
+	Commands []string `json:"commands,omitempty"`
+}
+
+type CommandAiProposal struct {
+	Command     string `json:"command"`
+	Explanation string `json:"explanation,omitempty"`
+}
+
+type CommandAiResult struct {
+	RequestId    string              `json:"requestid"`
+	Status       string              `json:"status"`
+	StatusDetail string              `json:"statusdetail,omitempty"`
+	FixCommand   string              `json:"fixcommand,omitempty"`
+	Engine       string              `json:"engine,omitempty"`
+	EngineLabel  string              `json:"enginelabel,omitempty"`
+	Model        string              `json:"model,omitempty"`
+	Summary      string              `json:"summary,omitempty"`
+	Proposals    []CommandAiProposal `json:"proposals,omitempty"`
+	DurationMs   int64               `json:"durationms,omitempty"`
+	Redactions   int                 `json:"redactions,omitempty"`
+}
+
+// CommandAiPreview is exactly what CommandAiRunCommand would send for the same request.
+type CommandAiPreview struct {
+	Engine      string `json:"engine,omitempty"`
+	EngineLabel string `json:"enginelabel,omitempty"`
+	Destination string `json:"destination,omitempty"`
+	System      string `json:"system"`
+	Message     string `json:"message"`
+	Redactions  int    `json:"redactions,omitempty"`
+}
+
+type CommandAiStatusRequest struct {
+	Refresh bool `json:"refresh,omitempty"`
+}
+
+type CommandAiStatus struct {
+	Enabled       bool                  `json:"enabled"`
+	Engine        string                `json:"engine,omitempty"`
+	Ready         bool                  `json:"ready"`
+	Engines       []CommandAiEngineInfo `json:"engines"`
+	SecretBackend string                `json:"secretbackend,omitempty"`
+}
+
+type CommandAiEngineInfo struct {
+	Id           string   `json:"id"`
+	Label        string   `json:"label"`
+	Kind         string   `json:"kind"`
+	Available    bool     `json:"available"`
+	SignedIn     bool     `json:"signedin"`
+	Account      string   `json:"account,omitempty"`
+	Version      string   `json:"version,omitempty"`
+	Path         string   `json:"path,omitempty"`
+	Detail       string   `json:"detail,omitempty"`
+	FixCommand   string   `json:"fixcommand,omitempty"`
+	DefaultModel string   `json:"defaultmodel,omitempty"`
+	Models       []string `json:"models,omitempty"`
+	NeedsKey     bool     `json:"needskey,omitempty"`
+	HasKey       bool     `json:"haskey,omitempty"`
+	BaseUrl      string   `json:"baseurl,omitempty"`
+}
+
+type CommandAiModelsRequest struct {
+	Engine  string `json:"engine"`
+	BaseUrl string `json:"baseurl,omitempty"`
+}
+
+type CommandAiModels struct {
+	Models []string `json:"models"`
+	Error  string   `json:"error,omitempty"`
 }
 
 type DiskUsageData struct {

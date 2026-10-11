@@ -35,6 +35,8 @@
     "term:osc52": "always",
     "term:presentation": "semantic",
     "term:commandcomposer": true,
+    "commandai:includeoutput": true,
+    "commandai:inline": true,
     "term:cursor": "block",
     "term:cursorblink": false,
     "term:copyonselect": true,
