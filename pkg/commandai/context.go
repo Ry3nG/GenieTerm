@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Ry3nG/GenieTerm/pkg/genconn"
+	"github.com/Ry3nG/GenieTerm/pkg/remote"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/conncontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/wshfs"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
@@ -75,6 +78,10 @@ func wantsDistro(c wshrpc.CommandAiContext) bool {
 
 func fillDistro(ctx context.Context, req wshrpc.CommandAiRequest) wshrpc.CommandAiRequest {
 	c := &req.Context
+	if c.Os == "" && isSSHConnection(c.Connection) {
+		fillFromSSH(ctx, c)
+		return req
+	}
 	if wantsDistro(*c) {
 		if entry, ok := cachedDistro(c.Connection); ok {
 			c.Distro = entry
@@ -91,6 +98,93 @@ func fillDistro(ctx context.Context, req wshrpc.CommandAiRequest) wshrpc.Command
 }
 
 func isLocalConnection(conn string) bool { return conn == "" || conn == "local" }
+
+func isSSHConnection(conn string) bool {
+	return !isLocalConnection(conn) && !strings.HasPrefix(conn, "wsl://") && !strings.HasPrefix(conn, "local:")
+}
+
+type sshFacts struct {
+	uname, shell, distro string
+}
+
+var sshFactsCache = struct {
+	sync.Mutex
+	entries map[string]sshFactsEntry
+}{entries: make(map[string]sshFactsEntry)}
+
+type sshFactsEntry struct {
+	facts sshFacts
+	at    time.Time
+}
+
+var probeSSH = probeSSHFacts
+
+func cachedSSHFacts(conn string) (sshFacts, bool) {
+	sshFactsCache.Lock()
+	defer sshFactsCache.Unlock()
+	e, ok := sshFactsCache.entries[conn]
+	return e.facts, ok && time.Since(e.at) < 10*time.Minute
+}
+
+func cacheSSHFacts(conn string, facts sshFacts) {
+	sshFactsCache.Lock()
+	defer sshFactsCache.Unlock()
+	sshFactsCache.entries[conn] = sshFactsEntry{facts, time.Now()}
+}
+
+// A host without the helper (or before shell integration reports in) has no runtime
+// info, so the OS, login shell and distribution are read with one short, read-only
+// command over the existing SSH connection.
+func fillFromSSH(ctx context.Context, c *wshrpc.CommandAiContext) {
+	facts, ok := cachedSSHFacts(c.Connection)
+	if !ok {
+		timeout, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		facts = probeSSH(timeout, c.Connection)
+		if ctx.Err() == nil && facts.uname != "" {
+			cacheSSHFacts(c.Connection, facts)
+		}
+	}
+	c.Os = facts.uname
+	if c.Shell == "" {
+		c.Shell = facts.shell
+	}
+	if c.Distro == "" {
+		c.Distro = facts.distro
+	}
+}
+
+func parseSSHFacts(out string) sshFacts {
+	lines := strings.Split(strings.ReplaceAll(out, "\r", ""), "\n")
+	get := func(i int) string {
+		if i < len(lines) {
+			return limit(cleanText(strings.TrimSpace(lines[i]), false), 200)
+		}
+		return ""
+	}
+	return sshFacts{uname: get(0), shell: get(1), distro: strings.Trim(get(2), "\"'")}
+}
+
+func probeSSHFacts(ctx context.Context, conn string) sshFacts {
+	opts, err := remote.ParseOpts(conn)
+	if err != nil {
+		return sshFacts{}
+	}
+	sshConn := conncontroller.MaybeGetConn(opts)
+	if sshConn == nil {
+		return sshFacts{}
+	}
+	client := sshConn.GetClient()
+	if client == nil {
+		return sshFacts{}
+	}
+	spec := genconn.CommandSpec{Cmd: `uname -srm; basename "${SHELL:-sh}"; sed -n 's/^PRETTY_NAME=//p' /etc/os-release 2>/dev/null`}
+	out, _, err := genconn.RunSimpleCommand(ctx, genconn.MakeSSHShellClient(client), spec)
+	if err != nil {
+		return sshFacts{}
+	}
+	return parseSSHFacts(out)
+}
 
 func cachedDistro(conn string) (string, bool) {
 	distroCache.Lock()

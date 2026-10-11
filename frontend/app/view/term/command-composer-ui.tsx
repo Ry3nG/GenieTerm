@@ -418,8 +418,8 @@ function SetupView({ status, actions }: { status: CommandAiStatus | null; action
                                     aria-hidden="true"
                                 />
                                 <span className="min-w-0 flex-1">
-                                    <span className="block text-[13px] font-medium text-primary">{engine.label}</span>
-                                    <span className="block truncate text-[11.5px] text-secondary">
+                                    <span className="flex text-[13px] font-medium text-primary">{engine.label}</span>
+                                    <span className="inline-block w-full truncate text-[11.5px] text-secondary">
                                         {engineStatusLine(engine)}
                                     </span>
                                 </span>
@@ -699,6 +699,7 @@ export function CommandAiSheet({
     autoFocus = true,
 }: CommandAiSheetProps) {
     const inputRef = React.useRef<HTMLTextAreaElement>(null);
+    const rootRef = React.useRef<HTMLDivElement>(null);
     const [clock, setClock] = React.useState(Date.now());
     const pending = sheet.pending;
     React.useEffect(() => {
@@ -709,11 +710,13 @@ export function CommandAiSheet({
         const id = window.setInterval(() => setClock(Date.now()), 1000);
         return () => window.clearInterval(id);
     }, [pending?.requestId, now]);
+    const needsSetup = status != null && !status.engine;
+    // The setup screen has no input, so the sheet itself takes focus to keep Escape working.
     React.useEffect(() => {
         if (autoFocus) {
-            inputRef.current?.focus();
+            (inputRef.current ?? rootRef.current)?.focus();
         }
-    }, [autoFocus]);
+    }, [autoFocus, needsSetup]);
     React.useLayoutEffect(() => {
         const el = inputRef.current;
         if (el == null) {
@@ -723,14 +726,13 @@ export function CommandAiSheet({
         el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
     }, [sheet.input]);
 
-    const needsSetup = status != null && !status.engine;
     const lastExchange = sheet.exchanges[sheet.exchanges.length - 1];
     const proposals = pending == null && lastExchange != null ? lastExchange.proposals : [];
     const selected = proposals[sheet.selected];
     const canSend =
         pending == null && (sheet.input.trim() !== "" || (sheet.task !== "compose" && sheet.exchanges.length === 0));
 
-    const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         const mod = isMac ? e.metaKey : e.ctrlKey;
         if (e.key === "Escape") {
             e.preventDefault();
@@ -744,6 +746,9 @@ export function CommandAiSheet({
             } else {
                 actions.close();
             }
+            return;
+        }
+        if (e.target !== inputRef.current && e.target !== rootRef.current) {
             return;
         }
         if ((e.key === "ArrowDown" || e.key === "ArrowUp") && proposals.length > 0 && !sheet.input.includes("\n")) {
@@ -816,9 +821,12 @@ export function CommandAiSheet({
 
     return (
         <div
+            ref={rootRef}
             role="dialog"
             aria-label="Command AI"
-            className="@container/cai flex max-h-[600px] min-h-0 w-full flex-col font-sans overflow-hidden rounded-xl border border-white/[0.09] bg-[#232325]/95 text-[13px] text-primary shadow-[0_18px_50px_rgba(0,0,0,0.5),0_0_0_0.5px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+            tabIndex={-1}
+            onKeyDown={onKeyDown}
+            className="@container/cai outline-none flex max-h-[600px] min-h-0 w-full flex-col font-sans overflow-hidden rounded-xl border border-white/[0.09] bg-[#232325]/95 text-[13px] text-primary shadow-[0_18px_50px_rgba(0,0,0,0.5),0_0_0_0.5px_rgba(0,0,0,0.6)] backdrop-blur-xl"
         >
             <SheetHeader sheet={sheet} status={status} actions={actions} />
             {body != null && <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>}
@@ -848,7 +856,6 @@ export function CommandAiSheet({
                         aria-label={inputPlaceholder(sheet)}
                         placeholder={inputPlaceholder(sheet)}
                         onChange={(e) => actions.setInput(e.target.value)}
-                        onKeyDown={onKeyDown}
                         spellCheck={false}
                         className="max-h-24 min-h-[28px] flex-1 resize-none bg-transparent py-[5px] text-[13.5px] leading-[18px] text-primary outline-none placeholder:text-muted"
                     />

@@ -38,6 +38,7 @@ export type CommandAiHost = {
     isEnabled(): boolean;
     giveFocus(): void;
     dismissCompletion(): void;
+    suppressCompletionFor(command: string): void;
     includeOutputByDefault(): boolean;
     inlineSuggestionsEnabled(): boolean;
 };
@@ -146,12 +147,12 @@ export class TermCommandAiModel {
 
     buildRequest(sheet: CommandAiSheetState, prompt: string, requestId: string): CommandAiRequest {
         const termWrap = this.host.getTermWrap();
+        const target = sheet.target;
         const context = buildCommandAiContext({
             blockMeta: this.host.getBlockMeta(),
-            recentBlocks: termWrap?.cmdBlocks ?? [],
+            recentBlocks: (termWrap?.cmdBlocks ?? []).filter((block) => block.id !== target?.blockId),
             shellType: termWrap != null ? globalStore.get(termWrap.shellTypeAtom) : undefined,
         });
-        const target = sheet.target;
         if (target != null) {
             context.command = target.command;
             if (target.exitCode != null) {
@@ -340,6 +341,7 @@ export class TermCommandAiModel {
             globalStore.set(this.sheetAtom, null);
             return;
         }
+        this.host.suppressCompletionFor(proposal.command);
         if (termWrap == null || !termWrap.insertCommand(proposal.command)) {
             await navigator.clipboard?.writeText(proposal.command);
             this.showNotice("Copied — the terminal can't take input right now");

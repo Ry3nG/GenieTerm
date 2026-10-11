@@ -8,6 +8,7 @@ import { NullErrorBoundary } from "@/app/element/errorboundary";
 import { Search, useSearch } from "@/app/element/search";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
+import { getLocalHomeDir } from "@/app/store/localhome";
 import { useTabModel } from "@/app/store/tab-model";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -545,7 +546,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
         return [
             connName && !isLocalConnName(connName) ? connName : "This computer",
             shellType !== "unknown" ? shellType : null,
-            cwd ? formatCwdLabel(cwd) : null,
+            cwd ? formatCwdLabel(cwd, connName && !isLocalConnName(connName) ? null : getLocalHomeDir()) : null,
         ]
             .filter(Boolean)
             .join(" · ");

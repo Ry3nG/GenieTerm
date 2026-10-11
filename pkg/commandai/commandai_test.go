@@ -126,3 +126,35 @@ func TestRequestRegistrationReplacement(t *testing.T) {
 	unregisterRequest("same", second)
 	Cancel("unknown")
 }
+
+func TestParseSSHFacts(t *testing.T) {
+	facts := parseSSHFacts("Linux 6.8.0-45-generic x86_64\r\nbash\n\"Ubuntu 24.04.1 LTS\"\n")
+	want := sshFacts{uname: "Linux 6.8.0-45-generic x86_64", shell: "bash", distro: "Ubuntu 24.04.1 LTS"}
+	if facts != want {
+		t.Fatalf("%+v", facts)
+	}
+	if facts := parseSSHFacts("Darwin 25.5.0 arm64\nzsh\n"); facts.distro != "" || facts.shell != "zsh" {
+		t.Fatalf("%+v", facts)
+	}
+}
+
+func TestSSHFactsFillMissingContext(t *testing.T) {
+	old := probeSSH
+	calls := 0
+	probeSSH = func(context.Context, string) sshFacts {
+		calls++
+		return sshFacts{uname: "Linux 6.8 x86_64", shell: "bash", distro: "Debian GNU/Linux 12"}
+	}
+	t.Cleanup(func() { probeSSH = old })
+	sshFactsCache.Lock()
+	sshFactsCache.entries = make(map[string]sshFactsEntry)
+	sshFactsCache.Unlock()
+	req := fillDistro(context.Background(), wshrpc.CommandAiRequest{Context: wshrpc.CommandAiContext{Connection: "user@build"}})
+	if req.Context.Os != "Linux 6.8 x86_64" || req.Context.Shell != "bash" || req.Context.Distro != "Debian GNU/Linux 12" {
+		t.Fatalf("%+v", req.Context)
+	}
+	_ = fillDistro(context.Background(), wshrpc.CommandAiRequest{Context: wshrpc.CommandAiContext{Connection: "user@build", Shell: "zsh"}})
+	if calls != 1 {
+		t.Fatal(calls)
+	}
+}

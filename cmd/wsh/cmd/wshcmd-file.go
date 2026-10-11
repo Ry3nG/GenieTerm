@@ -34,7 +34,7 @@ URI format: [profile]:[uri-scheme]://[connection]/[path]
 Supported URI schemes:
   wsh:
     Used to access files on remote hosts over SSH via the WSH helper. Allows
-    for file streaming to Wave and other remotes.
+    for file streaming to GenieTerm and other remotes.
 
     Profiles are optional for WSH URIs, provided that you have configured the
     remote host in your "connections.json" or "~/.ssh/config" file.

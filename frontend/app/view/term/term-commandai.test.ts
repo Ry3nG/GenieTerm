@@ -69,6 +69,7 @@ function makeModel(runner = makeRunner(), hostOverrides: Partial<CommandAiHost> 
         isEnabled: () => true,
         giveFocus: vi.fn(),
         dismissCompletion: vi.fn(),
+        suppressCompletionFor: vi.fn(),
         includeOutputByDefault: () => true,
         inlineSuggestionsEnabled: () => true,
         ...hostOverrides,

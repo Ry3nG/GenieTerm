@@ -230,6 +230,9 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         if (!manualRequest && inputBuffer.text.trim() === "") {
             return;
         }
+        if (!manualRequest && inputBuffer.text.trim() === completionModel.suppressedAutoText?.trim()) {
+            return;
+        }
         const connection = (blockData?.meta?.connection as string) || "";
         const ctx = buildCompletionContext(inputBuffer, {
             cwd: (blockData?.meta?.["cmd:cwd"] as string) || "~",

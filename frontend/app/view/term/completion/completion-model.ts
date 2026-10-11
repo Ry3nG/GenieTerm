@@ -22,6 +22,14 @@ export class TermCompletionModel {
     contextAtom = jotai.atom(null) as jotai.PrimitiveAtom<CompletionContext>;
     manualRequestVersionAtom = jotai.atom(0) as jotai.PrimitiveAtom<number>;
     requestCounter = 0;
+    // A finished command placed at the prompt (by Command AI) shouldn't pop up
+    // suggestions for itself; editing it brings them back.
+    suppressedAutoText: string = null;
+
+    suppressAutoFor(text: string) {
+        this.suppressedAutoText = text;
+        this.dismiss();
+    }
 
     async requestCompletions(service: CompletionServiceLike, ctx: CompletionContext): Promise<void> {
         const requestId = ++this.requestCounter;

@@ -47,7 +47,6 @@ import { isLikelyNaturalLanguageCommand, type CommandInlineAIRequestOptions } fr
 import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
 import { makeGitChip } from "./gitchip";
-import { getBlockingCommand } from "./shellblocking";
 import { TermCommandAiModel } from "./term-commandai";
 import {
     computeTheme,
@@ -133,6 +132,7 @@ export class TermViewModel implements ViewModel {
             isEnabled: () => this.isCommandComposerEnabled(),
             giveFocus: () => this.giveFocus(),
             dismissCompletion: () => this.completionModel.dismiss(),
+            suppressCompletionFor: (command) => this.completionModel.suppressAutoFor(command),
             includeOutputByDefault: () => globalStore.get(getSettingsKeyAtom("commandai:includeoutput")) !== false,
             inlineSuggestionsEnabled: () => globalStore.get(getSettingsKeyAtom("commandai:inline")) !== false,
         });
@@ -363,9 +363,9 @@ export class TermViewModel implements ViewModel {
                     rtn.push(webglButton);
                 }
             }
-            const shellIntegrationButton = this.getShellIntegrationIconButton(get);
-            if (shellIntegrationButton) {
-                rtn.push(shellIntegrationButton);
+            const commandAiButton = this.getCommandAiIconButton(get);
+            if (commandAiButton) {
+                rtn.push(commandAiButton);
             }
 
             if (blockData?.meta?.["controller"] != "cmd" && shellProcStatus != "done") {
@@ -479,54 +479,30 @@ export class TermViewModel implements ViewModel {
         this.scheduleGitRefresh();
     }
 
-    getShellIntegrationIconButton(get: jotai.Getter): IconButtonDecl | null {
-        if (!this.termRef.current?.shellIntegrationStatusAtom) {
+    // The header shows Claude Code's mark while it runs in this terminal; otherwise the
+    // button opens Command AI. Missing shell integration is reported by the status line.
+    getCommandAiIconButton(get: jotai.Getter): IconButtonDecl | null {
+        const termWrap = this.termRef.current;
+        if (termWrap?.claudeCodeActiveAtom != null && get(termWrap.claudeCodeActiveAtom)) {
+            return {
+                elemtype: "iconbutton",
+                icon: React.createElement(TermClaudeIcon),
+                title: "Claude Code is running in this terminal",
+                noAction: true,
+            };
+        }
+        if (!get(this.commandAiEnabledAtom)) {
             return null;
         }
-        const shellIntegrationStatus = get(this.termRef.current.shellIntegrationStatusAtom);
-        const claudeCodeActive = get(this.termRef.current.claudeCodeActiveAtom);
-        const icon = claudeCodeActive ? React.createElement(TermClaudeIcon) : "sparkles";
-        if (shellIntegrationStatus == null) {
-            return {
-                elemtype: "iconbutton",
-                icon,
-                className: "text-muted",
-                title: "No shell integration — command blocks need the genie helper in this shell.",
-                noAction: true,
-            };
-        }
-        if (shellIntegrationStatus === "ready") {
-            return {
-                elemtype: "iconbutton",
-                icon,
-                className: "text-accent",
-                title: "Shell integration ready — command blocks and completions are active.",
-                noAction: true,
-            };
-        }
-        if (shellIntegrationStatus === "running-command") {
-            let title = claudeCodeActive
-                ? "Claude Code Detected"
-                : "Shell busy — GenieTerm AI unable to run commands while another command is running.";
-
-            if (this.termRef.current) {
-                const inAltBuffer = this.termRef.current.terminal?.buffer?.active?.type === "alternate";
-                const lastCommand = get(this.termRef.current.lastCommandAtom);
-                const blockingCmd = getBlockingCommand(lastCommand, inAltBuffer);
-                if (blockingCmd) {
-                    title = `GenieTerm AI integration disabled while you're inside ${blockingCmd}.`;
-                }
-            }
-
-            return {
-                elemtype: "iconbutton",
-                icon,
-                className: "text-warning",
-                title: title,
-                noAction: true,
-            };
-        }
-        return null;
+        return {
+            elemtype: "iconbutton",
+            icon: "wand-magic-sparkles",
+            className: "text-muted hover:text-accent",
+            title: `Command AI (${isMacOS() ? "⌘⇧Space" : "Ctrl+Shift+Space"})`,
+            click: () => {
+                this.openCommandComposer();
+            },
+        };
     }
 
     getWebGlIconButton(get: jotai.Getter): IconButtonDecl | null {
