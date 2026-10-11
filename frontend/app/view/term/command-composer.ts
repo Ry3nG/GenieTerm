@@ -9,6 +9,11 @@ import type { ShellIntegrationStatus } from "./osc-handlers";
 export const CommandComposerActionId = "term:command-composer";
 export const CommandComposerDefaultBinding = "Cmd:Shift:Space";
 
+// "Cmd" in a GenieTerm keybinding is Alt on Linux and Windows.
+export function formatCommandAiShortcut(isMac: boolean): string {
+    return isMac ? "⌘⇧Space" : "Alt+Shift+Space";
+}
+
 export type CommandAiTask = "compose" | "fix" | "explain";
 export type CommandAiApplyAction = "insert" | "run" | "copy";
 export type CommandAiApplyMode = CommandAiApplyAction | "confirm";

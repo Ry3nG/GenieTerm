@@ -8,6 +8,7 @@ import {
     makeCommandAiRequestId,
 } from "@/app/store/commandai";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { formatCommandAiShortcut } from "@/app/view/term/command-composer";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { cn } from "@/util/util";
@@ -623,8 +624,8 @@ const CommandAiSettingsContent = memo(({ model }: { model: WaveConfigViewModel }
                 <SettingsSection
                     footer={
                         <>
-                            Press {PLATFORM === PlatformMacOS ? "⌘⇧Space" : "Ctrl+Shift+Space"} in a terminal, or use
-                            the sparkle button on a finished command.
+                            Press {formatCommandAiShortcut(PLATFORM === PlatformMacOS)} in a terminal, or use the
+                            sparkle button on a finished command.
                         </>
                     }
                 >

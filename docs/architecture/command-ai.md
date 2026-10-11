@@ -64,7 +64,7 @@ Inserting a command only types it at the prompt, so it never asks first. Running
 
 ## Surfaces
 
-- **The sheet** (`command-composer-ui.tsx`, state in `term-commandai.ts`): opened with ⌘⇧Space or from the command palette. A request typed at the prompt is carried into the sheet. Follow-up requests refine the answer, with earlier turns sent as `previous`. Keys: ↑↓ select, ↵ insert, ⌘↵ run, esc cancel or close.
+- **The sheet** (`command-composer-ui.tsx`, state in `term-commandai.ts`): opened with ⌘⇧Space (Alt+Shift+Space on Linux and Windows), the header's sparkle button, or the command palette. A request typed at the prompt is carried into the sheet. Follow-up requests refine the answer, with earlier turns sent as `previous`. Keys: ↑↓ select, ↵ insert, ⌘↵ run, esc cancel or close.
 - **Fix and Explain**: the sparkle button on the command action bar opens Fix for a failed command and Explain for any other finished one. "Explain Selection with AI" is in the terminal's context menu. The sheet's "Include output" checkbox defaults to `commandai:includeoutput`. Unchecking it asks again without the output.
 - **Inline suggestion**: when something that reads like a request (for example "show disk usage") fails with exit code 127, a one-line suggestion appears under the terminal. This happens only once an engine is chosen, and only while `commandai:inline` is on.
 

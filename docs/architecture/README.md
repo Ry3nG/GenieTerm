@@ -47,20 +47,20 @@ GenieTerm is a soft fork of Wave Terminal. Internal `Wave*`, `wshrpc`, `WAVETERM
 
 ## Directory map
 
-| Path                                                          | Contents                                                               |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `emain/`                                                      | Electron main, preload, updater, and transfer queue                    |
-| `frontend/app/`                                               | Blocks, tabs, workspace UI, stores, modals, and views                  |
-| `frontend/app/view/term/`                                     | xterm.js integration, command blocks, completion, and command composer |
-| `frontend/app/view/host/`                                     | Host overview, processes, and ports UI                                 |
-| `frontend/app/view/preview/`, `frontend/app/view/codeeditor/` | File browsing, previews, and editor components                         |
-| `frontend/layout/`                                            | Tiling tree, layout model, rendering, and tests                        |
-| `frontend/preview/`                                           | Standalone preview environment for UI development and QA               |
-| `cmd/`                                                        | Server, CLI/helper, and Go/TypeScript/schema generators                |
-| `pkg/`                                                        | Go services, controllers, transports, storage, and utilities           |
-| `db/`, `schema/`                                              | Database migrations and generated config schemas                       |
-| `scripts/`, `tests/`                                          | Build/release checks, benchmarks, and integration tests                |
-| `build/`, `assets/`, `public/`                                | Packaging resources and static assets                                  |
+| Path                                                          | Contents                                                         |
+| ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `emain/`                                                      | Electron main, preload, updater, and transfer queue              |
+| `frontend/app/`                                               | Blocks, tabs, workspace UI, stores, modals, and views            |
+| `frontend/app/view/term/`                                     | xterm.js integration, command blocks, completion, and Command AI |
+| `frontend/app/view/host/`                                     | Host overview, processes, and ports UI                           |
+| `frontend/app/view/preview/`, `frontend/app/view/codeeditor/` | File browsing, previews, and editor components                   |
+| `frontend/layout/`                                            | Tiling tree, layout model, rendering, and tests                  |
+| `frontend/preview/`                                           | Standalone preview environment for UI development and QA         |
+| `cmd/`                                                        | Server, CLI/helper, and Go/TypeScript/schema generators          |
+| `pkg/`                                                        | Go services, controllers, transports, storage, and utilities     |
+| `db/`, `schema/`                                              | Database migrations and generated config schemas                 |
+| `scripts/`, `tests/`                                          | Build/release checks, benchmarks, and integration tests          |
+| `build/`, `assets/`, `public/`                                | Packaging resources and static assets                            |
 
 ## Where to start reading
 
@@ -70,3 +70,4 @@ GenieTerm is a soft fork of Wave Terminal. Internal `Wave*`, `wshrpc`, `WAVETERM
 - Settings and adding a config key: [Configuration](config.md).
 - Shell markers and semantic command history: [Shell integration](shell-integration.md).
 - Renderer caching and durable output invariants: [Performance](performance.md).
+- Engines, privacy and the risk classifier behind Command AI: [Command AI](command-ai.md).

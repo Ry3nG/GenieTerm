@@ -91,7 +91,7 @@ export const CommandBlocksPage = ({
             title: "Jump between commands",
             description: (
                 <>
-                    <Keys combo={isMac ? "⇧⌘↑" : "Ctrl+Shift+↑"} /> and <Keys combo={isMac ? "⇧⌘↓" : "Ctrl+Shift+↓"} />{" "}
+                    <Keys combo={isMac ? "⇧⌘↑" : "Alt+Shift+↑"} /> and <Keys combo={isMac ? "⇧⌘↓" : "Alt+Shift+↓"} />{" "}
                     move through long sessions.
                 </>
             ),
@@ -101,7 +101,7 @@ export const CommandBlocksPage = ({
             title: "Describe what you want",
             description: (
                 <>
-                    <Keys combo={isMac ? "⇧⌘Space" : "Ctrl+Shift+Space"} /> proposes a command. It never runs one for
+                    <Keys combo={isMac ? "⇧⌘Space" : "Alt+Shift+Space"} /> proposes a command. It never runs one for
                     you.
                 </>
             ),

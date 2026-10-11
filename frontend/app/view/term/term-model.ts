@@ -43,7 +43,11 @@ import { fireAndForget, isLocalConnName, isSshConnName, stringToBase64 } from "@
 import * as jotai from "jotai";
 import * as React from "react";
 import { blockEndLine, blockHasCommand, getBlockOutputText, type CmdBlock } from "./cmdblocks";
-import { isLikelyNaturalLanguageCommand, type CommandInlineAIRequestOptions } from "./command-composer";
+import {
+    formatCommandAiShortcut,
+    isLikelyNaturalLanguageCommand,
+    type CommandInlineAIRequestOptions,
+} from "./command-composer";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
 import { makeGitChip } from "./gitchip";
@@ -498,7 +502,7 @@ export class TermViewModel implements ViewModel {
             elemtype: "iconbutton",
             icon: "wand-magic-sparkles",
             className: "text-muted hover:text-accent",
-            title: `Command AI (${isMacOS() ? "⌘⇧Space" : "Ctrl+Shift+Space"})`,
+            title: `Command AI (${formatCommandAiShortcut(isMacOS())})`,
             click: () => {
                 this.openCommandComposer();
             },
