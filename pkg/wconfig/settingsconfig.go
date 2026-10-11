@@ -87,6 +87,13 @@ type SettingsType struct {
 	EditorFontSize            float64 `json:"editor:fontsize,omitempty"`
 	EditorInlineDiff          bool    `json:"editor:inlinediff,omitempty"`
 
+	CommandAiClear         bool   `json:"commandai:*,omitempty"`
+	CommandAiEngine        string `json:"commandai:engine,omitempty" jsonschema:"enum=codex,enum=claude,enum=ollama,enum=openai,enum=anthropic"`
+	CommandAiModel         string `json:"commandai:model,omitempty"`
+	CommandAiBaseUrl       string `json:"commandai:baseurl,omitempty"`
+	CommandAiIncludeOutput *bool  `json:"commandai:includeoutput,omitempty"`
+	CommandAiInline        *bool  `json:"commandai:inline,omitempty"`
+
 	WebClear               bool   `json:"web:*,omitempty"`
 	WebOpenLinksInternally bool   `json:"web:openlinksinternally,omitempty"`
 	WebDefaultUrl          string `json:"web:defaulturl,omitempty"`
@@ -242,6 +249,8 @@ type ConnKeywords struct {
 	TermFontFamily string  `json:"term:fontfamily,omitempty"`
 	TermTheme      string  `json:"term:theme,omitempty"`
 	TermDurable    *bool   `json:"term:durable,omitempty"`
+
+	TermCommandComposer *bool `json:"term:commandcomposer,omitempty"`
 
 	CmdEnv            map[string]string `json:"cmd:env,omitempty"`
 	CmdInitScript     string            `json:"cmd:initscript,omitempty"`

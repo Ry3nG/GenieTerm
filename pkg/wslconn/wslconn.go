@@ -344,11 +344,10 @@ type WshInstallOpts struct {
 }
 
 var queryTextTemplate = strings.TrimSpace(`
-Wave requires Wave Shell Extensions to be
-installed on %q
-to ensure a seamless experience.
+GenieTerm installs a small helper, genie, on %q.
+It powers command blocks, durable sessions, the Host view and genie commands there.
 
-Would you like to install them?
+Without it the terminal still works, but GenieTerm can't browse files or show the Host view there.
 `)
 
 func (conn *WslConn) UpdateWsh(ctx context.Context, clientDisplayName string, remoteInfo *wshrpc.RemoteInfo) error {
@@ -371,15 +370,15 @@ func (conn *WslConn) UpdateWsh(ctx context.Context, clientDisplayName string, re
 func (conn *WslConn) getPermissionToInstallWsh(ctx context.Context, clientDisplayName string) (bool, error) {
 	conn.Infof(ctx, "running getPermissionToInstallWsh...\n")
 	queryText := fmt.Sprintf(queryTextTemplate, clientDisplayName)
-	title := "Install Wave Shell Extensions"
+	title := "Install the genie helper?"
 	request := &userinput.UserInputRequest{
 		ResponseType: "confirm",
 		QueryText:    queryText,
 		Title:        title,
 		Markdown:     true,
-		CheckBoxMsg:  "Automatically install for all connections",
-		OkLabel:      "Install wsh",
-		CancelLabel:  "No wsh",
+		CheckBoxMsg:  "Install on other hosts without asking",
+		OkLabel:      "Install",
+		CancelLabel:  "Don't Install",
 	}
 	conn.Infof(ctx, "requesting user confirmation...\n")
 	response, err := userinput.GetUserInput(ctx, request)

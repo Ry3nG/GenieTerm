@@ -2,7 +2,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { extractFile } from "@electron/asar";
+import { extractFile, uncache } from "@electron/asar";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -67,6 +67,9 @@ export function verifyLinuxTree(root, arch, pkg = Pkg) {
   const resources = path.join(root, "resources");
   const archive = path.join(resources, "app.asar");
   requireFile(archive);
+  // asar caches headers by path; a reused path (a rebuilt package, or a recycled temp
+  // dir in tests) would otherwise be read with the old archive's offsets.
+  uncache(archive);
   const packaged = JSON.parse(extractFile(archive, "package.json").toString());
   check(
     packaged.name === pkg.name && packaged.productName === pkg.productName && packaged.version === pkg.version,

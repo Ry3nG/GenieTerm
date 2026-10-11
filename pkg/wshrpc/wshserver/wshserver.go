@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Ry3nG/GenieTerm/pkg/aiusechat/codexcompose"
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/blockcontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
+	"github.com/Ry3nG/GenieTerm/pkg/commandai"
 	"github.com/Ry3nG/GenieTerm/pkg/filestore"
 	"github.com/Ry3nG/GenieTerm/pkg/genconn"
 	"github.com/Ry3nG/GenieTerm/pkg/jobcontroller"
@@ -518,66 +518,27 @@ func (ws *WshServer) GetFullConfigCommand(ctx context.Context) (wconfig.FullConf
 	return watcher.GetFullConfig(), nil
 }
 
-func buildComposeSystemPrompt(data wshrpc.AiCommandComposeData) string {
-	var sb strings.Builder
-	sb.WriteString("You generate shell commands for a terminal. Given a natural-language task, propose 1-3 concrete commands that accomplish it.\n")
-	sb.WriteString(`Respond with ONLY a JSON array (no prose, no markdown fences). Each element: {"command":"<exact shell command>","explanation":"<one short sentence>"}.` + "\n")
-	if data.Shell != "" {
-		sb.WriteString("Shell: " + data.Shell + "\n")
-	}
-	if data.Os != "" {
-		sb.WriteString("OS: " + data.Os + "\n")
-	}
-	if data.Cwd != "" {
-		sb.WriteString("Current directory: " + data.Cwd + "\n")
-	}
-	if data.Connection != "" && data.Connection != "local" {
-		sb.WriteString("Remote connection: " + data.Connection + "\n")
-	}
-	if len(data.RecentCommands) > 0 {
-		sb.WriteString("Recent commands: " + strings.Join(data.RecentCommands, "; ") + "\n")
-	}
-	sb.WriteString("Prefer safe, idiomatic commands. Do not include destructive commands unless explicitly requested.")
-	return sb.String()
+func (ws *WshServer) CommandAiStatusCommand(ctx context.Context, data wshrpc.CommandAiStatusRequest) (wshrpc.CommandAiStatus, error) {
+	return commandai.GetStatus(ctx, data.Refresh), nil
 }
 
-func aiCommandComposeRtnFromStatus(status codexcompose.Status) wshrpc.AiCommandComposeRtn {
-	return wshrpc.AiCommandComposeRtn{
-		Available:      status.Available,
-		Status:         status.Code,
-		StatusDetail:   status.Message,
-		LoginCommand:   status.LoginCommand,
-		InstallCommand: status.InstallCommand,
-		CliFound:       status.CliFound,
-		HttpStatus:     status.HttpStatus,
-	}
+func (ws *WshServer) CommandAiModelsCommand(ctx context.Context, data wshrpc.CommandAiModelsRequest) (wshrpc.CommandAiModels, error) {
+	return commandai.ListModels(ctx, data), nil
 }
 
-// AiCommandComposeCommand generates shell-command proposals for the composer using
-// the user's Codex/ChatGPT login (keyless). Auth and request failures return
-// structured status so the frontend can show login/retry guidance without secrets.
-func (ws *WshServer) AiCommandComposeCommand(ctx context.Context, data wshrpc.AiCommandComposeData) (wshrpc.AiCommandComposeRtn, error) {
-	status := codexcompose.AuthStatus()
-	if strings.TrimSpace(data.Prompt) == "" {
-		return aiCommandComposeRtnFromStatus(status), nil
-	}
-	if !status.Available {
-		return aiCommandComposeRtnFromStatus(status), nil
-	}
-	text, err := codexcompose.ComposeText(ctx, buildComposeSystemPrompt(data), data.Prompt)
-	if err != nil {
-		return aiCommandComposeRtnFromStatus(codexcompose.StatusForComposeError(err)), nil
-	}
-	if strings.TrimSpace(text) == "" {
-		return aiCommandComposeRtnFromStatus(codexcompose.Status{
-			Available: true,
-			Code:      codexcompose.StatusEmptyResponse,
-			Message:   "Codex did not return a usable command suggestion.",
-		}), nil
-	}
-	rtn := aiCommandComposeRtnFromStatus(status)
-	rtn.Text = text
-	return rtn, nil
+func (ws *WshServer) CommandAiPreviewCommand(ctx context.Context, data wshrpc.CommandAiRequest) (wshrpc.CommandAiPreview, error) {
+	return commandai.Preview(ctx, data)
+}
+
+// CommandAiRunCommand reports engine problems in the result's status rather than as
+// an error, so the frontend can show sign-in or setup guidance.
+func (ws *WshServer) CommandAiRunCommand(ctx context.Context, data wshrpc.CommandAiRequest) (wshrpc.CommandAiResult, error) {
+	return commandai.Run(ctx, data), nil
+}
+
+func (ws *WshServer) CommandAiCancelCommand(ctx context.Context, requestId string) error {
+	commandai.Cancel(requestId)
+	return nil
 }
 
 func (ws *WshServer) ConnStatusCommand(ctx context.Context) ([]wshrpc.ConnStatus, error) {

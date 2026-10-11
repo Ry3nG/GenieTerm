@@ -24,12 +24,6 @@ export class RpcApiType {
         return client.wshRpcCall("activity", data, opts);
     }
 
-    // command "aicommandcompose" [call]
-    AiCommandComposeCommand(client: WshClient, data: AiCommandComposeData, opts?: RpcOpts): Promise<AiCommandComposeRtn> {
-        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "aicommandcompose", data, opts);
-        return client.wshRpcCall("aicommandcompose", data, opts);
-    }
-
     // command "authenticate" [call]
     AuthenticateCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<CommandAuthenticateRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "authenticate", data, opts);
@@ -88,6 +82,36 @@ export class RpcApiType {
     BlocksListCommand(client: WshClient, data: BlocksListRequest, opts?: RpcOpts): Promise<BlocksListEntry[]> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "blockslist", data, opts);
         return client.wshRpcCall("blockslist", data, opts);
+    }
+
+    // command "commandaicancel" [call]
+    CommandAiCancelCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "commandaicancel", data, opts);
+        return client.wshRpcCall("commandaicancel", data, opts);
+    }
+
+    // command "commandaimodels" [call]
+    CommandAiModelsCommand(client: WshClient, data: CommandAiModelsRequest, opts?: RpcOpts): Promise<CommandAiModels> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "commandaimodels", data, opts);
+        return client.wshRpcCall("commandaimodels", data, opts);
+    }
+
+    // command "commandaipreview" [call]
+    CommandAiPreviewCommand(client: WshClient, data: CommandAiRequest, opts?: RpcOpts): Promise<CommandAiPreview> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "commandaipreview", data, opts);
+        return client.wshRpcCall("commandaipreview", data, opts);
+    }
+
+    // command "commandairun" [call]
+    CommandAiRunCommand(client: WshClient, data: CommandAiRequest, opts?: RpcOpts): Promise<CommandAiResult> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "commandairun", data, opts);
+        return client.wshRpcCall("commandairun", data, opts);
+    }
+
+    // command "commandaistatus" [call]
+    CommandAiStatusCommand(client: WshClient, data: CommandAiStatusRequest, opts?: RpcOpts): Promise<CommandAiStatus> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "commandaistatus", data, opts);
+        return client.wshRpcCall("commandaistatus", data, opts);
     }
 
     // command "connconnect" [call]

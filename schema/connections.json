@@ -42,6 +42,9 @@
         "term:durable": {
           "type": "boolean"
         },
+        "term:commandcomposer": {
+          "type": "boolean"
+        },
         "cmd:env": {
           "additionalProperties": {
             "type": "string"

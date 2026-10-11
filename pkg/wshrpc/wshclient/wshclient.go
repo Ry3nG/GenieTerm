@@ -22,12 +22,6 @@ func ActivityCommand(w *wshutil.WshRpc, data wshrpc.ActivityUpdate, opts *wshrpc
 	return err
 }
 
-// command "aicommandcompose", wshserver.AiCommandComposeCommand
-func AiCommandComposeCommand(w *wshutil.WshRpc, data wshrpc.AiCommandComposeData, opts *wshrpc.RpcOpts) (wshrpc.AiCommandComposeRtn, error) {
-	resp, err := sendRpcRequestCallHelper[wshrpc.AiCommandComposeRtn](w, "aicommandcompose", data, opts)
-	return resp, err
-}
-
 // command "authenticate", wshserver.AuthenticateCommand
 func AuthenticateCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (wshrpc.CommandAuthenticateRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAuthenticateRtnData](w, "authenticate", data, opts)
@@ -85,6 +79,36 @@ func BlockJobStatusCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts)
 // command "blockslist", wshserver.BlocksListCommand
 func BlocksListCommand(w *wshutil.WshRpc, data wshrpc.BlocksListRequest, opts *wshrpc.RpcOpts) ([]wshrpc.BlocksListEntry, error) {
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.BlocksListEntry](w, "blockslist", data, opts)
+	return resp, err
+}
+
+// command "commandaicancel", wshserver.CommandAiCancelCommand
+func CommandAiCancelCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "commandaicancel", data, opts)
+	return err
+}
+
+// command "commandaimodels", wshserver.CommandAiModelsCommand
+func CommandAiModelsCommand(w *wshutil.WshRpc, data wshrpc.CommandAiModelsRequest, opts *wshrpc.RpcOpts) (wshrpc.CommandAiModels, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAiModels](w, "commandaimodels", data, opts)
+	return resp, err
+}
+
+// command "commandaipreview", wshserver.CommandAiPreviewCommand
+func CommandAiPreviewCommand(w *wshutil.WshRpc, data wshrpc.CommandAiRequest, opts *wshrpc.RpcOpts) (wshrpc.CommandAiPreview, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAiPreview](w, "commandaipreview", data, opts)
+	return resp, err
+}
+
+// command "commandairun", wshserver.CommandAiRunCommand
+func CommandAiRunCommand(w *wshutil.WshRpc, data wshrpc.CommandAiRequest, opts *wshrpc.RpcOpts) (wshrpc.CommandAiResult, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAiResult](w, "commandairun", data, opts)
+	return resp, err
+}
+
+// command "commandaistatus", wshserver.CommandAiStatusCommand
+func CommandAiStatusCommand(w *wshutil.WshRpc, data wshrpc.CommandAiStatusRequest, opts *wshrpc.RpcOpts) (wshrpc.CommandAiStatus, error) {
+	resp, err := sendRpcRequestCallHelper[wshrpc.CommandAiStatus](w, "commandaistatus", data, opts)
 	return resp, err
 }
 

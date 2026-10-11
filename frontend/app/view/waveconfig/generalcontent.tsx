@@ -201,12 +201,6 @@ const TerminalSettings: SettingDefinition[] = [
         max: 50000,
         fallback: 2000,
     },
-    {
-        key: "term:commandcomposer",
-        label: "Command AI",
-        description: "Describe a command in plain words and get one to review. It never runs on its own.",
-        kind: "toggle",
-    },
 ];
 
 const SessionSettings: SettingDefinition[] = [

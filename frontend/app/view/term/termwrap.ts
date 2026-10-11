@@ -741,24 +741,52 @@ export class TermWrap {
         });
     }
 
+    hasBracketedPaste(): boolean {
+        return this.terminal?.modes?.bracketedPasteMode === true && !this.terminal.options.ignoreBracketedPasteMode;
+    }
+
+    // ctrl-e ctrl-u drops whatever is already typed at the prompt (works in the default
+    // emacs keymaps of bash, zsh and fish).
+    private makePromptLineData(command: string): string {
+        // Newlines and tabs would act as keystrokes (run a line, trigger completion), so
+        // they go through bracketed paste.
+        if (this.hasBracketedPaste() && /[\r\n\t]/.test(command)) {
+            return `\x05\x15\x1b[200~${command}\x1b[201~`;
+        }
+        return "\x05\x15" + command;
+    }
+
     // Types a command at the idle prompt and submits it, through the same path as user
     // keystrokes so the input mirror and multi-input see it too.
     runCommand(command: string): boolean {
         if (!this.loaded || this.getRunBlockedReason(command) != null) {
             return false;
         }
-        // ctrl-e ctrl-u: drop whatever is already typed at the prompt (works in the
-        // default emacs keymaps of bash, zsh and fish).
-        let data = "\x05\x15";
-        const bracketedPaste =
-            this.terminal.modes?.bracketedPasteMode === true && !this.terminal.options.ignoreBracketedPasteMode;
-        if (bracketedPaste && /[\r\n]/.test(command)) {
-            data += `\x1b[200~${command}\x1b[201~`;
-        } else {
-            data += command;
+        this.terminal.focus();
+        this.handleTermData(this.makePromptLineData(command) + "\r");
+        return true;
+    }
+
+    // Replaces the prompt line with a command without running it. Without shell
+    // integration the prompt line can't be cleared safely, so the command is pasted at
+    // the cursor instead.
+    insertCommand(command: string): boolean {
+        if (!this.loaded || !command) {
+            return false;
+        }
+        const shellState = globalStore.get(this.shellIntegrationStatusAtom);
+        if (globalStore.get(this.altScreenActiveAtom) || shellState === "running-command") {
+            return false;
+        }
+        if (/[\r\n\t]/.test(command) && !this.hasBracketedPaste()) {
+            return false;
         }
         this.terminal.focus();
-        this.handleTermData(data + "\r");
+        if (shellState !== "ready") {
+            this.terminal.paste(command);
+            return true;
+        }
+        this.handleTermData(this.makePromptLineData(command));
         return true;
     }
 

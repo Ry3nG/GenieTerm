@@ -40,28 +40,6 @@ declare global {
         conn?: {[key: string]: number};
     };
 
-    // wshrpc.AiCommandComposeData
-    type AiCommandComposeData = {
-        prompt: string;
-        cwd?: string;
-        shell?: string;
-        os?: string;
-        connection?: string;
-        recentcommands?: string[];
-    };
-
-    // wshrpc.AiCommandComposeRtn
-    type AiCommandComposeRtn = {
-        text: string;
-        available: boolean;
-        status?: string;
-        statusdetail?: string;
-        logincommand?: string;
-        installcommand?: string;
-        clifound?: boolean;
-        httpstatus?: number;
-    };
-
     // wconfig.BackgroundConfigType
     type BackgroundConfigType = {
         bg?: string;
@@ -165,6 +143,117 @@ declare global {
     type CloseTabRtnType = {
         closewindow?: boolean;
         newactivetabid?: string;
+    };
+
+    // wshrpc.CommandAiContext
+    type CommandAiContext = {
+        connection?: string;
+        cwd?: string;
+        shell?: string;
+        shellversion?: string;
+        os?: string;
+        distro?: string;
+        recentcommands?: string[];
+        command?: string;
+        exitcode?: number;
+        output?: string;
+        selection?: string;
+    };
+
+    // wshrpc.CommandAiEngineInfo
+    type CommandAiEngineInfo = {
+        id: string;
+        label: string;
+        kind: string;
+        available: boolean;
+        signedin: boolean;
+        account?: string;
+        version?: string;
+        path?: string;
+        detail?: string;
+        fixcommand?: string;
+        defaultmodel?: string;
+        models?: string[];
+        needskey?: boolean;
+        haskey?: boolean;
+        secretname?: string;
+        baseurl?: string;
+    };
+
+    // wshrpc.CommandAiModels
+    type CommandAiModels = {
+        models: string[];
+        error?: string;
+    };
+
+    // wshrpc.CommandAiModelsRequest
+    type CommandAiModelsRequest = {
+        engine: string;
+        baseurl?: string;
+    };
+
+    // wshrpc.CommandAiPreview
+    type CommandAiPreview = {
+        engine?: string;
+        enginelabel?: string;
+        destination?: string;
+        system: string;
+        message: string;
+        redactions?: number;
+    };
+
+    // wshrpc.CommandAiProposal
+    type CommandAiProposal = {
+        command: string;
+        explanation?: string;
+    };
+
+    // wshrpc.CommandAiRequest
+    type CommandAiRequest = {
+        requestid: string;
+        task: string;
+        prompt?: string;
+        blockid?: string;
+        context: CommandAiContext;
+        previous?: CommandAiTurn[];
+        engine?: string;
+        model?: string;
+        baseurl?: string;
+    };
+
+    // wshrpc.CommandAiResult
+    type CommandAiResult = {
+        requestid: string;
+        status: string;
+        statusdetail?: string;
+        fixcommand?: string;
+        engine?: string;
+        enginelabel?: string;
+        model?: string;
+        summary?: string;
+        proposals?: CommandAiProposal[];
+        durationms?: number;
+        redactions?: number;
+    };
+
+    // wshrpc.CommandAiStatus
+    type CommandAiStatus = {
+        enabled: boolean;
+        engine?: string;
+        ready: boolean;
+        engines: CommandAiEngineInfo[];
+        secretbackend?: string;
+    };
+
+    // wshrpc.CommandAiStatusRequest
+    type CommandAiStatusRequest = {
+        refresh?: boolean;
+    };
+
+    // wshrpc.CommandAiTurn
+    type CommandAiTurn = {
+        prompt: string;
+        commands?: string[];
     };
 
     // wshrpc.CommandAuthenticateJobManagerData
@@ -674,6 +763,7 @@ declare global {
         "term:fontfamily"?: string;
         "term:theme"?: string;
         "term:durable"?: boolean;
+        "term:commandcomposer"?: boolean;
         "cmd:env"?: {[key: string]: string};
         "cmd:initscript"?: string;
         "cmd:initscript.sh"?: string;
@@ -1286,6 +1376,12 @@ declare global {
         "editor:wordwrap"?: boolean;
         "editor:fontsize"?: number;
         "editor:inlinediff"?: boolean;
+        "commandai:*"?: boolean;
+        "commandai:engine"?: string;
+        "commandai:model"?: string;
+        "commandai:baseurl"?: string;
+        "commandai:includeoutput"?: boolean;
+        "commandai:inline"?: boolean;
         "web:*"?: boolean;
         "web:openlinksinternally"?: boolean;
         "web:defaulturl"?: string;

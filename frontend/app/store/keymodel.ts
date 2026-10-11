@@ -505,7 +505,7 @@ const PALETTE_LABELS: Record<string, string> = {
     "term:jump-past-output": "Jump Past Command Output",
     "term:copy-last-command": "Copy Last Command",
     "term:copy-last-output": "Copy Last Command Output",
-    [CommandComposerActionId]: "Command Composer",
+    [CommandComposerActionId]: "Command AI",
     "view:toggle-sidebar": "Toggle Sidebar",
     "view:toggle-tabbar": "Toggle Tab Bar",
     "app:refocus": "Refocus Terminal",

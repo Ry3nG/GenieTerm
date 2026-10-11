@@ -56,6 +56,13 @@ const (
 	ConfigKey_EditorFontSize            = "editor:fontsize"
 	ConfigKey_EditorInlineDiff          = "editor:inlinediff"
 
+	ConfigKey_CommandAiClear         = "commandai:*"
+	ConfigKey_CommandAiEngine        = "commandai:engine"
+	ConfigKey_CommandAiModel         = "commandai:model"
+	ConfigKey_CommandAiBaseUrl       = "commandai:baseurl"
+	ConfigKey_CommandAiIncludeOutput = "commandai:includeoutput"
+	ConfigKey_CommandAiInline        = "commandai:inline"
+
 	ConfigKey_WebClear               = "web:*"
 	ConfigKey_WebOpenLinksInternally = "web:openlinksinternally"
 	ConfigKey_WebDefaultUrl          = "web:defaulturl"

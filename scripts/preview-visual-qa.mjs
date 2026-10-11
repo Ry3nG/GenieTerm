@@ -94,13 +94,30 @@ const PreviewCases = [
       "Every command, kept together",
       "Remote files, next to your shell",
       "The machine, not just the shell",
-      "GenieTerm 1.0",
+      "GenieTerm 1.2",
+      "Command AI, with the AI you already have",
     ],
     viewports: [{ name: "desktop", width: 1300, height: 900 }],
   },
   {
+    name: "commandai",
+    path: "/?preview=commandai",
+    checks: [
+      "Choose the AI that writes your commands",
+      "Insert",
+      "Run it anyway?",
+      "exit 2",
+      "Sign in to Codex",
+      "Goes to Claude Code",
+    ],
+    viewports: [
+      { name: "desktop", width: 1300, height: 1000 },
+      { name: "narrow", width: 640, height: 1000 },
+    ],
+  },
+  {
     name: "settings",
-    path: "/?preview=waveconfig",
+    path: "/?preview=settings",
     checks: ["Appearance", "Terminal font size", "Command presentation", "Durable SSH sessions", "Automatic updates"],
     viewports: [
       { name: "desktop", width: 1300, height: 1000 },

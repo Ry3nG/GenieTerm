@@ -178,9 +178,11 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                             </a>
                                         </Tooltip>
                                     )}
-                                    <div className="text-xs text-muted font-mono ml-1 truncate @max-w600:hidden">
-                                        {selectedFile.path}
-                                    </div>
+                                    {!selectedFile.isVirtual && !selectedFile.isSecrets && (
+                                        <div className="text-xs text-muted font-mono ml-1 truncate @max-w600:hidden">
+                                            {selectedFile.path}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex gap-2 items-center shrink-0">
                                     {selectedFile.hasJsonView &&
