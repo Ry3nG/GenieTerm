@@ -20,4 +20,10 @@ describe("update banner status", () => {
         expect(isUpdateStatusActionable("ready")).toBe(true);
         expect(getUpdateStatusTooltip("ready", "Install Update")).toBe("Restart GenieTerm to install update");
     });
+
+    it("lets package-managed installs open install instructions", () => {
+        expect(getUpdateStatusMessage("manual")).toBe("Update Available");
+        expect(isUpdateStatusActionable("manual")).toBe(true);
+        expect(getUpdateStatusTooltip("manual", "Update Available")).toContain("how to install");
+    });
 });

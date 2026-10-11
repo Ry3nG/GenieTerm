@@ -24,6 +24,7 @@ import {
     launchMacUpdateInstaller,
 } from "./mac-update-installer";
 import { formatReleaseNotes } from "./update-release-notes";
+import { usesPackageManagerUpdates } from "./updater-platform";
 
 const ReleasesUrl = "https://github.com/Ry3nG/GenieTerm/releases";
 const ChannelFileNotFoundCode = "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND";
@@ -103,10 +104,11 @@ export class Updater {
         this.installOnQuitSetting = settings["autoupdate:installonquit"];
         this.squirrelRejectedUpdate = false;
 
-        autoUpdater.autoDownload = true;
+        autoUpdater.autoDownload = !usesPackageManagerUpdates();
         // On macOS, install-on-quit goes through Squirrel.Mac, which rejects builds without a Developer ID
         // signature. Keep it off until the signature check below confirms Squirrel can be used.
-        autoUpdater.autoInstallOnAppQuit = process.platform != "darwin" && this.installOnQuitSetting;
+        autoUpdater.autoInstallOnAppQuit =
+            process.platform != "darwin" && !usesPackageManagerUpdates() && this.installOnQuitSetting;
         console.log("Download update automatically:", autoUpdater.autoDownload);
         this.macDeveloperIdSigned = checkMacDeveloperIdSignature();
         if (process.platform == "darwin") {
@@ -168,6 +170,10 @@ export class Updater {
         autoUpdater.on("update-available", (event) => {
             console.log("update-available", [event]);
             this.setAvailableUpdate(event);
+            if (usesPackageManagerUpdates()) {
+                this.status = "manual";
+                return;
+            }
             if (this.status != "ready") {
                 this.status = "downloading";
             }
@@ -355,6 +361,10 @@ export class Updater {
      * Prompts the user to install the downloaded application update and restarts the application
      */
     async promptToInstallUpdate() {
+        if (this.status == "manual") {
+            await this.showPackageUpdateDialog();
+            return;
+        }
         if (this.status == "available" || this.status == "downloading" || this.status == "checking") {
             await this.showUpdateDownloadingMessage();
             return;
@@ -467,6 +477,24 @@ export class Updater {
             message: "GenieTerm could not start the update installer.",
             detail: "The update is still downloaded. Try Restart Now again or install the latest release manually.",
         });
+    }
+
+    async showPackageUpdateDialog() {
+        const version = this.availableUpdateInfo?.version;
+        const releasePageUrl = version ? `${ReleasesUrl}/tag/v${version}` : `${ReleasesUrl}/latest`;
+        const arch = process.arch == "arm64" ? "arm64" : "amd64";
+        const { response } = await dialog.showMessageBox({
+            type: "info",
+            buttons: ["Open Release Page", "Later"],
+            defaultId: 0,
+            cancelId: 1,
+            title: "GenieTerm Update",
+            message: `${this.availableUpdateReleaseName ?? `GenieTerm ${version ?? ""}`.trim()} is available.`,
+            detail: `This copy of GenieTerm was installed with a system package, so it updates the same way: download the new .deb for ${arch} from the release page and open it, or install it with\n\nsudo apt install ./<downloaded .deb>\n\nThe AppImage build updates itself instead.`,
+        });
+        if (response == 0) {
+            await shell.openExternal(releasePageUrl);
+        }
     }
 
     async showManualInstallDialog(reason: string) {

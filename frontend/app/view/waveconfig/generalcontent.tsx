@@ -7,6 +7,7 @@ import iconBlackUrl from "@/app/asset/genieterm-logo-black.png";
 import iconWhiteUrl from "@/app/asset/genieterm-logo-white.png";
 import iconDefaultUrl from "@/app/asset/genieterm-logo.png";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
+import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { useAtomValue } from "jotai";
 import { memo, useId, useState } from "react";
 import { getNotifyAfterOption, NotifyAfterOptions } from "./notifyafter";
@@ -370,7 +371,15 @@ const GeneralSettingsContent = memo(({ model }: { model: WaveConfigViewModel }) 
                     title="Appearance"
                     footer="Terminals and connections can override these in their own settings."
                 >
-                    <SettingsRow id={iconId} label="App icon" description="Choose the icon shown in the Dock.">
+                    <SettingsRow
+                        id={iconId}
+                        label="App icon"
+                        description={
+                            PLATFORM === PlatformMacOS
+                                ? "Choose the icon shown in the Dock."
+                                : "Choose the icon shown in the taskbar and window switcher."
+                        }
+                    >
                         <SettingsSegmented
                             id={iconId}
                             busy={iconBusy}
