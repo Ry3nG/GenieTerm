@@ -50,7 +50,7 @@ task check            # typecheck, lint, format, unit and Go tests, audits, prev
 task check:release    # all of the above, then package the app and verify the build
 ```
 
-CI runs `task check` on every pull request. It also packages and launch-tests the app on Windows and on Linux, including an install of the `.deb` on Ubuntu 24.04. For UI changes, include a before-and-after screenshot in the pull request and check the view at narrow widths too: blocks can be any size.
+CI runs `task check` on every pull request. It also packages and launch-tests the app on Linux, including an install of the `.deb` on Ubuntu 24.04, and runs the Go and Electron main-process tests on Windows. Windows and macOS packaging run after the change lands on `main`. For UI changes, include a before-and-after screenshot in the pull request and check the view at narrow widths too: blocks can be any size.
 
 ## Build a package
 

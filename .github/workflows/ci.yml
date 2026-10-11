@@ -112,7 +112,8 @@ jobs:
               run: npm test -- --run scripts/linux-package.test.mjs
 
             - name: Build Linux AppImage and deb
-              run: task package -- --linux --x64 --publish never
+              # xz (the release default) compresses the deb single-threaded; CI only installs it.
+              run: task package -- --linux --x64 --publish never -c.deb.compression=gz
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   GENIETERM_LINUX_TARGETS: AppImage,deb
@@ -205,20 +206,56 @@ jobs:
                   test ! -e /usr/bin/genieterm
                   test ! -e /etc/apparmor.d/genieterm
 
-    windows-package:
-        name: Windows x64 package
+    windows-tests:
+        name: Windows tests
         runs-on: windows-latest
-        timeout-minutes: 60
+        timeout-minutes: 30
         if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         permissions:
             contents: read
         steps:
-            # Defender scans every file npm, Go, Vite and electron-builder write; on a throwaway runner that
-            # is the slowest part of the job.
-            - name: Turn off Defender real-time scanning
-              shell: pwsh
-              run: Set-MpPreference -DisableRealtimeMonitoring $true
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+              with:
+                  go-version-file: ${{ env.GO_VERSION_FILE }}
+                  cache-dependency-path: go.sum
+
+            - name: Force Git dependencies to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: Install dependencies
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: "echo"
+                  GIT_TERMINAL_PROMPT: "0"
+
+            # The full suite runs in the V1 gate; on Windows only the Electron main process tests take
+            # different paths (file system, transfer transport).
+            - name: Windows Vitest suite (Electron main)
+              run: npm test -- --run emain
+
+            - name: Windows Go test suite
+              run: go test ./...
+
+    windows-package:
+        name: Windows x64 package
+        runs-on: windows-latest
+        timeout-minutes: 60
+        # Like macOS: Windows is an unsigned preview that stable releases don't build, so its packaging runs
+        # on pushes to main and manual runs, off the PR critical path. windows-tests covers PRs.
+        if: github.event_name != 'pull_request'
+        permissions:
+            contents: read
+        steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
             - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -253,18 +290,10 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            # The full suite runs in the V1 gate; on Windows only the Electron main process tests take
-            # different paths (file system, transfer transport).
-            - name: Windows Vitest suite (Electron main)
-              run: npm test -- --run emain
-
-            - name: Windows Go test suite
-              run: go test ./...
-
-            # The installer is what users get and what the smoke installs; the release workflow also builds
-            # the zip.
+            # The installer is what the smoke installs; the release workflow builds the compressed installer
+            # and the zip.
             - name: Build Windows x64 installer
-              run: task package -- --win nsis --x64
+              run: task package -- --win nsis --x64 -c.compression=store
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
