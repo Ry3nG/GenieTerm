@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package secretstore
@@ -278,24 +278,6 @@ func GetSecretNames() ([]string, error) {
 		names = append(names, name)
 	}
 	return names, nil
-}
-
-func CountSecrets() (int, error) {
-	lock.Lock()
-	defer lock.Unlock()
-
-	if !initialized {
-		return 0, fmt.Errorf("secret store not initialized")
-	}
-
-	count := 0
-	for name := range secrets {
-		if name == WriteTsKey {
-			continue
-		}
-		count++
-	}
-	return count, nil
 }
 
 func GetLinuxStorageBackend() (string, error) {

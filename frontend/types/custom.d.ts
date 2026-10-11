@@ -35,13 +35,6 @@ declare global {
         throttledValueAtom: ThrottledValueAtom<T>;
     };
 
-    type DebouncedValueAtom<T> = jotai.WritableAtom<T, [update: jotai.SetStateAction<T>], void>;
-
-    type AtomWithDebounce<T> = {
-        currentValueAtom: jotai.Atom<T>;
-        debouncedValueAtom: DebouncedValueAtom<T>;
-    };
-
     type SplitAtom<Item> = Atom<Atom<Item>[]>;
     type WritableSplitAtom<Item> = WritableAtom<PrimitiveAtom<Item>[], [SplitAtomAction<Item>], void>;
 

@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wcore
@@ -9,7 +9,6 @@ import (
 	"log"
 	"regexp"
 	"strconv"
-	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/eventbus"
 	"github.com/Ry3nG/GenieTerm/pkg/telemetry"
@@ -412,49 +411,4 @@ func ListWorkspaces(ctx context.Context) (waveobj.WorkspaceList, error) {
 		})
 	}
 	return wl, nil
-}
-
-func SetIcon(workspaceId string, icon string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	ws, e := wstore.DBGet[*waveobj.Workspace](ctx, workspaceId)
-	if e != nil {
-		return e
-	}
-	if ws == nil {
-		return fmt.Errorf("workspace not found: %q", workspaceId)
-	}
-	ws.Icon = icon
-	wstore.DBUpdate(ctx, ws)
-	return nil
-}
-
-func SetColor(workspaceId string, color string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	ws, e := wstore.DBGet[*waveobj.Workspace](ctx, workspaceId)
-	if e != nil {
-		return e
-	}
-	if ws == nil {
-		return fmt.Errorf("workspace not found: %q", workspaceId)
-	}
-	ws.Color = color
-	wstore.DBUpdate(ctx, ws)
-	return nil
-}
-
-func SetName(workspaceId string, name string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	ws, e := wstore.DBGet[*waveobj.Workspace](ctx, workspaceId)
-	if e != nil {
-		return e
-	}
-	if ws == nil {
-		return fmt.Errorf("workspace not found: %q", workspaceId)
-	}
-	ws.Name = name
-	wstore.DBUpdate(ctx, ws)
-	return nil
 }

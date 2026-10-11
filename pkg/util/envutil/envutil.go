@@ -1,14 +1,11 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package envutil
 
 import (
-	"fmt"
 	"strings"
 )
-
-const MaxEnvSize = 1024 * 1024
 
 // env format:
 // KEY=VALUE\0
@@ -39,27 +36,6 @@ func MapToEnv(envMap map[string]string) string {
 		sb.WriteByte('\x00')
 	}
 	return sb.String()
-}
-
-func GetEnv(envStr string, key string) string {
-	envMap := EnvToMap(envStr)
-	return envMap[key]
-}
-
-func SetEnv(envStr string, key string, val string) (string, error) {
-	if strings.ContainsAny(key, "=\x00") {
-		return "", fmt.Errorf("key cannot contain '=' or '\\x00'")
-	}
-	if strings.Contains(val, "\x00") {
-		return "", fmt.Errorf("value cannot contain '\\x00'")
-	}
-	if len(key)+len(val)+2+len(envStr) > MaxEnvSize {
-		return "", fmt.Errorf("env string too large (max %d bytes)", MaxEnvSize)
-	}
-	envMap := EnvToMap(envStr)
-	envMap[key] = val
-	rtnStr := MapToEnv(envMap)
-	return rtnStr, nil
 }
 
 func RmEnv(envStr string, key string) string {

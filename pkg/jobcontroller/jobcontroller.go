@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package jobcontroller
@@ -148,23 +148,6 @@ func GetJobManagerStatus(ctx context.Context, jobId string) (string, error) {
 		return JobManagerStatus_Done, nil
 	}
 	return job.JobManagerStatus, nil
-}
-
-func GetAllJobManagerStatus(ctx context.Context) ([]*wshrpc.JobManagerStatusUpdate, error) {
-	allJobs, err := wstore.DBGetAllObjsByType[*waveobj.Job](ctx, waveobj.OType_Job)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get jobs: %w", err)
-	}
-
-	var statuses []*wshrpc.JobManagerStatusUpdate
-	for _, job := range allJobs {
-		statuses = append(statuses, &wshrpc.JobManagerStatusUpdate{
-			JobId:            job.OID,
-			JobManagerStatus: job.JobManagerStatus,
-		})
-	}
-
-	return statuses, nil
 }
 
 func GetBlockJobStatus(ctx context.Context, blockId string) (*wshrpc.BlockJobStatusData, error) {

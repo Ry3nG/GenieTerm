@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package remote
@@ -20,10 +20,8 @@ import (
 
 	"github.com/Ry3nG/GenieTerm/pkg/blocklogger"
 	"github.com/Ry3nG/GenieTerm/pkg/genconn"
-	"github.com/Ry3nG/GenieTerm/pkg/util/iterfn"
 	"github.com/Ry3nG/GenieTerm/pkg/util/shellutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
-	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -282,14 +280,4 @@ func NormalizeConfigPattern(pattern string) string {
 		port = ":" + port
 	}
 	return fmt.Sprintf("%s%s%s", userName, pattern, port)
-}
-
-func ParseProfiles() []string {
-	connfile, cerrs := wconfig.ReadWaveHomeConfigFile(wconfig.ProfilesFile)
-	if len(cerrs) > 0 {
-		log.Printf("error reading config file: %v", cerrs[0])
-		return nil
-	}
-
-	return iterfn.MapKeysToSorted(connfile)
 }

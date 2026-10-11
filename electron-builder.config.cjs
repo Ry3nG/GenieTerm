@@ -78,7 +78,8 @@ const config = {
         ],
         category: "public.app-category.developer-tools",
         ...(macHasDeveloperId ? {} : { identity: "-" }),
-        minimumSystemVersion: "10.15.0",
+        // Electron 38+ (Chromium) no longer runs on macOS 11 or earlier
+        minimumSystemVersion: "12.0.0",
         mergeASARs: true,
         singleArchFiles: "**/dist/bin/wavesrv.*",
         entitlements: "build/entitlements.mac.plist",

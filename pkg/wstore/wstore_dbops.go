@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wstore
@@ -24,11 +24,6 @@ func waveObjTableName(w waveobj.WaveObj) string {
 
 func tableNameFromOType(otype string) string {
 	return "db_" + otype
-}
-
-func tableNameGen[T waveobj.WaveObj]() string {
-	var zeroObj T
-	return tableNameFromOType(zeroObj.GetOType())
 }
 
 func getOTypeGen[T waveobj.WaveObj]() string {
@@ -212,18 +207,6 @@ func DBResolveEasyOID(ctx context.Context, oid string) (*waveobj.ORef, error) {
 		}
 		return nil, ErrNotFound
 	})
-}
-
-func DBSelectMap[T waveobj.WaveObj](ctx context.Context, ids []string) (map[string]T, error) {
-	rtnArr, err := dbSelectOIDs(ctx, getOTypeGen[T](), ids)
-	if err != nil {
-		return nil, err
-	}
-	rtnMap := make(map[string]T)
-	for _, obj := range rtnArr {
-		rtnMap[waveobj.GetOID(obj)] = obj.(T)
-	}
-	return rtnMap, nil
 }
 
 func DBDelete(ctx context.Context, otype string, id string) error {

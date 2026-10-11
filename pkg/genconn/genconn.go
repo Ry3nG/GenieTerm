@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // generic connection code (WSL + SSH)
@@ -116,14 +116,6 @@ func ProcessContextWait(ctx context.Context, proc ShellProcessController) error 
 	case err := <-done:
 		return err
 	}
-}
-
-func MakeStdoutSyncBuffer(proc ShellProcessController) (*syncbuf.SyncBuffer, error) {
-	stdout, err := proc.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get stdout pipe: %w", err)
-	}
-	return syncbuf.MakeSyncBufferFromReader(stdout), nil
 }
 
 func MakeStderrSyncBuffer(proc ShellProcessController) (*syncbuf.SyncBuffer, error) {

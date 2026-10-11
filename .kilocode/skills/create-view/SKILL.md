@@ -1,15 +1,15 @@
 ---
 name: create-view
-description: Guide for implementing a new view type in Wave Terminal. Use when creating a new view component, implementing the ViewModel interface, registering a new view type in BlockRegistry, or adding a new content type to display within blocks.
+description: Guide for implementing a new view type in GenieTerm. Use when creating a new view component, implementing the ViewModel interface, registering a new view type in BlockRegistry, or adding a new content type to display within blocks.
 ---
 
-# Creating a New View in Wave Terminal
+# Creating a New View in GenieTerm
 
-This guide explains how to implement a new view type in Wave Terminal. Views are the core content components displayed within blocks in the terminal interface.
+This guide explains how to implement a new view type in GenieTerm. Views are the core content components displayed within blocks in the terminal interface.
 
 ## Architecture Overview
 
-Wave Terminal uses a **Model-View architecture** where:
+GenieTerm uses a **Model-View architecture** where:
 
 - **ViewModel** - Contains all state, logic, and UI configuration as Jotai atoms
 - **ViewComponent** - Pure React component that renders the UI using the model

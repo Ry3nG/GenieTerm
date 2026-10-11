@@ -1,10 +1,9 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package remote
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -498,15 +497,6 @@ func promptChallengeQuestion(connCtx context.Context, question string, echo bool
 	return response.Text, nil
 }
 
-func openKnownHostsForEdit(knownHostsFilename string) (*os.File, error) {
-	path, _ := filepath.Split(knownHostsFilename)
-	err := os.MkdirAll(path, 0700)
-	if err != nil {
-		return nil, err
-	}
-	return os.OpenFile(knownHostsFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-}
-
 func writeToKnownHosts(knownHostsFile string, newLine string, getUserVerification func() (*userinput.UserInputResponse, error)) error {
 	if getUserVerification == nil {
 		getUserVerification = func() (*userinput.UserInputResponse, error) {
@@ -606,15 +596,6 @@ func createMissingKnownHostsVerifier(knownHostsFile string, hostname string, rem
 		}
 		return resp, nil
 	}
-}
-
-func lineContainsMatch(line []byte, matches [][]byte) bool {
-	for _, match := range matches {
-		if bytes.Contains(line, match) {
-			return true
-		}
-	}
-	return false
 }
 
 func createHostKeyCallback(ctx context.Context, sshKeywords *wconfig.ConnKeywords) (ssh.HostKeyCallback, HostKeyAlgorithms, error) {

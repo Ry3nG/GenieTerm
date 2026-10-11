@@ -1,11 +1,7 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package utilfn
-
-import (
-	"encoding/json"
-)
 
 type stackItem int
 
@@ -162,14 +158,4 @@ func repairJson(data []byte) []byte {
 		}
 	}
 	return result
-}
-
-func ParsePartialJson(data []byte) (any, error) {
-	fixedData := repairJson(data)
-	var output any
-	err := json.Unmarshal(fixedData, &output)
-	if err != nil {
-		return nil, err
-	}
-	return output, nil
 }

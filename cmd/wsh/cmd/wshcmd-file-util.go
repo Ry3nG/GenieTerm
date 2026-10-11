@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/fs"
@@ -46,48 +45,6 @@ func ensureFile(fileData wshrpc.FileData) (*wshrpc.FileInfo, error) {
 		return nil, fmt.Errorf("getting file info: %w", err)
 	}
 	return info, nil
-}
-
-func streamWriteToFile(fileData wshrpc.FileData, reader io.Reader) error {
-	// First truncate the file with an empty write
-	emptyWrite := fileData
-	emptyWrite.Data64 = ""
-	err := wshclient.FileWriteCommand(RpcClient, emptyWrite, &wshrpc.RpcOpts{Timeout: fileTimeout})
-	if err != nil {
-		return fmt.Errorf("initializing file with empty write: %w", err)
-	}
-
-	const chunkSize = wshrpc.FileChunkSize // 32KB chunks
-	buf := make([]byte, chunkSize)
-	totalWritten := int64(0)
-
-	for {
-		n, err := reader.Read(buf)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("reading input: %w", err)
-		}
-
-		// Check total size
-		totalWritten += int64(n)
-		if totalWritten > MaxFileSize {
-			return fmt.Errorf("input exceeds maximum file size of %d bytes", MaxFileSize)
-		}
-
-		// Prepare and send chunk
-		chunk := buf[:n]
-		appendData := fileData
-		appendData.Data64 = base64.StdEncoding.EncodeToString(chunk)
-
-		err = wshclient.FileAppendCommand(RpcClient, appendData, &wshrpc.RpcOpts{Timeout: int64(fileTimeout)})
-		if err != nil {
-			return fmt.Errorf("appending chunk to file: %w", err)
-		}
-	}
-
-	return nil
 }
 
 func streamReadFromFile(ctx context.Context, fileData wshrpc.FileData, writer io.Writer) error {

@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package ds
@@ -40,16 +40,6 @@ func (sm *SyncMap[T]) Delete(key string) {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 	delete(sm.m, key)
-}
-
-func (sm *SyncMap[T]) SetUnless(key string, value T) bool {
-	sm.lock.Lock()
-	defer sm.lock.Unlock()
-	if _, exists := sm.m[key]; exists {
-		return false
-	}
-	sm.m[key] = value
-	return true
 }
 
 func (sm *SyncMap[T]) TestAndSet(key string, newValue T, testFn func(T, bool) bool) bool {

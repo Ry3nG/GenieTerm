@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { loadMonaco } from "@/app/monaco/monaco-env";
@@ -112,87 +112,6 @@ export function MonacoCodeEditor({ text, readonly, language, onChange, onMount, 
         if (!model || !language) return;
         monaco.editor.setModelLanguage(model, language);
     }, [language]);
-
-    return <div className="flex flex-col h-full w-full" ref={divRef} />;
-}
-
-type DiffViewerProps = {
-    original: string;
-    modified: string;
-    language?: string;
-    path: string;
-    options: MonacoTypes.editor.IDiffEditorOptions;
-};
-
-export function MonacoDiffViewer({ original, modified, language, path, options }: DiffViewerProps) {
-    const divRef = useRef<HTMLDivElement>(null);
-    const diffRef = useRef<MonacoTypes.editor.IStandaloneDiffEditor | null>(null);
-
-    // Create once
-    useEffect(() => {
-        loadMonaco();
-
-        const el = divRef.current;
-        if (!el) return;
-
-        const origUri = monaco.Uri.parse(`wave://diff/${encodeURIComponent(path)}.orig`);
-        const modUri = monaco.Uri.parse(`wave://diff/${encodeURIComponent(path)}.mod`);
-
-        const originalModel = monaco.editor.createModel(original, language, origUri);
-        const modifiedModel = monaco.editor.createModel(modified, language, modUri);
-
-        const diff = monaco.editor.createDiffEditor(el, options);
-        diffRef.current = diff;
-
-        diff.setModel({ original: originalModel, modified: modifiedModel });
-
-        return () => {
-            diff.setModel(null);
-            diff.dispose();
-            originalModel.dispose();
-            modifiedModel.dispose();
-            diffRef.current = null;
-        };
-    }, []);
-
-    useEffect(() => {
-        const diff = diffRef.current;
-        const el = divRef.current;
-        if (!diff || !el) return;
-
-        const debouncedLayout = debounce(100, () => {
-            diff.layout();
-        });
-        const resizeObserver = new ResizeObserver(debouncedLayout);
-        resizeObserver.observe(el);
-
-        return () => {
-            resizeObserver.disconnect();
-            debouncedLayout.cancel();
-        };
-    }, []);
-
-    // Update models on prop change
-    useEffect(() => {
-        const diff = diffRef.current;
-        if (!diff) return;
-        const model = diff.getModel();
-        if (!model) return;
-
-        if (model.original.getValue() !== original) model.original.setValue(original);
-        if (model.modified.getValue() !== modified) model.modified.setValue(modified);
-
-        if (language) {
-            monaco.editor.setModelLanguage(model.original, language);
-            monaco.editor.setModelLanguage(model.modified, language);
-        }
-    }, [original, modified, language]);
-
-    useEffect(() => {
-        const diff = diffRef.current;
-        if (!diff) return;
-        diff.updateOptions(options);
-    }, [options]);
 
     return <div className="flex flex-col h-full w-full" ref={divRef} />;
 }

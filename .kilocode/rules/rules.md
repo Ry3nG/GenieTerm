@@ -82,7 +82,7 @@ The full API is defined in custom.d.ts as type ElectronApi.
 ### Notes
 
 - **CRITICAL: Completion format MUST be: "Done: [one-line description]"**
-- After completing a code change or bug fix, commit and push unless explicitly told not to. Bump the version only when preparing a release (tags must match `package.json`; see RELEASES.md).
+- After completing a code change or bug fix, commit and push unless explicitly told not to. Bump the version only when preparing a release (tags must match `package.json`; see docs/releasing.md).
 - **Keep your Task Completed summaries VERY short**
 - **No lengthy pre-completion summaries** - Do not provide detailed explanations of implementation before using attempt_completion
 - **No recaps of changes** - Skip explaining what was done before completion
