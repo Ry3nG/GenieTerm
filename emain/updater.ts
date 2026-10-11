@@ -1,11 +1,12 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { app, dialog, ipcMain, Notification, shell } from "electron";
+import { app, dialog, ipcMain, net, Notification, shell } from "electron";
 import type { UpdateDownloadedEvent, UpdateInfo } from "electron-updater";
 import { autoUpdater } from "electron-updater";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
+import semver from "semver";
 import YAML from "yaml";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { isDev } from "../frontend/util/isdev";
@@ -27,6 +28,7 @@ import { formatReleaseNotes } from "./update-release-notes";
 import { usesPackageManagerUpdates } from "./updater-platform";
 
 const ReleasesUrl = "https://github.com/Ry3nG/GenieTerm/releases";
+const UpdateFeedUrl = "https://github.com/Ry3nG/GenieTerm/releases/latest/download/";
 const ChannelFileNotFoundCode = "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND";
 
 export let updater: Updater;
@@ -49,7 +51,10 @@ async function checkMacDeveloperIdSignature(): Promise<boolean> {
 
 function getUpdateChannel(settings: SettingsType): string {
     const updaterConfigPath = path.join(process.resourcesPath!, "app-update.yml");
-    const updaterConfig = YAML.parse(readFileSync(updaterConfigPath, { encoding: "utf8" }).toString());
+    // package-managed Linux builds ship without updater config; they follow the stable feed
+    const updaterConfig = existsSync(updaterConfigPath)
+        ? YAML.parse(readFileSync(updaterConfigPath, { encoding: "utf8" }).toString())
+        : {};
     console.log("Updater config from binary:", updaterConfig);
     const updaterChannel: string = updaterConfig.channel ?? "latest";
     const settingsChannel = settings["autoupdate:channel"];
@@ -170,10 +175,6 @@ export class Updater {
         autoUpdater.on("update-available", (event) => {
             console.log("update-available", [event]);
             this.setAvailableUpdate(event);
-            if (usesPackageManagerUpdates()) {
-                this.status = "manual";
-                return;
-            }
             if (this.status != "ready") {
                 this.status = "downloading";
             }
@@ -235,6 +236,29 @@ export class Updater {
         });
     }
 
+    // .deb installs only need to know a newer version exists; the AppImage manifest for this
+    // architecture carries the released version
+    async checkPackageFeed(): Promise<{ isUpdateAvailable: boolean }> {
+        if (this.status != "manual") {
+            this.status = "checking";
+        }
+        const manifest = process.arch == "arm64" ? "latest-linux-arm64.yml" : "latest-linux.yml";
+        const resp = await net.fetch(UpdateFeedUrl + manifest);
+        if (!resp.ok) {
+            throw new Error(`update feed returned ${resp.status} for ${manifest}`);
+        }
+        const info = YAML.parse(await resp.text()) as UpdateInfo;
+        const current = app.getVersion();
+        const isUpdateAvailable = semver.valid(info?.version) != null && semver.gt(info.version, current);
+        if (!isUpdateAvailable) {
+            this.status = "up-to-date";
+            return { isUpdateAvailable };
+        }
+        this.setAvailableUpdate(info);
+        this.status = "manual";
+        return { isUpdateAvailable };
+    }
+
     private setAvailableUpdate(updateInfo: UpdateInfo) {
         this.availableUpdateInfo = updateInfo;
         this.availableUpdateReleaseName = updateInfo.releaseName ?? `GenieTerm ${updateInfo.version}`;
@@ -270,6 +294,10 @@ export class Updater {
      * @param userInput Whether the user is requesting this. If so, an alert will report the result of the check.
      */
     async checkForUpdates(userInput: boolean) {
+        if (userInput && this.status == "manual") {
+            await this.showPackageUpdateDialog();
+            return;
+        }
         if (userInput && this.status == "ready") {
             await this.promptToInstallUpdate();
             return;
@@ -287,9 +315,11 @@ export class Updater {
             (this.autoCheckInterval &&
                 (!this.lastUpdateCheck || Math.abs(now.getTime() - this.lastUpdateCheck.getTime()) > this.intervalms))
         ) {
-            let result: Awaited<ReturnType<typeof autoUpdater.checkForUpdates>>;
+            let result: { isUpdateAvailable: boolean };
             try {
-                result = await autoUpdater.checkForUpdates();
+                result = usesPackageManagerUpdates()
+                    ? await this.checkPackageFeed()
+                    : await autoUpdater.checkForUpdates();
             } catch (error) {
                 if (!isChannelFileNotFoundError(error)) {
                     throw error;
@@ -312,7 +342,7 @@ export class Updater {
                 }
             }
             if (userInput && result?.isUpdateAvailable) {
-                if (this.status == "ready") {
+                if (this.status == "ready" || this.status == "manual") {
                     await this.promptToInstallUpdate();
                 } else {
                     await this.showUpdateDownloadingMessage();
