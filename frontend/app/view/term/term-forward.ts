@@ -171,7 +171,9 @@ export class LocalUrlScanner {
 export class TermForwardModel {
     host: TermForwardHost;
     offerAtom = jotai.atom(null) as jotai.PrimitiveAtom<ForwardOffer>;
-    dismissed = new Set<string>();
+    // key → the command run it was dismissed for; null when the shell doesn't report
+    // commands, which keeps that port quiet for the life of the terminal
+    dismissed = new Map<string, number | null>();
     pendingTimer: ReturnType<typeof setTimeout> = null;
     hideTimer: ReturnType<typeof setTimeout> = null;
     epoch = 0;
@@ -194,7 +196,8 @@ export class TermForwardModel {
         }
         const url = urls[urls.length - 1];
         const key = `${connName}|${url.remoteHost}|${url.port}`;
-        if (this.dismissed.has(key)) {
+        const blockId = this.host.getRunningCmdBlockId();
+        if (blockId === null || this.isDismissed(key, blockId)) {
             return;
         }
         const current = this.getOffer();
@@ -205,10 +208,6 @@ export class TermForwardModel {
             return;
         }
         if (current != null && current.status === "busy") {
-            return;
-        }
-        const blockId = this.host.getRunningCmdBlockId();
-        if (blockId === null) {
             return;
         }
         this.clearPending();
@@ -239,16 +238,27 @@ export class TermForwardModel {
         });
     }
 
-    // The command that printed the URL has exited, so whatever it served is gone.
+    isDismissed(key: string, blockId: number | undefined): boolean {
+        if (!this.dismissed.has(key)) {
+            return false;
+        }
+        const dismissedFor = this.dismissed.get(key);
+        return dismissedFor == null || dismissedFor === blockId;
+    }
+
+    // The command that printed the URL has exited, so whatever it served is gone. A forward
+    // it left behind stays in Host.
     noteRunningCmdBlock(runningBlockId: number | null | undefined) {
+        for (const [key, blockId] of this.dismissed) {
+            if (blockId != null && blockId !== runningBlockId) {
+                this.dismissed.delete(key);
+            }
+        }
         const offer = this.getOffer();
         if (offer == null || offer.blockId == null || offer.status === "busy") {
             return;
         }
         if (runningBlockId === offer.blockId) {
-            return;
-        }
-        if (offer.status === "forwarded") {
             return;
         }
         this.clear();
@@ -324,7 +334,7 @@ export class TermForwardModel {
     dismiss() {
         const offer = this.getOffer();
         if (offer != null) {
-            this.dismissed.add(offer.key);
+            this.dismissed.set(offer.key, offer.blockId);
         }
         this.clear();
     }
@@ -333,21 +343,21 @@ export class TermForwardModel {
         this.clearHide();
         this.hideTimer = setTimeout(() => {
             this.hideTimer = null;
-            if (this.getOffer()?.key === key) {
-                this.dismissed.add(key);
+            const offer = this.getOffer();
+            if (offer?.key === key) {
+                this.dismissed.set(key, offer.blockId);
                 this.clear();
             }
         }, ForwardedHideMs);
     }
 
-    // hovering the offer keeps it on screen
     holdHide() {
         this.clearHide();
     }
 
     resumeHide() {
         const offer = this.getOffer();
-        if (offer?.status === "forwarded" && this.hideTimer == null && this.dismissed.has(offer.key) === false) {
+        if (offer?.status === "forwarded" && this.hideTimer == null && !this.dismissed.has(offer.key)) {
             this.scheduleHide(offer.key);
         }
     }

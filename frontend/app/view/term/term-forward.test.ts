@@ -208,6 +208,44 @@ describe("TermForwardModel", () => {
         expect(m.getOffer()).toBeNull();
     });
 
+    it("offers a dismissed port again when a new command serves it", async () => {
+        const { host, state } = makeHost();
+        const m = new TermForwardModel(host);
+        m.noteUrls([parseLocalUrl("http://localhost:6006/")]);
+        await vi.advanceTimersByTimeAsync(1000);
+        m.dismiss();
+        state.running = null;
+        m.noteRunningCmdBlock(null);
+        state.running = 8;
+        m.noteUrls([parseLocalUrl("http://localhost:6006/")]);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(m.getOffer()).toMatchObject({ status: "offer", blockId: 8 });
+    });
+
+    it("clears a reused forward's offer when its server exits", async () => {
+        const { host, state } = makeHost({
+            listForwards: vi.fn(async () => [
+                {
+                    id: "f0",
+                    connname: "me@gpu-box",
+                    remotehost: "127.0.0.1",
+                    remoteport: 6006,
+                    localport: 6006,
+                    status: "active",
+                    activeconns: 0,
+                    createdts: 0,
+                },
+            ]),
+        });
+        const m = new TermForwardModel(host);
+        m.noteUrls([parseLocalUrl("http://localhost:6006/")]);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(m.getOffer()?.status).toBe("forwarded");
+        state.running = null;
+        m.noteRunningCmdBlock(null);
+        expect(m.getOffer()).toBeNull();
+    });
+
     it("shows the error and lets you retry", async () => {
         const { host } = makeHost({
             startForward: vi.fn(async () => {
