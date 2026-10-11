@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { computeConnColorNum } from "@/app/block/blockutil";
+import { OnboardingAnchor } from "@/app/onboarding/onboarding-events";
 import { recordTEvent } from "@/app/store/global";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { IconButton } from "@/element/iconbutton";
@@ -117,6 +118,7 @@ export const ConnectionButton = React.memo(
                 <>
                     <div
                         ref={ref}
+                        data-onboarding={OnboardingAnchor.ConnectionButton}
                         className="group flex items-center flex-nowrap overflow-hidden text-ellipsis min-w-0 font-normal text-primary rounded-sm hover:bg-highlightbg cursor-pointer"
                         onClick={clickHandler}
                         title={titleText}

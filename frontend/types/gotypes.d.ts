@@ -1181,6 +1181,9 @@ declare global {
         "vdom:persist"?: boolean;
         "onboarding:githubstar"?: boolean;
         "onboarding:lastversion"?: string;
+        "onboarding:quickstart"?: string;
+        "onboarding:quickstartstep"?: string;
+        "onboarding:tips"?: string[];
         count?: number;
     };
 

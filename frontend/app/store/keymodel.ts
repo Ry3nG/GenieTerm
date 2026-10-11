@@ -686,6 +686,12 @@ function getAppCommands(): CommandPaletteCommand[] {
         makePaletteCommand("app:clear-tab-cache", "Clear Tab Cache", () => getApi().clearTabCache()),
         makePaletteCommand("app:relaunch-all-windows", "Relaunch All Windows", () => getApi().relaunchAllWindows()),
         makePaletteCommand("app:check-for-updates", "Check for Updates", () => getApi().checkForUpdates()),
+        makePaletteCommand("app:quick-start", "Quick Start", () =>
+            fireAndForget(async () => {
+                const { OnboardingModel } = await import("@/app/onboarding/onboarding-model");
+                OnboardingModel.getInstance().startFromPalette();
+            })
+        ),
         makePaletteCommand("app:about", "About GenieTerm", () => modalsModel.pushModal("AboutModal")),
         makePaletteCommand("app:settings", "Settings", () => modalsModel.pushModal("SettingsModal")),
         makePaletteCommand("app:keybindings-editor", "Keyboard Shortcuts", () =>

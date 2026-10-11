@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
+import { emitOnboardingEvent } from "@/app/onboarding/onboarding-events";
 import { setBadge } from "@/app/store/badge";
 import { getLocalHomeDir } from "@/app/store/localhome";
 import { getTabModelByTabId } from "@/app/store/tab-model";
@@ -1402,6 +1403,15 @@ export class TermWrap {
         }
         if (!replaying) {
             this.cmdBlocksCacheDirty = true;
+            if (blockHasCommand(block)) {
+                emitOnboardingEvent({
+                    type: "command-done",
+                    blockId: this.blockId,
+                    cmdBlockId: String(block.id),
+                    command: block.command,
+                    exitCode: exitCode ?? -1,
+                });
+            }
             if (canNotify) {
                 this.notifyCommandDone(block);
             }

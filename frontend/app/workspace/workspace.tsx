@@ -4,6 +4,7 @@
 import { ErrorBoundary } from "@/app/element/errorboundary";
 import { CenteredDiv } from "@/app/element/quickelems";
 import { ModalsRenderer } from "@/app/modals/modalsrenderer";
+import { OnboardingGuideLayer } from "@/app/onboarding/onboarding-quickstart";
 import { TabBar } from "@/app/tab/tabbar";
 import { TabPaneStack } from "@/app/tab/tabpanestack";
 import { VTabBar } from "@/app/tab/vtabbar";
@@ -122,6 +123,7 @@ const WorkspaceElem = memo(() => {
                         </Panel>
                     </PanelGroup>
                     <ModalsRenderer />
+                    <OnboardingGuideLayer />
                 </ErrorBoundary>
             </div>
         </div>

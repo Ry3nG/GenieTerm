@@ -71,3 +71,4 @@ GenieTerm is a soft fork of Wave Terminal. Internal `Wave*`, `wshrpc`, `WAVETERM
 - Shell markers and semantic command history: [Shell integration](shell-integration.md).
 - Renderer caching and durable output invariants: [Performance](performance.md).
 - Engines, privacy and the risk classifier behind Command AI: [Command AI](command-ai.md).
+- Welcome, Quick Start and one-time tips: [Onboarding](onboarding.md).

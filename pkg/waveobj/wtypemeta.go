@@ -131,8 +131,11 @@ type MetaTSType struct {
 	VDomRoute         string `json:"vdom:route,omitempty"`
 	VDomPersist       bool   `json:"vdom:persist,omitempty"`
 
-	OnboardingGithubStar  bool   `json:"onboarding:githubstar,omitempty"`  // for client
-	OnboardingLastVersion string `json:"onboarding:lastversion,omitempty"` // for client (tracks semver of last 'onboarding' shown)
+	OnboardingGithubStar     bool     `json:"onboarding:githubstar,omitempty"`     // for client
+	OnboardingLastVersion    string   `json:"onboarding:lastversion,omitempty"`    // for client (tracks semver of last 'onboarding' shown)
+	OnboardingQuickStart     string   `json:"onboarding:quickstart,omitempty"`     // for client (active|done|dismissed)
+	OnboardingQuickStartStep string   `json:"onboarding:quickstartstep,omitempty"` // for client
+	OnboardingTips           []string `json:"onboarding:tips,omitempty"`           // for client
 
 	Count int `json:"count,omitempty"` // temp for cpu plot. will remove later
 }

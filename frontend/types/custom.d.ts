@@ -204,6 +204,7 @@ declare global {
 
     type IconButtonDecl = IconButtonCommon & {
         elemtype: "iconbutton";
+        dataOnboarding?: string;
         click?: (e: React.MouseEvent<any>) => void;
         longClick?: (e: React.MouseEvent<any>) => void;
     };
@@ -223,6 +224,7 @@ declare global {
 
     type HeaderText = {
         elemtype: "text";
+        dataOnboarding?: string;
         text: string;
         ref?: React.RefObject<HTMLDivElement>;
         className?: string;

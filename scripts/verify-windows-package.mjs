@@ -209,10 +209,11 @@ async function windowSmoke(executablePath) {
             .isVisible()
             .catch(() => false))
         ) {
-          await candidate.getByRole("button", { name: "Continue", exact: true }).click();
-          const skipTour = candidate.getByRole("button", { name: "Skip tour", exact: true });
-          await skipTour.waitFor({ state: "visible", timeout: 15000 });
-          await skipTour.click();
+          // "Skip" agrees to the terms and closes the welcome without starting Quick Start
+          await candidate.getByRole("button", { name: "Skip", exact: true }).click();
+          await candidate
+            .getByText("Welcome to GenieTerm", { exact: true })
+            .waitFor({ state: "hidden", timeout: 15000 });
           onboardingCompleted.add(candidate);
           console.log(`[${Scope}] completed isolated first-run onboarding`);
         }
@@ -251,7 +252,13 @@ async function windowSmoke(executablePath) {
       }
     });
     page.on("requestfailed", (request) => {
-      errors.push(`request failed: ${request.url()} ${request.failure()?.errorText || ""}`);
+      const errorText = request.failure()?.errorText || "";
+      // a fresh profile has no terminal cache yet: /wave/file answers 204 and the renderer drops
+      // the empty response, which Chromium reports as aborted
+      if (errorText.includes("ERR_ABORTED") && request.url().includes("/wave/file?")) {
+        return;
+      }
+      errors.push(`request failed: ${request.url()} ${errorText}`);
     });
     await page.waitForLoadState("domcontentloaded", { timeout: 30000 });
     await page.locator(".term-connectelem").first().waitFor({ state: "visible", timeout: 10000 });

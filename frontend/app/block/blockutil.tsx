@@ -217,7 +217,11 @@ export const HeaderTextElem = React.memo(({ elem, preview }: { elem: HeaderElem;
                 })}
                 title={elem.title}
             >
-                <span ref={preview ? null : elem.ref} onClick={(e) => elem.onClick?.(e)}>
+                <span
+                    ref={preview ? null : elem.ref}
+                    data-onboarding={elem.dataOnboarding}
+                    onClick={(e) => elem.onClick?.(e)}
+                >
                     &lrm;{elem.text}
                 </span>
             </div>

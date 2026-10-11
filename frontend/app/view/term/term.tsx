@@ -6,6 +6,7 @@ import { SubBlock } from "@/app/block/block";
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { NullErrorBoundary } from "@/app/element/errorboundary";
 import { Search, useSearch } from "@/app/element/search";
+import { OnboardingAnchor } from "@/app/onboarding/onboarding-events";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getLocalHomeDir } from "@/app/store/localhome";
@@ -456,7 +457,11 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
             : getCommandRunBlockedReason(activeBlock.command, { shellIntegrationStatus, altScreenActive });
 
     return (
-        <div className={`term-command-action-bar is-${status.tone}`} aria-label="Command actions">
+        <div
+            className={`term-command-action-bar is-${status.tone}`}
+            aria-label="Command actions"
+            data-onboarding={OnboardingAnchor.CommandActionBar}
+        >
             <div className="term-command-action-status" title={status.label}>
                 <i className={status.iconClass} aria-hidden="true" />
             </div>
@@ -517,6 +522,7 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                         type="button"
                         className="term-command-action-btn cursor-pointer"
                         title={aiTask === "fix" ? "Fix with AI" : "Explain with AI"}
+                        data-onboarding={OnboardingAnchor.BlockAiButton}
                         aria-label={aiTask === "fix" ? "Fix with AI" : "Explain with AI"}
                         onMouseDown={preventButtonFocus}
                         onClick={askCommandAi}

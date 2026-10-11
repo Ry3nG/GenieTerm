@@ -82,7 +82,7 @@ describe("Wave AI chat retirement", () => {
 
     it("does not promote retired AI or local model setup in current onboarding", () => {
         const onboardingFiles = [
-            "onboarding/onboarding-features.tsx",
+            "onboarding/onboarding-quickstart.tsx",
             "onboarding/onboarding-upgrade.tsx",
             "onboarding/onboarding.tsx",
         ];
@@ -111,14 +111,12 @@ describe("Wave AI chat retirement", () => {
         }
     });
 
-    it("teaches command blocks and genie, not Wave magnify or wsh copy", () => {
-        const features = readAppFile("onboarding/onboarding-features.tsx");
+    it("teaches command blocks, not Wave magnify or wsh copy", () => {
+        const quickStart = readAppFile("onboarding/onboarding-quickstart.tsx");
 
-        expect(features).toContain("Command Blocks");
-        expect(features).toContain("genie view [filename]");
-        expect(features).toContain("genie edit [filename]");
-        expect(features).not.toContain("Magnify Blocks");
-        expect(features).not.toContain("wsh view");
-        expect(features).not.toContain("wsh edit");
+        expect(quickStart).toContain("That's a command block");
+        expect(quickStart).not.toContain("Magnify Blocks");
+        expect(quickStart).not.toContain("wsh view");
+        expect(quickStart).not.toContain("wsh edit");
     });
 });

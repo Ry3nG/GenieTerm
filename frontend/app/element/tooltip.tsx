@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { cn } from "@/util/util";
@@ -22,6 +22,7 @@ interface TooltipProps {
     disable?: boolean;
     openDelay?: number;
     divClassName?: string;
+    divDataAttributes?: Record<`data-${string}`, string>;
     divStyle?: React.CSSProperties;
     divOnClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
     divRef?: React.RefObject<HTMLDivElement>;
@@ -35,6 +36,7 @@ function TooltipInner({
     forceOpen = false,
     openDelay = 300,
     divClassName,
+    divDataAttributes,
     divStyle,
     divOnClick,
     divRef,
@@ -145,6 +147,7 @@ function TooltipInner({
                     }
                 }}
                 {...getReferenceProps({ onClick: handleClick, onPointerEnter: handlePointerEnter })}
+                {...divDataAttributes}
                 className={divClassName}
                 style={divStyle}
             >
@@ -180,6 +183,7 @@ export function Tooltip({
     disable = false,
     openDelay = 300,
     divClassName,
+    divDataAttributes,
     divStyle,
     divOnClick,
     divRef,
@@ -187,7 +191,7 @@ export function Tooltip({
 }: TooltipProps) {
     if (disable) {
         return (
-            <div ref={divRef} className={divClassName} style={divStyle} onClick={divOnClick}>
+            <div ref={divRef} className={divClassName} style={divStyle} onClick={divOnClick} {...divDataAttributes}>
                 {children}
             </div>
         );
@@ -201,6 +205,7 @@ export function Tooltip({
             forceOpen={forceOpen}
             openDelay={openDelay}
             divClassName={divClassName}
+            divDataAttributes={divDataAttributes}
             divStyle={divStyle}
             divOnClick={divOnClick}
             divRef={divRef}

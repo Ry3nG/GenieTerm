@@ -3,6 +3,7 @@
 
 import type { BlockStatusActionId, TerminalBlockStatusInputs } from "@/app/block/blockstatus";
 import { BlockNodeModel } from "@/app/block/blocktypes";
+import { emitOnboardingEvent, OnboardingAnchor } from "@/app/onboarding/onboarding-events";
 import { appHandleKeyDown } from "@/app/store/keymodel";
 import { getLocalHomeDir } from "@/app/store/localhome";
 import { modalsModel } from "@/app/store/modalmodel";
@@ -209,6 +210,7 @@ export class TermViewModel implements ViewModel {
                         text: cwdLabel,
                         noGrow: true,
                         className: "term-cwd-link",
+                        dataOnboarding: OnboardingAnchor.CwdLink,
                         title: "Open this folder in Files",
                         onClick: () => this.openCwdInFiles(),
                     });
@@ -503,6 +505,7 @@ export class TermViewModel implements ViewModel {
             icon: "wand-magic-sparkles",
             className: "text-muted hover:text-accent",
             title: `Command AI (${formatCommandAiShortcut(isMacOS())})`,
+            dataOnboarding: OnboardingAnchor.CommandAiButton,
             click: () => {
                 this.openCommandComposer();
             },
@@ -803,7 +806,10 @@ export class TermViewModel implements ViewModel {
         if (!isLocalConnName(meta?.connection)) {
             blockMeta.connection = meta.connection;
         }
-        fireAndForget(() => createBlock({ meta: blockMeta }));
+        fireAndForget(async () => {
+            const filesBlockId = await createBlock({ meta: blockMeta });
+            emitOnboardingEvent({ type: "cwd-files-opened", blockId: this.blockId, filesBlockId });
+        });
     }
 
     scheduleGitRefresh(delayMs = 300) {

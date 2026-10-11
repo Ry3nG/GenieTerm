@@ -7,13 +7,14 @@ import { CurrentOnboardingVersion, isOnboardingCurrent } from "./onboarding-comm
 describe("isOnboardingCurrent", () => {
     it("treats the current GenieTerm onboarding version as done", () => {
         expect(isOnboardingCurrent(CurrentOnboardingVersion)).toBe(true);
-        expect(isOnboardingCurrent("v1.2.0")).toBe(true);
         expect(isOnboardingCurrent("v1.3.0")).toBe(true);
+        expect(isOnboardingCurrent("v1.3.2")).toBe(true);
     });
 
-    it("shows what's new to people updating from 1.0 and 1.1", () => {
+    it("offers Quick Start to people updating from 1.0 through 1.2", () => {
         expect(isOnboardingCurrent("v1.0.0")).toBe(false);
         expect(isOnboardingCurrent("v1.1.0")).toBe(false);
+        expect(isOnboardingCurrent("v1.2.0")).toBe(false);
     });
 
     it("treats Wave-era leftover lastversion values as already onboarded", () => {

@@ -1,8 +1,9 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { computeConnColorNum } from "@/app/block/blockutil";
 import { TypeAheadModal } from "@/app/modals/typeaheadmodal";
+import { emitOnboardingEvent } from "@/app/onboarding/onboarding-events";
 import { ConnectionsModel } from "@/app/store/connections-model";
 import {
     atoms,
@@ -443,6 +444,9 @@ const ChangeConnectionBlockModal = React.memo(
                         { connname: connName, logblockid: blockId },
                         { timeout: 60000 }
                     );
+                    if (!util.isLocalConnName(connName)) {
+                        emitOnboardingEvent({ type: "connection-ready", blockId, connection: connName });
+                    }
                 } catch (e) {
                     console.log("error connecting", blockId, connName, e);
                 }
