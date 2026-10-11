@@ -27,11 +27,11 @@ def key_click(kind="key", pan=0.0):
     n = int(0.09 * SR)
     t = np.arange(n) / SR
     pitch = 1 + rng.uniform(-0.04, 0.04)
-    tick = bandnoise(n, 3000 * pitch, 6500 * pitch) * np.exp(-t / 0.0025)
+    tick = bandnoise(n, 2400 * pitch, 4800 * pitch) * np.exp(-t / 0.002)
     body = bandnoise(n, 1300 * pitch, 2100 * pitch, order=3) * np.exp(-t / 0.018)
     f_thock = (140 if kind == "enter" else 220) * pitch
     thock = np.sin(2 * np.pi * f_thock * t) * np.exp(-t / (0.06 if kind == "enter" else 0.03))
-    y = 0.55 * tick + 0.9 * body + (0.6 if kind == "enter" else 0.32) * thock
+    y = 0.3 * tick + 0.9 * body + (0.6 if kind == "enter" else 0.32) * thock
     y *= 10 ** (rng.uniform(-1.5, 1.5) / 20)
     if kind == "enter":
         y *= 1.3
@@ -58,7 +58,7 @@ def whoosh(dur=0.5, up=True, peak=0.62):
 def ui_click():
     n = int(0.05 * SR)
     t = np.arange(n) / SR
-    return bandnoise(n, 2000, 7000) * np.exp(-t / 0.004) * 0.6 + np.sin(2 * np.pi * 1600 * t) * np.exp(-t / 0.01) * 0.2
+    return bandnoise(n, 1400, 4200) * np.exp(-t / 0.004) * 0.45 + np.sin(2 * np.pi * 900 * t) * np.exp(-t / 0.012) * 0.25
 
 
 def fm_note(freq, dur=1.6, index=2.0, ratio=2.0):
@@ -104,14 +104,14 @@ def render(cues, seconds):
         g = 10 ** (c.get("db", 0) / 20)
         if kind in ("key", "enter"):
             sig, _ = key_click(kind)
-            place(buf, sig, f, 0.22 * g, c.get("pan", 0.0))
+            place(buf, sig, f, 0.15 * g, c.get("pan", 0.0))
         elif kind == "whoosh":
             dur = c.get("dur", 0.5)
             sig = whoosh(dur, c.get("up", True))
             # the loudness peak should land on the camera's fastest frame
             place(buf, sig, f - dur * 0.62 * FPS, 0.12 * g, c.get("pan", 0.0))
         elif kind == "click":
-            place(buf, ui_click(), f, 0.25 * g, c.get("pan", 0.0))
+            place(buf, ui_click(), f, 0.16 * g, c.get("pan", 0.0))
         elif kind == "chime":
             place(buf, chime(), f, 0.16 * g)
         elif kind == "thump":

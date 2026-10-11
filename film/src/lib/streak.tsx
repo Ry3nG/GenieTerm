@@ -1,7 +1,7 @@
 import React from "react";
 import { Img } from "remotion";
 import { WINDOW_H, WINDOW_W } from "./camera";
-import type { Rect } from "./lift";
+type Rect = { x: number; y: number; w: number; h: number };
 
 // Output that arrives all at once (a reconnect replaying what was missed) slides up into
 // place for a few frames with a vertical smear, built from the arriving frame's own pixels.

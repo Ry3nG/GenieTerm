@@ -3,8 +3,8 @@ import { AbsoluteFill, Img, staticFile, useCurrentFrame, useVideoConfig } from "
 import { MonoFamily, SansFamily } from "./fonts";
 import { Ease, ramp, springAt } from "./motion";
 
-// The only words in the film that aren't commands: the name, where it runs, where to get it.
-export const EndCard: React.FC<{ start: number }> = ({ start }) => {
+// The sign-off: the name, the line, where it runs and where to get it.
+export const EndCard: React.FC<{ start: number; tagline?: string }> = ({ start, tagline }) => {
     const frame = useCurrentFrame();
     const { fps } = useVideoConfig();
     const f = frame - start;
@@ -45,12 +45,27 @@ export const EndCard: React.FC<{ start: number }> = ({ start }) => {
                 >
                     GenieTerm
                 </div>
+                {tagline ? (
+                    <div
+                        style={{
+                            marginTop: 14,
+                            fontFamily: SansFamily,
+                            fontWeight: 500,
+                            fontSize: 34,
+                            letterSpacing: "-0.012em",
+                            color: "rgba(255,255,255,0.78)",
+                            opacity: ramp(f, 36, 80, [0, 1], Ease.reveal),
+                        }}
+                    >
+                        {tagline}
+                    </div>
+                ) : null}
                 <div
                     style={{
-                        marginTop: 18,
+                        marginTop: tagline ? 30 : 18,
                         fontFamily: SansFamily,
                         fontWeight: 450,
-                        fontSize: 30,
+                        fontSize: 26,
                         letterSpacing: "0.01em",
                         color: "rgba(255,255,255,0.58)",
                         opacity: subOpacity,

@@ -42,7 +42,7 @@ const box = (cmd) =>
 // the GPU load for the Host and TensorBoard shots runs as a background job on the box;
 // patterns are anchored so pkill can't match the shell that runs it
 function backgroundTraining() {
-    box("pkill -f '^/usr/local/bin/python3.11 /usr/local/bin/tensorboard'; pkill -f '^python train.py'; sleep 1; cd ~/llm && rm -rf runs && (nohup python train.py > /tmp/train.log 2>&1 &)");
+    box("pkill -f '^/usr/local/bin/python3.11 /usr/local/bin/tensorboard'; pkill -f '^python.* train.py'; sleep 1; cd ~/llm && rm -rf runs && (nohup python -u train.py > /tmp/train.log 2>&1 &)");
 }
 
 // buttons may carry a shortcut glyph after the label ("Insert ↵"), so match the start
@@ -50,34 +50,16 @@ const buttonCenter = (text, scope = "") =>
     d.eval(`(() => { const b = [...document.querySelectorAll("${scope} button")].find(e => e.textContent.trim().startsWith(${JSON.stringify(text)}) && !e.disabled);
         if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height }; })()`);
 
-async function twoTerms() {
-    const t1 = await fresh("gpu-box", CD);
-    await promptReady("ml@gpu-box ~/llm");
-    await d.runHidden(t1, "python train.py");
-    await sleep(2000);
-    const t2 = await d.createTerm("gpu-box", { extra: CD, targetblockid: t1, targetaction: "splitdown" });
-    await promptReady("ml@gpu-box ~/llm");
-    await sleep(600);
-    await d.useTerm(t2);
-    return { t1, t2 };
-}
+const textCenter = (text, scope = "") =>
+    d.eval(`(() => { const els = [...document.querySelectorAll(${JSON.stringify(scope + " *")})].filter(e => { if (e.children.length !== 0 || e.textContent.trim() !== ${JSON.stringify(text)}) return false;
+            const r = e.getBoundingClientRect(); return r.width > 0 && r.y >= 0 && r.y < innerHeight && r.x >= 0 && r.x < innerWidth; });
+        const el = els[els.length - 1]; if (!el) throw new Error("no text " + ${JSON.stringify(text)}); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height }; })()`);
+
+const textRect = (text, scope = "") =>
+    d.eval(`(() => { const el = [...document.querySelectorAll(${JSON.stringify(scope + " *")})].find(e => e.children.length === 0 && e.textContent.trim() === ${JSON.stringify(text)});
+        if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
 
 const scenes = {
-    async s1_open() {
-        const id = await fresh(null, LOCAL);
-        await promptReady("~ $");
-        await sleep(800);
-        await d.useTerm(id);
-        d.begin("s1_open", OUT);
-        const geometry = await d.termGeometry();
-        await d.snap("idle");
-        await d.type("genie ssh gpu-box");
-        await d.enter();
-        d.mark("enter", d.scene.frames.length);
-        await d.record(7000, 120, "connect");
-        d.end({ geometry, after: await d.termGeometry() });
-    },
-
     async s2_train() {
         const id = await fresh("gpu-box", CD);
         await promptReady("ml@gpu-box ~/llm");
@@ -112,30 +94,6 @@ const scenes = {
         d.mark("reconnect", d.scene.frames.length);
         await d.record(8000, 90, "catchup");
         d.end({ geometry: await d.termGeometry(), block: id, reconnectButton: rc, epochAfter: await lastEpoch() });
-    },
-
-    async s4_host() {
-        backgroundTraining();
-        const t2 = await fresh("gpu-box", CD);
-        await promptReady("ml@gpu-box ~/llm");
-        await sleep(15000);
-        await d.useTerm(t2);
-        d.begin("s4_host", OUT);
-        const geometry = await d.termGeometry();
-        await d.snap("idle");
-        await d.type("nvidia-smi");
-        await d.enter();
-        d.mark("enter", d.scene.frames.length);
-        await d.record(2500, 150, "smi");
-        const rail = await d.eval(`(() => { const el = [...document.querySelectorAll("div")].find(e => e.children.length <= 2 && e.textContent.trim() === "host" && e.getBoundingClientRect().x > 1500);
-            const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 - 8 }; })()`);
-        await d.move(rail.x - 260, rail.y + 300);
-        await d.snap("cursor");
-        await d.click(rail.x, rail.y);
-        d.mark("hostClick", d.scene.frames.length);
-        await d.record(8000, 200, "host");
-        const rects = await d.rects({ gpu: '[aria-label^="Show GPU 0"]', hostTabs: '[aria-label="Host sections"]' });
-        d.end({ geometry, rail, rects, t2 });
     },
 
     async s5_ports() {
@@ -180,29 +138,8 @@ const scenes = {
         d.end({ geometry, dock, btn, t2, web: wr });
     },
 
-    async s6_files() {
-        const id = await fresh("gpu-box", CD);
-        await promptReady("ml@gpu-box ~/llm");
-        await sleep(800);
-        await d.useTerm(id);
-        d.begin("s6_files", OUT);
-        const geometry = await d.termGeometry();
-        await d.snap("idle");
-        await d.type("genie view .");
-        await d.enter();
-        d.mark("enter", d.scene.frames.length);
-        await d.record(3500, 160, "files");
-        const row = await d.eval(`(() => { const el = [...document.querySelectorAll("div, td, span")].filter(e => e.textContent.trim() === "train.py").pop(); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
-        await d.move(row.x + 160, row.y + 140);
-        await d.snap("cursor");
-        await d.dblclick(row.x, row.y);
-        d.mark("open", d.scene.frames.length);
-        await d.record(4000, 160, "preview");
-        d.end({ geometry, block: id, row });
-    },
-
     async s7_fix() {
-        box("pkill -f '^/usr/local/bin/python3.11 /usr/local/bin/tensorboard'; pkill -f '^python train.py'; pip uninstall -y -q flash-attn; pip cache purge; true");
+        box("pkill -f '^/usr/local/bin/python3.11 /usr/local/bin/tensorboard'; pkill -f '^python.* train.py'; pip uninstall -y -q flash-attn; pip cache purge; true");
         const id = await fresh("gpu-box", CD);
         await promptReady("ml@gpu-box ~/llm");
         await sleep(800);
@@ -268,20 +205,87 @@ const scenes = {
         console.log("suggestion", suggestion);
     },
 
-    async s8_exit() {
-        const id = await fresh("gpu-box", CD);
-        await promptReady("ml@gpu-box ~/llm");
+    // Connect from the header's connection picker instead of typing a command.
+    async c_connect() {
+        const id = await fresh(null, LOCAL);
+        await promptReady("~ $");
         await sleep(800);
         await d.useTerm(id);
-        d.begin("s8_exit", OUT);
+        d.begin("c_connect", OUT);
         const geometry = await d.termGeometry();
+        const conn = await textCenter("MacBook Pro", `[data-blockid="${id}"]`);
+        await d.move(conn.x + 260, conn.y + 240);
         await d.snap("idle");
-        await d.type("exit");
-        await d.enter();
-        d.mark("enter", d.scene.frames.length);
-        await d.record(1200, 150, "exit");
-        d.end({ geometry, block: id });
+        await d.click(conn.x, conn.y);
+        d.mark("open", d.scene.frames.length);
+        await d.record(1600, 130, "picker");
+        const item = await textCenter("gpu-box");
+        await d.move(item.x, item.y);
+        await d.snap("hover");
+        await d.click(item.x, item.y);
+        d.mark("pick", d.scene.frames.length);
+        await d.record(5000, 130, "connect");
+        d.end({ geometry, conn, item, block: id });
     },
+
+    async c_host() {
+        backgroundTraining();
+        const id = await fresh("gpu-box", CD);
+        await promptReady("ml@gpu-box ~/llm");
+        await sleep(15000);
+        await d.useTerm(id);
+        d.begin("c_host", OUT);
+        const rail = await d.eval(`(() => { const el = [...document.querySelectorAll("div")].find(e => e.children.length <= 2 && e.textContent.trim() === "host" && e.getBoundingClientRect().x > 1500);
+            const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 - 8 }; })()`);
+        await d.move(rail.x - 300, rail.y + 260);
+        await d.snap("idle");
+        await d.click(rail.x, rail.y);
+        d.mark("click", d.scene.frames.length);
+        await d.record(9000, 200, "host");
+        const rects = await d.rects({ gpu: '[aria-label^="Show GPU 0"]' });
+        const proc = await textRect("python", "[aria-label^='Show GPU 0']");
+        d.end({ rail, rects, proc, block: id });
+    },
+
+    // Open the shell's folder by clicking the path in the terminal header.
+    async c_files() {
+        const id = await fresh("gpu-box", CD);
+        await promptReady("ml@gpu-box ~/llm");
+        await sleep(1200);
+        await d.useTerm(id);
+        d.begin("c_files", OUT);
+        const cwd = await d.eval(`(() => { const el = [...document.querySelectorAll(".term-cwd-link")].find(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.y >= 0 && r.y < innerHeight; });
+            const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height }; })()`);
+        await d.move(cwd.x + 240, cwd.y + 260);
+        await d.snap("idle");
+        await d.click(cwd.x, cwd.y);
+        d.mark("click", d.scene.frames.length);
+        await d.record(3200, 160, "files");
+        const row = await textCenter("train.py");
+        await d.move(row.x + 120, row.y + 90);
+        await d.snap("cursor");
+        await d.dblclick(row.x, row.y);
+        d.mark("open", d.scene.frames.length);
+        await d.record(3500, 160, "preview");
+        d.end({ cwd, row, block: id });
+    },
+
+    // A composed layout for the opening and closing shots: training, Host and Files at once.
+    async c_hero() {
+        backgroundTraining();
+        const t1 = await fresh("gpu-box", CD);
+        await promptReady("ml@gpu-box ~/llm");
+        await d.runHidden(t1, "tail -f /tmp/train.log");
+        await sleep(1500);
+        const host = await d.createBlock({ view: "host", connection: "gpu-box" }, { targetblockid: t1, targetaction: "splitright" });
+        await sleep(1500);
+        await d.createBlock({ view: "preview", file: "/home/ml/llm", connection: "gpu-box" }, { targetblockid: host, targetaction: "splitdown" });
+        await sleep(9000);
+        d.begin("c_hero", OUT);
+        await d.record(6000, 300, "hero");
+        d.end({ t1, host });
+    },
+
 };
 
 const wanted = process.argv.slice(2);

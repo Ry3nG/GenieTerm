@@ -1,10 +1,11 @@
 # GenieTerm film
 
-The product film, made in code. The picture comes from real captures of GenieTerm, and the camera, cuts, sound and music are programmed here.
+The product film, made in code. It follows one training run, start to finish: connect to a GPU server, open the project, start training and close the laptop, come back to a busy GPU and a loss curve, then make it faster when an install fails and Command AI fixes it.
 
-- **Real pixels only.** Every frame of the app is a 4× capture of the real GenieTerm dev build, connected to a real GPU host. The commands are typed one key at a time and captured after each paint. The output, the AI answer and the install that works are whatever happened during the take.
-- **Edited on the beat.** The score runs at 100 BPM, so a bar is exactly 144 frames at 60 fps. `src/edl.ts` places every scene, keystroke and click on that grid, and the sound effects are generated from the same list.
-- **No licensed audio.** `audio/score.py` synthesizes the music and `audio/sfx.py` the keystrokes, whooshes and the chime.
+- **The real app for interaction.** Every click, keystroke and window is a 4× capture of the GenieTerm dev build, driven over CDP against a GPU container. The failing install and Claude Code's fix are real takes.
+- **Designed visuals where they explain more.** A diagram shows a session surviving a closed lid. The Host GPU card is redrawn in vector on the app's own layout, so its numbers belong to the film's training run and not to other jobs sharing the machine. Chapter titles, callouts, focus rings and highlights guide the eye.
+- **Paced to music.** The score runs at 90 BPM, so a bar is exactly 160 frames at 60 fps. `src/edl.ts` times every beat of every chapter, and the sound effects are generated from the same list.
+- **No licensed audio.** `audio/score.py` synthesizes a deliberately soft score; `audio/sfx.py` makes the keystrokes, clicks, whooshes and chime.
 
 ## Layout
 
@@ -12,9 +13,9 @@ The product film, made in code. The picture comes from real captures of GenieTer
 | --- | --- |
 | `capture/` | CDP driver and the shoot script that films each scene in the dev app |
 | `public/captures/` | The captured frames (not checked in; produced by the shoot) |
-| `src/edl.ts` | Scene timing, typing schedules, sound cues |
-| `src/film/` | One component per scene, plus `Film.tsx`, which cuts them together |
-| `src/lib/` | Camera, window chrome, vector type for close-ups, cursor, lid, lift, end card |
+| `src/edl.ts` | Chapter timing, typing schedules, sound cues |
+| `src/v2/` | One component per chapter, plus `FilmV2.tsx`, which puts the story together |
+| `src/lib/` | Camera, window chrome, chapter titles, guides (callouts, focus rings, highlights), diagram, GPU card, cursor, end card |
 | `audio/` | Score, sound effects and the mix |
 | `demo/` | The `gpu-box` container: a GPU-enabled Debian image with `ml` user, sshd and the small `llm` project it trains |
 

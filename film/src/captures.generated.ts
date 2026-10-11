@@ -7,6 +7,501 @@ export type CaptureScene = {
     [extra: string]: any;
 };
 export const Captures: Record<string, CaptureScene> = {
+ "c_connect": {
+  "name": "c_connect",
+  "frames": [
+   {
+    "t": 50,
+    "file": "0000.png",
+    "label": "idle"
+   },
+   {
+    "t": 491,
+    "file": "0001.png",
+    "label": "picker"
+   },
+   {
+    "t": 841,
+    "file": "0002.png",
+    "label": "picker"
+   },
+   {
+    "t": 1191,
+    "file": "0003.png",
+    "label": "picker"
+   },
+   {
+    "t": 1550,
+    "file": "0004.png",
+    "label": "picker"
+   },
+   {
+    "t": 1900,
+    "file": "0005.png",
+    "label": "picker"
+   },
+   {
+    "t": 2258,
+    "file": "0006.png",
+    "label": "hover"
+   },
+   {
+    "t": 2625,
+    "file": "0007.png",
+    "label": "connect"
+   },
+   {
+    "t": 2975,
+    "file": "0008.png",
+    "label": "connect"
+   },
+   {
+    "t": 3324,
+    "file": "0009.png",
+    "label": "connect"
+   },
+   {
+    "t": 3675,
+    "file": "0010.png",
+    "label": "connect"
+   },
+   {
+    "t": 4024,
+    "file": "0011.png",
+    "label": "connect"
+   },
+   {
+    "t": 4375,
+    "file": "0012.png",
+    "label": "connect"
+   },
+   {
+    "t": 4733,
+    "file": "0013.png",
+    "label": "connect"
+   },
+   {
+    "t": 5083,
+    "file": "0014.png",
+    "label": "connect"
+   },
+   {
+    "t": 5433,
+    "file": "0015.png",
+    "label": "connect"
+   },
+   {
+    "t": 5783,
+    "file": "0016.png",
+    "label": "connect"
+   },
+   {
+    "t": 6133,
+    "file": "0017.png",
+    "label": "connect"
+   },
+   {
+    "t": 6483,
+    "file": "0018.png",
+    "label": "connect"
+   },
+   {
+    "t": 6833,
+    "file": "0019.png",
+    "label": "connect"
+   },
+   {
+    "t": 7183,
+    "file": "0020.png",
+    "label": "connect"
+   },
+   {
+    "t": 7533,
+    "file": "0021.png",
+    "label": "connect"
+   }
+  ],
+  "marks": {
+   "open": 1,
+   "pick": 7
+  },
+  "geometry": {
+   "cellW": 7.826530612244898,
+   "cellH": 15,
+   "x": 19,
+   "y": 72,
+   "cursorX": 4,
+   "cursorY": 0,
+   "cols": 196,
+   "rows": 54,
+   "fontSize": 13
+  },
+  "conn": {
+   "x": 67.1796875,
+   "y": 51.5,
+   "w": 73.359375,
+   "h": 13
+  },
+  "item": {
+   "x": 74.7421875,
+   "y": 178,
+   "w": 44.234375,
+   "h": 14
+  },
+  "block": "f9ec96b8-fde3-404f-a8f1-42242eda3c96"
+ },
+ "c_files": {
+  "name": "c_files",
+  "frames": [
+   {
+    "t": 60,
+    "file": "0000.png",
+    "label": "idle"
+   },
+   {
+    "t": 478,
+    "file": "0001.png",
+    "label": "files"
+   },
+   {
+    "t": 852,
+    "file": "0002.png",
+    "label": "files"
+   },
+   {
+    "t": 1235,
+    "file": "0003.png",
+    "label": "files"
+   },
+   {
+    "t": 1593,
+    "file": "0004.png",
+    "label": "files"
+   },
+   {
+    "t": 1959,
+    "file": "0005.png",
+    "label": "files"
+   },
+   {
+    "t": 2318,
+    "file": "0006.png",
+    "label": "files"
+   },
+   {
+    "t": 2676,
+    "file": "0007.png",
+    "label": "files"
+   },
+   {
+    "t": 3043,
+    "file": "0008.png",
+    "label": "files"
+   },
+   {
+    "t": 3410,
+    "file": "0009.png",
+    "label": "files"
+   },
+   {
+    "t": 3835,
+    "file": "0010.png",
+    "label": "cursor"
+   },
+   {
+    "t": 4219,
+    "file": "0011.png",
+    "label": "preview"
+   },
+   {
+    "t": 4594,
+    "file": "0012.png",
+    "label": "preview"
+   },
+   {
+    "t": 4993,
+    "file": "0013.png",
+    "label": "preview"
+   },
+   {
+    "t": 5376,
+    "file": "0014.png",
+    "label": "preview"
+   },
+   {
+    "t": 5743,
+    "file": "0015.png",
+    "label": "preview"
+   },
+   {
+    "t": 6126,
+    "file": "0016.png",
+    "label": "preview"
+   },
+   {
+    "t": 6501,
+    "file": "0017.png",
+    "label": "preview"
+   },
+   {
+    "t": 6876,
+    "file": "0018.png",
+    "label": "preview"
+   },
+   {
+    "t": 7251,
+    "file": "0019.png",
+    "label": "preview"
+   },
+   {
+    "t": 7626,
+    "file": "0020.png",
+    "label": "preview"
+   }
+  ],
+  "marks": {
+   "click": 1,
+   "open": 11
+  },
+  "cwd": {
+   "x": 143.47265625,
+   "y": 51.5,
+   "w": 79.4765625,
+   "h": 12.5
+  },
+  "row": {
+   "x": 528.5,
+   "y": 728.5,
+   "w": 960,
+   "h": 20
+  },
+  "block": "73e81851-eae4-47df-8a22-e8bb2441feff"
+ },
+ "c_hero": {
+  "name": "c_hero",
+  "frames": [
+   {
+    "t": 15,
+    "file": "0000.png",
+    "label": "hero"
+   },
+   {
+    "t": 597,
+    "file": "0001.png",
+    "label": "hero"
+   },
+   {
+    "t": 1039,
+    "file": "0002.png",
+    "label": "hero"
+   },
+   {
+    "t": 1472,
+    "file": "0003.png",
+    "label": "hero"
+   },
+   {
+    "t": 1906,
+    "file": "0004.png",
+    "label": "hero"
+   },
+   {
+    "t": 2339,
+    "file": "0005.png",
+    "label": "hero"
+   },
+   {
+    "t": 2772,
+    "file": "0006.png",
+    "label": "hero"
+   },
+   {
+    "t": 3206,
+    "file": "0007.png",
+    "label": "hero"
+   },
+   {
+    "t": 3639,
+    "file": "0008.png",
+    "label": "hero"
+   },
+   {
+    "t": 4072,
+    "file": "0009.png",
+    "label": "hero"
+   },
+   {
+    "t": 4506,
+    "file": "0010.png",
+    "label": "hero"
+   },
+   {
+    "t": 4947,
+    "file": "0011.png",
+    "label": "hero"
+   },
+   {
+    "t": 5381,
+    "file": "0012.png",
+    "label": "hero"
+   },
+   {
+    "t": 5814,
+    "file": "0013.png",
+    "label": "hero"
+   }
+  ],
+  "marks": {},
+  "t1": "821f76b8-7ff3-4a19-b565-e4291f5e6ca3",
+  "host": "fb96b065-c9aa-49c2-bc7b-7dfe0fd6e465"
+ },
+ "c_host": {
+  "name": "c_host",
+  "frames": [
+   {
+    "t": 59,
+    "file": "0000.png",
+    "label": "idle"
+   },
+   {
+    "t": 474,
+    "file": "0001.png",
+    "label": "host"
+   },
+   {
+    "t": 900,
+    "file": "0002.png",
+    "label": "host"
+   },
+   {
+    "t": 1267,
+    "file": "0003.png",
+    "label": "host"
+   },
+   {
+    "t": 1642,
+    "file": "0004.png",
+    "label": "host"
+   },
+   {
+    "t": 2025,
+    "file": "0005.png",
+    "label": "host"
+   },
+   {
+    "t": 2400,
+    "file": "0006.png",
+    "label": "host"
+   },
+   {
+    "t": 2784,
+    "file": "0007.png",
+    "label": "host"
+   },
+   {
+    "t": 3175,
+    "file": "0008.png",
+    "label": "host"
+   },
+   {
+    "t": 3567,
+    "file": "0009.png",
+    "label": "host"
+   },
+   {
+    "t": 3959,
+    "file": "0010.png",
+    "label": "host"
+   },
+   {
+    "t": 4350,
+    "file": "0011.png",
+    "label": "host"
+   },
+   {
+    "t": 4759,
+    "file": "0012.png",
+    "label": "host"
+   },
+   {
+    "t": 5167,
+    "file": "0013.png",
+    "label": "host"
+   },
+   {
+    "t": 5559,
+    "file": "0014.png",
+    "label": "host"
+   },
+   {
+    "t": 5959,
+    "file": "0015.png",
+    "label": "host"
+   },
+   {
+    "t": 6333,
+    "file": "0016.png",
+    "label": "host"
+   },
+   {
+    "t": 6717,
+    "file": "0017.png",
+    "label": "host"
+   },
+   {
+    "t": 7117,
+    "file": "0018.png",
+    "label": "host"
+   },
+   {
+    "t": 7517,
+    "file": "0019.png",
+    "label": "host"
+   },
+   {
+    "t": 7917,
+    "file": "0020.png",
+    "label": "host"
+   },
+   {
+    "t": 8309,
+    "file": "0021.png",
+    "label": "host"
+   },
+   {
+    "t": 8700,
+    "file": "0022.png",
+    "label": "host"
+   },
+   {
+    "t": 9092,
+    "file": "0023.png",
+    "label": "host"
+   }
+  ],
+  "marks": {
+   "click": 1
+  },
+  "rail": {
+   "x": 1576,
+   "y": 172.88671875
+  },
+  "rects": {
+   "gpu": {
+    "x": 1026.5,
+    "y": 172.5,
+    "w": 508,
+    "h": 227
+   }
+  },
+  "proc": {
+   "x": 1043.5,
+   "y": 366.5,
+   "w": 380.5234375,
+   "h": 14
+  },
+  "block": "2c4d19a9-fda4-4904-bd65-b40e768bbc95"
+ },
  "s1_open": {
   "name": "s1_open",
   "frames": [

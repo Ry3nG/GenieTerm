@@ -15,7 +15,7 @@ mix[: len(score)] += score
 mix[: len(sfx)] += sfx
 meter = pyln.Meter(sr)
 loud = meter.integrated_loudness(mix)
-mix *= 10 ** ((-16.0 - loud) / 20)
+mix *= 10 ** ((-17.0 - loud) / 20)
 peak = np.max(np.abs(mix))
 if peak > 10 ** (-1.0 / 20):
     mix *= 10 ** (-1.0 / 20) / peak
