@@ -50,7 +50,7 @@ task v1:gate:package
 
 The release workflow additionally builds macOS arm64 + x64 on a native runner, verifies both zips against `latest-mac.yml` / `beta-mac.yml` / `alpha-mac.yml`, launch-smokes the arm64 app, and fails if packaging changed the checkout. Pushes to `main` run the same arm64 packaging + smoke in CI.
 
-Stable releases are **macOS-only**. Windows x64 is explicitly deferred from stable until a code-signing certificate exists; it ships as an **unsigned preview** on prerelease tags (`vX.Y.Z-beta.N`) and never blocks or touches the stable channel. Linux is not shipped.
+Stable releases ship **macOS** (arm64 and x64) and, from 1.1.0, **Linux** (AppImage and deb, x64 and arm64). Linux is built on native Ubuntu 22.04 runners, verified with `scripts/verify-linux-package.mjs`, and launch-smoked under Xvfb before publishing. Windows x64 is explicitly deferred from stable until a code-signing certificate exists; it ships as an **unsigned preview** on prerelease tags (`vX.Y.Z-beta.N`) and never blocks or touches the stable channel.
 
 Details: `docs/visual-qa/preview-screenshot-gate.md`, `docs/visual-qa/preview-interaction-gate.md`, `docs/packaging-artifact-gate.md`, `docs/installed-app-gate.md`, `RELEASES.md`.
 
