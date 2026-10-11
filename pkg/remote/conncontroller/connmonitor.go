@@ -29,11 +29,11 @@ const connMonitorResumeProbeTimeout = 5 * time.Second
 // CRITICAL: Methods that hold cm.lock must NEVER call into SSHConn (deadlock - violates ordering).
 // Methods called from SSHConn while conn.lock is held should avoid acquiring cm.lock (keep locking simple).
 type ConnMonitor struct {
-	lock              *sync.Mutex
-	Conn              *SSHConn    // always non-nil, set at creation
-	Client            *ssh.Client // always non-nil, set at creation
-	LastActivityTime  atomic.Int64
-	LastInputTime     atomic.Int64
+	lock             *sync.Mutex
+	Conn             *SSHConn    // always non-nil, set at creation
+	Client           *ssh.Client // always non-nil, set at creation
+	LastActivityTime atomic.Int64
+	LastInputTime    atomic.Int64
 	// last time an upload (the helper install) got bytes accepted by the SSH channel; a
 	// keepalive queued behind a long upload on a slow link answers late without the link
 	// being stalled or dead
