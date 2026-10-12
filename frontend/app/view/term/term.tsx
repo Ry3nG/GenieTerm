@@ -361,6 +361,91 @@ const TermInlineAIDock = React.memo(({ model, termWrap }: { model: TermViewModel
 
 TermInlineAIDock.displayName = "TermInlineAIDock";
 
+function shortConnName(connName: string): string {
+    const at = connName.lastIndexOf("@");
+    return at >= 0 ? connName.slice(at + 1) : connName;
+}
+
+const TermForwardDock = React.memo(({ model }: { model: TermViewModel }) => {
+    const offer = jotai.useAtomValue(model.forward.offerAtom);
+    if (offer == null) {
+        return null;
+    }
+    const host = shortConnName(offer.connName);
+    const forwarded = offer.status === "forwarded";
+    const address = `localhost:${forwarded && offer.localPort ? offer.localPort : offer.url.port}`;
+    let detail = `on ${host}`;
+    if (forwarded) {
+        detail =
+            offer.localPort === offer.url.port ? `forwarded from ${host}` : `forwarded from ${host}:${offer.url.port}`;
+    } else if (offer.status === "error") {
+        detail = offer.error;
+    }
+    return (
+        <div className="term-forward-dock flex justify-center px-2 pt-1 pb-2">
+            <div
+                role="status"
+                aria-live="polite"
+                aria-label="Open a remote port"
+                className="animate-guide-in flex w-full max-w-[720px] items-center gap-3 rounded-xl border border-white/[0.09] bg-[#232325] py-2 pr-2 pl-3.5 font-sans text-[13px] shadow-[0_6px_20px_rgba(0,0,0,0.35)]"
+                onMouseEnter={() => model.forward.holdHide()}
+                onMouseLeave={() => model.forward.resumeHide()}
+            >
+                <i
+                    className={cn(
+                        "shrink-0 text-[12px]",
+                        offer.status === "error"
+                            ? "fa-solid fa-triangle-exclamation text-error"
+                            : forwarded
+                              ? "fa-solid fa-circle-check text-success"
+                              : "fa-solid fa-globe text-accent",
+                        offer.status === "busy" && "animate-pulse"
+                    )}
+                    aria-hidden="true"
+                />
+                <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <code className="shrink-0 font-mono text-[12.5px] text-primary">{address}</code>
+                    <span className="min-w-0 truncate text-[12px] text-muted" title={detail}>
+                        {detail}
+                    </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                        type="button"
+                        disabled={offer.status === "busy"}
+                        className={cn(
+                            InlineDockButtonClass,
+                            offer.status === "offer" || offer.status === "busy"
+                                ? "bg-accent/80 text-primary hover:bg-accent"
+                                : "bg-white/[0.06] text-secondary hover:bg-white/[0.1] hover:text-primary"
+                        )}
+                        onClick={() => fireAndForget(() => model.forward.open())}
+                    >
+                        {offer.status === "busy"
+                            ? "Opening…"
+                            : offer.status === "error"
+                              ? "Try Again"
+                              : forwarded
+                                ? "Open"
+                                : "Open in Browser"}
+                    </button>
+                    <button
+                        type="button"
+                        title="Dismiss"
+                        aria-label="Dismiss"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-primary cursor-pointer"
+                        onClick={() => model.forward.dismiss()}
+                    >
+                        <i className="fa-solid fa-xmark text-[12px]" aria-hidden="true" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+TermForwardDock.displayName = "TermForwardDock";
+
 const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewModel; termWrap: TermWrap | null }) => {
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
     const hoveredBlockId = useAtomValueSafe<number | null>(termWrap?.hoveredBlockIdAtom);
@@ -709,6 +794,8 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             termWrap.handleResize_debounced();
         });
         rszObs.observe(connectElemRef.current);
+        termWrap.onLocalUrls = (urls) => model.forward.noteUrls(urls);
+        termWrap.onOpenLink = (uri) => model.forward.openLink(uri);
         termWrap.onSearchResultsDidChange = (results) => {
             globalStore.set(searchProps.resultsIndex, results.resultIndex);
             globalStore.set(searchProps.resultsCount, results.resultCount);
@@ -856,6 +943,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
+            <TermForwardDock model={model} />
             <TermInlineAIDock model={model} termWrap={termWrapInst} />
             <TermCompletion model={model} blockData={blockData} termWrap={termWrapInst} />
             <NullErrorBoundary debugName="TermLinkTooltip">

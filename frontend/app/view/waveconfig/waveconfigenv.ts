@@ -24,6 +24,7 @@ export type GeneralSettingKey =
     | "commandai:includeoutput"
     | "commandai:inline"
     | "term:durable"
+    | "term:forwardoffer"
     | "conn:wshenabled"
     | "conn:askbeforewshinstall"
     | "app:confirmquit"

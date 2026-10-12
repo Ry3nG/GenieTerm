@@ -20,14 +20,26 @@ import { useEffect, useRef } from "react";
 import coerce from "semver/functions/coerce";
 import lt from "semver/functions/lt";
 
-const ReleaseNotesUrl = "https://github.com/Ry3nG/GenieTerm/releases/tag/v1.3.0";
+const ReleaseNotesUrl = "https://github.com/Ry3nG/GenieTerm/releases/latest";
 
-type UpgradeRelease = { version: string; title: string; items: FeatureItem[] };
+type UpgradeRelease = { version: string; items: FeatureItem[] };
 
+// 1.4 adds no onboarding step, so 1.3 users get it through the update prompt and the offer
+// itself; people coming from older versions see it here with everything else they missed.
 const UpgradeReleases: UpgradeRelease[] = [
     {
+        version: "v1.4.0",
+        items: [
+            {
+                icon: "fa-globe",
+                title: "Open remote servers here",
+                description:
+                    "When TensorBoard, Jupyter or a dev server on an SSH host prints its localhost URL, one click forwards the port and opens it.",
+            },
+        ],
+    },
+    {
         version: "v1.3.0",
-        title: "New in 1.3",
         items: [
             {
                 icon: "fa-compass",
@@ -45,7 +57,6 @@ const UpgradeReleases: UpgradeRelease[] = [
     },
     {
         version: "v1.2.0",
-        title: "Also since your last update",
         items: [
             {
                 icon: "fa-wand-magic-sparkles",
@@ -73,7 +84,6 @@ const UpgradeReleases: UpgradeRelease[] = [
     },
     {
         version: "v1.0.0",
-        title: "Earlier",
         items: [
             {
                 icon: "fa-server",
@@ -100,6 +110,11 @@ function isOlderThan(lastVersion: string, version: string): boolean {
     return last == null || target == null || lt(last, target);
 }
 
+function shortVersion(version: string): string {
+    const v = coerce(version);
+    return v == null ? version : `${v.major}.${v.minor}`;
+}
+
 function UpgradeNotes({ lastVersion = "v0.0.0" }: { lastVersion?: string }) {
     const releases = UpgradeReleases.filter((release) => isOlderThan(lastVersion, release.version));
     return (
@@ -108,7 +123,9 @@ function UpgradeNotes({ lastVersion = "v0.0.0" }: { lastVersion?: string }) {
                 <section key={release.version} className="flex flex-col gap-4">
                     {(releases.length > 1 || index > 0) && (
                         <div className="text-[11px] font-semibold tracking-wide text-muted uppercase">
-                            {release.title}
+                            {index === 0
+                                ? `New in ${shortVersion(release.version)}`
+                                : `In ${shortVersion(release.version)}`}
                         </div>
                     )}
                     {release.items.map((item) => (
@@ -177,7 +194,9 @@ const UpgradeOnboardingModal = () => {
                     <div className="mb-2.5">
                         <Logo />
                     </div>
-                    <div className="text-[25px] font-normal text-foreground">GenieTerm 1.3</div>
+                    <div className="text-[25px] font-normal text-foreground">
+                        GenieTerm {shortVersion(UpgradeReleases[0].version)}
+                    </div>
                     <div className="text-[14px] text-secondary">What's new since your last update.</div>
                 </header>
                 <div className="max-h-[52vh] overflow-y-auto">

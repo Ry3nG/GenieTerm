@@ -113,6 +113,7 @@ type MetaTSType struct {
 	TermBellSound           *bool    `json:"term:bellsound,omitempty"`
 	TermBellIndicator       *bool    `json:"term:bellindicator,omitempty"`
 	TermNotifyAfter         *float64 `json:"term:notifyafter,omitempty"`
+	TermForwardOffer        *bool    `json:"term:forwardoffer,omitempty"`
 	TermOsc52               string   `json:"term:osc52,omitempty"`
 	TermDurable             *bool    `json:"term:durable,omitempty"`
 	TermDurablePrompted     *bool    `json:"term:durableprompted,omitempty"`

@@ -14,6 +14,7 @@ import type { CmdBlock } from "./cmdblocks";
 import { emptyPromptInputBuffer } from "./completion/input-mirror";
 import type { TermInputBuffer } from "./completion/types";
 import { handleOsc16162Command, type ShellIntegrationStatus } from "./osc-handlers";
+import { LocalUrlScanner } from "./term-forward";
 import { TermWrap } from "./termwrap";
 
 vi.mock("@xterm/addon-search", () => ({
@@ -105,6 +106,7 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
         termFileEpoch: 0,
         ptyOffset: 0,
         cmdBlocks: [],
+        localUrlScanner: new LocalUrlScanner(),
         promptMarkers: [],
         outputMarkers: [],
         pendingCmdBlock: null,
@@ -599,6 +601,18 @@ describe("TermWrap live append coalescing", () => {
         await termWrap.appendQueue;
 
         expect(writes).toEqual([1]);
+    });
+});
+
+describe("TermWrap remote loopback URLs", () => {
+    it("reports localhost URLs from live output and ignores the rest", () => {
+        const { termWrap } = makeTermWrap();
+        const seen: number[] = [];
+        termWrap.scanLocalUrls(new TextEncoder().encode("TensorBoard at http://localhost:6006/ (Press CTRL+C)\n"));
+        termWrap.onLocalUrls = (urls) => seen.push(...urls.map((u) => u.port));
+        termWrap.scanLocalUrls(new TextEncoder().encode("epoch 3\n"));
+        termWrap.scanLocalUrls(new TextEncoder().encode("Running on http://127.0.0.1:7860\n"));
+        expect(seen).toEqual([7860]);
     });
 });
 
