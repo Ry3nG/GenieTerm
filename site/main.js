@@ -179,7 +179,9 @@ async function loadRelease() {
         v.hidden = false;
 
         // the first sentence of the notes is the release's own one-line summary
-        const summary = (rel.body || "").split("\n").find((l) => l.trim() && !l.startsWith("#") && !l.startsWith("<!--"));
+        const line = (rel.body || "").split("\n").find((l) => l.trim() && !l.startsWith("#") && !l.startsWith("<!--"));
+        // the notes are markdown; the chip wants plain words
+        const summary = line?.replace(/[`*_]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
         const chip = document.querySelector("[data-release-chip]");
         chip.innerHTML = "";
         const tag = document.createElement("span");
