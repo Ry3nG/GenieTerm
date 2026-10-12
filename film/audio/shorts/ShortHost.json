@@ -1,0 +1,249 @@
+{
+ "id": "ShortHost",
+ "seconds": 28.333333333333332,
+ "frames": 1580,
+ "cues": [
+  {
+   "kind": "key",
+   "frame": 12,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 15,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 18,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 22,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 25,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 26,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 32,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 34,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 37,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 40,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 41,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 47,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 48,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 51,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 54,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 55,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 58,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 61,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 62,
+   "db": -12
+  },
+  {
+   "kind": "click",
+   "frame": 220
+  },
+  {
+   "kind": "key",
+   "frame": 800,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 804,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 808,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 810,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 814,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 818,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 820,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 824,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 828,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 830,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 834,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 840,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 844,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 847,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 850,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 853,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 857,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 859,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 863,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 867,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 869,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 873,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 877,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 879,
+   "db": 0
+  },
+  {
+   "kind": "enter",
+   "frame": 886
+  },
+  {
+   "kind": "click",
+   "frame": 1014
+  },
+  {
+   "kind": "whoosh",
+   "frame": 1068,
+   "dur": 0.9,
+   "db": -8
+  }
+ ],
+ "music": {
+  "quiet": [],
+  "blooms": [
+   1048
+  ],
+  "dark": [],
+  "bright": [],
+  "end": 1280
+ }
+}

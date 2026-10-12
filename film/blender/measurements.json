@@ -1,0 +1,148 @@
+{
+  "units": "1 unit = 1 cm; all positions below in glTF Y-up space",
+  "hinge_world": [
+    0.0,
+    0.55,
+    -10.8
+  ],
+  "lid_gltf_rotation_xyzw": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "screen_local_center": [
+    0.0,
+    -0.006,
+    10.8
+  ],
+  "screen_world_center_closed": [
+    0.0,
+    0.544,
+    -0.0
+  ],
+  "screen_local_normal": [
+    -0.0,
+    -1.0,
+    0.0
+  ],
+  "screen_uv_corners": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0
+    ],
+    [
+      1.0,
+      0.0
+    ],
+    [
+      1.0,
+      1.0
+    ]
+  ],
+  "base_bounds": {
+    "min": [
+      -15.6,
+      -0.55,
+      -11.0
+    ],
+    "max": [
+      15.6,
+      0.55,
+      11.0
+    ]
+  },
+  "lid_shell_bounds_closed": {
+    "min": [
+      -15.6,
+      0.55,
+      -10.8
+    ],
+    "max": [
+      15.6,
+      1.1,
+      10.8
+    ]
+  },
+  "screen_bounds_closed": {
+    "min": [
+      -14.8,
+      0.544,
+      -8.325
+    ],
+    "max": [
+      14.8,
+      0.544,
+      8.325
+    ]
+  },
+  "keyboard_bounds": {
+    "min": [
+      -12.690001,
+      0.385,
+      -8.105
+    ],
+    "max": [
+      12.69,
+      0.51,
+      1.37
+    ]
+  },
+  "key_count": 78,
+  "triangles": 90978,
+  "file_bytes": 2617376,
+  "mesh_nodes": [
+    "Base",
+    "Bezel",
+    "DisplaySeal",
+    "Foot_-12.8_-8.35",
+    "Foot_-12.8_8.15",
+    "Foot_12.8_-8.35",
+    "Foot_12.8_8.15",
+    "HingeClutch_-1",
+    "HingeClutch_1",
+    "HingeCollar_-1_-2.99",
+    "HingeCollar_-1_2.99",
+    "HingeCollar_1_-2.99",
+    "HingeCollar_1_2.99",
+    "HingeMount_-1",
+    "HingeMount_1",
+    "HingePocket_-1",
+    "HingePocket_1",
+    "KeyboardWell",
+    "Keyboard_78Keys",
+    "LidShell",
+    "Screen",
+    "SpeakerPerforations",
+    "Trackpad",
+    "TrackpadChamfer",
+    "TrackpadGasket",
+    "USB_C_Recess_0",
+    "USB_C_Recess_1",
+    "USB_C_Tongue_0",
+    "USB_C_Tongue_1"
+  ],
+  "materials": [
+    "BezelMat",
+    "EdgeMat",
+    "FootMat",
+    "KeyMat",
+    "MetalMat",
+    "PadMat",
+    "PerforationMat",
+    "RecessMat",
+    "ScreenMat"
+  ],
+  "extensions_used": [
+    "KHR_materials_specular"
+  ],
+  "screen_world_center_open_112deg": [
+    0.0,
+    10.565834,
+    -14.840189
+  ]
+}

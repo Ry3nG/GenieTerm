@@ -1,0 +1,1038 @@
+{
+ "id": "Overview",
+ "seconds": 104.9,
+ "frames": 6174,
+ "cues": [
+  {
+   "kind": "thump",
+   "frame": 197,
+   "db": -4
+  },
+  {
+   "kind": "open",
+   "frame": 304
+  },
+  {
+   "kind": "whoosh",
+   "frame": 470,
+   "dur": 1.2,
+   "db": -8
+  },
+  {
+   "kind": "key",
+   "frame": 680,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 686,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 691,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 695,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 701,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 706,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 710,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 716,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 721,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 952,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 955,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 958,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 959,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 962,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 966,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 969,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 972,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 977,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 980,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 981,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 984,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 987,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 988,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 991,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 994,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 995,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1001,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1002,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1005,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1008,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1010,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1016,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1017,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1020,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1023,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1024,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1030,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1031,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1034,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1037,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1038,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1041,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1044,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 1046,
+   "db": -12
+  },
+  {
+   "kind": "whoosh",
+   "frame": 1230,
+   "dur": 1.1,
+   "db": -10,
+   "up": false
+  },
+  {
+   "kind": "thump",
+   "frame": 1393,
+   "db": -4
+  },
+  {
+   "kind": "tick",
+   "frame": 1470,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1518,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1566,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1614,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1662,
+   "db": -5
+  },
+  {
+   "kind": "tick",
+   "frame": 1710,
+   "db": -5
+  },
+  {
+   "kind": "open",
+   "frame": 1742
+  },
+  {
+   "kind": "chime",
+   "frame": 1806,
+   "db": -3
+  },
+  {
+   "kind": "whoosh",
+   "frame": 1926,
+   "dur": 1.2,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 2202,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2205,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2208,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2212,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2215,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2216,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2219,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2222,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2224,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2227,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2230,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2231,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 2234,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2237,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2238,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2241,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2244,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2245,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2251,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2252,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2255,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2258,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2260,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2266,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2267,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2270,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2273,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 2274,
+   "db": -12
+  },
+  {
+   "kind": "click",
+   "frame": 2390
+  },
+  {
+   "kind": "whoosh",
+   "frame": 2490,
+   "dur": 0.7,
+   "db": -14
+  },
+  {
+   "kind": "click",
+   "frame": 2510,
+   "db": -2
+  },
+  {
+   "kind": "chime",
+   "frame": 2730,
+   "db": -10
+  },
+  {
+   "kind": "click",
+   "frame": 2820,
+   "db": -3
+  },
+  {
+   "kind": "click",
+   "frame": 2827,
+   "db": -4
+  },
+  {
+   "kind": "click",
+   "frame": 2904,
+   "db": -3
+  },
+  {
+   "kind": "click",
+   "frame": 2910,
+   "db": -4
+  },
+  {
+   "kind": "key",
+   "frame": 2926,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 2933,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 2939,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 2944,
+   "db": 0
+  },
+  {
+   "kind": "click",
+   "frame": 2992
+  },
+  {
+   "kind": "key",
+   "frame": 3232,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3235,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3238,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3242,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3245,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3246,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3252,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3254,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3257,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3260,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3261,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3267,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3268,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3271,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3274,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3275,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3278,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3281,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 3282,
+   "db": -12
+  },
+  {
+   "kind": "click",
+   "frame": 3410
+  },
+  {
+   "kind": "key",
+   "frame": 3990,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 3994,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 3998,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4000,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4004,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4008,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4010,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4014,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4018,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4020,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4024,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4030,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4034,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4037,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4040,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4043,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4047,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4049,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4053,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4057,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 4059,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4063,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4067,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 4069,
+   "db": 0
+  },
+  {
+   "kind": "enter",
+   "frame": 4076
+  },
+  {
+   "kind": "click",
+   "frame": 4204
+  },
+  {
+   "kind": "whoosh",
+   "frame": 4258,
+   "dur": 0.9,
+   "db": -8
+  },
+  {
+   "kind": "key",
+   "frame": 4482,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4485,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4488,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4489,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4492,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4495,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4496,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 4499,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4502,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4504,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4507,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 4510,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4511,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4514,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4517,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 4518,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4521,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4525,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4528,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4531,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4535,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4538,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4540,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4543,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4546,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4547,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4550,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4554,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4557,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4560,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 4561,
+   "db": -12
+  },
+  {
+   "kind": "error",
+   "frame": 4670,
+   "db": -4
+  },
+  {
+   "kind": "click",
+   "frame": 4734
+  },
+  {
+   "kind": "click",
+   "frame": 4996
+  },
+  {
+   "kind": "click",
+   "frame": 5414
+  },
+  {
+   "kind": "enter",
+   "frame": 5478
+  },
+  {
+   "kind": "chime",
+   "frame": 5546,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 5584,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5588,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5592,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5595,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5599,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 5603,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5606,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5610,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5614,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5621,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5625,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5627,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5631,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5636,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5642,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5646,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5649,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 5653,
+   "db": 0
+  },
+  {
+   "kind": "enter",
+   "frame": 5666
+  }
+ ],
+ "music": {
+  "quiet": [
+   [
+    197,
+    340
+   ],
+   [
+    1393,
+    1806
+   ]
+  ],
+  "blooms": [
+   680,
+   1806,
+   4238
+  ],
+  "dark": [
+   500,
+   4670
+  ],
+  "bright": [
+   2730,
+   5546
+  ],
+  "end": 5874,
+  "cold": 640
+ }
+}

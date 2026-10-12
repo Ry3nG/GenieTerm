@@ -1,0 +1,397 @@
+{
+ "id": "ShortAI",
+ "seconds": 33.66666666666667,
+ "frames": 1900,
+ "cues": [
+  {
+   "kind": "key",
+   "frame": 12,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 15,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 18,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 19,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 22,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 25,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 26,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 29,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 32,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 34,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 37,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 40,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 41,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 44,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 47,
+   "db": -14
+  },
+  {
+   "kind": "key",
+   "frame": 48,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 51,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 55,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 58,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 61,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 65,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 68,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 70,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 73,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 76,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 77,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 80,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 84,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 87,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 90,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 91,
+   "db": -12
+  },
+  {
+   "kind": "key",
+   "frame": 204,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 208,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 212,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 219,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 223,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 226,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 230,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 234,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 236,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 241,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 247,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 251,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 256,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 258,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 262,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 266,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 269,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 273,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 277,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 280,
+   "db": 0
+  },
+  {
+   "kind": "enter",
+   "frame": 290
+  },
+  {
+   "kind": "error",
+   "frame": 396,
+   "db": -4
+  },
+  {
+   "kind": "click",
+   "frame": 460
+  },
+  {
+   "kind": "click",
+   "frame": 722
+  },
+  {
+   "kind": "click",
+   "frame": 1140
+  },
+  {
+   "kind": "enter",
+   "frame": 1204
+  },
+  {
+   "kind": "chime",
+   "frame": 1272,
+   "db": -9
+  },
+  {
+   "kind": "key",
+   "frame": 1310,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1314,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1318,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1321,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1325,
+   "db": -2
+  },
+  {
+   "kind": "key",
+   "frame": 1329,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1332,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1336,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1340,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1347,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1351,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1353,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1357,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1362,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1368,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1372,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1375,
+   "db": 0
+  },
+  {
+   "kind": "key",
+   "frame": 1379,
+   "db": 0
+  },
+  {
+   "kind": "enter",
+   "frame": 1392
+  }
+ ],
+ "music": {
+  "quiet": [],
+  "blooms": [],
+  "dark": [
+   396
+  ],
+  "bright": [
+   1272
+  ],
+  "end": 1600
+ }
+}

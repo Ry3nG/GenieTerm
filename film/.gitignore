@@ -1,0 +1,15 @@
+node_modules
+out
+public/dev
+public/captures
+public/*.wav
+audio/cues.json
+audio/__pycache__
+public/score.json
+demo/authorized_keys
+audio/*.wav
+audio/score*.json
+audio/cues_v3.json
+blender/previews/pass-*
+blender/codex.log
+audio/shorts/*.wav

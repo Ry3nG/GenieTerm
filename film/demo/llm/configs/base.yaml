@@ -1,0 +1,12 @@
+model:
+  vocab: 512
+  context: 256
+  dim: 768
+  layers: 8
+  heads: 12
+train:
+  epochs: 100
+  steps_per_epoch: 40
+  batch_size: 24
+  lr: 3.0e-4
+  precision: bf16
