@@ -4,20 +4,22 @@
 
 <h1 align="center">GenieTerm</h1>
 
-<p align="center">The terminal for people who live in SSH.</p>
+<p align="center"><b>The remote-native terminal.</b><br>For people who live in SSH.</p>
 
 <p align="center">
-  <a href="https://github.com/Ry3nG/GenieTerm/releases/latest"><b>Download</b></a> · macOS · Linux
+  <a href="https://github.com/Ry3nG/GenieTerm/releases/latest"><b>Download</b></a> · <a href="https://ry3ng.github.io/GenieTerm/">Website</a> · macOS · Linux · Windows preview
 </p>
 
 <p align="center">
-  <img alt="The Host view of a GPU server: two GPUs with utilization, memory, temperature and processes, then CPU and memory." src="./assets/screenshots/host.png" width="860">
+  <a href="https://ry3ng.github.io/GenieTerm/"><img alt="A laptop running GenieTerm beside a card for the server: a coding agent kept working while the lid was closed and has finished. Click to watch the film." src="./site/media/overview.jpg" width="860"></a>
+  <br>
+  <sub><a href="https://ry3ng.github.io/GenieTerm/">▶ Watch the film</a></sub>
 </p>
 
 GenieTerm puts your shell, the machine it runs on, and that machine's files in one window.
 
 - **Command blocks.** Each command keeps its output, status and duration together, so you can copy it, run it again, or jump to the previous one. Underneath, it's an ordinary xterm session.
-- **Durable SSH.** A session keeps running on the host through sleep, network changes and restarts. When it reattaches, everything it printed while you were away streams back.
+- **Durable SSH.** A session keeps running on the host through sleep, network changes and restarts, so a coding agent, a build or a REPL survives a closed lid without tmux. When it reattaches, everything it printed while you were away streams back.
 - **Remote files.** Browse, preview and edit files on any host, right beside the shell that's using them. Drag files in to upload, or download a whole folder.
 - **Host.** See CPU, memory, every NVIDIA GPU and the processes holding it, and the ports in use. When a server there prints its `localhost` URL, one click forwards the port and opens it here.
 - **Command AI.** Describe what you want, or click the sparkle on a failed command, and get commands to review that fit the machine you're on. It uses the AI you already have: your Codex or Claude Code sign-in, Ollama, or your own API key. It never runs a command on its own.
@@ -47,6 +49,10 @@ GenieTerm offers to install a small helper the first time you connect to a host.
 genie view README.md    # preview a file in a new block
 genie edit ~/.zshrc     # open a file in the editor
 ```
+
+## Website and films
+
+The project page lives in [`site/`](site/) and is published to [ry3ng.github.io/GenieTerm](https://ry3ng.github.io/GenieTerm/) on every push to `main`. The films on it are made in code, with Remotion, in [`film/`](film/): their screens are rebuilt from the app and show what it does.
 
 ## Contributing
 
