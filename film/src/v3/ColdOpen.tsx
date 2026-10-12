@@ -8,9 +8,11 @@ import { type CamPose, distanceForFill, frontalPose, lerpPose, rectQuad } from "
 import { Studio } from "../kit/stage";
 import { type Line, md } from "../kit/ui";
 
-// The pain, before any product: an ordinary terminal running a training job over SSH. The lid
-// closes, the night passes, the lid opens, and the camera pushes into the screen to read what
-// happened. The same shot comes back in "durable" with GenieTerm on the screen.
+// The pain, before any product: an ordinary terminal over SSH, running either a training job
+// or a coding agent. The lid closes, time passes, the lid opens, and the camera pushes into the
+// screen to read what happened. The same shot comes back later with GenieTerm on the screen.
+
+export type ColdStory = "train" | "agent";
 
 export const ColdTimes = {
     close: 150,
@@ -33,32 +35,70 @@ const TOP = 46;
 const LEFT = 14;
 const CHAR = SIZE * 0.6;
 
-const head: Line[] = [
+const PROMPT = "you@laptop ~ % ";
+const login: Line[] = [
     md("Last login: Sat Oct 10 21:02:44 on ttys002"),
     md("you@laptop ~ % ssh atlas"),
     md("Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-49-generic x86_64)"),
-    md("ml@atlas:~/llm$ python train.py"),
-    md("model 58M params · 1× RTX 5090 · bf16"),
 ];
+
 const LAST_EPOCH = 14;
-const ERROR_ROW = head.length + LAST_EPOCH;
-const PROMPT = "you@laptop ~ % ";
+const AGENT_BOX = 66;
+const agentHead: Line[] = [
+    md("ml@atlas:~/llm$ claude"),
+    md(""),
+    md(`{d}╭${"─".repeat(AGENT_BOX)}╮{/}`),
+    md(`{d}│{/} > Switch train.py to bf16 autocast and get the tests passing${" ".repeat(AGENT_BOX - 61)}{d}│{/}`),
+    md(`{d}╰${"─".repeat(AGENT_BOX)}╯{/}`),
+    md(""),
+];
+const agentWork: Line[] = [
+    md("{a}●{/} Read(train.py)"),
+    md("{a}●{/} Update(train.py)"),
+    md("  {d}⎿  Wrapped the forward pass in torch.autocast(bfloat16){/}"),
+    md("{a}●{/} Bash(pytest -q)"),
+];
+
+// What the screen shows: the session as it runs, then what is left of it after the lid opens.
+function screenLines(story: ColdStory, f: number, after: boolean): Line[] {
+    if (story === "train") {
+        const lines: Line[] = [...login, md("ml@atlas:~/llm$ python train.py"), md("model 58M params · 1× RTX 5090 · bf16")];
+        const upTo = after ? LAST_EPOCH : Math.min(LAST_EPOCH, 8 + Math.floor(f / 24));
+        for (let e = 1; e <= upTo; e++) {
+            lines.push(epochLine(e));
+        }
+        return lines;
+    }
+    const shown = after ? agentWork.length : Math.min(agentWork.length, 1 + Math.floor(f / 36));
+    const spin = ["·", "✢", "✳", "✶", "✻", "✽"][Math.floor(f / 8) % 6];
+    return [...login, ...agentHead, ...agentWork.slice(0, shown), md(`  {a}${after ? "✻" : spin}{/} {d}Running…{/}`)];
+}
+
+const errorRow = (story: ColdStory) => screenLines(story, 0, true).length;
 
 // Where the push-in lands: the error and the prompt large, a little left of centre.
 const K = 2.6;
-const focusY = TOP + (ERROR_ROW + 1) * LH;
-const landRect = { x: 250 - LEFT * K, y: 560 - focusY * K, w: 1600 * K, h: 900 * K };
+function landRect(story: ColdStory) {
+    const focusY = TOP + (errorRow(story) + 1) * LH;
+    return { x: 250 - LEFT * K, y: 560 - focusY * K, w: 1600 * K, h: 900 * K };
+}
 
-// The caret the title scene picks up: its rectangle in frame pixels at the end of this scene.
-export const ColdCaret = {
-    x: landRect.x + (LEFT + PROMPT.length * CHAR) * K,
-    y: landRect.y + (TOP + (ERROR_ROW + 1) * LH + 1) * K,
-    w: CHAR * K,
-    h: (LH - 3) * K,
-};
+// The caret a following scene can pick up: its rectangle in frame pixels at the end.
+export function coldCaret(story: ColdStory) {
+    const r = landRect(story);
+    return {
+        x: r.x + (LEFT + PROMPT.length * CHAR) * K,
+        y: r.y + (TOP + (errorRow(story) + 1) * LH + 1) * K,
+        w: CHAR * K,
+        h: (LH - 3) * K,
+    };
+}
+export const ColdCaret = coldCaret("train");
 
-export const ColdOpen: React.FC = () => {
+export const ColdOpen: React.FC<{ story?: ColdStory; keepCaret?: boolean }> = ({ story = "train", keepCaret = true }) => {
     const f = useCurrentFrame();
+    const rect = landRect(story);
+    const caretRect = coldCaret(story);
     const T = ColdTimes;
     const closing = f < T.open;
     const lid = closing ? lidClose(f, T.close) : lidOpen(f, T.open);
@@ -74,12 +114,8 @@ export const ColdOpen: React.FC = () => {
     const pose = f < T.push[0] ? dolly : lerpPose(DevicePose.near, front, pushT);
     const land = ramp(f, T.zoom[0], T.zoom[1], Ease.camera);
 
-    const ticking = Math.min(LAST_EPOCH, 8 + Math.floor(f / 24));
     const after = f >= T.open;
-    const lines: Line[] = [...head];
-    for (let e = 1; e <= (after ? LAST_EPOCH : ticking); e++) {
-        lines.push(epochLine(e));
-    }
+    const lines: Line[] = screenLines(story, f, after);
     if (after) {
         lines.push(md("client_loop: send disconnect: Broken pipe"));
         lines.push(md(PROMPT));
@@ -101,7 +137,7 @@ export const ColdOpen: React.FC = () => {
                     glow={glow}
                     room={room}
                     land={land}
-                    target={rectQuad(landRect.x, landRect.y, landRect.w, landRect.h)}
+                    target={rectQuad(rect.x, rect.y, rect.w, rect.h)}
                     device={f < T.zoom[0] ? 1 : 0}
                     bleed={{ color: "#1c1c1e", amount: (f < T.zoom[0] ? 0 : 1) * textFade }}
                     screen={
@@ -113,7 +149,7 @@ export const ColdOpen: React.FC = () => {
             </AbsoluteFill>
             {/* the caret is drawn in frame space once landed so it can survive the fade */}
             {f >= T.zoom[1] && (
-                <div style={{ position: "absolute", left: ColdCaret.x, top: ColdCaret.y, width: ColdCaret.w, height: ColdCaret.h, background: "#d0d0d0", opacity: caretOn }} />
+                <div style={{ position: "absolute", left: caretRect.x, top: caretRect.y, width: caretRect.w, height: caretRect.h, background: "#d0d0d0", opacity: caretOn * (keepCaret ? 1 : textFade) }} />
             )}
         </AbsoluteFill>
     );

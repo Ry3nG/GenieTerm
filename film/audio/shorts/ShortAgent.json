@@ -1,521 +1,536 @@
 {
  "id": "ShortAgent",
- "seconds": 34.666666666666664,
- "frames": 1960,
+ "seconds": 45.333333333333336,
+ "frames": 2600,
  "cues": [
   {
+   "kind": "thump",
+   "frame": 197,
+   "db": -4
+  },
+  {
+   "kind": "open",
+   "frame": 304
+  },
+  {
+   "kind": "whoosh",
+   "frame": 470,
+   "dur": 1.2,
+   "db": -8
+  },
+  {
    "kind": "key",
-   "frame": 12,
+   "frame": 652,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 15,
+   "frame": 655,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 18,
+   "frame": 658,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 19,
+   "frame": 659,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 22,
+   "frame": 662,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 26,
+   "frame": 666,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 29,
+   "frame": 669,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 32,
+   "frame": 672,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 37,
+   "frame": 677,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 40,
+   "frame": 680,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 41,
+   "frame": 681,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 44,
+   "frame": 684,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 47,
+   "frame": 687,
    "db": -14
   },
   {
    "kind": "key",
-   "frame": 48,
+   "frame": 688,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 51,
+   "frame": 691,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 54,
+   "frame": 694,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 55,
+   "frame": 695,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 61,
+   "frame": 701,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 62,
+   "frame": 702,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 65,
+   "frame": 705,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 68,
+   "frame": 708,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 70,
+   "frame": 710,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 76,
+   "frame": 716,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 77,
+   "frame": 717,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 80,
+   "frame": 720,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 83,
+   "frame": 723,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 84,
+   "frame": 724,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 90,
+   "frame": 730,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 91,
+   "frame": 731,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 94,
+   "frame": 734,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 97,
+   "frame": 737,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 98,
+   "frame": 738,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 101,
+   "frame": 741,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 104,
+   "frame": 744,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 106,
+   "frame": 746,
    "db": -12
   },
   {
    "kind": "key",
-   "frame": 174,
+   "frame": 814,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 176,
+   "frame": 816,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 178,
+   "frame": 818,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 179,
+   "frame": 819,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 181,
+   "frame": 821,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 183,
+   "frame": 823,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 183,
+   "frame": 823,
    "db": -4
   },
   {
    "kind": "key",
-   "frame": 185,
+   "frame": 825,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 188,
+   "frame": 828,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 188,
+   "frame": 828,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 190,
+   "frame": 830,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 192,
+   "frame": 832,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 193,
+   "frame": 833,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 195,
+   "frame": 835,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 197,
+   "frame": 837,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 199,
+   "frame": 839,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 202,
+   "frame": 842,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 202,
+   "frame": 842,
    "db": -4
   },
   {
    "kind": "key",
-   "frame": 204,
+   "frame": 844,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 206,
+   "frame": 846,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 207,
+   "frame": 847,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 209,
+   "frame": 849,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 211,
+   "frame": 851,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 213,
+   "frame": 853,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 216,
+   "frame": 856,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 216,
+   "frame": 856,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 218,
+   "frame": 858,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 220,
+   "frame": 860,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 221,
+   "frame": 861,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 223,
+   "frame": 863,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 225,
+   "frame": 865,
    "db": -4
   },
   {
    "kind": "key",
-   "frame": 225,
+   "frame": 865,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 227,
+   "frame": 867,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 229,
+   "frame": 869,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 230,
+   "frame": 870,
    "db": -4
   },
   {
    "kind": "key",
-   "frame": 232,
+   "frame": 872,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 234,
+   "frame": 874,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 234,
+   "frame": 874,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 237,
+   "frame": 877,
    "db": -4
   },
   {
    "kind": "key",
-   "frame": 239,
+   "frame": 879,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 239,
+   "frame": 879,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 241,
+   "frame": 881,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 243,
+   "frame": 883,
    "db": -4
   },
   {
    "kind": "key",
-   "frame": 244,
+   "frame": 884,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 246,
+   "frame": 886,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 248,
+   "frame": 888,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 248,
+   "frame": 888,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 251,
+   "frame": 891,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 253,
+   "frame": 893,
    "db": -4
   },
   {
    "kind": "key",
-   "frame": 253,
+   "frame": 893,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 255,
+   "frame": 895,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 257,
+   "frame": 897,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 258,
+   "frame": 898,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 260,
+   "frame": 900,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 262,
+   "frame": 902,
    "db": -2
   },
   {
    "kind": "key",
-   "frame": 262,
+   "frame": 902,
    "db": -2
   },
   {
    "kind": "enter",
-   "frame": 272
+   "frame": 912
   },
   {
    "kind": "whoosh",
-   "frame": 620,
+   "frame": 1260,
    "dur": 1.1,
    "db": -10,
    "up": false
   },
   {
    "kind": "thump",
-   "frame": 783,
+   "frame": 1423,
    "db": -4
   },
   {
    "kind": "tick",
-   "frame": 860,
+   "frame": 1500,
    "db": -5
   },
   {
    "kind": "tick",
-   "frame": 908,
+   "frame": 1548,
    "db": -5
   },
   {
    "kind": "tick",
-   "frame": 956,
+   "frame": 1596,
    "db": -5
   },
   {
    "kind": "tick",
-   "frame": 1004,
+   "frame": 1644,
    "db": -5
   },
   {
    "kind": "tick",
-   "frame": 1052,
+   "frame": 1692,
    "db": -5
   },
   {
    "kind": "tick",
-   "frame": 1100,
+   "frame": 1740,
    "db": -5
   },
   {
    "kind": "open",
-   "frame": 1132
+   "frame": 1772
   },
   {
    "kind": "chime",
-   "frame": 1196,
+   "frame": 1836,
    "db": -3
   },
   {
    "kind": "whoosh",
-   "frame": 1316,
+   "frame": 1956,
    "dur": 1.2,
    "db": -9
   }
@@ -523,17 +538,24 @@
  "music": {
   "quiet": [
    [
-    783,
-    1196
+    197,
+    340
+   ],
+   [
+    1423,
+    1836
    ]
   ],
   "blooms": [
-   1196
+   1836
   ],
-  "dark": [],
+  "dark": [
+   500
+  ],
   "bright": [
-   1410
+   2050
   ],
-  "end": 1660
+  "end": 2300,
+  "cold": 640
  }
 }

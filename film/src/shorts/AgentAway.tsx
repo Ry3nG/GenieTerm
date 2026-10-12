@@ -10,7 +10,7 @@ import { FRAME_H, FRAME_W, Studio, World, camPath, recede, toScreen, withDrift }
 import { T } from "../kit/tokens";
 import { CMDBAR_H, HEADER_H, WIN_H, WIN_W, formatDuration } from "../kit/ui";
 import { DevicePose } from "../v3/ColdOpen";
-import { FRONT, FULL, NIGHT, PulseDot, laptopAnchor, projectPoint } from "../v3/Durable";
+import { FRONT, FULL, NIGHT, PulseDot, laptopAnchor, linkPath, projectPoint } from "../v3/Durable";
 import { type LinkState, Scrim, blockOrigin } from "../v3/workspace";
 import { AgentLayout, AgentWindow, REQUEST } from "./agent";
 
@@ -148,7 +148,8 @@ export const AgentAway: React.FC = () => {
     const room = f < contact ? 1 : f < G.open - 20 ? mix(1, 0.12, ramp(f, contact + 4, contact + 70, Ease.out)) : mix(0.12, 0.9, ramp(f, G.open - 20, G.open + 60, Ease.move));
     const revealT = ramp(f, G.reveal[0], G.reveal[1], Ease.camera);
     const pushT = ramp(f, G.push[0], G.push[1], Ease.camera);
-    const nightT = ramp(f, G.close + 30, G.server + 90, Ease.move) * (1 - ramp(f, G.open - 40, G.push[0], Ease.move));
+    // the night framing holds until the server card has gone, so the card never sits over the open screen
+    const nightT = ramp(f, G.close + 30, G.server + 90, Ease.move) * (1 - ramp(f, G.reconnected + 30, G.push[0] + 40, Ease.move));
     const devicePose = lerpPose(DevicePose.near, NIGHT, nightT);
     const pose = f < G.push[0] ? lerpPose(FRONT, devicePose, revealT) : lerpPose(devicePose, FRONT, pushT);
 
@@ -156,12 +157,12 @@ export const AgentAway: React.FC = () => {
     const win = (radius: number) => <AgentWindow frame={f} typed={typed} step={step} seconds={seconds} edited={edited} flash={flash} link={link} radius={radius} caret={caret} />;
 
     // ---- away: the server card, the link, the laptop asleep ----
-    const serverIn = ramp(f, G.server, G.server + 40, Ease.enter) * (1 - ramp(f, G.reconnected + 6, G.push[0] + 6, Ease.exit));
+    const serverIn = ramp(f, G.server, G.server + 40, Ease.enter) * (1 - ramp(f, G.reconnected + 8, G.reconnected + 36, Ease.glide));
     const anchor = laptopAnchor(pose);
     const cardPos = { x: 1220, y: 300 };
     const front = projectPoint(pose, 0, -BASE.h / 2, BASE.d / 2 + 4);
     const linkEnd = { x: cardPos.x, y: cardPos.y + 80 };
-    const linkAlpha = ramp(f, G.reveal[1] - 40, G.reveal[1], Ease.out) * (1 - ramp(f, G.reconnected + 6, G.push[0] + 6, Ease.exit));
+    const linkAlpha = ramp(f, G.server, G.server + 40, Ease.enter) * (1 - ramp(f, G.reconnected + 8, G.reconnected + 36, Ease.glide));
     const asleep = f >= contact && f < G.open + 10;
     const pulse = ramp(f, G.open + 30, G.reconnected, Ease.move);
     const moon = ramp(f, contact + 20, contact + 60, Ease.enter) * (1 - ramp(f, G.open - 10, G.open + 10, Ease.exit));
@@ -204,7 +205,7 @@ export const AgentAway: React.FC = () => {
                             </linearGradient>
                         </defs>
                         <path
-                            d={`M ${anchor.x} ${anchor.y} C ${anchor.x + 160} ${anchor.y - 60}, ${linkEnd.x - 200} ${linkEnd.y}, ${linkEnd.x} ${linkEnd.y}`}
+                            d={linkPath(anchor, linkEnd)}
                             fill="none"
                             stroke="url(#agentLink)"
                             strokeWidth={2}

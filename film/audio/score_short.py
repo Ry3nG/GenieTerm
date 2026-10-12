@@ -30,17 +30,21 @@ def build(spec):
     # the bar position (fractional) where the end card lands: the home chord arrives exactly there
     end_b = end / S.BAR + 1
     work = ["D", "Bm", "G", "A", "D", "F#m", "G", "A", "Bm", "G", "A", "D", "Bm", "G", "A"]
-    prog = [(1, "G"), (2, "A")]
-    b = 3
+    # a cold open (an ordinary terminal failing) gets its own sparse, unresolved bars first
+    cold_b = m.get("cold", 0) / 160
+    prog = [(1 + i, c) for i, c in enumerate(["Bm", "G", "Bm", "F#m"][: int(np.ceil(cold_b))])]
+    hook_b = 1 + cold_b
+    prog += [(hook_b, "G"), (hook_b + 1, "A")]
+    b = hook_b + 2
     while b < end_b - 2:
-        prog.append((b, work[(b - 3) % len(work)]))
+        prog.append((b, work[int(b - hook_b - 2) % len(work)]))
         b += 1
     prog += [(end_b - 2, "G"), (end_b - 1, "A"), (end_b, "D")]
     S.PROGRESSION = prog
 
     quiet = [(sec(a), sec(b)) for a, b in m["quiet"]]
-    cutoff = [(0, 420), (1.8, 700), (t_at(3), 1000)]
-    gain = [(0, 0.0), (1.2, 0.42), (t_at(2), 0.5), (t_at(3), 0.64)]
+    cutoff = [(0, 420), (1.8, 700), (t_at(hook_b + 2), 1000)]
+    gain = [(0, 0.0), (1.2, 0.42), (t_at(hook_b + 1), 0.5), (t_at(hook_b + 2), 0.64)]
     for a, b in quiet:
         cutoff += [(a - 0.6, 1050), (a + 0.4, 280), (b - 0.8, 340), (b + 0.4, 1400)]
         gain += [(a - 0.6, 0.68), (a + 0.5, 0.07), (b - 0.8, 0.12), (b + 0.3, 0.86)]
@@ -55,7 +59,9 @@ def build(spec):
     pad = S.pad_layer(S.env_curve(cutoff, N)) * S.env_curve(gain, N)
 
     bells = np.zeros((2, N))
-    motif = [(1, 0.5, 78), (1, 1.5, 81), (2, 0.5, 76)]
+    motif = [(hook_b, 0.5, 78), (hook_b, 1.5, 81), (hook_b + 1, 0.5, 76)]
+    if cold_b:
+        motif += [(1, 1, 71), (2, 2, 69)]
     motif += [(end_b, 0.25, 74), (end_b, 0.28, 81), (end_b, 0.31, 86)]
     for bar, beat, note in motif:
         S.add(bells, S.soft_bell(S.midi_hz(note)), t_at(bar, beat), 0.11, pan=S.rng.uniform(-0.3, 0.3))
@@ -63,9 +69,11 @@ def build(spec):
         S.add(bells, S.soft_bell(S.midi_hz(85)), t, 0.09, pan=0.2)
 
     dry = np.zeros((2, N))
-    pulse_end = min([a for a, _ in quiet] + [end]) if quiet else end
-    spans = [(t_at(3), pulse_end)]
-    for a, b in quiet:
+    starts_after = t_at(hook_b + 2)
+    work_quiet = [(a, b) for a, b in quiet if a >= starts_after]
+    pulse_end = min([a for a, _ in work_quiet] + [end])
+    spans = [(starts_after, pulse_end)]
+    for a, b in work_quiet:
         spans.append((b + S.BAR * 0.5, end))
     for t0s, t1s in spans:
         beat_t = np.ceil(t0s / S.BEAT) * S.BEAT
@@ -80,7 +88,7 @@ def build(spec):
     for i, (b, c) in enumerate(S.PROGRESSION):
         start = t_at(b)
         stop = t_at(S.PROGRESSION[i + 1][0]) if i + 1 < len(S.PROGRESSION) else DUR - 1
-        if b < 3 or any(a - 0.5 < start < q for a, q in quiet):
+        if b < hook_b + 2 or any(a - 0.5 < start < q for a, q in quiet):
             continue
         n = int((stop - start) * S.SR)
         tt = np.arange(n) / S.SR

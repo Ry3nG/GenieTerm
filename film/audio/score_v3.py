@@ -19,7 +19,7 @@ SR = 48000
 BPM = 90
 BEAT = 60 / BPM
 BAR = 4 * BEAT
-BARS = 42
+BARS = 43
 TAIL = 3.0
 DUR = BARS * BAR + TAIL
 N = int(DUR * SR)
@@ -45,7 +45,7 @@ CH = {
 
 # One chord per bar, following src/v3/timeline.ts (score bar = scene bar + 1):
 # cold 1-4 · title 5-6 · connect 7-12 · card 13 · durable 14-20 · card 21 · host 22-27
-# card 28 · command ai 29-37 · outro 38-42
+# card 29 · command ai 30-38 · outro 39-43
 PROGRESSION = [
     (1, "Bm"), (2, "G"), (3, "Bm"), (4, "F#m"),
     (5, "D"), (6, "A"),
@@ -53,10 +53,10 @@ PROGRESSION = [
     (13, "G"),
     (14, "D"), (15, "Bm"), (16, "G"), (17, "Em"), (18, "Bm"), (19, "A"), (20, "D"),
     (21, "G"),
-    (22, "D"), (23, "F#m"), (24, "G"), (25, "A"), (26, "Bm"), (27, "A"),
-    (28, "G"),
-    (29, "D"), (30, "Bm"), (31, "Em"), (32, "F#m"), (33, "G"), (34, "A"), (35, "D"), (36, "Bm"), (37, "A"),
-    (38, "G"), (39, "A"), (40, "D"),
+    (22, "D"), (23, "F#m"), (24, "G"), (25, "A"), (26, "Bm"), (27, "A"), (28, "Bm"),
+    (29, "G"),
+    (30, "D"), (31, "Bm"), (32, "Em"), (33, "F#m"), (34, "G"), (35, "A"), (36, "D"), (37, "Bm"), (38, "A"),
+    (39, "G"), (40, "A"), (41, "D"),
 ]
 
 F = 1 / 60
@@ -69,11 +69,11 @@ DUR0 = 13 * 160 * F
 LID_CLOSED = DUR0 + 387 * F
 LID_OPEN = DUR0 + 690 * F
 RECONNECTED = DUR0 + 760 * F
-AI0 = 28 * 160 * F
+AI0 = 29 * 160 * F
 FAILED = AI0 + 236 * F
 FIXED = AI0 + 1112 * F
-CARD = 37 * 160 * F + 360 * F
-CARDS = [13, 21, 28]
+CARD = 38 * 160 * F + 360 * F
+CARDS = [13, 21, 29]
 
 
 def chord_at(t):
@@ -202,8 +202,8 @@ def build():
     for b in CARDS:
         motif += [(b, 0, 81), (b, 1.5, 78)]
     motif += [(19, 2.6, 81), (19, 3.2, 85), (20, 0, 83)]  # the session comes back
-    motif += [(35, 2.2, 83), (35, 3.0, 81), (36, 0, 78)]  # the fix lands
-    motif += [(40, 0.5, 74), (40, 0.53, 81), (40, 0.56, 86)]  # the end card
+    motif += [(36, 2.2, 83), (36, 3.0, 81), (37, 0, 78)]  # the fix lands
+    motif += [(41, 0.5, 74), (41, 0.53, 81), (41, 0.56, 86)]  # the end card
     for bar, beat, mnote in motif:
         add(bells, soft_bell(midi_hz(mnote)), t_at(bar, beat), 0.11, pan=rng.uniform(-0.3, 0.3))
     # the reconnect lands exactly, not on the grid
@@ -211,7 +211,7 @@ def build():
 
     dry = np.zeros((2, N))
     # a felt pulse under the working chapters, never under the cards or the night
-    for b0, b1 in [(7, 13), (14, 16.4), (20, 21), (22, 28), (29, 30.4), (31.5, 37), (38, 39.5)]:
+    for b0, b1 in [(7, 13), (14, 16.4), (20, 21), (22, 29), (30, 31.4), (32.5, 38), (39, 40.5)]:
         bar = b0
         while bar < b1:
             for k in range(4):

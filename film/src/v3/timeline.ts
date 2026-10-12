@@ -11,10 +11,10 @@ export const Scenes = {
     card1: [12, 13],
     durable: [13, 20],
     card2: [20, 21],
-    host: [21, 27],
-    card3: [27, 28],
-    ai: [28, 37],
-    outro: [37, 42],
+    host: [21, 28],
+    card3: [28, 29],
+    ai: [29, 38],
+    outro: [38, 43],
 } as const;
 
 export type SceneName = keyof typeof Scenes;

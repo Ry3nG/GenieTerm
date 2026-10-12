@@ -96,8 +96,9 @@ export function projectPoint(pose: CamPose, x: number, y: number, z: number) {
     return { x: ((p.x + 1) / 2) * FRAME_W, y: ((1 - p.y) / 2) * FRAME_H };
 }
 
-// Anchor of the link on the laptop: the back of the base, which stays put while the lid moves.
-export const laptopAnchor = (pose: CamPose) => projectPoint(pose, BASE.w / 2 - 3, BASE.h, -BASE.d / 2 + 2);
+// Anchor of the link on the laptop: the right side of the base, below and beside the screen,
+// so the line never crosses the display while the lid is open or opening.
+export const laptopAnchor = (pose: CamPose) => projectPoint(pose, BASE.w / 2, 0, -2);
 
 export const Durable: React.FC = () => {
     const f = useCurrentFrame();
@@ -128,7 +129,8 @@ export const Durable: React.FC = () => {
     const room = f < contact ? 1 : f < D.open - 20 ? mix(1, 0.12, ramp(f, contact + 4, contact + 70, Ease.out)) : mix(0.12, 0.9, ramp(f, D.open - 20, D.open + 60, Ease.move));
     const revealT = ramp(f, D.reveal[0], D.reveal[1], Ease.camera);
     const pushT = ramp(f, D.push[0], D.push[1], Ease.camera);
-    const nightT = ramp(f, D.close + 30, D.server + 90, Ease.move) * (1 - ramp(f, D.open - 40, D.push[0], Ease.move));
+    // the night framing holds until the server card has gone, so the card never sits over the open screen
+    const nightT = ramp(f, D.close + 30, D.server + 90, Ease.move) * (1 - ramp(f, D.reconnected + 30, D.push[0] + 40, Ease.move));
     const devicePose = lerpPose(DevicePose.near, NIGHT, nightT);
     const pose = f < D.push[0] ? lerpPose(FRONT, devicePose, revealT) : lerpPose(devicePose, FRONT, pushT);
     // the frontal pose projects the glass exactly onto the frame, so the camera alone carries
@@ -139,12 +141,12 @@ export const Durable: React.FC = () => {
     const screen = <TrainingWindow frame={f} epoch={epoch} seconds={seconds} link={link} radius={0} />;
 
     // ---- the night: server card, link, captions ----
-    const serverIn = ramp(f, D.server, D.server + 40, Ease.enter) * (1 - ramp(f, D.reconnected + 6, D.push[0] + 6, Ease.exit));
+    const serverIn = ramp(f, D.server, D.server + 40, Ease.enter) * (1 - ramp(f, D.reconnected + 8, D.reconnected + 36, Ease.glide));
     const anchor = laptopAnchor(pose);
     const cardPos = { x: 1250, y: 330 };
     const front = projectPoint(pose, 0, -BASE.h / 2, BASE.d / 2 + 4);
     const linkEnd = { x: cardPos.x, y: cardPos.y + 80 };
-    const linkAlpha = ramp(f, D.reveal[1] - 40, D.reveal[1], Ease.out) * (1 - ramp(f, D.reconnected + 6, D.push[0] + 6, Ease.exit));
+    const linkAlpha = ramp(f, D.server, D.server + 40, Ease.enter) * (1 - ramp(f, D.reconnected + 8, D.reconnected + 36, Ease.glide));
     const asleep = f >= contact && f < D.open + 10;
     const pulse = ramp(f, D.open + 30, D.reconnected, Ease.move);
     const moon = ramp(f, contact + 20, contact + 60, Ease.enter) * (1 - ramp(f, D.open - 10, D.open + 10, Ease.exit));
@@ -190,7 +192,7 @@ export const Durable: React.FC = () => {
                             </linearGradient>
                         </defs>
                         <path
-                            d={`M ${anchor.x} ${anchor.y} C ${anchor.x + 160} ${anchor.y - 60}, ${linkEnd.x - 200} ${linkEnd.y}, ${linkEnd.x} ${linkEnd.y}`}
+                            d={linkPath(anchor, linkEnd)}
                             fill="none"
                             stroke="url(#linkGrad)"
                             strokeWidth={2}
@@ -212,6 +214,12 @@ export const Durable: React.FC = () => {
     );
 };
 
+// From the laptop's side out to the right, then up into the card: it leaves sideways first so
+// it stays clear of the screen.
+export function linkPath(a: { x: number; y: number }, b: { x: number; y: number }) {
+    return `M ${a.x} ${a.y} C ${a.x + 220} ${a.y}, ${b.x - 160} ${b.y}, ${b.x} ${b.y}`;
+}
+
 // The reconnect, drawn as one bright point running from the server back to the laptop.
 export const PulseDot: React.FC<{ from: { x: number; y: number }; to: { x: number; y: number }; t: number }> = ({ from, to, t }) => {
     if (t <= 0 || t >= 1) {
@@ -219,8 +227,8 @@ export const PulseDot: React.FC<{ from: { x: number; y: number }; to: { x: numbe
     }
     // same cubic as the link, walked backwards
     const P0 = to;
-    const P1 = { x: to.x + 160, y: to.y - 60 };
-    const P2 = { x: from.x - 200, y: from.y };
+    const P1 = { x: to.x + 220, y: to.y };
+    const P2 = { x: from.x - 160, y: from.y };
     const P3 = from;
     const u = 1 - t;
     const b = (a: number, c1: number, c2: number, d: number) => (1 - u) ** 3 * a + 3 * (1 - u) ** 2 * u * c1 + 3 * (1 - u) * u * u * c2 + u ** 3 * d;

@@ -71,7 +71,7 @@ export const EndCard: React.FC<{ start: number; tagline?: string }> = ({ start, 
                         opacity: subOpacity,
                     }}
                 >
-                    macOS · Linux · Windows
+                    Free and open source · macOS · Linux · Windows
                 </div>
                 <div
                     style={{

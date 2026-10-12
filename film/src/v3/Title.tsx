@@ -13,7 +13,7 @@ import { LocalPrompt, Workspace, termCaretWorld } from "./workspace";
 
 export const TITLE_SIZE = 96;
 const NAME = "GenieTerm";
-const LINE = "The terminal for machines you don't sit in front of.";
+const LINE = "The remote-native terminal.";
 
 // The window's camera as the title hands over to "connect".
 export const WindowRise = {

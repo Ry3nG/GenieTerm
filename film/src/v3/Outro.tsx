@@ -78,7 +78,7 @@ export const Outro: React.FC = () => {
                 </div>
             </AbsoluteFill>
             <Sequence from={OUTRO_CARD - 20}>
-                <EndCard start={0} tagline="Free and open source." />
+                <EndCard start={0} tagline="The remote-native terminal." />
             </Sequence>
         </AbsoluteFill>
     );

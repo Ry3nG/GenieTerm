@@ -1,16 +1,17 @@
 import { lidContact } from "../kit/laptopshot";
-import { aiCues, cardCues, hostCues, typing, type Cue } from "../v3/cues";
+import { aiCues, cardCues, coldCues, hostCues, typing, type Cue } from "../v3/cues";
+import { ColdTimes } from "../v3/ColdOpen";
 import { A } from "../v3/Ai";
 import { H } from "../v3/HostPorts";
 import { G } from "./AgentAway";
 import { F } from "./FilesShort";
 import { REQUEST } from "./agent";
-import { HOOK, type ShortSpec } from "./ShortFilm";
+import { HOOK, coldLength, type ShortSpec } from "./ShortFilm";
 
 // Sound for each short: its cues, and the few musical facts the score needs (when the room
 // goes quiet, when things bloom, when something fails or lands), all in frames.
 
-export type Music = { quiet: [number, number][]; blooms: number[]; dark: number[]; bright: number[]; end: number };
+export type Music = { quiet: [number, number][]; blooms: number[]; dark: number[]; bright: number[]; end: number; cold?: number };
 
 export const agentCues = (out: Cue[], at: (f: number) => number) => {
     typing(out, at(G.type), REQUEST, 1.55, -2);
@@ -24,6 +25,9 @@ export const agentCues = (out: Cue[], at: (f: number) => number) => {
     out.push({ kind: "chime", frame: at(G.reconnected), db: -3 });
     out.push({ kind: "whoosh", frame: at(G.push[1] - 30), dur: 1.2, db: -9 });
 };
+
+// The plain terminal's lid: quiet from the moment it shuts until it opens on the error.
+const coldQuiet = (): [number, number] => [ColdTimes.close + lidContact(), ColdTimes.open + 40];
 
 export const filesCues = (out: Cue[], at: (f: number) => number) => {
     out.push({ kind: "click", frame: at(F.pick) });
@@ -40,13 +44,24 @@ export const filesCues = (out: Cue[], at: (f: number) => number) => {
 
 export function shortSound(spec: ShortSpec): { cues: Cue[]; music: Music } {
     const out: Cue[] = [];
-    const at = (f: number) => HOOK + f;
-    cardCues(out, (f) => f, spec.hook);
-    const end = HOOK + spec.demoLength;
+    const c = coldLength(spec);
+    const at = (f: number) => c + HOOK + f;
+    if (spec.cold) {
+        coldCues(out, (f) => f);
+    }
+    cardCues(out, (f) => c + f, spec.hook);
+    const end = c + HOOK + spec.demoLength;
     let music: Music = { quiet: [], blooms: [], dark: [], bright: [], end };
     if (spec.id === "ShortAgent") {
         agentCues(out, at);
-        music = { quiet: [[at(G.close + lidContact()), at(G.reconnected)]], blooms: [at(G.reconnected)], dark: [], bright: [at(G.label)], end };
+        music = {
+            quiet: [coldQuiet(), [at(G.close + lidContact()), at(G.reconnected)]],
+            blooms: [at(G.reconnected)],
+            dark: [ColdTimes.push[1]],
+            bright: [at(G.label)],
+            end,
+            cold: c,
+        };
     } else if (spec.id === "ShortAI") {
         aiCues(out, at);
         music = { quiet: [], blooms: [], dark: [at(A.failed)], bright: [at(A.done)], end };
@@ -63,8 +78,9 @@ export function shortSound(spec: ShortSpec): { cues: Cue[]; music: Music } {
 // The overview: title typing, each card, and each excerpt's own cues, trimmed to its window.
 export function overviewSound(layout: { parts: { id: string; hook: string; card: number; clip: number; from: number; length: number }[]; end: number }) {
     const out: Cue[] = [];
-    typing(out, 24, "GenieTerm", 5, -9);
-    const music: Music = { quiet: [], blooms: [], dark: [], bright: [], end: layout.end };
+    coldCues(out, (f) => f);
+    typing(out, 640 + 40, "GenieTerm", 5, -9);
+    const music: Music = { quiet: [coldQuiet()], blooms: [640 + 40], dark: [ColdTimes.push[1]], bright: [], end: layout.end, cold: 640 };
     const builders: Record<string, (o: Cue[], at: (f: number) => number) => void> = { agent: agentCues, files: filesCues, host: hostCues, ai: aiCues };
     for (const p of layout.parts) {
         cardCues(out, (f) => p.card + f, p.hook);

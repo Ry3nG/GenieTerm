@@ -19,16 +19,18 @@ export const H = {
     build: [120, 280] as const,
     procs: 300,
     ports: 380,
-    split: 440,
-    type: 480,
-    enter: 566,
-    dock: 620,
-    click: 694,
-    forwarded: 722,
-    fly: 728,
-    draw: [770, 900] as const,
-    label: 800,
-    end: 960,
+    // the whole Host view, named, before the terminal takes over
+    hostLabel: [452, 590] as const,
+    split: 600,
+    type: 640,
+    enter: 726,
+    dock: 780,
+    click: 854,
+    forwarded: 882,
+    fly: 888,
+    draw: [930, 1060] as const,
+    label: 960,
+    end: 1120,
 };
 
 const TB = "tensorboard --logdir runs";
@@ -76,8 +78,9 @@ export const HostPorts: React.FC = () => {
         { at: 0, x: 800, y: 450, zoom: 0.95 },
         { at: 96, x: 1205, y: 290, zoom: 1.6 },
         { at: 270, x: 1205, y: 560, zoom: 1.75 },
-        { at: 420, x: 440, y: 640, zoom: 1.45 },
-        { at: 600, x: 440, y: 790, zoom: 2.05 },
+        { at: H.hostLabel[0] - 40, x: 1010, y: 455, zoom: 1.18 },
+        { at: H.split - 20, x: 440, y: 640, zoom: 1.45 },
+        { at: H.dock - 20, x: 440, y: 790, zoom: 2.05 },
         { at: H.fly, x: 520, y: 640, zoom: 1.3 },
     ]);
     const cam = withDrift(uiCam, f, 0.8);
@@ -173,12 +176,25 @@ export const HostPorts: React.FC = () => {
         </WindowShadow>
     );
 
+    // the Host beat: the panel stays sharp, the rest of the window recedes, the label sits left
+    const hostSpot = ramp(f, H.hostLabel[0] - 16, H.hostLabel[0] + 20, Ease.move) * (1 - ramp(f, H.hostLabel[1] - 20, H.hostLabel[1] + 10, Ease.move));
+    const ro = blockOrigin(right);
+    const hTL = toScreen(cam, ro.x - 1, ro.y - 1);
+    const hBR = toScreen(cam, ro.x + right.width, ro.y + right.height);
     return (
         <AbsoluteFill style={{ background: "#000", opacity: fadeIn * (1 - exit) }}>
             <Studio />
-            <AbsoluteFill style={recede(back * 1.1)}>
+            <AbsoluteFill style={recede(Math.max(back * 1.1, hostSpot))}>
                 <World cam={cam}>{ws}</World>
             </AbsoluteFill>
+            {hostSpot > 0 && (
+                <>
+                    <AbsoluteFill style={{ clipPath: `inset(${hTL.y}px ${1920 - hBR.x}px ${1080 - hBR.y}px ${hTL.x}px round 12px)`, opacity: hostSpot }}>
+                        <World cam={cam}>{ws}</World>
+                    </AbsoluteFill>
+                    <Label frame={f} x={Math.max(130, hTL.x - 640)} y={430} text="GPU, processes, ports." sub="Live, beside your terminal." from={H.hostLabel[0]} to={H.hostLabel[1]} size={52} />
+                </>
+            )}
             {browserAlpha > 0 && (
                 <div
                     style={{
