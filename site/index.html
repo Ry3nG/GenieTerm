@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en" class="no-js">
+    <head>
+        <meta charset="utf-8" />
+        <script>document.documentElement.classList.remove("no-js")</script>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>GenieTerm — The remote-native terminal</title>
+        <meta name="description" content="GenieTerm puts your shell, the machine it runs on, and that machine's files in one window. Durable SSH sessions, remote files, a live view of the host, and Command AI that uses the AI you already have. Free and open source." />
+        <meta name="color-scheme" content="dark" />
+        <meta name="theme-color" content="#0a0a0b" />
+        <meta property="og:title" content="GenieTerm — The remote-native terminal" />
+        <meta property="og:description" content="Your shell, the machine it runs on, and that machine's files, in one window. Free and open source." />
+        <meta property="og:image" content="media/overview.jpg" />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <link rel="icon" href="img/logo.png" />
+        <link rel="preload" href="fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="preload" href="fonts/hack-regular.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <!-- the app's tab bar -->
+        <header class="tabbar" data-tabbar>
+            <div class="tabbar-inner">
+                <a class="brand" href="#top" aria-label="GenieTerm home">
+                    <img src="img/logo.png" alt="" width="22" height="22" />
+                    <span>GenieTerm</span>
+                </a>
+                <nav class="tabs" aria-label="Sections">
+                    <a class="tab" href="#sessions" data-tab="sessions">Sessions</a>
+                    <a class="tab" href="#command-ai" data-tab="command-ai">Command AI</a>
+                    <a class="tab" href="#files" data-tab="files">Files</a>
+                    <a class="tab" href="#host" data-tab="host">Host</a>
+                    <a class="tab" href="#download" data-tab="download">Download</a>
+                </nav>
+                <div class="tabbar-end">
+                    <a class="version" href="https://github.com/Ry3nG/GenieTerm/releases/latest" data-version hidden></a>
+                    <a class="gh" href="https://github.com/Ry3nG/GenieTerm" aria-label="GenieTerm on GitHub">
+                        <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <main id="top">
+            <section class="hero">
+                <div class="hero-grid">
+                <div class="hero-text">
+                <a class="release-chip reveal" href="https://github.com/Ry3nG/GenieTerm/releases/latest" data-release-chip hidden></a>
+                <h1 class="reveal">The remote&#8209;native terminal<span class="caret" aria-hidden="true"></span></h1>
+                <p class="lede reveal">Your shell, the machine it runs on, and that machine's files, in one window. For&nbsp;people who live in SSH.</p>
+                <div class="actions reveal">
+                    <a class="btn primary" href="#download" data-download-cta>Download</a>
+                    <a class="btn" href="https://github.com/Ry3nG/GenieTerm">Source on GitHub</a>
+                </div>
+                <p class="meta reveal"><span>Free and open source</span><span>macOS</span><span>Linux</span><span>Windows preview</span></p>
+                </div>
+
+                <!-- a live session, in the app's own block -->
+                <div class="block live reveal" data-block="live" aria-hidden="true">
+                    <div class="block-head">
+                        <span class="chip"><span class="glyph">⇄</span>atlas</span>
+                        <span class="path">~/llm</span>
+                        <span class="grow"></span>
+                        <span class="status">ssh</span>
+                    </div>
+                    <div class="cmd">
+                        <span class="spin" data-live-spin></span>
+                        <span class="cmd-text">claude</span>
+                        <span class="cmd-status" data-live-status>Running 12m</span>
+                    </div>
+                    <pre class="live-body" data-live></pre>
+                </div>
+                </div>
+
+                <div class="block film reveal" data-block="film">
+                    <div class="block-head">
+                        <span class="chip"><span class="glyph" aria-hidden="true">▶</span>The film</span>
+                        <span class="path">genieterm.mp4</span>
+                        <span class="grow"></span>
+                        <span class="status">1:43</span>
+                    </div>
+                    <div class="block-body">
+                        <video src="media/overview.mp4" poster="media/overview.jpg" preload="none" playsinline aria-label="GenieTerm, a 1 minute 43 second film"></video>
+                        <button class="film-play" type="button" aria-label="Play the film">
+                            <span class="film-play-inner">
+                                <span class="film-play-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M8 5.5v13l11-6.5z" fill="currentColor" /></svg></span>
+                                <span>Watch the film</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="feature" id="sessions" data-section="sessions">
+                <div class="feature-text">
+                    <p class="label reveal"><span class="idx">01</span>Durable sessions</p>
+                    <h2 class="reveal">Close the lid. Your agent keeps working.</h2>
+                    <p class="body reveal">A session keeps running on the host through sleep, network changes and restarts. When it reattaches, everything it printed while you were away streams back.</p>
+                    <ul class="facts reveal">
+                        <li>No tmux to remember</li>
+                        <li>Output from while you were away streams back</li>
+                        <li>Agents, builds, REPLs: anything long</li>
+                    </ul>
+                </div>
+                <div class="block clip reveal" data-block="sessions" data-clip>
+                    <div class="block-head">
+                        <span class="chip host"><span class="glyph" aria-hidden="true">⇄</span>atlas</span>
+                        <span class="path">~/llm</span>
+                        <span class="grow"></span>
+                        <button class="sound" type="button" aria-label="Turn sound on" aria-pressed="false" data-sound></button>
+                    </div>
+                    <div class="cmd">
+                        <span class="spin" aria-hidden="true"></span>
+                        <span class="cmd-text">claude</span>
+                        <span class="cmd-status">Running 1h 04m</span>
+                    </div>
+                    <div class="block-body">
+                        <video src="media/sessions.mp4" poster="media/sessions.jpg" preload="none" muted loop playsinline aria-label="A coding agent keeps working on the server while the laptop is closed"></video>
+                    </div>
+                </div>
+            </section>
+
+            <section class="feature" id="command-ai" data-section="command-ai">
+                <div class="feature-text">
+                    <p class="label reveal"><span class="idx">02</span>Command AI</p>
+                    <h2 class="reveal">Stuck? Ask the AI you already use.</h2>
+                    <p class="body reveal">Describe what you want, or click the sparkle on a failed command, and get commands to review that fit the machine you're on. It never runs a command on its own.</p>
+                    <ul class="facts reveal">
+                        <li>Your Codex or Claude Code sign&#8209;in</li>
+                        <li>Ollama, or your own API key</li>
+                        <li>Risky commands are labeled before they run</li>
+                    </ul>
+                </div>
+                <div class="block clip reveal" data-block="command-ai" data-clip>
+                    <div class="block-head">
+                        <span class="chip host"><span class="glyph" aria-hidden="true">⇄</span>atlas</span>
+                        <span class="path">~/llm</span>
+                        <span class="grow"></span>
+                        <button class="sound" type="button" aria-label="Turn sound on" aria-pressed="false" data-sound></button>
+                    </div>
+                    <div class="cmd">
+                        <span class="dot err" aria-hidden="true"></span>
+                        <span class="cmd-text">pip install flash-attn</span>
+                        <span class="cmd-status err">Exit 1</span>
+                        <span class="grow"></span>
+                        <span class="fix"><span aria-hidden="true">✦</span> Fix with AI</span>
+                    </div>
+                    <div class="block-body">
+                        <video src="media/command-ai.mp4" poster="media/command-ai.jpg" preload="none" muted loop playsinline aria-label="A failed install fixed with Command AI"></video>
+                    </div>
+                </div>
+            </section>
+
+            <section class="feature" id="files" data-section="files">
+                <div class="feature-text">
+                    <p class="label reveal"><span class="idx">03</span>Remote files</p>
+                    <h2 class="reveal">The server's files, right here.</h2>
+                    <p class="body reveal">Browse, preview and edit files on any host, beside the shell that's using them. Drag files in to upload, or download a whole folder.</p>
+                    <ul class="facts reveal">
+                        <li>No scp, no vim</li>
+                        <li>Transfers you can cancel and retry</li>
+                        <li><code>genie edit</code> opens a file from any shell</li>
+                    </ul>
+                </div>
+                <div class="block clip reveal" data-block="files" data-clip>
+                    <div class="block-head">
+                        <span class="chip host"><span class="glyph" aria-hidden="true">⇄</span>atlas</span>
+                        <span class="path">~/llm</span>
+                        <span class="grow"></span>
+                        <button class="sound" type="button" aria-label="Turn sound on" aria-pressed="false" data-sound></button>
+                    </div>
+                    <div class="cmd">
+                        <span class="dot ok" aria-hidden="true"></span>
+                        <span class="cmd-text">shards-0064.tar</span>
+                        <span class="cmd-status">Uploaded · 1.2 GB</span>
+                    </div>
+                    <div class="block-body">
+                        <video src="media/files.mp4" poster="media/files.jpg" preload="none" muted loop playsinline aria-label="Uploading a file to a server by dragging it, then editing a config"></video>
+                    </div>
+                </div>
+            </section>
+
+            <section class="feature" id="host" data-section="host">
+                <div class="feature-text">
+                    <p class="label reveal"><span class="idx">04</span>Host and ports</p>
+                    <h2 class="reveal">See the whole machine.</h2>
+                    <p class="body reveal">CPU, memory, every NVIDIA GPU and the processes holding it, and the ports in use. When a server prints its <code>localhost</code> URL, one click forwards the port and opens it here.</p>
+                    <ul class="facts reveal">
+                        <li>GPUs, processes and ports, live</li>
+                        <li>One&#8209;click port forwarding</li>
+                        <li>Nothing to install on the server but the helper</li>
+                    </ul>
+                </div>
+                <div class="block clip reveal" data-block="host" data-clip>
+                    <div class="block-head">
+                        <span class="chip host"><span class="glyph" aria-hidden="true">⇄</span>Host</span>
+                        <span class="path">atlas</span>
+                        <span class="grow"></span>
+                        <button class="sound" type="button" aria-label="Turn sound on" aria-pressed="false" data-sound></button>
+                    </div>
+                    <div class="cmd">
+                        <span class="dot ok" aria-hidden="true"></span>
+                        <span class="cmd-text">localhost:6006</span>
+                        <span class="cmd-status">forwarded from atlas</span>
+                    </div>
+                    <div class="block-body">
+                        <video src="media/host.mp4" poster="media/host.jpg" preload="none" muted loop playsinline aria-label="The Host view, then TensorBoard opened locally with one click"></video>
+                    </div>
+                </div>
+            </section>
+
+            <section class="more" aria-labelledby="more-title">
+                <p class="label reveal"><span class="idx">05</span>Everything else</p>
+                <h2 id="more-title" class="reveal">And the rest of a good terminal.</h2>
+                <div class="more-grid">
+                    <div class="block small reveal">
+                        <div class="block-head"><span class="path">blocks</span></div>
+                        <div class="small-body">
+                            <h3>Command blocks</h3>
+                            <p>Each command keeps its output, status and duration together. Copy it, run it again, or jump to the last one. Underneath, an ordinary xterm session.</p>
+                        </div>
+                    </div>
+                    <div class="block small reveal">
+                        <div class="block-head"><span class="path">genie</span></div>
+                        <div class="small-body">
+                            <h3>The <code>genie</code> helper</h3>
+                            <p>Offered the first time you connect to a host. It powers blocks, durable sessions and Host there, and adds <code>genie view</code> and <code>genie edit</code>.</p>
+                        </div>
+                    </div>
+                    <div class="block small reveal">
+                        <div class="block-head"><span class="path">updates</span></div>
+                        <div class="small-body">
+                            <h3>Keeps itself current</h3>
+                            <p>Updates arrive in the app on macOS and with the AppImage on Linux. Workspaces and sessions carry over.</p>
+                        </div>
+                    </div>
+                    <div class="block small reveal">
+                        <div class="block-head"><span class="path">LICENSE</span></div>
+                        <div class="small-body">
+                            <h3>Open source</h3>
+                            <p>Apache&#8209;2.0, built in the open. GenieTerm began as a fork of Wave&nbsp;Terminal.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="privacy" aria-labelledby="privacy-title">
+                <div class="privacy-text">
+                    <p class="label reveal"><span class="idx">06</span>Privacy</p>
+                    <h2 id="privacy-title" class="reveal">No account. No telemetry. <span class="soft">No AI service of its own.</span></h2>
+                    <p class="body reveal">Command AI sends a request only when you ask, straight to the AI you chose. Keys and tokens are removed first, a remote host is described only as a remote host, and you can turn it off for any machine.</p>
+                </div>
+                <div class="block sent reveal" data-block="privacy">
+                    <div class="block-head">
+                        <span class="chip"><span class="glyph" aria-hidden="true">◆</span>What's sent</span>
+                        <span class="grow"></span>
+                        <span class="status">Claude Code</span>
+                    </div>
+<pre class="sent-body"><span class="dim">context</span>   Remote host over SSH · Ubuntu 24.04 · bash
+<span class="dim">command</span>   pip install flash-attn
+<span class="dim">exit</span>      1
+<span class="dim">output</span>    ╰─&gt; OSError: CUDA_HOME environment variable is not set.
+          HF_TOKEN=<span class="redact">[REDACTED]</span></pre>
+                </div>
+            </section>
+
+            <section class="download" id="download" data-section="download" aria-labelledby="download-title">
+                <div class="download-text">
+                    <p class="label reveal"><span class="idx">07</span>Download</p>
+                    <h2 id="download-title" class="reveal">Get GenieTerm.</h2>
+                    <p class="body reveal" data-release-line>Free, for macOS and Linux, with a Windows preview.</p>
+                </div>
+                <div class="block dl reveal" data-block="download">
+                    <div class="dl-tabs" role="tablist" aria-label="Platform">
+                        <button class="tab" role="tab" type="button" aria-selected="true" aria-controls="dl-mac" id="tab-mac" data-os="mac">macOS</button>
+                        <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="dl-linux" id="tab-linux" data-os="linux">Linux</button>
+                        <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="dl-windows" id="tab-windows" data-os="windows">Windows</button>
+                    </div>
+
+                    <div class="dl-panel" role="tabpanel" id="dl-mac" aria-labelledby="tab-mac">
+                        <p class="req">macOS 12 or later</p>
+                        <div class="dl-buttons">
+                            <a class="btn primary" data-asset="darwin-arm64.*\.dmg$" href="https://github.com/Ry3nG/GenieTerm/releases/latest">Apple silicon</a>
+                            <a class="btn" data-asset="darwin-x64.*\.dmg$" href="https://github.com/Ry3nG/GenieTerm/releases/latest">Intel</a>
+                        </div>
+                        <p class="note">Open the <code>.dmg</code> and drag GenieTerm to Applications. It isn't notarized yet: the first time, choose <em>Open Anyway</em> in System Settings → Privacy &amp; Security. After that it keeps itself up to date.</p>
+                    </div>
+
+                    <div class="dl-panel" role="tabpanel" id="dl-linux" aria-labelledby="tab-linux" hidden>
+                        <p class="req">x64 or arm64 · glibc 2.28 or later (Ubuntu 20.04, Debian 10)</p>
+                        <div class="dl-rows">
+                            <div class="dl-row"><span class="arch">x64</span><a class="btn primary small" data-asset="linux-x64.*\.deb$" href="https://github.com/Ry3nG/GenieTerm/releases/latest">.deb</a><a class="btn small" data-asset="linux-x64.*\.AppImage$" href="https://github.com/Ry3nG/GenieTerm/releases/latest">AppImage</a></div>
+                            <div class="dl-row"><span class="arch">arm64</span><a class="btn small" data-asset="linux-arm64.*\.deb$" href="https://github.com/Ry3nG/GenieTerm/releases/latest">.deb</a><a class="btn small" data-asset="linux-arm64.*\.AppImage$" href="https://github.com/Ry3nG/GenieTerm/releases/latest">AppImage</a></div>
+                        </div>
+                        <div class="snippet">
+                            <code data-snippet>sudo apt install ./GenieTerm-linux-x64-*.deb</code>
+                            <button class="copy" type="button" data-copy aria-label="Copy command">Copy</button>
+                        </div>
+                        <p class="note">The AppImage updates itself; a <code>.deb</code> install tells you when a new version is out. On Ubuntu 23.10 and later, use the <code>.deb</code>.</p>
+                    </div>
+
+                    <div class="dl-panel" role="tabpanel" id="dl-windows" aria-labelledby="tab-windows" hidden>
+                        <p class="req">x64 · unsigned preview</p>
+                        <div class="dl-buttons">
+                            <a class="btn" href="https://github.com/Ry3nG/GenieTerm/releases">Preview builds</a>
+                        </div>
+                        <p class="note">Windows builds are published on prerelease tags while signing is set up.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- the app's status line -->
+        <footer class="statusbar">
+            <div class="statusbar-inner">
+                <span class="brand small"><img src="img/logo.png" alt="" width="16" height="16" /> GenieTerm</span>
+                <span class="sep">Apache&#8209;2.0</span>
+                <span class="sep">a fork of <a href="https://github.com/wavetermdev/waveterm">Wave Terminal</a></span>
+                <span class="grow"></span>
+                <a href="https://github.com/Ry3nG/GenieTerm">GitHub</a>
+                <a href="https://github.com/Ry3nG/GenieTerm/releases">Releases</a>
+                <a href="https://github.com/Ry3nG/GenieTerm/blob/main/ROADMAP.md">Roadmap</a>
+                <a href="https://github.com/Ry3nG/GenieTerm/blob/main/SECURITY.md">Security</a>
+            </div>
+            <p class="statusbar-fine">The films on this page were made in code. Their screens are rebuilt from the app and show what it does.</p>
+        </footer>
+
+        <script src="main.js" defer></script>
+    </body>
+</html>
