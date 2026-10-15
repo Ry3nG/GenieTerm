@@ -5,123 +5,123 @@ for (const button of document.querySelectorAll("button[disabled]")) button.disab
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-
-function selectButton(group, selected) {
-    for (const button of $$(group)) {
-        button.setAttribute("aria-pressed", String(button === selected));
-    }
-}
-
-const SessionStates = {
-    connected: {
-        laptop: "Connected",
-        wire: "SSH",
-        title: "Your shell is attached.",
-        description: "The process runs on atlas. GenieTerm shows its output on your laptop.",
-        output: "Epoch 21/50 · checkpoint saved\nEpoch 22/50 · training…",
-    },
-    away: {
-        laptop: "Asleep",
-        wire: "DISCONNECTED",
-        title: "The connection pauses. The process continues.",
-        description: "Your durable session stays on atlas. New output is buffered while your laptop is away.",
-        output: "Epoch 23/50 · checkpoint saved\nEpoch 24/50 · training…",
-    },
-    back: {
-        laptop: "Reattached",
-        wire: "OUTPUT RESTORED",
-        title: "Pick up where the host is now.",
-        description: "GenieTerm reattaches to the same session and streams back the output you missed.",
-        output: "Epoch 23/50 · checkpoint saved\nEpoch 24/50 · training…",
-    },
+const Demo = $("[data-demo]");
+const SessionMarkup = Demo.innerHTML;
+const Captions = {
+    sessions: "Your connection can drop. Your work keeps running.",
+    host: "Know what is running. Open what is listening.",
+    files: "The remote project, right beside its shell.",
+    ai: "Ask your AI. Review the command. Stay in control.",
 };
 
-for (const button of $$("[data-session-step]")) {
-    button.addEventListener("click", () => {
-        const step = button.dataset.sessionStep;
-        const state = SessionStates[step];
-        selectButton("[data-session-step]", button);
-        $("[data-session]").dataset.session = step;
-        $("[data-laptop-status]").textContent = state.laptop;
-        $("[data-wire-label]").textContent = state.wire;
-        $("[data-session-title]").textContent = state.title;
-        $("[data-session-description]").textContent = state.description;
-        $("[data-session-output]").textContent = state.output;
-    });
+function terminal(command, output, meta = "RUNNING") {
+    return `<div class="terminal"><div class="pane-title"><span>Terminal</span><span>bash</span></div><div class="terminal-content"><div class="prompt"><span>~/vision-lab</span> $ ${command}</div><div class="command-meta">${meta}<span>atlas</span></div><pre class="terminal-output">${output}</pre><div class="terminal-cursor" aria-hidden="true">▌</div></div></div>`;
 }
 
-$("[data-forward]").addEventListener("click", (event) => {
-    const button = event.currentTarget;
-    const active = button.getAttribute("aria-pressed") !== "true";
-    button.setAttribute("aria-pressed", String(active));
-    button.textContent = active ? "Reset example ↶" : "Open in Browser ↗";
-    $("[data-browser-preview]").hidden = !active;
-    $("[data-port-route]").classList.toggle("is-forwarded", active);
-    $("[data-route-label]").textContent = active ? "atlas:6006 → localhost:6006" : "Remote port 6006";
-    $("[data-forward-status]").textContent = active
-        ? "Example forwarded. In GenieTerm, the service opens in your browser through a local-only SSH forward."
-        : "Try the example. No connection is made from this page.";
-});
+const HostMarkup =
+    terminal(
+        "tensorboard --logdir runs",
+        'TensorFlow 2.20.0\nLog directory: ./runs\n\n<span class="terminal-green">TensorBoard 2.20.0 at\nhttp://localhost:6006/</span>\n\nWatching for new training events…'
+    ) +
+    `<div class="side-panel"><div class="pane-title"><span>Host / atlas</span><span>Overview</span></div>
+<div class="host-metrics"><div class="metric"><span>CPU</span><strong>24<small>%</small></strong></div><div class="metric"><span>MEMORY</span><strong>18<small> / 64 GB</small></strong></div><div class="metric"><span>GPU</span><strong>87<small>%</small></strong></div></div>
+<div class="gpu-chart"><div class="chart-heading">NVIDIA RTX 4090 <span>19.2 / 24 GB</span></div>
+<svg viewBox="0 0 440 58" preserveAspectRatio="none" role="img" aria-label="GPU utilization over the last minute, rising to 87 percent"><path d="M0 55H440M0 28H440" fill="none" stroke="#364030" stroke-width="1"/><path d="M0 51L18 45L34 47L52 38L70 40L88 31L106 34L124 21L142 29L160 15L178 20L196 13L214 22L232 16L250 9L268 14L286 10L304 16L322 8L340 12L358 6L376 11L394 8L412 12L440 7" fill="none" stroke="#b9d88a" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg></div>
+<div class="port-row"><div>6006 <small>TensorBoard · localhost only</small></div><button data-forward aria-pressed="false">Forward port ↗</button></div><p class="port-result" data-port-result role="status"></p></div>`;
 
-const AiExamples = {
-    write: {
-        question: "Find the log files in this project's runs folder.",
-        summary: "Find every .log file under ./runs, including subfolders.",
-        command: "find ./runs -type f -name '*.log'",
-        risk: "Read-only command",
-    },
-    fix: {
-        question: "tensorboard: command not found · exit 127",
-        summary:
-            "TensorBoard isn't available in this shell. Install it in your active Python environment, then try again.",
-        command: "python -m pip install tensorboard",
-        risk: "Installs a package",
-    },
-    explain: {
-        question: "What does du -sh ./runs do?",
-        summary: "Show the total disk space used by ./runs. The -s flag gives one total; -h makes the size readable.",
-        command: "du -sh ./runs",
-        risk: "Read-only command",
-    },
+const FileContents = {
+    "train.py":
+        'import torch\nfrom model import make_model\n\nmodel = make_model("resnet50")\nmodel = model.to("cuda")\n\nfor epoch in range(50):\n    loss = train_epoch(model, loader)\n    save_checkpoint(model, epoch)',
+    "configs/train.yaml":
+        "model: resnet50\ndevice: cuda:0\nepochs: 50\nbatch_size: 64\nlearning_rate: 0.001\n\ndataset: ./datasets/imagenet\noutput: ./runs",
+    "results.csv": "epoch,loss,accuracy\n21,0.184,94.2\n22,0.169,94.7\n23,0.152,95.1\n24,0.141,95.4",
+    "README.md":
+        "# Vision Lab\n\nTraining experiments on atlas.\n\n## Run\npython train.py\n\n## Monitor\ntensorboard --logdir runs",
 };
-let selectedExample = "write";
+const FilesMarkup = `<div class="terminal"><div class="pane-title"><span data-file-title>train.py</span><span>Preview</span></div><pre class="code-content" data-file-content></pre></div><div class="side-panel"><div class="pane-title"><span>Files / vision-lab</span><span>atlas</span></div><div class="file-list">${Object.keys(
+    FileContents
+)
+    .map(
+        (name) =>
+            `<button data-file="${name}" aria-pressed="${name === "train.py"}"><span><i aria-hidden="true">↳</i>${name}</span><small>${name.endsWith(".py") ? "Python" : name.split(".").at(-1)}</small></button>`
+    )
+    .join("")}</div><p class="file-note">/home/demo/vision-lab</p></div>`;
 
-for (const button of $$("[data-ai]")) {
-    button.addEventListener("click", () => {
-        selectedExample = button.dataset.ai;
-        const example = AiExamples[selectedExample];
-        selectButton("[data-ai]", button);
-        $("[data-ai-question]").textContent = example.question;
-        $("[data-ai-summary]").textContent = example.summary;
-        $("[data-ai-command]").textContent = example.command;
-        $("[data-ai-risk]").textContent = example.risk;
-        $("[data-ai-prompt]").textContent = " ";
-        $("[data-ai-status]").textContent = "Illustrative response. Try inserting it into the sample prompt.";
-        $("[data-insert]").textContent = "Insert at prompt ↙";
-    });
+const AiMarkup =
+    terminal(
+        "npm run build",
+        '<span class="terminal-red">error TS2688:\nCannot find type definition file for node.</span>\n\n<span class="terminal-dim">~/vision-lab $</span> <span data-ai-prompt></span>',
+        '<span class="terminal-red">EXIT 2</span>'
+    ) +
+    `<div class="side-panel"><div class="pane-title"><span>✳ Fix / npm run build</span><span>Claude Code</span></div><div class="ai-body"><p>The build needs Node.js type definitions.</p><div class="ai-proposal"><code>npm install --save-dev @types/node</code><p>Install the missing development dependency.</p><div class="ai-actions"><button data-insert>Insert ↵</button><span>Review, then run.</span></div></div><div class="ai-foot" data-ai-status role="status">Include output · 42 lines</div></div></div>`;
+
+function selectView(button) {
+    const view = button.dataset.view;
+    for (const tab of $$("[role=tab]")) {
+        tab.setAttribute("aria-selected", String(tab === button));
+        tab.tabIndex = tab === button ? 0 : -1;
+    }
+    $("#demo-panel").setAttribute("aria-labelledby", button.id);
+    Demo.innerHTML = { sessions: SessionMarkup, host: HostMarkup, files: FilesMarkup, ai: AiMarkup }[view];
+    Demo.dataset.view = view;
+    Demo.classList.remove("is-disconnected");
+    $("[data-caption]").textContent = Captions[view];
+    $("[data-caption-index]").textContent = `0${Object.keys(Captions).indexOf(view) + 1} / 04`;
+    $("[data-bottom-status]").textContent = "Connected to atlas";
+    if (view === "files") $("[data-file-content]").textContent = FileContents["train.py"];
 }
 
-$("[data-insert]").addEventListener("click", () => {
-    $("[data-ai-prompt]").textContent = AiExamples[selectedExample].command;
-    $("[data-ai-status]").textContent = "Inserted into the example prompt. Nothing has been executed.";
-    $("[data-insert]").textContent = "Inserted ✓";
+for (const button of $$("[role=tab]")) button.addEventListener("click", () => selectView(button));
+$(".demo-tabs").addEventListener("keydown", (event) => {
+    const tabs = $$("[role=tab]");
+    const current = tabs.indexOf(document.activeElement);
+    if (current < 0) return;
+    let index;
+    if (event.key === "ArrowRight") index = (current + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") index = (current + tabs.length - 1) % tabs.length;
+    else if (event.key === "Home") index = 0;
+    else if (event.key === "End") index = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    tabs[index].focus();
+    selectView(tabs[index]);
 });
 
-const platform = (navigator.userAgentData?.platform || navigator.platform || "").toLowerCase();
-const os = platform.includes("mac")
-    ? "mac"
-    : platform.includes("win")
-      ? "windows"
-      : platform.includes("linux")
-        ? "linux"
-        : null;
-if (os) {
-    $(`[data-platform="${os}"]`)?.classList.add("is-detected");
-    if (os !== "windows") {
-        $("[data-cta-label]").textContent = `Download for ${os === "mac" ? "macOS" : "Linux"}`;
-        $("[data-download-cta]").setAttribute("aria-label", `Download for ${os === "mac" ? "macOS" : "Linux"}`);
+Demo.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.hasAttribute("data-session")) {
+        const disconnected = Demo.classList.toggle("is-disconnected");
+        $("[data-session-label]").textContent = disconnected ? "Disconnected" : "Reattached";
+        $("[data-session-message]").textContent = disconnected
+            ? "Laptop disconnected. The same process is still running."
+            : "Same session. The output you missed is restored.";
+        button.textContent = disconnected ? "Reconnect laptop ↗" : "Disconnect laptop ↗";
+        $("[data-bottom-status]").textContent = disconnected
+            ? "Offline · process running on atlas"
+            : "Reattached · pid 2841";
+        $(".connection-line span").textContent = disconnected ? "OFFLINE" : "SSH";
+        if (!disconnected)
+            $(".terminal-output").textContent =
+                "epoch  23/50   loss 0.152   acc 95.1%\nepoch  24/50   loss 0.141   acc 95.4%\nepoch  25/50   loss 0.136   acc 95.7%\ncheckpoint saved → runs/latest.pt\n\n[buffered output restored]\nepoch  26/50   training…";
     }
-}
+    if (button.hasAttribute("data-forward")) {
+        const active = button.getAttribute("aria-pressed") !== "true";
+        button.setAttribute("aria-pressed", String(active));
+        button.textContent = active ? "Stop forward ×" : "Forward port ↗";
+        $("[data-port-result]").textContent = active ? "Demo: atlas:6006 → localhost:6006" : "";
+    }
+    if (button.dataset.file) {
+        for (const file of $$("[data-file]")) file.setAttribute("aria-pressed", String(file === button));
+        $("[data-file-title]").textContent = button.dataset.file;
+        $("[data-file-content]").textContent = FileContents[button.dataset.file];
+    }
+    if (button.hasAttribute("data-insert")) {
+        $("[data-ai-prompt]").textContent = "npm install --save-dev @types/node";
+        $("[data-ai-status]").textContent = "Inserted at the prompt. Ready for your review.";
+        button.textContent = "Inserted ✓";
+    }
+});
 
 function githubUrl(value, pathPrefix) {
     try {
@@ -133,7 +133,6 @@ function githubUrl(value, pathPrefix) {
         return null;
     }
 }
-
 async function loadRelease() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 7000);
@@ -149,148 +148,44 @@ async function loadRelease() {
             release.draft ||
             release.prerelease ||
             !Array.isArray(release.assets)
-        ) {
+        )
             throw new Error("No stable release");
-        }
         const releaseUrl = githubUrl(release.html_url, "/Ry3nG/GenieTerm/releases/tag/");
         if (!releaseUrl) throw new Error("Invalid release URL");
         $("[data-version]").textContent = release.tag_name;
         $(".release-link").href = releaseUrl;
-        let resolved = 0;
         for (const link of $$("[data-asset]")) {
             const asset = release.assets.find((item) => new RegExp(link.dataset.asset, "i").test(item.name));
             const url = asset && githubUrl(asset.browser_download_url, "/Ry3nG/GenieTerm/releases/download/");
-            if (!url) continue;
-            link.href = url;
-            resolved++;
+            if (url) link.href = url;
         }
-        $("[data-release-status]").textContent =
-            resolved === $$("[data-asset]").length
-                ? `${release.tag_name} · Free downloads for macOS and Linux.`
-                : `${release.tag_name} · Some packages link to GitHub Releases for availability.`;
+        $("[data-release-status]").textContent = "Stable downloads: " + release.tag_name;
     } catch {
-        $("[data-release-status]").textContent =
-            "Downloads: v1.4.0. Visit GitHub Releases to check for a newer version.";
+        $("[data-release-status]").textContent = "Stable downloads: v1.4.1. Check GitHub Releases for newer versions.";
     } finally {
         clearTimeout(timeout);
     }
 }
-
 loadRelease();
 
-const ProductViews = {
-    host: {
-        src: "img/host-overview.png",
-        caption: "Your machine, beyond the prompt.",
-        alt: "GenieTerm Host overview showing GPUs, CPU, memory and processes",
-    },
-    files: {
-        src: "img/files.jpg",
-        caption: "Find it. Open it. Keep working.",
-        alt: "GenieTerm Files view with a project's folders, Python files and results",
-    },
-    ai: {
-        src: "img/command-ai.jpg",
-        caption: "Understand the error. Review the next step.",
-        alt: "Command AI explaining a build failure and proposing commands to review",
-    },
-};
-const HostViews = {
-    overview: {
-        src: "img/host-overview.png",
-        caption: "Every NVIDIA GPU, its memory, and the processes holding it.",
-        alt: "Host overview with GPU, CPU and memory charts",
-    },
-    detail: {
-        src: "img/host-detail.jpg",
-        caption: "Go deeper: clocks, power, bandwidth and the processes using this GPU.",
-        alt: "GPU detail showing history charts, temperature, power and owning processes",
-    },
-    ports: {
-        src: "img/host-ports.jpg",
-        caption: "Listening services and local forwards, in one place.",
-        alt: "Host Ports view with TensorBoard, Jupyter, Ray and PostgreSQL",
-    },
-};
-for (const button of $$("[data-gallery]")) {
-    button.addEventListener("click", () => {
-        const view = ProductViews[button.dataset.gallery];
-        selectButton("[data-gallery]", button);
-        $("[data-gallery-image]").src = view.src;
-        $("[data-gallery-image]").alt = view.alt;
-        $("[data-gallery-caption]").textContent = view.caption;
-    });
-}
-for (const button of $$("[data-host-view]")) {
-    button.addEventListener("click", () => {
-        const view = HostViews[button.dataset.hostView];
-        selectButton("[data-host-view]", button);
-        $("[data-host-image]").src = view.src;
-        $("[data-host-image]").alt = view.alt;
-        $("[data-host-caption]").textContent = view.caption;
-    });
-}
-const screenshotDialog = $(".image-dialog");
-for (const button of $$("[data-expand]")) {
-    button.addEventListener("click", () => {
-        const source = button.querySelector("img");
-        $("[data-dialog-image]").src = source.src;
-        $("[data-dialog-image]").alt = source.alt;
-        $("[data-dialog-title]").textContent = source.alt;
-        screenshotDialog.showModal();
-    });
-}
-$("[data-close-dialog]").addEventListener("click", () => screenshotDialog.close());
-screenshotDialog.addEventListener("click", (event) => {
-    if (event.target !== screenshotDialog) return;
-    const bounds = screenshotDialog.getBoundingClientRect();
+const Film = $(".film-dialog");
+const Video = Film.querySelector("video");
+$("[data-play-film]").addEventListener("click", (event) => {
+    if (typeof Film.showModal !== "function") return;
+    event.preventDefault();
+    Film.showModal();
+    Video.play().catch(() => {});
+});
+$("[data-close-film]").addEventListener("click", () => Film.close());
+Film.addEventListener("close", () => Video.pause());
+Film.addEventListener("click", (event) => {
+    if (event.target !== Film) return;
+    const rect = Film.getBoundingClientRect();
     if (
-        event.clientX < bounds.left ||
-        event.clientX > bounds.right ||
-        event.clientY < bounds.top ||
-        event.clientY > bounds.bottom
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom
     )
-        screenshotDialog.close();
-});
-
-const filmDialog = $(".film-dialog");
-const filmVideo = filmDialog.querySelector("video");
-for (const button of $$("[data-play-film]")) {
-    button.addEventListener("click", () => {
-        filmDialog.showModal();
-        filmVideo.play().catch(() => {});
-    });
-}
-$("[data-close-film]").addEventListener("click", () => filmDialog.close());
-filmDialog.addEventListener("close", () => filmVideo.pause());
-filmDialog.addEventListener("click", (event) => {
-    if (event.target !== filmDialog) return;
-    const bounds = filmDialog.getBoundingClientRect();
-    if (
-        event.clientX < bounds.left ||
-        event.clientX > bounds.right ||
-        event.clientY < bounds.top ||
-        event.clientY > bounds.bottom
-    )
-        filmDialog.close();
-});
-
-const menuButton = $(".mobile-menu");
-function closeNavigation() {
-    menuButton.setAttribute("aria-expanded", "false");
-    menuButton.setAttribute("aria-label", "Open navigation");
-    $("#site-nav").removeAttribute("data-open");
-}
-menuButton.addEventListener("click", () => {
-    const open = menuButton.getAttribute("aria-expanded") !== "true";
-    menuButton.setAttribute("aria-expanded", String(open));
-    menuButton.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
-    $("#site-nav").toggleAttribute("data-open", open);
-});
-for (const link of $$("#site-nav a")) link.addEventListener("click", closeNavigation);
-document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeNavigation();
-});
-document.addEventListener("click", (event) => {
-    if (!$(".site-header").contains(event.target)) closeNavigation();
+        Film.close();
 });
