@@ -14,7 +14,8 @@ const AgentOutput = [
     "\x1b[32mdemo@atlas\x1b[0m \x1b[34m~/project\x1b[0m $ claude",
     "",
     "\x1b[38;5;173m  Claude Code\x1b[0m",
-    "  > Fix the failing cache tests and explain the changes.",
+    "  > Fix the failing cache tests.",
+    "    Explain the changes when you're done.",
     "",
     "  ● Read(src/cache.ts)",
     "  ● Edit(src/cache.ts)",
@@ -56,7 +57,8 @@ export function SiteTerminalPreview() {
                       "  ● Bash(npm test)",
                       "\x1b[32m    ⎿  42 passed in 18.4s\x1b[0m",
                       "",
-                      "  Fixed the cache invalidation and updated the regression tests.",
+                      "  Fixed cache invalidation and updated the",
+                      "  regression tests. All checks pass.",
                       "  > ",
                   ]
                 : AgentOutput;
@@ -84,10 +86,14 @@ export function SiteTerminalPreview() {
         <div className="w-full p-6" style={{ maxWidth: width + 48 }}>
             <div
                 data-site-terminal
-                className="flex h-[560px] w-full flex-col overflow-hidden rounded-lg border border-border bg-background"
+                className="flex h-[560px] w-full flex-col overflow-hidden rounded-lg border border-border bg-black"
             >
-                <BlockStatusLineContent status={status} onAction={async () => {}} />
-                <div ref={container} className="min-h-0 flex-1 p-5" />
+                <div className="min-h-[45px] shrink-0">
+                    <BlockStatusLineContent status={status} onAction={async () => {}} />
+                </div>
+                <div className="min-h-0 flex-1 p-5">
+                    <div ref={container} className="h-full w-full" />
+                </div>
             </div>
         </div>
     );

@@ -28,6 +28,7 @@ From the repository root:
 npx vite --config frontend/preview/vite.config.ts --host 127.0.0.1 --port 7007
 # In another terminal:
 node scripts/render-site-ui.mjs
+node scripts/verify-site-renders.mjs
 ```
 
 `img/ui/provenance.json` records the source paths, source hashes, output hashes, dimensions and the base commit at generation time. Source hashes identify the exact files, including changes made after that base commit. No live SSH or AI request is needed.
@@ -37,6 +38,8 @@ node scripts/render-site-ui.mjs
 Static links point to the last verified stable release. JavaScript updates them from GitHub's latest stable release API with a bounded timeout and repository URL validation. Keep fallback links current when preparing a release.
 
 The contribution section links to the guide and issues.
+
+The landing page uses the terminal view initially; Host and Command AI load on selection. Both interactive frames reuse the site's compact WOFF2 fonts. Rebuild these from the product's fonts with `python scripts/subset-site-fonts.py` after installing `fonttools[woff]` in a development environment. The GitHub mark is from Primer Octicons; its license is in `img/github-mark.LICENSE.txt`.
 
 ## Verification
 

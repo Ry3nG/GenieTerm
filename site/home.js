@@ -36,7 +36,7 @@ $(".view-tabs").addEventListener("keydown", (event) => {
     tabs[next].focus();
     selectView(tabs[next].dataset.view);
 });
-selectView("host");
+selectView("terminal");
 window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin || event.source !== Panes.ai.contentWindow) return;
     if (event.data?.type !== "genieterm:demo-height" || !Number.isFinite(event.data.height)) return;

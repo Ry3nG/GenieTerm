@@ -1,7 +1,7 @@
 /* Copyright 2026, GenieTerm. Apache-2.0. */
 @font-face {
     font-family: Inter;
-    src: url(fonts/inter-variable.woff2) format("woff2");
+    src: url(fonts/inter-latin.woff2) format("woff2");
     font-weight: 100 900;
     font-display: swap;
 }
@@ -100,6 +100,17 @@ button:focus-visible,
     gap: 26px;
     font-size: 12px;
     color: var(--muted);
+}
+.github-action {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+}
+.github-action svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
 }
 .nav-download {
     padding: 9px 16px;
@@ -534,6 +545,10 @@ dialog::backdrop {
     }
     .ui-render img {
         max-height: none;
+    }
+    .terminal-pair figcaption {
+        min-height: 32px;
+        font-size: 10px;
     }
     .session-states {
         padding: 12px;

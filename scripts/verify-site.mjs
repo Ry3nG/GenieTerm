@@ -27,6 +27,10 @@ try {
     });
     await page.goto(Url, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
+    assert.equal(await page.locator("iframe[src]").count(), 0, "Interactive bundles load on selection");
+    assert.equal(await page.getByRole("link", { name: "GitHub", exact: true }).count(), 1);
+    assert.equal(await page.locator(".github-action svg").count(), 1);
+    assert.equal(await page.locator('a[href="https://github.com/Ry3nG/GenieTerm/issues"]').count(), 1);
     assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(16, 16, 16)");
     const film = await page.locator(".film-poster").boundingBox();
     assert.ok(film.y < height * 0.6 && film.width > width * 0.7);
@@ -40,7 +44,7 @@ try {
       if (view === "terminal") {
         await page.locator(".terminal-pair img").evaluateAll((imgs) => Promise.all(imgs.map((i) => i.decode())));
         const boxes = await page
-          .locator(".terminal-pair figure")
+          .locator(".terminal-pair img")
           .evaluateAll((es) => es.map((e) => ({ x: e.getBoundingClientRect().x, y: e.getBoundingClientRect().y })));
         assert.equal(boxes[0].y, boxes[1].y);
         assert.ok(boxes[1].x > boxes[0].x);
@@ -69,6 +73,13 @@ try {
         }
         const root = host.locator("html");
         assert.equal(await root.evaluate((e) => e.scrollWidth > e.clientWidth + 1), false, name + ": Host overflow");
+        const fontBytes = await root.evaluate(() =>
+          performance
+            .getEntriesByType("resource")
+            .filter((r) => r.name.includes("/fonts/") && /\.(woff2|ttf)$/.test(r.name))
+            .reduce((sum, r) => sum + r.encodedBodySize, 0)
+        );
+        assert.ok(fontBytes < 250000, "Interactive text font payload exceeds budget");
       }
       if (view === "ai") {
         await page.locator("[data-live-ai]").scrollIntoViewIfNeeded();

@@ -27,3 +27,6 @@ const Svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" v
 <text x="922" y="600" fill="#dfdcd1" font-family="monospace" font-size="12">ry3ng.github.io/GenieTerm</text>
 </svg>`;
 await sharp(Buffer.from(Svg)).png().toFile(path.join(Root, "site/img/social.png"));
+await sharp(path.join(Root, "site/media/overview.jpg"))
+  .webp({ quality: 85, effort: 6 })
+  .toFile(path.join(Root, "site/media/overview.webp"));

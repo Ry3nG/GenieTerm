@@ -6,10 +6,11 @@ import { chromium } from "playwright";
 
 const Base = process.argv[2] || "http://127.0.0.1:7007";
 const Output = "site/img/ui";
+const TerminalIconFont = `@font-face{font-family:'Font Awesome 6 Pro';font-style:normal;font-weight:900;src:url(data:font/woff2;base64,${readFileSync("site/fonts/status-icon.woff2").toString("base64")}) format('woff2');}`;
 const EmbeddedFonts = [
-  ["Inter", "site/fonts/inter-variable.woff2", "100 900"],
-  ["Hack", "site/fonts/hack-regular.woff2", "400"],
-  ["Hack", "site/fonts/hack-bold.woff2", "700"],
+  ["Inter", "site/fonts/inter-latin.woff2", "100 900"],
+  ["Hack", "site/fonts/hack-latin.woff2", "400"],
+  ["Hack", "site/fonts/hack-latin-bold.woff2", "700"],
 ]
   .map(
     ([family, file, weight]) =>
@@ -173,16 +174,55 @@ try {
     });
     await page.addScriptTag({ path: "node_modules/html-to-image/dist/html-to-image.js" });
     const svg = await target.evaluate(
-      async (element, { properties, fonts }) => {
-        const fontEmbedCSS = (await window.htmlToImage.getFontEmbedCSS(element)) + "\n" + fonts;
+      async (element, { properties, fonts, terminal }) => {
+        const metrics = [element, ...element.querySelectorAll("*")].map((node, index) => {
+          node.setAttribute("data-render-index", String(index));
+          const style = getComputedStyle(node);
+          const box = node.getBoundingClientRect();
+          const inset = (names) =>
+            names.reduce((sum, name) => sum + (parseFloat(style.getPropertyValue(name)) || 0), 0);
+          const contentBox = style.boxSizing === "content-box";
+          return {
+            fontSize: style.fontSize,
+            width:
+              style.width.endsWith("px") && style.transform === "none"
+                ? box.width -
+                  (contentBox ? inset(["padding-left", "padding-right", "border-left-width", "border-right-width"]) : 0)
+                : null,
+            height:
+              style.height.endsWith("px") && style.transform === "none"
+                ? box.height -
+                  (contentBox ? inset(["padding-top", "padding-bottom", "border-top-width", "border-bottom-width"]) : 0)
+                : null,
+          };
+        });
+        const fontEmbedCSS = (terminal ? "" : await window.htmlToImage.getFontEmbedCSS(element)) + "\n" + fonts;
         const url = await window.htmlToImage.toSvg(element, {
           backgroundColor: "#101012",
           includeStyleProperties: properties,
           fontEmbedCSS,
         });
-        return decodeURIComponent(url.slice(url.indexOf(",") + 1));
+        const document = new DOMParser().parseFromString(
+          decodeURIComponent(url.slice(url.indexOf(",") + 1)),
+          "image/svg+xml"
+        );
+        for (const node of document.querySelectorAll("[data-render-index]")) {
+          const measured = metrics[Number(node.getAttribute("data-render-index"))];
+          node.style.fontSize = measured.fontSize;
+          // CSSOM serialization rounds fractional widths; rounding up prevents flex items wrapping by 1/64 px.
+          if (measured.width != null) node.style.width = `${Math.ceil(measured.width * 100) / 100}px`;
+          if (measured.height != null) node.style.height = `${Math.ceil(measured.height * 100) / 100}px`;
+          node.removeAttribute("data-render-index");
+        }
+        for (const node of element.querySelectorAll("[data-render-index]")) node.removeAttribute("data-render-index");
+        element.removeAttribute("data-render-index");
+        return new XMLSerializer().serializeToString(document);
       },
-      { properties: Styles, fonts: EmbeddedFonts }
+      {
+        properties: Styles,
+        fonts: EmbeddedFonts + (item.name.startsWith("terminal") ? TerminalIconFont : ""),
+        terminal: item.name.startsWith("terminal"),
+      }
     );
     if (svg.includes("data:image/png") || svg.includes("data:image/jpeg"))
       throw new Error(`${item.name}: unexpected raster content in SVG`);
