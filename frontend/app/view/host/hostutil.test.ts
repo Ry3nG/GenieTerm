@@ -20,6 +20,7 @@ import {
     makePortRows,
     normalizeHostTab,
     parsePortInput,
+    portForwardHost,
     pushHistory,
     serviceName,
     summarizeGpus,
@@ -126,6 +127,36 @@ describe("host formatting", () => {
 });
 
 describe("ports", () => {
+    it.each([
+        [["100.116.159.18"], "100.116.159.18"],
+        [["0.0.0.0", "::"], "127.0.0.1"],
+        [["::", "0.0.0.0"], "127.0.0.1"],
+        [["::"], "::1"],
+        [["::1"], "::1"],
+        [["127.0.0.2"], "127.0.0.2"],
+        [["fd00::1"], "fd00::1"],
+        [["100.116.159.18", "127.0.0.1"], "127.0.0.1"],
+    ])("selects a reachable target for bind addresses %j", (addresses, expected) => {
+        expect(portForwardHost(addresses)).toBe(expected);
+    });
+
+    it("keeps forwards for separate interfaces on the same port distinct", () => {
+        const loopback = forward({ id: "local", remoteport: 8774 });
+        const tailscale = forward({ id: "tailscale", remoteport: 8774, remotehost: "100.116.159.18" });
+        const ports: ListeningPort[] = [
+            { port: 8774, address: "100.116.159.18", pid: 10, command: "systemd-socket-proxyd" },
+            { port: 8774, address: "127.0.0.1", pid: 11, command: "python" },
+        ];
+        const rows = makePortRows(ports, [loopback, tailscale]);
+        expect(rows.map((r) => [r.remoteHost, r.forward?.id])).toEqual([
+            ["100.116.159.18", "tailscale"],
+            ["127.0.0.1", "local"],
+        ]);
+        const specificOnly = makePortRows(ports.slice(0, 1), [loopback]);
+        expect(specificOnly[0].forward).toBeNull();
+        expect(forwardsWithoutListener(specificOnly, [loopback, tailscale])).toEqual([loopback]);
+    });
+
     it("describes bind addresses", () => {
         expect(addressScope("127.0.0.1").kind).toBe("local");
         expect(addressScope("::1").kind).toBe("local");

@@ -98,8 +98,9 @@ function ForwardActions({
 
 const PortRowView = memo(({ model, row, canForward }: { model: HostViewModel; row: PortRow; canForward: boolean }) => {
     const action = useAtomValue(model.forwardActionAtom);
-    const busy = action?.busy && action.port === row.port;
-    const error = !action?.busy && action?.port === row.port ? action.error : "";
+    const matchingAction = action?.port === row.port && action?.remoteHost === row.remoteHost;
+    const busy = action?.busy && matchingAction;
+    const error = !action?.busy && matchingAction ? action.error : "";
     const openable = isLikelyHttp(row.port, row.command);
     let actions: React.ReactNode = null;
     if (row.forward) {
@@ -112,7 +113,7 @@ const PortRowView = memo(({ model, row, canForward }: { model: HostViewModel; ro
                     disabled={busy}
                     aria-label={openable ? "Forward & open" : "Forward"}
                     title={openable ? "Forward & open" : "Forward"}
-                    onClick={() => fireAndForget(() => model.startForward(row.port, 0, openable))}
+                    onClick={() => fireAndForget(() => model.startForward(row.port, 0, openable, row.remoteHost))}
                 >
                     {busy ? (
                         <i className="fa-solid fa-circle-notch fa-spin text-[11px]" aria-hidden="true" />
@@ -252,7 +253,11 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
     const mainRows = rows.filter((r) => !isBackgroundListener(r));
     const otherRows = rows.filter(isBackgroundListener);
     const orphanForwards = useMemo(() => forwardsWithoutListener(rows, forwards), [rows, forwards]);
-    const actionError = action && !action.busy && action.error && !rows.some((r) => r.port === action.port);
+    const actionError =
+        action &&
+        !action.busy &&
+        action.error &&
+        !rows.some((r) => r.port === action.port && r.remoteHost === action.remoteHost);
 
     if (state.loading && state.data == null) {
         return (
@@ -312,12 +317,12 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
                             </div>
                             <div className="min-w-0">
                                 <div className="truncate text-[13px] text-primary">
-                                    localhost:{f.localport} → {f.remoteport}
+                                    localhost:{f.localport} → {f.remotehost}:{f.remoteport}
                                 </div>
                                 <div className="truncate text-[12px] text-muted">
                                     {f.status === "error"
                                         ? forwardStatusText(f)
-                                        : "Nothing is listening on this port right now"}
+                                        : "No matching listener at this remote address"}
                                 </div>
                             </div>
                             <ForwardActions model={model} forward={f} openable={false} />

@@ -124,9 +124,9 @@ func dialTestSSHClient(t *testing.T, addr string) *ssh.Client {
 	return client
 }
 
-func startTestHTTPServer(t *testing.T) int {
+func startTestHTTPServer(t *testing.T, host string) int {
 	t.Helper()
-	l, err := net.Listen("tcp4", "127.0.0.1:0")
+	l, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,16 +139,23 @@ func startTestHTTPServer(t *testing.T) int {
 }
 
 func TestForwardThroughRealSSHClient(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "::1"} {
+		t.Run(host, func(t *testing.T) { testForwardThroughRealSSHClient(t, host) })
+	}
+}
+
+func testForwardThroughRealSSHClient(t *testing.T, host string) {
+	t.Helper()
 	client := dialTestSSHClient(t, startTestSSHServer(t))
-	httpPort := startTestHTTPServer(t)
+	httpPort := startTestHTTPServer(t, host)
 	m := MakeManager(func(string) Dialer { return client }, func(string, []wshrpc.PortForwardInfo) {})
 	t.Cleanup(m.CloseAll)
 
-	info, err := m.Start(context.Background(), wshrpc.CommandPortForwardStartData{ConnName: "me@gpu-01", RemotePort: httpPort})
+	info, err := m.Start(context.Background(), wshrpc.CommandPortForwardStartData{ConnName: "me@gpu-01", RemoteHost: host, RemotePort: httpPort})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.LocalPort == 0 || info.Status != wshrpc.PortForwardStatus_Active {
+	if info.LocalPort == 0 || info.Status != wshrpc.PortForwardStatus_Waiting {
 		t.Fatalf("unexpected forward %+v", info)
 	}
 	httpClient := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
@@ -164,6 +171,9 @@ func TestForwardThroughRealSSHClient(t *testing.T) {
 		}
 	}
 	waitFor(t, func() bool { return m.List("me@gpu-01")[0].ActiveConns == 0 })
+	if m.List("me@gpu-01")[0].Status != wshrpc.PortForwardStatus_Active {
+		t.Fatal("forward not active after successful HTTP requests")
+	}
 
 	// A raw socket that half-closes its write side must still get the full response back.
 	conn, err := net.Dial("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(info.LocalPort)))
@@ -185,7 +195,7 @@ func TestForwardThroughRealSSHClient(t *testing.T) {
 		t.Fatal("listener still accepts after Stop")
 	}
 	// Stopping a forward must leave the shared SSH connection usable for the next one.
-	again, err := m.Start(context.Background(), wshrpc.CommandPortForwardStartData{ConnName: "me@gpu-01", RemotePort: httpPort})
+	again, err := m.Start(context.Background(), wshrpc.CommandPortForwardStartData{ConnName: "me@gpu-01", RemoteHost: host, RemotePort: httpPort})
 	if err != nil {
 		t.Fatal(err)
 	}

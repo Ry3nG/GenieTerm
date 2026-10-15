@@ -257,8 +257,8 @@ func TestRelayLifecycle(t *testing.T) {
 				d2 := &fakeDialer{dial: d.dial}
 				state.client.Store(d2)
 				m.Refresh(f.ConnName)
-				if m.List("")[0].Status != wshrpc.PortForwardStatus_Active {
-					t.Fatal("not active after reconnect")
+				if m.List("")[0].Status != wshrpc.PortForwardStatus_Waiting {
+					t.Fatal("not waiting for a remote connection after reconnect")
 				}
 				c2 := connectTest(t, f)
 				echoTest(t, c2)

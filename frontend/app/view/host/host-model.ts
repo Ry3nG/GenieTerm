@@ -65,7 +65,7 @@ export type PortsState = {
     updatedTs: number;
 };
 
-export type ForwardAction = { port: number; error: string; busy: boolean };
+export type ForwardAction = { port: number; remoteHost: string; error: string; busy: boolean };
 
 export type HelperUpdateState = { busy: boolean; error: string };
 
@@ -543,13 +543,14 @@ export class HostViewModel implements ViewModel {
         });
     }
 
-    async startForward(remotePort: number, localPort = 0, openAfter = true) {
+    async startForward(remotePort: number, localPort = 0, openAfter = true, remoteHost = "127.0.0.1") {
         const conn = globalStore.get(this.connection);
-        globalStore.set(this.forwardActionAtom, { port: remotePort, error: "", busy: true });
+        globalStore.set(this.forwardActionAtom, { port: remotePort, remoteHost, error: "", busy: true });
         try {
             const forward = await this.env.rpc.PortForwardStartCommand(TabRpcClient, {
                 connname: conn,
                 remoteport: remotePort,
+                remotehost: remoteHost,
                 localport: localPort,
             });
             globalStore.set(this.forwardsAtom, (prev) => [...prev.filter((f) => f.id !== forward.id), forward]);
@@ -559,7 +560,7 @@ export class HostViewModel implements ViewModel {
             }
             return forward;
         } catch (e) {
-            globalStore.set(this.forwardActionAtom, { port: remotePort, error: errorText(e), busy: false });
+            globalStore.set(this.forwardActionAtom, { port: remotePort, remoteHost, error: errorText(e), busy: false });
             return null;
         }
     }
@@ -571,6 +572,7 @@ export class HostViewModel implements ViewModel {
         } catch (e) {
             globalStore.set(this.forwardActionAtom, {
                 port: forward.remoteport,
+                remoteHost: forward.remotehost,
                 error: errorText(e),
                 busy: false,
             });

@@ -310,6 +310,7 @@ export type PortRow = {
     key: string;
     port: number;
     addresses: string[];
+    remoteHost: string;
     scope: AddressScope;
     pid: number;
     command: string;
@@ -330,6 +331,27 @@ function mergeScope(addresses: string[]): AddressScope {
     return specific ?? scopes[0] ?? { kind: "all", label: "All interfaces" };
 }
 
+function forwardHost(address: string): string {
+    if (!address || address === "*" || address === "0.0.0.0" || address === "localhost") {
+        return "127.0.0.1";
+    }
+    return address === "::" ? "::1" : address;
+}
+
+export function portForwardHost(addresses: string[]): string {
+    const hosts = addresses.map(forwardHost);
+    for (const loopback of ["127.0.0.1", "::1"]) {
+        if (hosts.includes(loopback)) {
+            return loopback;
+        }
+    }
+    return hosts.sort()[0] ?? "127.0.0.1";
+}
+
+function matchesForward(row: PortRow, forward: PortForwardInfo): boolean {
+    return row.port === forward.remoteport && row.addresses.some((a) => forwardHost(a) === forward.remotehost);
+}
+
 // One row per (port, owner): the same server usually binds both 0.0.0.0 and ::.
 export function makePortRows(ports: ListeningPort[], forwards: PortForwardInfo[]): PortRow[] {
     const byKey = new Map<string, PortRow>();
@@ -346,6 +368,7 @@ export function makePortRows(ports: ListeningPort[], forwards: PortForwardInfo[]
             key,
             port: p.port,
             addresses: [p.address],
+            remoteHost: "",
             scope: null,
             pid: p.pid ?? 0,
             command: p.command ?? "",
@@ -357,7 +380,8 @@ export function makePortRows(ports: ListeningPort[], forwards: PortForwardInfo[]
     const rows = [...byKey.values()];
     for (const row of rows) {
         row.scope = mergeScope(row.addresses);
-        row.forward = (forwards ?? []).find((f) => f.remoteport === row.port) ?? null;
+        row.remoteHost = portForwardHost(row.addresses);
+        row.forward = (forwards ?? []).find((f) => matchesForward(row, f)) ?? null;
     }
     rows.sort((a, b) => {
         const aKnown = a.command ? 0 : 1;
@@ -371,8 +395,7 @@ export function makePortRows(ports: ListeningPort[], forwards: PortForwardInfo[]
 }
 
 export function forwardsWithoutListener(rows: PortRow[], forwards: PortForwardInfo[]): PortForwardInfo[] {
-    const listening = new Set(rows.map((r) => r.port));
-    return (forwards ?? []).filter((f) => !listening.has(f.remoteport));
+    return (forwards ?? []).filter((f) => !rows.some((row) => matchesForward(row, f)));
 }
 
 export function forwardUrl(forward: PortForwardInfo): string {

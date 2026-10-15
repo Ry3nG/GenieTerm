@@ -276,7 +276,7 @@ func TestMemoryPendingDials(t *testing.T) {
 			if mode == "late failure after reconnect" {
 				unblock()
 				waitFor(t, func() bool { return idle(m) })
-				if got := m.List("")[0]; got.Status != wshrpc.PortForwardStatus_Active || got.Error != "" {
+				if got := m.List("")[0]; got.Status != wshrpc.PortForwardStatus_Waiting || got.Error != "" {
 					t.Fatalf("stale error overwrote reconnect: %+v", got)
 				}
 			} else {
@@ -317,11 +317,23 @@ func TestMemoryEvents(t *testing.T) {
 			if first.name != f.ConnName || len(first.list) != 1 {
 				t.Fatal("invalid snapshot")
 			}
+			if first.list[0].Status != wshrpc.PortForwardStatus_Waiting {
+				t.Fatal("expected waiting before the first remote connection")
+			}
+			initialConn := memoryConnect(t, m, f)
+			echoTest(t, initialConn)
+			first = next()
+			if first.list[0].Status != wshrpc.PortForwardStatus_Active {
+				t.Fatal("expected active after the first remote connection")
+			}
 			switch mode {
 			case "counts":
 				conns := make([]net.Conn, 50)
+				conns[0] = initialConn
 				for i := range conns {
-					conns[i] = memoryConnect(t, m, f)
+					if i > 0 {
+						conns[i] = memoryConnect(t, m, f)
+					}
 				}
 				waitFor(t, func() bool { return m.List("")[0].ActiveConns == 50 })
 				last := first
@@ -350,6 +362,11 @@ func TestMemoryEvents(t *testing.T) {
 				}
 				state.client.Store(d)
 				m.Refresh("")
+				if m.List("")[0].Status != wshrpc.PortForwardStatus_Waiting {
+					t.Fatal("expected waiting until the new transport reaches the remote service")
+				}
+				reconnected := memoryConnect(t, m, f)
+				echoTest(t, reconnected)
 				if next().list[0].Status != wshrpc.PortForwardStatus_Active {
 					t.Fatal("expected active")
 				}

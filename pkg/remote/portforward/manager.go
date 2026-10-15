@@ -180,9 +180,6 @@ func (m *Manager) Start(ctx context.Context, data wshrpc.CommandPortForwardStart
 			Status: wshrpc.PortForwardStatus_Waiting, CreatedTs: time.Now().UnixMilli(),
 		},
 	}
-	if f.client != nil {
-		f.info.Status = wshrpc.PortForwardStatus_Active
-	}
 	m.forwards[f.info.Id], m.keys[key] = f, f
 	m.changedLocked(data.ConnName, true)
 	m.workers.Add(1)
@@ -253,11 +250,7 @@ func (m *Manager) refreshLocked(f *forward) Dialer {
 	client := m.lookup(f.info.ConnName)
 	if client != f.client {
 		f.client = client
-		status := wshrpc.PortForwardStatus_Waiting
-		if client != nil {
-			status = wshrpc.PortForwardStatus_Active
-		}
-		m.statusLocked(f, status, "")
+		m.statusLocked(f, wshrpc.PortForwardStatus_Waiting, "")
 		for s := range f.sessions {
 			s.local.Close()
 			s.cancel()
