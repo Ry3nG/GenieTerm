@@ -30,6 +30,7 @@ try {
     assert.equal(await page.locator("iframe[src]").count(), 0, "Interactive bundles load on selection");
     assert.equal(await page.getByRole("link", { name: "GitHub", exact: true }).count(), 1);
     assert.equal(await page.locator(".github-action svg").count(), 1);
+    assert.equal(await page.locator('nav a[href="#download"]').count(), 1);
     assert.equal(await page.locator('a[href="https://github.com/Ry3nG/GenieTerm/issues"]').count(), 1);
     assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(16, 16, 16)");
     const film = await page.locator(".film-poster").boundingBox();
