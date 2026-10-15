@@ -1,39 +1,39 @@
 {
   "version": "1.4.1",
-  "baseCommit": "d02fd3ba1ce4d473098bfd504fa60b1c421071ed",
+  "baseCommit": "91bc1a9b328db00d63cb4eeb17a1dc18a8715c6b",
   "data": "Illustrative fixtures rendered with product components; no live SSH or AI requests.",
   "renders": [
     {
       "name": "terminal-reattached",
-      "preview": "site-terminal&state=reattached",
+      "preview": "site-terminal&state=reattached&width=540",
       "selector": "[data-site-terminal]",
       "ready": "[data-ready=true]",
       "source": "frontend/preview/previews/site-terminal.preview.tsx",
       "component": "xterm.js + BlockStatusLineContent",
       "dimensions": {
-        "x": 180,
+        "x": 450,
         "y": 72,
-        "width": 1080,
-        "height": 502
+        "width": 540,
+        "height": 560
       },
-      "sourceSha256": "70e3189f05ec8f36d45a8c99b1deabef8e946e336efba2afec976cb3c0d1159a",
-      "svgSha256": "0df2ed4a4855218c163fd63f2e40e5c0cc63dc263c85016c9d38873cb3217f55"
+      "sourceSha256": "f55b302e72ac7a55aa76803543bca0737ad8b13f8dc7fcd6f09ad377617115a3",
+      "svgSha256": "6a211f31ec65a5e7b9c47f3fb0d68f59f5663bca99bd2394b5c84fdf6909fcc0"
     },
     {
       "name": "terminal",
-      "preview": "site-terminal",
+      "preview": "site-terminal&width=540",
       "selector": "[data-site-terminal]",
       "ready": "[data-ready=true]",
       "source": "frontend/preview/previews/site-terminal.preview.tsx",
       "component": "xterm.js + BlockStatusLineContent",
       "dimensions": {
-        "x": 180,
+        "x": 450,
         "y": 72,
-        "width": 1080,
-        "height": 547
+        "width": 540,
+        "height": 560
       },
-      "sourceSha256": "70e3189f05ec8f36d45a8c99b1deabef8e946e336efba2afec976cb3c0d1159a",
-      "svgSha256": "53c4943f6693bf6a04d893e0054b7ad16b6b39b741f5b7d9ec2fab76582e9f40"
+      "sourceSha256": "f55b302e72ac7a55aa76803543bca0737ad8b13f8dc7fcd6f09ad377617115a3",
+      "svgSha256": "2c0bebcd304ae0101eb8a356ab84fdde9a1b575d74c315baa302ee67e20149df"
     },
     {
       "name": "host",
@@ -48,7 +48,7 @@
         "height": 700
       },
       "sourceSha256": "82c7c6712a0af7f22165a77dba7561df52c99b61b3ab4f2c28eb64c86ff5979c",
-      "svgSha256": "70eff903e92738ef4b17bfb8175bcfeac68037aeeae1ec0b00f629dc5855d1a1"
+      "svgSha256": "b7adf53dfc9b27a79e9c126934f4f30ae026236c82623ac94f0e33ebabce84b7"
     },
     {
       "name": "files",
@@ -63,7 +63,7 @@
         "height": 560
       },
       "sourceSha256": "44e6ef890ba723505cf1e0212752a11625857593b7c6ec581eba420c4265aefa",
-      "svgSha256": "e72539e2c77ddfc8b01e265f48f6c0a747563edff436112c3076dc1b16372a87"
+      "svgSha256": "2abf9b43ab686ac31766b717565a2a9ee2a0851e80e9725980ab68c16db74591"
     },
     {
       "name": "command-ai",
@@ -78,7 +78,7 @@
         "height": 334
       },
       "sourceSha256": "28f9a8e6e1e98ecb2c221b31ac62ca64fb9bf207215be8648bb4828eb6e6a2ad",
-      "svgSha256": "e496d30a78961094ec6f6e23c2b0cef3569245f88ea72fb6a7c7231c750ceacc"
+      "svgSha256": "cf8ff9d3ff239fc3d33253dc28f2f015963941f4fa41b207685e1cb2acbb0dae"
     }
   ]
 }

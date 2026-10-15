@@ -1,14 +1,15 @@
 # Project page
 
-The homepage is buildless HTML, CSS and JavaScript. GitHub Pages publishes `site/` on pushes to `main`.
+The landing page is HTML, CSS and JavaScript. Host and Command AI mount the product's React components in isolated frames. GitHub Pages builds these with `npm run site:build` before publishing `site/`.
 
 ## Preview
 
 ```sh
+npm run site:build
 python3 -m http.server 58764 --bind 127.0.0.1 --directory site
 ```
 
-The film is the main visual. Four tabs present the product's interface. Product images open in a scrollable dialog; the video pauses on close. Both have direct links when JavaScript is unavailable.
+The film plays inline with native controls. Terminal shows two generated states side by side; Files is a fixed render. Host supports its native navigation, metrics, process table and ports. Command AI supports Write, Fix and Explain with local responses, then inserts the result into an xterm prompt.
 
 ## Reproduce the interface renders
 
@@ -35,7 +36,7 @@ node scripts/render-site-ui.mjs
 
 Static links point to the last verified stable release. JavaScript updates them from GitHub's latest stable release API with a bounded timeout and repository URL validation. Keep fallback links current when preparing a release.
 
-The contribution section links to the guide, issues and roadmap.
+The contribution section links to the guide and issues.
 
 ## Verification
 
@@ -44,6 +45,6 @@ node scripts/verify-site.mjs
 node scripts/verify-site.mjs https://ry3ng.github.io/GenieTerm/
 ```
 
-Checks cover desktop and mobile layouts, film placement, interface selection, SVG loading, enlargement, keyboard navigation, terminal states, contribution links, download links and JavaScript/API fallbacks. Screenshots go to `artifacts/site-qa/`.
+Checks cover desktop and mobile layouts, inline playback, interface selection, terminal comparison, Host navigation, Command AI interactions, keyboard navigation, downloads and JavaScript/API fallbacks. Screenshots go to `artifacts/site-qa/`.
 
 Regenerate the social image with `node scripts/generate-site-social.mjs`.

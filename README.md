@@ -5,8 +5,7 @@
   <p>
     <a href="https://ry3ng.github.io/GenieTerm/"><strong>Explore the product</strong></a> ·
     <a href="https://github.com/Ry3nG/GenieTerm/releases/latest"><strong>Download</strong></a> ·
-    <a href="./CONTRIBUTING.md"><strong>Contribute</strong></a> ·
-    <a href="./ROADMAP.md">Roadmap</a>
+    <a href="./CONTRIBUTING.md"><strong>Contribute</strong></a>
   </p>
   <p>macOS · Linux · Windows preview &nbsp; / &nbsp; Apache-2.0</p>
 </div>
@@ -59,12 +58,10 @@ Connect to an SSH host and install the offered `genie` helper to enable durable 
 
 ## Contribute
 
-[Contributing guide](./CONTRIBUTING.md) · [Issues](https://github.com/Ry3nG/GenieTerm/issues) · [Roadmap](./ROADMAP.md)
+[Contributing guide](./CONTRIBUTING.md) · [Issues](https://github.com/Ry3nG/GenieTerm/issues)
 
 ## Project
 
 [Architecture](./docs/architecture/README.md) · [Release notes](./docs/releases/) · [Security](./SECURITY.md) · [Code of conduct](./CODE_OF_CONDUCT.md)
-
-The [homepage](./site/) is published through GitHub Pages. The product film is made with [Remotion](./film/). [Reproduce the product renders](./site/README.md).
 
 GenieTerm began as a fork of [Wave Terminal](https://github.com/wavetermdev/waveterm). Licensed under [Apache-2.0](./LICENSE); see [NOTICE](./NOTICE) and [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).

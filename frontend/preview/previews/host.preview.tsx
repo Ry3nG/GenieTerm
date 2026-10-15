@@ -20,7 +20,17 @@ import {
     MockSshConnection,
 } from "./host.preview-util";
 
-function HostBlock({ blockId, nodeId, height }: { blockId: string; nodeId: string; height: number }) {
+function HostBlock({
+    blockId,
+    nodeId,
+    height,
+    bare = false,
+}: {
+    blockId: string;
+    nodeId: string;
+    height: number;
+    bare?: boolean;
+}) {
     const nodeModel = React.useMemo(
         () =>
             makeMockNodeModel({
@@ -32,7 +42,7 @@ function HostBlock({ blockId, nodeId, height }: { blockId: string; nodeId: strin
         [blockId, nodeId, height]
     );
     return (
-        <div className="rounded-md border border-border bg-panel p-4">
+        <div className={bare ? "bg-panel" : "rounded-md border border-border bg-panel p-4"}>
             <div style={{ height }}>
                 <Block preview={false} nodeModel={nodeModel} />
             </div>
@@ -40,7 +50,7 @@ function HostBlock({ blockId, nodeId, height }: { blockId: string; nodeId: strin
     );
 }
 
-export default function HostPreview() {
+export default function HostPreview({ standalone = false }: { standalone?: boolean }) {
     const env = useWaveEnv();
     const historyRef = React.useRef(makeMockSysinfoHistory(DefaultSysinfoHistoryPoints, Date.now(), MockSshConnection));
     const forwardsRef = React.useRef(makeMockForwards());
@@ -70,7 +80,7 @@ export default function HostPreview() {
         const forward: PortForwardInfo = {
             id: `fwd-${data.remoteport}`,
             connname: data.connname,
-            remotehost: "127.0.0.1",
+            remotehost: data.remotehost || "127.0.0.1",
             remoteport: data.remoteport,
             localport: data.localport || data.remoteport,
             status: "active",
@@ -104,6 +114,9 @@ export default function HostPreview() {
         return () => window.clearInterval(intervalId);
     }, []);
 
+    if (standalone) {
+        return <HostBlock blockId={SysinfoBlockId} nodeId="site-host" height={700} bare />;
+    }
     return (
         <div className="flex w-full max-w-[1240px] flex-col gap-4 px-6 py-6">
             <div className="font-mono text-xs text-muted">host block: overview (mock SSH host with 8 GPUs)</div>

@@ -99,7 +99,7 @@ const Styles = [
 const Cases = [
   {
     name: "terminal-reattached",
-    preview: "site-terminal&state=reattached",
+    preview: "site-terminal&state=reattached&width=540",
     selector: "[data-site-terminal]",
     ready: "[data-ready=true]",
     source: "frontend/preview/previews/site-terminal.preview.tsx",
@@ -107,7 +107,7 @@ const Cases = [
   },
   {
     name: "terminal",
-    preview: "site-terminal",
+    preview: "site-terminal&width=540",
     selector: "[data-site-terminal]",
     ready: "[data-ready=true]",
     source: "frontend/preview/previews/site-terminal.preview.tsx",

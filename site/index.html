@@ -44,25 +44,22 @@
         </div>
         <div class="launch-grid">
           <div class="film-shell">
-            <a
-              class="film-poster"
-              href="media/overview.mp4"
-              data-play-film
-              aria-label="Play the GenieTerm product film, 1 minute 43 seconds"
-            >
-              <img
-                src="media/overview.jpg"
-                width="1920"
-                height="1080"
-                fetchpriority="high"
-                alt="A coding agent working in GenieTerm on a remote machine, with its completed changes and tests beside the laptop"
-              />
-              <span class="film-play"
-                ><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                  <path d="m8 4 12 8-12 8Z" fill="currentColor" /></svg
-                ><span>Watch the film · 1:43</span></span
+            <div class="film-poster">
+              <video
+                data-film
+                controls
+                playsinline
+                preload="none"
+                poster="media/overview.jpg"
+                aria-label="GenieTerm product film"
               >
-            </a>
+                <source src="media/overview.mp4" type="video/mp4" /></video
+              ><button type="button" class="film-play" data-play-film hidden>
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path d="m8 4 12 8-12 8Z" fill="currentColor" /></svg
+                ><span>Watch the film · 1:43</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -114,36 +111,64 @@
           </div>
           <!-- the app's tab bar -->
           <div class="ui-panel" id="ui-panel" role="tabpanel" aria-labelledby="tab-host" tabindex="0">
-            <a class="ui-render" href="img/ui/host.svg" data-expand aria-label="Enlarge the Host interface"
-              ><img
-                src="img/ui/host.svg"
+            <div class="terminal-pair" data-terminal-pair hidden>
+              <figure>
+                <figcaption>Connection interrupted</figcaption>
+                <img
+                  src="img/ui/terminal.svg"
+                  loading="lazy"
+                  width="540"
+                  height="560"
+                  alt="The agent conversation while the SSH connection is interrupted"
+                />
+              </figure>
+              <figure>
+                <figcaption>Reconnected</figcaption>
+                <img
+                  src="img/ui/terminal-reattached.svg"
+                  loading="lazy"
+                  width="540"
+                  height="560"
+                  alt="The same agent conversation after reconnecting, with its edits and tests complete"
+                />
+              </figure>
+            </div>
+            <div class="ui-render" data-static-view hidden>
+              <img
+                src="img/ui/files.svg"
                 data-ui-image
-                width="1158"
-                height="700"
+                width="1344"
+                height="560"
                 loading="lazy"
-                alt="GenieTerm's Host component showing GPU utilization, CPU, memory and running processes"
-            /></a>
+                alt="GenieTerm's file browser"
+              />
+            </div>
+            <iframe
+              class="live-interface"
+              data-live-host
+              title="Host"
+              data-src="demo/?view=host"
+              loading="lazy"
+            ></iframe>
+            <iframe
+              class="live-interface"
+              data-live-ai
+              title="Command AI"
+              data-src="demo/?view=ai"
+              loading="lazy"
+              hidden
+            ></iframe>
           </div>
           <!-- the app's status line -->
-          <div class="session-states" data-session-states hidden role="group" aria-label="Terminal session state">
-            <button disabled data-session-state="terminal" aria-pressed="true">Connection interrupted</button
-            ><button disabled data-session-state="terminal-reattached" aria-pressed="false">After reconnect</button>
-          </div>
         </div>
-        <noscript
-          ><p class="fallback-views">
-            View the interface: <a href="img/ui/terminal.svg">Terminal</a> / <a href="img/ui/files.svg">Files</a> /
-            <a href="img/ui/host.svg">Host</a> / <a href="img/ui/command-ai.svg">Command AI</a>
-          </p></noscript
-        >
+        <noscript><img class="fallback-interface" src="img/ui/host.svg" alt="GenieTerm Host interface" /></noscript>
       </section>
 
       <section class="community wrap" id="contribute" aria-labelledby="community-title">
         <h2 id="community-title">Contribute</h2>
         <div class="contribution-links">
           <a href="https://github.com/Ry3nG/GenieTerm/blob/main/CONTRIBUTING.md">Get started ↗</a
-          ><a href="https://github.com/Ry3nG/GenieTerm/issues">Issues ↗</a
-          ><a href="https://github.com/Ry3nG/GenieTerm/blob/main/ROADMAP.md">Roadmap ↗</a>
+          ><a href="https://github.com/Ry3nG/GenieTerm/issues">Issues ↗</a>
         </div>
       </section>
       <section class="downloads wrap" id="download" aria-labelledby="download-title">
@@ -214,19 +239,5 @@
         ><a href="https://github.com/Ry3nG/GenieTerm">GitHub ↗</a>
       </div>
     </footer>
-    <dialog class="film-dialog" aria-label="GenieTerm product film">
-      <div class="dialog-top"><span>GenieTerm / 1:43</span><button data-close-film autofocus>Close ×</button></div>
-      <video controls playsinline preload="none" poster="media/overview.jpg">
-        <source src="media/overview.mp4" type="video/mp4" />
-      </video>
-    </dialog>
-    <dialog class="image-dialog" aria-label="Product interface">
-      <div class="dialog-top">
-        <span data-image-title>Host</span><button data-close-image autofocus>Close ×</button>
-      </div>
-      <div class="image-scroll" tabindex="0" aria-label="Enlarged product interface; scroll to inspect">
-        <img data-enlarged-image alt="" />
-      </div>
-    </dialog>
   </body>
 </html>

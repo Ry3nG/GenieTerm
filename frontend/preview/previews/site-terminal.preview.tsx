@@ -28,7 +28,9 @@ const AgentOutput = [
 
 export function SiteTerminalPreview() {
     const container = useRef<HTMLDivElement>(null);
-    const reattached = new URLSearchParams(window.location.search).get("state") === "reattached";
+    const params = new URLSearchParams(window.location.search);
+    const reattached = params.get("state") === "reattached";
+    const width = Math.max(320, Math.min(1080, Number(params.get("width")) || 1080));
     useEffect(() => {
         const [theme] = computeTheme(DefaultFullConfig, "default-dark", 0);
         const terminal = new Terminal({
@@ -79,10 +81,13 @@ export function SiteTerminalPreview() {
         } as ConnStatus,
     });
     return (
-        <div className="w-full max-w-[1128px] p-6">
-            <div data-site-terminal className="w-full overflow-hidden rounded-lg border border-border bg-background">
+        <div className="w-full p-6" style={{ maxWidth: width + 48 }}>
+            <div
+                data-site-terminal
+                className="flex h-[560px] w-full flex-col overflow-hidden rounded-lg border border-border bg-background"
+            >
                 <BlockStatusLineContent status={status} onAction={async () => {}} />
-                <div ref={container} className="h-[500px] p-5" />
+                <div ref={container} className="min-h-0 flex-1 p-5" />
             </div>
         </div>
     );

@@ -1,0 +1,63 @@
+/* Copyright 2026, GenieTerm. Apache-2.0. */
+html,
+body,
+#main {
+    margin: 0;
+    min-height: 100%;
+    background: #101012;
+}
+body {
+    overflow-x: hidden;
+}
+#main {
+    width: 100%;
+}
+.site-ai {
+    padding: 20px;
+    max-width: 1000px;
+    margin: auto;
+}
+.site-ai-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.site-ai-tabs button {
+    cursor: pointer;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 8px 16px;
+    background: transparent;
+    color: #a8a8a8;
+    font-size: 12px;
+}
+.site-ai-tabs button[aria-pressed="true"] {
+    color: #eee;
+    background: #28282b;
+}
+.site-ai-terminal {
+    overflow: hidden;
+    padding: 16px;
+    height: 145px;
+    margin-bottom: 14px;
+    background: #18181a;
+    border: 1px solid #333;
+    border-radius: 6px;
+}
+.site-ai-reset {
+    cursor: pointer;
+    background: transparent;
+    color: #ccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 12px;
+}
+@media (max-width: 600px) {
+    .site-ai {
+        padding: 12px;
+    }
+    .site-ai-tabs button {
+        padding: 8px 12px;
+    }
+}
