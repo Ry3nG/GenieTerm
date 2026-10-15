@@ -79,6 +79,7 @@ export function SiteFilesPreview() {
                         </button>
                     </div>
                     <div
+                        data-site-files
                         className="h-[560px] overflow-hidden rounded-lg border border-border bg-panel outline-none"
                         tabIndex={0}
                         onKeyDown={keydownWrapper((event) => model.directoryKeyDownHandler?.(event) ?? false)}

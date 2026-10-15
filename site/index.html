@@ -3,14 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GenieTerm — The remote-native terminal.</title>
+    <title>GenieTerm — Remote workspace</title>
     <meta
       name="description"
-      content="For people who live in SSH. Durable sessions, remote files, host insights and your own AI. Free and open source for macOS and Linux."
+      content="An open-source terminal with durable SSH sessions, remote files, host tools and Command AI. Watch GenieTerm in action, explore the interface, and build with us."
     />
-    <meta name="theme-color" content="#eeeee7" />
-    <meta property="og:title" content="GenieTerm — The remote-native terminal." />
-    <meta property="og:description" content="A shell, its files, and the whole machine. One workspace." />
+    <meta name="theme-color" content="#101010" />
+    <meta property="og:title" content="GenieTerm — Remote workspace" />
+    <meta
+      property="og:description"
+      content="Terminal / Files / Host / Command AI. Open source, built for work across machines."
+    />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://ry3ng.github.io/GenieTerm/" />
     <meta property="og:image" content="https://ry3ng.github.io/GenieTerm/img/social.png" />
@@ -25,151 +28,130 @@
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header wrap">
       <a class="brand" href="#" aria-label="GenieTerm home"
-        ><img src="img/logo.svg" width="30" height="30" alt="" />GenieTerm<span class="brand-mark">_</span></a
-      >
+        ><img src="img/logo.svg" width="35" height="35" alt="" />
+        <h1>GenieTerm</h1>
+      </a>
       <nav aria-label="Main navigation">
-        <a href="https://github.com/Ry3nG/GenieTerm">Source ↗</a><a href="#download">Download ↓</a>
+        <a class="github-action" href="https://github.com/Ry3nG/GenieTerm">GitHub ↗</a
+        ><a class="nav-download" href="#download">Download ↓</a>
       </nav>
     </header>
     <main id="main">
-      <section class="intro wrap" aria-labelledby="title">
-        <div>
-          <p class="eyebrow">THE REMOTE-NATIVE TERMINAL</p>
-          <h1 id="title">For people<br />who live in SSH<span class="accent">.</span></h1>
+      <section class="launchpad wrap" aria-label="Meet GenieTerm">
+        <div class="launch-heading">
+          <p>The remote-native terminal.</p>
+          <span>Free &amp; open source.</span>
         </div>
-        <div class="intro-side">
-          <p><span>A shell, its files,</span> <span>and the whole machine.</span><strong>One workspace.</strong></p>
-          <div class="intro-actions">
-            <a class="button" href="#download">Get GenieTerm <span aria-hidden="true">↓</span></a
-            ><a class="film-link" href="media/overview.mp4" data-play-film>Watch 1:43 ↗</a>
+        <div class="launch-grid">
+          <div class="film-shell">
+            <a
+              class="film-poster"
+              href="media/overview.mp4"
+              data-play-film
+              aria-label="Play the GenieTerm product film, 1 minute 43 seconds"
+            >
+              <img
+                src="media/overview.jpg"
+                width="1920"
+                height="1080"
+                fetchpriority="high"
+                alt="A coding agent working in GenieTerm on a remote machine, with its completed changes and tests beside the laptop"
+              />
+              <span class="film-play"
+                ><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                  <path d="m8 4 12 8-12 8Z" fill="currentColor" /></svg
+                ><span>Watch the film · 1:43</span></span
+              >
+            </a>
           </div>
-          <span class="small-meta">Open source · macOS / Linux</span>
         </div>
       </section>
-      <section class="workspace-section wrap" aria-label="Interactive product demo">
-        <div class="workspace-heading">
-          <div class="demo-tabs" role="tablist" aria-label="Explore GenieTerm">
-            <button
-              disabled
-              id="tab-sessions"
-              role="tab"
-              aria-selected="true"
-              aria-controls="demo-panel"
-              data-view="sessions"
-            >
-              <span>01</span> Sessions
-            </button>
-            <button
-              disabled
-              id="tab-host"
-              role="tab"
-              aria-selected="false"
-              aria-controls="demo-panel"
-              tabindex="-1"
-              data-view="host"
-            >
-              <span>02</span> Host
-            </button>
-            <button
-              disabled
-              id="tab-files"
-              role="tab"
-              aria-selected="false"
-              aria-controls="demo-panel"
-              tabindex="-1"
-              data-view="files"
-            >
-              <span>03</span> Files
-            </button>
-            <button
-              disabled
-              id="tab-ai"
-              role="tab"
-              aria-selected="false"
-              aria-controls="demo-panel"
-              tabindex="-1"
-              data-view="ai"
-            >
-              <span>04</span> Command AI
-            </button>
-          </div>
-          <span class="demo-label">INTERACTIVE DEMO</span>
-        </div>
-        <div class="workspace" id="demo-panel" role="tabpanel" aria-labelledby="tab-sessions" tabindex="0">
-          <!-- the app's tab bar -->
-          <div class="workspace-bar">
-            <span><span class="status-dot"></span> atlas <span class="bar-path">/ vision-lab</span></span
-            ><span class="bar-label">SSH WORKSPACE</span>
-          </div>
-          <div class="workspace-body" data-demo>
-            <div class="terminal">
-              <div class="pane-title"><span>Terminal</span><span>bash</span></div>
-              <div class="terminal-content">
-                <div class="prompt"><span>~/vision-lab</span> $ python train.py</div>
-                <div class="command-meta">RUNNING <span>pid 2841 · 12m 08s</span></div>
-                <pre class="terminal-output">Loading dataset… 24,000 samples
-Model: resnet50 · device: cuda:0
 
-epoch  21/50   loss 0.184   acc 94.2%
-epoch  22/50   loss 0.169   acc 94.7%
-epoch  23/50   loss 0.152   acc 95.1%
-<span class="terminal-green">checkpoint saved → runs/latest.pt</span>
-epoch  24/50   training…</pre>
-                <div class="terminal-cursor" aria-hidden="true">▌</div>
-              </div>
-            </div>
-            <div class="side-panel session-panel">
-              <div class="pane-title">
-                <span>Durable session</span><span class="terminal-green" data-session-label>Connected</span>
-              </div>
-              <div class="session-map">
-                <span class="machine">YOUR LAPTOP</span>
-                <div class="connection-line"><span>SSH</span></div>
-                <span class="machine remote">ATLAS <i class="status-dot"></i></span>
-              </div>
-              <div class="process-state">
-                <span class="process-icon" aria-hidden="true">↳</span>
-                <div><strong>train.py</strong><span>Running on atlas</span></div>
-                <span class="running-tag">RUNNING</span>
-              </div>
-              <p class="demo-explanation" data-session-message>Your process lives on the host.</p>
-              <button disabled class="demo-button" data-session>
-                Disconnect laptop <span aria-hidden="true">↗</span>
-              </button>
-            </div>
+      <section class="interface-section wrap" id="interface" aria-labelledby="interface-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="interface-title">Inside GenieTerm</h2>
+          </div>
+        </div>
+        <div class="interface-deck">
+          <div class="view-tabs" role="tablist" aria-label="Product views">
+            <button
+              disabled
+              role="tab"
+              id="tab-terminal"
+              data-view="terminal"
+              aria-selected="false"
+              aria-controls="ui-panel"
+              tabindex="-1"
+            >
+              Terminal
+            </button>
+            <button
+              disabled
+              role="tab"
+              id="tab-files"
+              data-view="files"
+              aria-selected="false"
+              aria-controls="ui-panel"
+              tabindex="-1"
+            >
+              Files
+            </button>
+            <button disabled role="tab" id="tab-host" data-view="host" aria-selected="true" aria-controls="ui-panel">
+              Host
+            </button>
+            <button
+              disabled
+              role="tab"
+              id="tab-ai"
+              data-view="ai"
+              aria-selected="false"
+              aria-controls="ui-panel"
+              tabindex="-1"
+            >
+              Command AI
+            </button>
+          </div>
+          <!-- the app's tab bar -->
+          <div class="ui-panel" id="ui-panel" role="tabpanel" aria-labelledby="tab-host" tabindex="0">
+            <a class="ui-render" href="img/ui/host.svg" data-expand aria-label="Enlarge the Host interface"
+              ><img
+                src="img/ui/host.svg"
+                data-ui-image
+                width="1158"
+                height="700"
+                loading="lazy"
+                alt="GenieTerm's Host component showing GPU utilization, CPU, memory and running processes"
+              /><span class="expand-label">Inspect UI ↗</span></a
+            >
           </div>
           <!-- the app's status line -->
-          <div class="workspace-status">
-            <span><span class="status-dot"></span> <span data-bottom-status>Connected to atlas</span></span
-            ><span>Sample data · runs in your browser</span>
+          <div class="view-detail">
+            <span>Product UI · sample data</span
+            ><a data-view-source href="https://github.com/Ry3nG/GenieTerm/blob/main/frontend/app/view/host/host.tsx"
+              >Source ↗</a
+            >
+          </div>
+          <div class="session-states" data-session-states hidden role="group" aria-label="Terminal session state">
+            <button disabled data-session-state="terminal" aria-pressed="true">Connection interrupted</button
+            ><button disabled data-session-state="terminal-reattached" aria-pressed="false">After reconnect</button>
           </div>
         </div>
-        <div class="demo-caption">
-          <span class="caption-index" data-caption-index>01 / 04</span>
-          <p data-caption>Your connection can drop. Your work keeps running.</p>
-          <a
-            href="https://github.com/Ry3nG/GenieTerm/tree/main/docs/architecture"
-            aria-label="Read the architecture documentation"
-            >How it works ↗</a
-          >
-        </div>
+        <noscript
+          ><p class="fallback-views">
+            View the interface: <a href="img/ui/terminal.svg">Terminal</a> / <a href="img/ui/files.svg">Files</a> /
+            <a href="img/ui/host.svg">Host</a> / <a href="img/ui/command-ai.svg">Command AI</a>
+          </p></noscript
+        >
       </section>
-      <section class="principles wrap" aria-label="Why GenieTerm">
-        <article>
-          <span class="principle-mark">↳</span>
-          <h2>Keep the context.</h2>
-          <p>Commands, output and files belong to the same workspace.</p>
-        </article>
-        <article>
-          <span class="principle-mark">≋</span>
-          <h2>See the machine.</h2>
-          <p>GPUs, processes and ports, right beside your shell.</p>
-        </article>
-        <article>
-          <span class="principle-mark">✳</span>
-          <h2>Use your own AI.</h2>
-          <p>Codex, Claude Code, Ollama or your API. You choose what runs.</p>
-        </article>
+
+      <section class="community wrap" id="contribute" aria-labelledby="community-title">
+        <h2 id="community-title">Contribute</h2>
+        <div class="contribution-links">
+          <a href="https://github.com/Ry3nG/GenieTerm/blob/main/CONTRIBUTING.md">Get started ↗</a
+          ><a href="https://github.com/Ry3nG/GenieTerm/issues">Issues ↗</a
+          ><a href="https://github.com/Ry3nG/GenieTerm/blob/main/ROADMAP.md">Roadmap ↗</a>
+        </div>
       </section>
       <section class="downloads wrap" id="download" aria-labelledby="download-title">
         <div class="download-heading">
@@ -235,16 +217,24 @@ epoch  24/50   training…</pre>
       <span>GenieTerm <span class="muted">/</span> Built on Wave Terminal.</span>
       <div>
         <a href="https://github.com/Ry3nG/GenieTerm/tree/main/docs">Docs ↗</a
-        ><a href="https://github.com/Ry3nG/GenieTerm/issues">Issues ↗</a>
+        ><a href="https://github.com/Ry3nG/GenieTerm/issues">Issues ↗</a
+        ><a href="https://github.com/Ry3nG/GenieTerm">GitHub ↗</a>
       </div>
     </footer>
     <dialog class="film-dialog" aria-label="GenieTerm product film">
-      <div class="film-top">
-        <span>GenieTerm / 1:43</span><button type="button" data-close-film autofocus>Close ×</button>
-      </div>
+      <div class="dialog-top"><span>GenieTerm / 1:43</span><button data-close-film autofocus>Close ×</button></div>
       <video controls playsinline preload="none" poster="media/overview.jpg">
         <source src="media/overview.mp4" type="video/mp4" />
       </video>
+    </dialog>
+    <dialog class="image-dialog" aria-label="Product interface">
+      <div class="dialog-top">
+        <span data-image-title>Host / product render</span><button data-close-image autofocus>Close ×</button>
+      </div>
+      <div class="image-scroll" tabindex="0" aria-label="Enlarged product interface; scroll to inspect">
+        <img data-enlarged-image alt="" />
+      </div>
+      <p>Rendered from product components with example data.</p>
     </dialog>
   </body>
 </html>

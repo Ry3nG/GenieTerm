@@ -4,32 +4,46 @@ The homepage is buildless HTML, CSS and JavaScript. GitHub Pages publishes `site
 
 ## Preview
 
-From the repository root:
-
 ```sh
 python3 -m http.server 58764 --bind 127.0.0.1 --directory site
 ```
 
-## Product demo
+The film is the main visual. Four tabs present the product's interface. Product images open in a scrollable dialog; the video pauses on close. Both have direct links when JavaScript is unavailable.
 
-The workspace is an illustrative, browser-rendered demo with sample data. Text and controls use HTML/CSS, the GPU chart uses inline SVG, and the logo uses the repository's SVG artwork.
+## Reproduce the interface renders
 
-The four tabs demonstrate durable sessions, host metrics and port forwarding, remote file previews, and reviewing an AI command before inserting it. All interactions stay in the page. No SSH connection or AI request is made.
+The website uses self-contained SVG renders with embedded fonts. README images are 3× PNG renders of the same elements. Rendering uses actual product code with illustrative fixtures; the terminal is generated using xterm.js, the app's theme and its connection-status component.
 
-The product film opens in a keyboard-accessible dialog and pauses on close. Without JavaScript, its link opens the video directly. Downloads and the initial workspace remain available.
+| View       | Source                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| Terminal   | `frontend/preview/previews/site-terminal.preview.tsx`; xterm.js and `BlockStatusLineContent` |
+| Files      | `DirectoryPreview`, through `site-files.preview.tsx`                                         |
+| Host       | `HostView`, through `host.preview.tsx`                                                       |
+| Command AI | `CommandAiSheet`, through the Fix case in `commandai.preview.tsx`                            |
 
-## Downloads
+From the repository root:
 
-The HTML contains links for the last verified stable release. JavaScript refreshes them from GitHub's latest stable release API, with a bounded timeout and repository URL validation. Keep fallback links current when preparing a release. Installation details live in the repository README.
+```sh
+npx vite --config frontend/preview/vite.config.ts --host 127.0.0.1 --port 7007
+# In another terminal:
+node scripts/render-site-ui.mjs
+```
+
+`img/ui/provenance.json` records the source paths, source hashes, output hashes, dimensions and the base commit at generation time. Source hashes identify the exact files, including changes made after that base commit. No live SSH or AI request is needed.
+
+## Downloads and contribution
+
+Static links point to the last verified stable release. JavaScript updates them from GitHub's latest stable release API with a bounded timeout and repository URL validation. Keep fallback links current when preparing a release.
+
+The contribution section links to the guide, issues and roadmap.
 
 ## Verification
 
-With the preview server running:
-
 ```sh
 node scripts/verify-site.mjs
+node scripts/verify-site.mjs https://ry3ng.github.io/GenieTerm/
 ```
 
-The check covers desktop, narrow and mobile layouts, all four demo interactions, keyboard tab navigation, film dismissal and focus return, the six stable downloads, and the no-JavaScript fallback. Screenshots are saved under `artifacts/site-qa/`. Pass the published homepage URL as the first argument to verify deployment.
+Checks cover desktop and mobile layouts, film placement, interface selection, SVG loading, enlargement, keyboard navigation, terminal states, contribution links, download links and JavaScript/API fallbacks. Screenshots go to `artifacts/site-qa/`.
 
 Regenerate the social image with `node scripts/generate-site-social.mjs`.

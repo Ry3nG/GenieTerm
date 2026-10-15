@@ -1,20 +1,20 @@
 // Copyright 2026, GenieTerm. Apache-2.0.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { chromium } from "playwright";
-
 const Url = process.argv[2] || "http://127.0.0.1:58764/";
 const Output = "artifacts/site-qa";
 const Executable = [
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
   chromium.executablePath(),
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-].find((candidate) => candidate && existsSync(candidate));
+].find((p) => p && existsSync(p));
 const Browser = await chromium.launch({ executablePath: Executable, headless: true });
 const Errors = [];
 mkdirSync(Output, { recursive: true });
-
 try {
+  const checked = new Set();
   for (const [name, width, height] of [
     ["desktop", 1440, 1100],
     ["narrow", 768, 1024],
@@ -23,97 +23,96 @@ try {
   ]) {
     const context = await Browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 });
     const page = await context.newPage();
-    page.on("pageerror", (error) => Errors.push(error.message));
-    page.on("response", (response) => {
-      if (response.status() >= 400 && new URL(response.url()).origin === new URL(Url).origin) {
-        Errors.push(`${response.status()} ${response.url()}`);
-      }
+    page.on("pageerror", (e) => Errors.push(e.message));
+    page.on("response", (r) => {
+      if (r.status() >= 400 && new URL(r.url()).origin === new URL(Url).origin) Errors.push(r.status() + " " + r.url());
     });
     await page.goto(Url, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
-    for (const view of ["sessions", "host", "files", "ai"]) {
-      await page.locator(`[data-view="${view}"]`).click();
+    assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(16, 16, 16)");
+    assert.ok(await page.locator("h1").evaluate((el) => parseFloat(getComputedStyle(el).fontSize) < 40));
+    const film = await page.locator(".film-poster").boundingBox();
+    assert.ok(film.y < height * 0.6, name + ": film in first viewport");
+    assert.ok(film.width > width * (width > 760 ? 0.45 : 0.7), name + ": large film");
+    assert.equal(await page.locator('#contribute a[href$="CONTRIBUTING.md"]').count(), 1);
+    assert.equal(await page.locator('#contribute a[href$="ROADMAP.md"]').count(), 1);
+    assert.equal(await page.locator('#contribute a[href$="issues"]').count(), 1);
+    assert.ok((await page.locator("#contribute").innerText()).split(/\s+/).length <= 12);
+    await page.screenshot({ path: Output + "/" + name + "-hero.png" });
+    const manifest = await (await page.request.get(new URL("img/ui/provenance.json", Url).href)).json();
+    for (const view of ["terminal", "files", "host", "ai"]) {
+      await page.locator('[role=tab][data-view="' + view + '"]').click();
+      await page.locator("[data-ui-image]").evaluate((img) => img.decode());
       assert.equal(
         await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
         false,
-        `${name}/${view}: horizontal overflow`
+        name + "/" + view + ": overflow"
       );
-      assert.equal(await page.locator(".workspace img,.workspace canvas").count(), 0);
-      if (view === "sessions") {
-        await page.locator("[data-session]").click();
-        assert.match(await page.locator("[data-session-label]").innerText(), /Disconnected/);
-        assert.match(await page.locator(".process-state").innerText(), /RUNNING/);
-        await page.locator("[data-session]").click();
-        assert.match(await page.locator(".terminal-output").innerText(), /buffered output restored/);
+      const source = await page.locator("[data-ui-image]").getAttribute("src");
+      assert.ok(source.endsWith(".svg"));
+      const record = manifest.renders.find((r) => source.endsWith("/" + r.name + ".svg"));
+      assert.ok(record, view + ": provenance");
+      if (!checked.has(source)) {
+        const response = await page.request.get(new URL(source, Url).href);
+        const bytes = await response.body();
+        assert.equal(createHash("sha256").update(bytes).digest("hex"), record.svgSha256);
+        assert.ok(bytes.toString().includes("<foreignObject"));
+        assert.ok(!/data:image\/(png|jpeg)/.test(bytes.toString()));
+        checked.add(source);
       }
-      if (view === "host") {
-        await page.locator("[data-forward]").click();
-        assert.match(await page.locator("[data-port-result]").innerText(), /localhost:6006/);
-        await page.locator("[data-forward]").click();
-        assert.equal(await page.locator("[data-port-result]").innerText(), "");
+      if (view === "terminal") {
+        await page.locator('[data-session-state="terminal-reattached"]').click();
+        await page.locator("[data-ui-image]").evaluate((img) => img.decode());
+        assert.match(await page.locator("[data-ui-image]").getAttribute("src"), /terminal-reattached.svg$/);
       }
-      if (view === "files") {
-        await page.locator('[data-file="results.csv"]').click();
-        assert.match(await page.locator("[data-file-content]").innerText(), /epoch,loss,accuracy/);
-      }
-      if (view === "ai") {
-        await page.locator("[data-insert]").click();
-        assert.equal(await page.locator("[data-ai-prompt]").innerText(), "npm install --save-dev @types/node");
-      }
-      if (name !== "compact") {
-        await page.screenshot({ path: `${Output}/${name}-${view}.png`, fullPage: true });
-      }
+      await page.locator("[data-expand]").click();
+      assert.equal(await page.locator(".image-dialog").evaluate((el) => el.open), true);
+      await page.locator("[data-enlarged-image]").evaluate((img) => img.decode());
+      await page.keyboard.press("Escape");
+      await page.waitForFunction(() => !document.querySelector(".image-dialog").open);
+      assert.equal(await page.locator("[data-expand]").evaluate((el) => el === document.activeElement), true);
+      if (name !== "compact")
+        await page.screenshot({ path: Output + "/" + name + "-" + view + ".png", fullPage: true });
     }
-    await page.locator('[data-view="sessions"]').click();
-    await page.locator("[data-session]").click();
-    await page.locator('[data-view="host"]').click();
-    await page.locator('[data-view="sessions"]').click();
-    assert.equal(await page.locator(".is-disconnected").count(), 0);
     await page.locator("[role=tab][aria-selected=true]").focus();
+    await page.keyboard.press("Home");
+    assert.equal(await page.locator("[role=tab][aria-selected=true]").getAttribute("data-view"), "terminal");
     await page.keyboard.press("ArrowRight");
-    assert.equal(await page.locator("[role=tab][aria-selected=true]").getAttribute("data-view"), "host");
+    assert.equal(await page.locator("[role=tab][aria-selected=true]").getAttribute("data-view"), "files");
     await page.keyboard.press("End");
     assert.equal(await page.locator("[role=tab][aria-selected=true]").getAttribute("data-view"), "ai");
-    await page.keyboard.press("Home");
-    assert.equal(await page.locator("[role=tab][aria-selected=true]").getAttribute("data-view"), "sessions");
     await page.locator("[data-play-film]").click();
-    assert.equal(await page.locator("dialog").evaluate((element) => element.open), true);
+    assert.equal(await page.locator(".film-dialog").evaluate((el) => el.open), true);
     await page.keyboard.press("Escape");
-    await page.waitForFunction(() => !document.querySelector("dialog").open && document.querySelector("video").paused);
-    assert.equal(
-      await page.locator("[data-play-film]").evaluate((element) => element === document.activeElement),
-      true
+    await page.waitForFunction(
+      () => !document.querySelector(".film-dialog").open && document.querySelector("video").paused
     );
+    assert.equal(await page.locator("[data-play-film]").evaluate((el) => el === document.activeElement), true);
     assert.equal(await page.locator("[data-asset]").count(), 6);
-    for (const link of await page.locator("[data-asset]").evaluateAll((links) => links.map((link) => link.href))) {
+    for (const link of await page.locator("[data-asset]").evaluateAll((links) => links.map((a) => a.href)))
       assert.match(link, /^https:\/\/github\.com\/Ry3nG\/GenieTerm\/releases\/download\/v\d+\.\d+\.\d+\//);
-    }
-    console.log(`${name}: native demos, interactions, keyboard, film, downloads and layout passed`);
+    console.log(name + ": dark layout, film, real SVG renders, provenance, navigation, dialogs and downloads passed");
     await context.close();
   }
-
-  const noJs = await Browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
-  const page = await noJs.newPage();
+  const nojs = await Browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
+  const page = await nojs.newPage();
   await page.goto(Url);
   assert.equal(await page.locator('[data-asset][href*="v1.4.1"]').count(), 6);
   assert.equal(await page.locator("[data-play-film]").getAttribute("href"), "media/overview.mp4");
+  assert.equal(await page.locator("[data-expand]").getAttribute("href"), "img/ui/host.svg");
+  assert.equal(await page.locator(".fallback-views a").count(), 4);
   assert.equal(await page.locator("[role=tab]:enabled").count(), 0);
-  await noJs.close();
-  console.log("No-JavaScript download and film fallback passed");
-
-  const offline = await Browser.newContext();
+  await nojs.close();
+  const offline = await Browser.newContext({ reducedMotion: "reduce" });
   await offline.route("https://api.github.com/repos/Ry3nG/GenieTerm/releases/latest", (route) => route.abort());
-  const offlinePage = await offline.newPage();
-  await offlinePage.goto(Url);
-  await offlinePage.waitForFunction(() =>
-    document.querySelector("[data-release-status]").textContent.includes("Check GitHub")
-  );
-  assert.equal(await offlinePage.locator('[data-asset][href*="v1.4.1"]').count(), 6);
-  await offlinePage.locator('[data-view="ai"]').click();
-  assert.equal(await offlinePage.locator("[data-insert]").count(), 1);
+  const p = await offline.newPage();
+  await p.goto(Url);
+  await p.waitForFunction(() => document.querySelector("[data-release-status]").textContent.includes("Check GitHub"));
+  assert.equal(await p.locator('[data-asset][href*="v1.4.1"]').count(), 6);
+  assert.equal(await p.evaluate(() => document.getAnimations().length), 0);
   await offline.close();
   assert.deepEqual(Errors, []);
-  console.log("Release API failure fallback passed; no page or asset errors");
+  console.log("No-JavaScript, release API failure and reduced-motion checks passed; no page or asset errors");
 } finally {
   await Browser.close();
 }
