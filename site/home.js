@@ -46,7 +46,6 @@ function selectView(name) {
         tab.tabIndex = selected ? 0 : -1;
     }
     $("#ui-panel").setAttribute("aria-labelledby", `tab-${name}`);
-    $("[data-view-source]").href = "https://github.com/Ry3nG/GenieTerm/blob/main/" + view.source;
     $("[data-session-states]").hidden = name !== "terminal";
     for (const button of $$("[data-session-state]"))
         button.setAttribute("aria-pressed", String(button.dataset.sessionState === "terminal"));
@@ -94,7 +93,7 @@ $("[data-expand]").addEventListener("click", (event) => {
     event.preventDefault();
     $("[data-enlarged-image]").src = $("[data-ui-image]").src;
     $("[data-enlarged-image]").alt = $("[data-ui-image]").alt;
-    $("[data-image-title]").textContent = Views[currentView].title + " / product render";
+    $("[data-image-title]").textContent = Views[currentView].title;
     ImageDialog.showModal();
 });
 $("[data-close-image]").addEventListener("click", () => ImageDialog.close());

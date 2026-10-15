@@ -122,16 +122,9 @@
                 height="700"
                 loading="lazy"
                 alt="GenieTerm's Host component showing GPU utilization, CPU, memory and running processes"
-              /><span class="expand-label">Inspect UI ↗</span></a
-            >
+            /></a>
           </div>
           <!-- the app's status line -->
-          <div class="view-detail">
-            <span>Product UI · sample data</span
-            ><a data-view-source href="https://github.com/Ry3nG/GenieTerm/blob/main/frontend/app/view/host/host.tsx"
-              >Source ↗</a
-            >
-          </div>
           <div class="session-states" data-session-states hidden role="group" aria-label="Terminal session state">
             <button disabled data-session-state="terminal" aria-pressed="true">Connection interrupted</button
             ><button disabled data-session-state="terminal-reattached" aria-pressed="false">After reconnect</button>
@@ -229,12 +222,11 @@
     </dialog>
     <dialog class="image-dialog" aria-label="Product interface">
       <div class="dialog-top">
-        <span data-image-title>Host / product render</span><button data-close-image autofocus>Close ×</button>
+        <span data-image-title>Host</span><button data-close-image autofocus>Close ×</button>
       </div>
       <div class="image-scroll" tabindex="0" aria-label="Enlarged product interface; scroll to inspect">
         <img data-enlarged-image alt="" />
       </div>
-      <p>Rendered from product components with example data.</p>
     </dialog>
   </body>
 </html>

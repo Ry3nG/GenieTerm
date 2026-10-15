@@ -30,8 +30,6 @@ No account or telemetry. [How Command AI works](./docs/architecture/command-ai.m
 
 ## Look inside
 
-Product UI, rendered with example data. [Enlarge the interface ↗](https://ry3ng.github.io/GenieTerm/#interface)
-
 <table>
 <tr>
 <td width="50%"><strong>Terminal / agent session</strong><br><a href="./site/img/ui/terminal-reattached.png"><img src="./site/img/ui/terminal-reattached.png" alt="Generated terminal example showing a coding agent's completed changes and 42 passing tests after reconnecting."></a></td>
