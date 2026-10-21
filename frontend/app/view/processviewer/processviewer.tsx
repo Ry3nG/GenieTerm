@@ -96,6 +96,7 @@ export class ProcessViewerViewModel implements ViewModel {
     manageConnection = jotai.atom<boolean>(true);
     filterOutNowsh = jotai.atom<boolean>(true);
     noPadding = jotai.atom<boolean>(true);
+    columnWidthsAtom = jotai.atom<Partial<Record<SortCol, number>>>({});
 
     dataAtom: jotai.PrimitiveAtom<ProcessListResponse>;
     dataStartAtom: jotai.PrimitiveAtom<number>;
@@ -536,6 +537,7 @@ type ColDef = {
     label: string;
     tooltip?: string;
     width: string;
+    minWidth: number;
     align?: "right";
     hideOnPlatform?: string[];
     // narrower tables drop this column; Command, CPU% and Memory always stay
@@ -543,21 +545,29 @@ type ColDef = {
 };
 
 const Columns: ColDef[] = [
-    { key: "pid", label: "PID", width: "70px", align: "right", minTableWidth: 380 },
-    { key: "command", label: "Command", width: "minmax(120px, 4fr)" },
-    { key: "status", label: "Status", width: "75px", hideOnPlatform: ["windows", "darwin"], minTableWidth: 520 },
-    { key: "user", label: "User", width: "80px", hideOnPlatform: ["windows"], minTableWidth: 440 },
+    { key: "pid", label: "PID", width: "70px", minWidth: 50, align: "right", minTableWidth: 380 },
+    { key: "command", label: "Command", width: "minmax(120px, 1fr)", minWidth: 120 },
+    {
+        key: "status",
+        label: "Status",
+        width: "75px",
+        minWidth: 60,
+        hideOnPlatform: ["windows", "darwin"],
+        minTableWidth: 520,
+    },
+    { key: "user", label: "User", width: "80px", minWidth: 60, hideOnPlatform: ["windows"], minTableWidth: 440 },
     {
         key: "threads",
         label: "NT",
         tooltip: "Num Threads",
         width: "40px",
+        minWidth: 40,
         align: "right",
         hideOnPlatform: ["windows"],
         minTableWidth: 580,
     },
-    { key: "cpu", label: "CPU%", width: "70px", align: "right" },
-    { key: "mem", label: "Memory", width: "90px", align: "right" },
+    { key: "cpu", label: "CPU%", width: "70px", minWidth: 60, align: "right" },
+    { key: "mem", label: "Memory", width: "90px", minWidth: 75, align: "right" },
 ];
 
 const ColumnWidthSteps = [0, 380, 440, 520, 580];
@@ -575,11 +585,76 @@ function getColumns(platform: string, tableWidth: number): ColDef[] {
 
 function getGridTemplate(platform: string, tableWidth: number): string {
     return getColumns(platform, tableWidth)
-        .map((c) => c.width)
+        .map((c) => `var(--process-${c.key}-width, ${c.width})`)
         .join(" ");
 }
 
 // ---- components ----
+
+function ColumnResizeHandle({ model, col }: { model: ProcessViewerViewModel; col: ColDef }) {
+    const drag = React.useRef<{ pointerId: number; x: number; width: number }>(null);
+    const setWidth = (width: number) => {
+        globalStore.set(model.columnWidthsAtom, (current) => ({
+            ...current,
+            [col.key]: Math.max(col.minWidth, Math.round(width)),
+        }));
+    };
+    const resetWidth = () => {
+        globalStore.set(model.columnWidthsAtom, (current) => {
+            const next = { ...current };
+            delete next[col.key];
+            return next;
+        });
+    };
+
+    return (
+        <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={`Resize ${col.label} column`}
+            tabIndex={0}
+            title="Drag to resize; double-click to reset"
+            className="absolute right-0 inset-y-0 w-2 cursor-col-resize touch-none hover:bg-accent/50 focus-visible:bg-accent/50 outline-none after:absolute after:inset-y-1 after:right-0 after:w-px after:bg-white/15"
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => {
+                e.stopPropagation();
+                resetWidth();
+            }}
+            onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                drag.current = {
+                    pointerId: e.pointerId,
+                    x: e.clientX,
+                    width: e.currentTarget.parentElement.getBoundingClientRect().width,
+                };
+                e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+                if (drag.current?.pointerId !== e.pointerId) return;
+                setWidth(drag.current.width + e.clientX - drag.current.x);
+            }}
+            onPointerUp={(e) => {
+                if (drag.current?.pointerId !== e.pointerId) return;
+                drag.current = null;
+                e.currentTarget.releasePointerCapture(e.pointerId);
+            }}
+            onLostPointerCapture={() => (drag.current = null)}
+            onKeyDown={(e) => {
+                if (!["ArrowLeft", "ArrowRight", "Home"].includes(e.key)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.key === "Home") {
+                    resetWidth();
+                    return;
+                }
+                const width = e.currentTarget.parentElement.getBoundingClientRect().width;
+                setWidth(width + (e.key === "ArrowRight" ? 10 : -10));
+            }}
+        />
+    );
+}
 
 const SortIndicator = React.memo(function SortIndicator({ active, desc }: { active: boolean; desc: boolean }) {
     if (!active) return null;
@@ -667,19 +742,20 @@ const TableHeader = React.memo(function TableHeader({
     const gridTemplate = getGridTemplate(platform, tableWidth);
     return (
         <div
-            className="grid w-full shrink-0 border-b border-white/10 bg-panel text-xs text-secondary font-medium select-none"
-            style={{ gridTemplateColumns: gridTemplate }}
+            className="grid w-full shrink-0 overflow-y-hidden wide-scrollbar border-b border-white/10 bg-panel text-xs text-secondary font-medium select-none"
+            style={{ gridTemplateColumns: gridTemplate, scrollbarGutter: "stable" }}
         >
             {cols.map((col) => (
                 <Tooltip
                     key={col.key}
                     content={col.tooltip}
                     disable={!col.tooltip}
-                    divClassName={`px-2 py-1 cursor-pointer hover:text-primary hover:bg-white/5 transition-colors truncate flex items-center${col.align === "right" ? " justify-end" : ""}`}
+                    divClassName={`relative px-2 py-1 cursor-pointer hover:text-primary hover:bg-white/5 transition-colors truncate flex items-center${col.align === "right" ? " justify-end" : ""}`}
                     divOnClick={() => model.setSort(col.key)}
                 >
                     <span className="truncate">{col.label}</span>
                     <SortIndicator active={sortBy === col.key} desc={sortDesc} />
+                    <ColumnResizeHandle model={model} col={col} />
                 </Tooltip>
             ))}
         </div>
@@ -751,7 +827,9 @@ const ProcessRow = React.memo(function ProcessRow({
                 <div className="px-2 flex items-center truncate text-secondary text-[11px]">{proc.status}</div>
             )}
             {visibleKeys.has("user") && (
-                <div className="px-2 flex items-center truncate text-secondary">{proc.user}</div>
+                <div className="px-2 flex items-center truncate text-secondary" title={proc.user}>
+                    {proc.user}
+                </div>
             )}
             {visibleKeys.has("threads") && (
                 <div className="px-2 flex items-center truncate justify-end text-secondary font-mono text-[11px]">
@@ -992,6 +1070,7 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
         const dataStart = jotai.useAtomValue(model.dataStartAtom);
         const connection = jotai.useAtomValue(model.connection);
         const connStatus = jotai.useAtomValue(model.connStatus);
+        const columnWidths = jotai.useAtomValue(model.columnWidthsAtom);
         const bodyScrollRef = React.useRef<HTMLDivElement>(null);
         const containerRef = React.useRef<HTMLDivElement>(null);
         const [wide, setWide] = React.useState(false);
@@ -1089,6 +1168,14 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
 
         const totalHeight = filteredCount * RowHeight;
         const paddingTop = dataStart * RowHeight;
+        const columnStyles = Object.fromEntries(
+            Object.entries(columnWidths).map(([key, width]) => [`--process-${key}-width`, `${width}px`])
+        ) as React.CSSProperties;
+        const minTableWidth = getColumns(platform, tableWidth).reduce(
+            (width, col) =>
+                width + (columnWidths[col.key] ?? (col.key === "command" ? col.minWidth : parseFloat(col.width))),
+            10
+        );
 
         return (
             <div className="flex flex-col w-full h-full overflow-hidden" ref={containerRef}>
@@ -1105,7 +1192,10 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
                             Waiting for connection…
                         </div>
                     ) : (
-                        <div className="flex flex-col h-full min-w-full w-max">
+                        <div
+                            className="flex flex-col h-full w-full"
+                            style={{ ...columnStyles, minWidth: minTableWidth }}
+                        >
                             <TableHeader
                                 model={model}
                                 sortBy={sortBy}
@@ -1116,6 +1206,7 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
                             <div
                                 ref={bodyScrollRef}
                                 className="flex-1 overflow-y-auto overflow-x-hidden w-full wide-scrollbar"
+                                style={{ scrollbarGutter: "stable" }}
                                 onScroll={handleScroll}
                             >
                                 <div style={{ height: totalHeight, position: "relative" }}>
