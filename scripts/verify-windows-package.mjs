@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   closeSync,
   createReadStream,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
@@ -20,12 +21,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { chromium } from "playwright";
+import semver from "semver";
 import YAML from "yaml";
+import { requireCleanWindowsInstallState } from "./windows-installer-safety.mjs";
 
 const Scope = "verify-windows-package";
 const OutputDir = path.resolve(process.argv[2] || process.env.GENIETERM_BUILD_OUTPUT || "make");
 const WindowSmoke = process.argv.includes("--window-smoke");
-const InstallerSmoke = process.argv.includes("--installer-smoke");
+const UpgradeFrom = process.argv.find((arg) => arg.startsWith("--upgrade-from="))?.slice("--upgrade-from=".length);
+const InstallerSmoke = process.argv.includes("--installer-smoke") || UpgradeFrom != null;
 const RequireSignature = process.argv.includes("--require-signature");
 const RequireZip = !process.argv.includes("--no-zip");
 const { productName: ProductName, version: Version } = JSON.parse(readFileSync("package.json", "utf8"));
@@ -153,8 +157,39 @@ async function verifyUpdateMetadata(names) {
   }
 }
 
-async function windowSmoke(executablePath) {
-  const isolatedHome = mkdtempSync(path.join(tmpdir(), "genieterm-windows-smoke-"));
+async function runTerminalCommand(page, command, expectedOutput) {
+  await page.locator(".xterm").first().click();
+  await page.keyboard.insertText(command);
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(
+    (expected) => {
+      const buffer = window.term?.terminal?.buffer?.active;
+      if (!buffer) {
+        return false;
+      }
+      for (let lineIndex = 0; lineIndex < buffer.length; lineIndex += 1) {
+        if (buffer.getLine(lineIndex)?.translateToString().includes(expected)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    expectedOutput,
+    { timeout: 20000 }
+  );
+}
+
+async function windowSmoke(executablePath, { profileDir, longHomes = false, onReady } = {}) {
+  const isolatedHome = profileDir || mkdtempSync(path.join(tmpdir(), "genieterm-windows-smoke-"));
+  mkdirSync(isolatedHome, { recursive: true });
+  const settingsHome = longHomes
+    ? path.join(
+        isolatedHome,
+        ...Array.from({ length: 6 }, (_, index) => `profile 设置 ${index} ${"long-path-".repeat(6)}`)
+      )
+    : isolatedHome;
+  const configHome = path.join(settingsHome, "config");
+  const dataHome = path.join(settingsHome, "data");
   const appProcess = spawn(
     executablePath,
     ["--remote-debugging-port=0", "--user-data-dir", isolatedHome, "--disable-gpu"],
@@ -162,8 +197,8 @@ async function windowSmoke(executablePath) {
       env: {
         ...process.env,
         GENIETERM_SKIP_SINGLE_INSTANCE: "1",
-        WAVETERM_CONFIG_HOME: path.join(isolatedHome, "config"),
-        WAVETERM_DATA_HOME: path.join(isolatedHome, "data"),
+        WAVETERM_CONFIG_HOME: configHome,
+        WAVETERM_DATA_HOME: dataHome,
       },
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
@@ -210,13 +245,31 @@ async function windowSmoke(executablePath) {
             .isVisible()
             .catch(() => false))
         ) {
-          // "Skip" agrees to the terms and closes the welcome without starting Quick Start
-          await candidate.getByRole("button", { name: "Skip", exact: true }).click();
+          const skip = candidate.getByRole("button", { name: "Skip", exact: true });
+          if (await skip.isVisible()) {
+            // "Skip" agrees to the terms and closes the welcome without starting Quick Start
+            await skip.click();
+          } else {
+            const telemetry = candidate.getByRole("checkbox");
+            if ((await telemetry.count()) === 1) {
+              await telemetry.uncheck();
+            }
+            await candidate.getByRole("button", { name: "Continue", exact: true }).click();
+            await candidate.getByRole("button", { name: /^Skip Feature Tour/ }).click();
+          }
           await candidate
             .getByText("Welcome to GenieTerm", { exact: true })
             .waitFor({ state: "hidden", timeout: 15000 });
           onboardingCompleted.add(candidate);
           console.log(`[${Scope}] completed isolated first-run onboarding`);
+        }
+        if (
+          await candidate
+            .getByText("What's new since your last update.", { exact: true })
+            .isVisible()
+            .catch(() => false)
+        ) {
+          await candidate.getByRole("button", { name: "Not Now", exact: true }).click();
         }
         if ((await candidate.locator(".term-connectelem").count()) > 0) {
           page = candidate;
@@ -285,50 +338,145 @@ async function windowSmoke(executablePath) {
       null,
       { timeout: 30000 }
     );
-    await page.locator(".xterm").first().click();
-    await page.keyboard.type("Write-Output ('GENIETERM_' + 'WINDOWS_OK')");
-    await page.keyboard.press("Enter");
-    let commandOutputSeen = false;
-    const commandDeadline = Date.now() + 20000;
-    while (!commandOutputSeen && Date.now() < commandDeadline) {
-      commandOutputSeen = await page.evaluate(() => {
-        const terminal = window.term?.terminal;
-        const buffer = terminal?.buffer?.active;
-        if (!buffer) {
-          return false;
-        }
-        for (let lineIndex = 0; lineIndex < buffer.length; lineIndex += 1) {
-          if (buffer.getLine(lineIndex)?.translateToString().includes("GENIETERM_WINDOWS_OK")) {
-            return true;
-          }
-        }
-        return false;
-      });
-      if (!commandOutputSeen) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-    }
-    if (!commandOutputSeen) {
-      fail("local PowerShell command produced no terminal output");
-    }
+    const commandId = randomUUID().replaceAll("-", "");
+    await runTerminalCommand(
+      page,
+      `Write-Output ('GENIETERM_' + 'WINDOWS_OK_${commandId}')`,
+      `GENIETERM_WINDOWS_OK_${commandId}`
+    );
     console.log(`[${Scope}] packaged PowerShell command verified`);
+    if (longHomes) {
+      const homes = await page.evaluate(() => ({ data: window.api.getDataDir(), config: window.api.getConfigDir() }));
+      if (
+        dataHome.length <= 400 ||
+        configHome.length <= 400 ||
+        path.normalize(homes.data) !== path.normalize(dataHome) ||
+        path.normalize(homes.config) !== path.normalize(configHome)
+      ) {
+        fail("packaged app did not use the intended long Unicode data and config paths");
+      }
+      await setSmokeSettings(page, path.dirname(executablePath));
+      verifySmokeSettings(configHome);
+      console.log(
+        `[${Scope}] long Unicode homes verified through CLI and terminal settings: data=${dataHome.length}, config=${configHome.length} characters`
+      );
+    }
+    await onReady?.({ page, browser, profileDir: isolatedHome });
+    if (errors.length > 0) {
+      fail(`packaged window error: ${errors.join("; ")}`);
+    }
   } finally {
     if (appProcess.pid) {
       spawnSync("taskkill", ["/PID", String(appProcess.pid), "/T", "/F"], { windowsHide: true });
     }
     await browser?.close().catch(() => {});
-    try {
-      rmSync(isolatedHome, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
-    } catch (error) {
-      console.warn(`[${Scope}] isolated test profile is still locked: ${error.code || error}`);
+    if (!profileDir) {
+      try {
+        rmSync(isolatedHome, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+      } catch (error) {
+        console.warn(`[${Scope}] isolated test profile is still locked: ${error.code || error}`);
+      }
     }
   }
 }
 
+async function workspacePage(browser) {
+  for (const candidate of browser.contexts().flatMap((context) => context.pages())) {
+    if ((await candidate.locator(".workspace-switcher-button").count()) > 0) {
+      return candidate;
+    }
+  }
+  fail("workspace switcher was not available in the installed app");
+}
+
+async function setSmokeSettings(page, installDir) {
+  const helperDir = path.join(installDir, "resources", "app.asar.unpacked", "dist", "bin");
+  const helperName = readdirSync(helperDir).find((name) => /^genie-.*-windows\.x64\.exe$/.test(name));
+  if (!helperName) {
+    fail("installation did not include the genie CLI");
+  }
+  const helperPath = path.join(helperDir, helperName).replaceAll("'", "''");
+  const commandId = randomUUID().replaceAll("-", "");
+  await runTerminalCommand(
+    page,
+    `& '${helperPath}' setconfig term:fontsize=17 autoupdate:enabled=false; if ($LASTEXITCODE -eq 0) { Write-Output ('SETTINGS_' + 'SAVED_${commandId}') }`,
+    `SETTINGS_SAVED_${commandId}`
+  );
+  await page.waitForFunction(() => window.term?.terminal?.options.fontSize === 17, null, { timeout: 15000 });
+}
+
+async function seedUpgradeProfile({ page, browser, profileDir }, installDir, workspaceName) {
+  const previousVersion = await page.evaluate(() => window.api.getAboutModalDetails().version);
+  if (!semver.valid(previousVersion) || !semver.lt(previousVersion, Version)) {
+    fail(`upgrade source must be older than ${Version}, got ${previousVersion}`);
+  }
+  await setSmokeSettings(page, installDir);
+  const shellPage = await workspacePage(browser);
+  await shellPage.locator(".workspace-switcher-button").click();
+  const saveWorkspace = shellPage.getByText("Save workspace", { exact: true });
+  if (await saveWorkspace.isVisible()) {
+    await saveWorkspace.click();
+  } else {
+    await shellPage.locator(".workspace-switcher-content .is-current").hover();
+    await shellPage.locator(".workspace-switcher-content .is-current .edit").click();
+  }
+  const workspaceInput = shellPage.locator(".workspace-editor input");
+  await workspaceInput.fill(workspaceName);
+  await workspaceInput.press("Tab");
+  await shellPage.locator(".workspace-switcher-button").click();
+  await shellPage.locator(".workspace-switcher-button").click();
+  await shellPage.locator(".workspace-switcher-content .label").filter({ hasText: workspaceName }).waitFor();
+  await shellPage.keyboard.press("Escape");
+  verifySmokeSettings(path.join(profileDir, "config"));
+  console.log(`[${Scope}] ${previousVersion} workspace and settings saved through the app`);
+}
+
+function verifySmokeSettings(configHome) {
+  const settings = JSON.parse(readFileSync(path.join(configHome, "settings.json"), "utf8"));
+  if (settings["term:fontsize"] !== 17 || settings["autoupdate:enabled"] !== false) {
+    fail("saved font size and automatic-update setting were not preserved");
+  }
+}
+
+async function verifyUpgradeProfile({ page, browser, profileDir }, workspaceName) {
+  const version = await page.evaluate(() => window.api.getAboutModalDetails().version);
+  if (version !== Version) {
+    fail(`installed upgrade version expected ${Version}, got ${version}`);
+  }
+  verifySmokeSettings(path.join(profileDir, "config"));
+  await page.waitForFunction(() => window.term?.terminal?.options.fontSize === 17, null, { timeout: 15000 });
+  const shellPage = await workspacePage(browser);
+  await shellPage.locator(".workspace-switcher-button").click();
+  await shellPage.locator(".workspace-switcher-content .label").filter({ hasText: workspaceName }).waitFor();
+  await shellPage.keyboard.press("Escape");
+  console.log(`[${Scope}] NSIS upgrade to ${Version} preserved the saved workspace and rendered settings`);
+}
+
 async function installerSmoke(installerPath) {
-  const root = mkdtempSync(path.join(tmpdir(), "genieterm-installer-smoke-"));
-  const installDir = path.join(root, "installed");
+  requireCleanWindowsInstallState(ProductName);
+  if (UpgradeFrom != null) {
+    requireFile(path.resolve(UpgradeFrom), 1024 * 1024);
+  }
+  const root = mkdtempSync(path.join(tmpdir(), "gt 升级-"));
+  const installDir = path.join(root, "GenieTerm 安装");
+  const profileDir = path.join(root, "用户 数据");
+  const workspaceName = `Upgrade workspace 保留 ${randomUUID().slice(0, 8)}`;
+  console.log(`[${Scope}] isolated installer and profile root: ${root}`);
+  let smokeError;
   try {
+    if (UpgradeFrom != null) {
+      const previousInstall = spawnSync(path.resolve(UpgradeFrom), ["/S", `/D=${installDir}`], {
+        windowsHide: true,
+        timeout: 180000,
+      });
+      if (previousInstall.error || previousInstall.status !== 0) {
+        fail(`previous NSIS install failed: ${previousInstall.error?.message || previousInstall.status}`);
+      }
+      await windowSmoke(path.join(installDir, `${ProductName}.exe`), {
+        profileDir,
+        onReady: (context) => seedUpgradeProfile(context, installDir, workspaceName),
+      });
+    }
     const install = spawnSync(installerPath, ["/S", `/D=${installDir}`], { windowsHide: true, timeout: 180000 });
     if (install.error || install.status !== 0) {
       fail(`NSIS silent install failed: ${install.error?.message || install.status}`);
@@ -337,33 +485,67 @@ async function installerSmoke(installerPath) {
     requireX64Pe(installedExe);
     requireFile(path.join(installDir, "resources", "app.asar"), 1024);
     console.log(`[${Scope}] NSIS installation verified`);
-    await windowSmoke(installedExe);
-    spawnSync("taskkill", ["/IM", `${ProductName}.exe`, "/T", "/F"], { windowsHide: true, timeout: 10000 });
-    const uninstaller = readdirSync(installDir).find((name) => /^Uninstall.*\.exe$/i.test(name));
-    if (!uninstaller) {
-      fail("NSIS install did not include an uninstaller");
-    }
-    const uninstall = spawnSync(path.join(installDir, uninstaller), ["/S"], {
-      windowsHide: true,
-      timeout: 180000,
+    await windowSmoke(installedExe, {
+      profileDir,
+      longHomes: UpgradeFrom == null,
+      onReady: UpgradeFrom != null ? (context) => verifyUpgradeProfile(context, workspaceName) : undefined,
     });
-    if (uninstall.error || uninstall.status !== 0) {
-      fail(`NSIS silent uninstall failed: ${uninstall.error?.message || uninstall.status}`);
+  } catch (error) {
+    console.error(`[${Scope}] installer smoke failed before cleanup: ${error.stack || error}`);
+    smokeError = error;
+  }
+  try {
+    // A failed launch must still uninstall; deleting the directory alone leaves production registry entries.
+    if (existsSync(installDir)) {
+      const uninstaller = readdirSync(installDir).find((name) => /^Uninstall.*\.exe$/i.test(name));
+      if (!uninstaller) {
+        fail(`NSIS install did not include an uninstaller; preserving ${root} for recovery`);
+      }
+      const uninstall = spawnSync(path.join(installDir, uninstaller), ["/S"], {
+        windowsHide: true,
+        timeout: 180000,
+      });
+      if (uninstall.error || uninstall.status !== 0) {
+        fail(`NSIS silent uninstall failed: ${uninstall.error?.message || uninstall.status}; preserving ${root}`);
+      }
+      const installedExe = path.join(installDir, `${ProductName}.exe`);
+      const uninstallDeadline = Date.now() + 30000;
+      while (existsSync(installedExe) && Date.now() < uninstallDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      if (existsSync(installedExe)) {
+        fail(`NSIS uninstaller returned but GenieTerm.exe remains installed; preserving ${root}`);
+      }
+      let cleanupError;
+      // NSIS's temporary uninstaller can remove the executable before finishing its registry cleanup.
+      do {
+        try {
+          requireCleanWindowsInstallState(ProductName);
+          cleanupError = null;
+          break;
+        } catch (error) {
+          cleanupError = error;
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      } while (Date.now() < uninstallDeadline);
+      if (cleanupError) {
+        throw cleanupError;
+      }
+      console.log(`[${Scope}] NSIS uninstall verified`);
     }
-    const uninstallDeadline = Date.now() + 30000;
-    while (existsSync(installedExe) && Date.now() < uninstallDeadline) {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    if (existsSync(installedExe)) {
-      fail("NSIS uninstaller returned but GenieTerm.exe remains installed");
-    }
-    console.log(`[${Scope}] NSIS uninstall verified`);
-  } finally {
     try {
       rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     } catch (error) {
       console.warn(`[${Scope}] temporary installer test directory is still locked: ${error.code || error}`);
     }
+  } catch (cleanupError) {
+    if (smokeError) {
+      throw new AggregateError([smokeError, cleanupError], `[${Scope}] installer smoke and cleanup failed`);
+    }
+    throw cleanupError;
+  }
+  if (smokeError) {
+    throw smokeError;
   }
 }
 
@@ -413,13 +595,13 @@ async function main() {
     fail("Windows package contains an invalid or missing code signature");
   }
   if (WindowSmoke) {
-    await windowSmoke(executablePath);
+    await windowSmoke(executablePath, { longHomes: true });
   }
   if (InstallerSmoke) {
     await installerSmoke(installerPath);
   }
   console.log(
-    `[${Scope}] ${ProductName} ${Version} Windows x64 package verified${WindowSmoke ? " with window smoke" : ""}${InstallerSmoke ? " and installer smoke" : ""}`
+    `[${Scope}] ${ProductName} ${Version} Windows x64 package verified${WindowSmoke ? " with window smoke" : ""}${InstallerSmoke ? " and installer smoke" : ""}${UpgradeFrom != null ? " including upgrade preservation" : ""}`
   );
 }
 

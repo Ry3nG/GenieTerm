@@ -2,11 +2,10 @@ name: Release
 
 # Push a version-matching tag to build, verify, and publish a GitHub Release.
 #
-# - Stable tags (vX.Y.Z) publish macOS and Linux arm64 + x64. The macOS app is ad-hoc signed and not notarized
+# - Stable tags (vX.Y.Z) publish macOS and Linux arm64 + x64, and Windows x64. The macOS app is ad-hoc signed and not notarized
 #   (no Apple Developer ID is configured), so users approve the first launch in Gatekeeper.
-# - Windows x64 is deferred from stable until a code-signing certificate exists. It ships as an unsigned
-#   preview on prerelease tags (vX.Y.Z-beta.N). To ship it on stable, configure the WIN_CSC_LINK /
-#   WIN_CSC_KEY_PASSWORD secrets and set the repository variable GENIETERM_WINDOWS_STABLE=signed.
+# - Windows x64 ships unsigned unless WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD are both configured.
+#   Configured signing is required to succeed; partial credentials fail the build.
 # - Linux ships AppImage (auto-update) and deb (manual update) on native Ubuntu runners.
 # - workflow_dispatch builds and verifies everything without publishing.
 on:
@@ -245,16 +244,8 @@ jobs:
     build-windows:
         name: Build Windows x64
         needs: preflight
-        # Windows stays off the stable channel until signing is configured; prerelease tags and manual runs
-        # build an unsigned preview.
-        if: >-
-            github.event_name == 'workflow_dispatch' ||
-            contains(github.ref_name, '-') ||
-            vars.GENIETERM_WINDOWS_STABLE == 'signed'
         runs-on: windows-latest
         timeout-minutes: 90
-        env:
-            WINDOWS_SIGNED_RELEASE: ${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -293,26 +284,28 @@ jobs:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
 
-            - name: Build unsigned Windows x64 preview
-              if: env.WINDOWS_SIGNED_RELEASE != 'true'
-              run: task package -- --win --x64
-              env:
-                  NODE_OPTIONS: "--max-old-space-size=6144"
-                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
-
-            - name: Require Windows signing credentials
-              if: env.WINDOWS_SIGNED_RELEASE == 'true'
+            - name: Configure optional Windows signing
+              id: signing
               shell: pwsh
               env:
                   WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
                   WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
               run: |
-                  if (!$env:WIN_CSC_LINK -or !$env:WIN_CSC_KEY_PASSWORD) {
-                      throw "GENIETERM_WINDOWS_STABLE=signed requires the WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD secrets."
+                  if ([bool]$env:WIN_CSC_LINK -ne [bool]$env:WIN_CSC_KEY_PASSWORD) {
+                      throw "Configure both WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD, or leave both unset for an unsigned release."
                   }
+                  $signingEnabled = ([bool]$env:WIN_CSC_LINK).ToString().ToLowerInvariant()
+                  "enabled=$signingEnabled" >> $env:GITHUB_OUTPUT
+
+            - name: Build unsigned Windows x64 release
+              if: steps.signing.outputs.enabled != 'true'
+              run: task package -- --win --x64
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=6144"
+                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
             - name: Build signed Windows x64 release
-              if: env.WINDOWS_SIGNED_RELEASE == 'true'
+              if: steps.signing.outputs.enabled == 'true'
               run: task package -- --win --x64
               env:
                   NODE_OPTIONS: "--max-old-space-size=6144"
@@ -324,7 +317,7 @@ jobs:
               run: node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
 
             - name: Verify Windows release signatures
-              if: env.WINDOWS_SIGNED_RELEASE == 'true'
+              if: steps.signing.outputs.enabled == 'true'
               run: node scripts/verify-windows-package.mjs make --require-signature
 
             - name: Verify packaging left the checkout unchanged
@@ -413,19 +406,17 @@ jobs:
     publish:
         name: Verify and publish GitHub Release
         needs: [build-macos, build-linux, linux-deb-ubuntu-2404, build-windows]
-        # build-windows is skipped on stable tags until Windows signing is configured; macOS and Linux must succeed.
+        # Every release must contain verified packages for all supported platforms.
         if: >-
             !cancelled() &&
             needs.build-macos.result == 'success' &&
             needs.build-linux.result == 'success' &&
             needs.linux-deb-ubuntu-2404.result == 'success' &&
-            (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped')
+            needs.build-windows.result == 'success'
         runs-on: ubuntu-latest
         timeout-minutes: 30
         permissions:
             contents: write
-        env:
-            WINDOWS_BUILT: ${{ needs.build-windows.result == 'success' }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -451,17 +442,12 @@ jobs:
                   pattern: genieterm-*
                   path: release-artifacts
 
-            # Checks the exact asset set (Windows assets only when build-windows succeeded, so a macOS + Linux
-            # stable release can never carry a stale Windows latest.yml) and every update manifest's
+            # Checks the exact asset set for every platform and every update manifest's
             # version, size, and sha512 against the payloads.
             - name: Verify release assets
               run: |
                   set -euo pipefail
-                  VERIFY_FLAGS=()
-                  if [ "${WINDOWS_BUILT}" = "true" ]; then
-                    VERIFY_FLAGS+=(--windows)
-                  fi
-                  node scripts/verify-release-assets.mjs release-artifacts "${VERIFY_FLAGS[@]}"
+                  node scripts/verify-release-assets.mjs release-artifacts --windows
 
             - name: Publish release
               if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')

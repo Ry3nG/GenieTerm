@@ -6,12 +6,12 @@ Releases are built and published from this repository by GitHub Actions. The ver
 
 ## What ships
 
-| Channel                    | Platforms                                                       | Signing                                            |
-| -------------------------- | --------------------------------------------------------------- | -------------------------------------------------- |
-| Stable `vX.Y.Z`            | macOS arm64 + x64 (dmg, zip); Linux x64 + arm64 (AppImage, deb) | macOS ad-hoc signed, not notarized; Linux unsigned |
-| Prerelease `vX.Y.Z-beta.N` | the above, plus Windows x64 (NSIS, zip)                         | Windows unsigned preview                           |
+| Channel                    | Platforms                                                                                | Signing                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Stable `vX.Y.Z`            | macOS arm64 + x64 (dmg, zip); Linux x64 + arm64 (AppImage, deb); Windows x64 (NSIS, zip) | macOS ad-hoc signed, not notarized; Linux unsigned; Windows unsigned unless signing is configured |
+| Prerelease `vX.Y.Z-beta.N` | the same platforms and package formats                                                   | The same signing configuration                                                                    |
 
-Each package's integrity is covered by the update manifests (`latest-mac.yml`, `latest-linux.yml`, `latest-linux-arm64.yml`), which record its size and SHA-512.
+Update payload integrity is covered by the update manifests (`latest-mac.yml`, `latest-linux.yml`, `latest-linux-arm64.yml`, `latest.yml`), which record size and SHA-512. Windows ships `GenieTerm-win32-x64-X.Y.Z.exe` for normal per-user installation and a `.zip` for an unpacked copy. An unsigned Windows installer may trigger SmartScreen's unrecognized-app warning; publishing a stable version does not imply a trusted code signature.
 
 ## Before tagging
 
@@ -51,7 +51,7 @@ Pushing the tag runs `.github/workflows/release.yml`:
 
   A separate job installs the x64 `.deb` on `ubuntu-24.04` and checks the PATH link, the desktop entry and the AppArmor profile. It then launches the app with Chromium's sandbox required, uninstalls it, and checks the cleanup.
 
-- **Windows.** Runs on prerelease tags and manual runs only (see Signing).
+- **Windows.** Runs for stable tags, prerelease tags and manual runs. It verifies the x64 package, bundled helpers and update metadata, runs a PowerShell command in the packaged app, and installs, launches and uninstalls the NSIS package. If signing credentials are configured, all required executable signatures must verify.
 - **Publish.** Runs only if every build passed. `scripts/verify-release-assets.mjs` checks the exact asset set and every manifest. The job creates a draft, compares the uploaded assets with the verified artifacts (name, size, SHA-256), and only then publishes. It never overwrites a published release.
 
 If publishing fails after the draft exists, fix the cause and re-run the workflow, which reuses the draft. Delete the draft if its assets should be discarded.
@@ -60,7 +60,7 @@ If publishing fails after the draft exists, fix the cause and re-run the workflo
 
 Check the published files themselves:
 
-- Confirm `latest-mac.yml` and both Linux manifests on `releases/latest/download/` report the new version.
+- Confirm `latest-mac.yml`, both Linux manifests and Windows `latest.yml` on `releases/latest/download/` report the new version. Windows `beta.yml` and `alpha.yml` must point to the same stable installer.
 - Download the macOS zip and match its SHA-512 to `latest-mac.yml`. Run `node scripts/verify-installed-app.mjs --window-smoke <path/to/GenieTerm.app>`.
 - Run the Linux AppImage once from a fresh profile.
 
@@ -77,16 +77,16 @@ All builds read the generic feed `https://github.com/Ry3nG/GenieTerm/releases/la
 
 - **Linux AppImage.** Updates itself through `latest-linux.yml` or `latest-linux-arm64.yml`, as long as the file and its folder are writable.
 - **Linux deb.** The package manager owns the install, so GenieTerm only reads the manifest's version and shows **Update Available**, pointing to the new `.deb`. There is no apt repository.
-- **Windows previews.** Installed by hand.
+- **Windows NSIS.** Uses `latest.yml` to download the installer and offers Restart Now; install-on-quit follows the user's setting. The stable feed also publishes `beta.yml` and `alpha.yml` so earlier preview installs can receive stable releases. Prereleases and unpacked `.zip` copies can be installed manually from GitHub Releases.
 
 ## Signing
 
 - **macOS.** The app is ad-hoc signed (`mac.identity: "-"`), and Gatekeeper asks users to approve the first launch. To notarize, you need an Apple Developer Program membership and a Developer ID Application certificate. Provide `CSC_LINK`/`CSC_KEY_PASSWORD` plus notarization credentials to electron-builder. The config switches to Developer ID signing when `CSC_LINK` or `CSC_NAME` is set.
-- **Windows.** Windows stays on prerelease tags until it has a trusted code-signing certificate. To enable it:
-  1. Add the `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` secrets, or a cloud signing setup.
-  2. Set the repository variable `GENIETERM_WINDOWS_STABLE=signed`. Stable tags then build Windows with `forceCodeSigning` and verify the signature.
+- **Windows.** Code signing is optional for publication. Without credentials, the workflow builds an unsigned installer and reports its signature status. To sign releases, configure both `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` secrets. Partial credentials fail the build. With both configured, stable, prerelease and manual builds use `forceCodeSigning` and require valid signatures; signing failures never fall back to unsigned packages.
 
-  Before relying on it, test the NSIS install and uninstall, a PowerShell terminal, SSH and files, and an update from the previous release on a clean Windows machine.
+  Test the NSIS install and uninstall, a PowerShell terminal, SSH and files, and an update from the previous release on a clean Windows machine. `node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke` uses temporary app data and an installation directory, but NSIS still writes the production app's registration. It refuses to run the installer test if GenieTerm is already installed or running; use a clean account or VM. `--window-smoke` alone does not install the app. The unpacked and fresh-install window checks use Unicode data and config paths longer than 400 characters, run PowerShell and the bundled CLI, and verify the saved setting reaches the terminal.
+
+  Add `--upgrade-from=C:\path\to\previous-installer.exe` to exercise a real NSIS upgrade. The verifier installs the older version, saves a named workspace through the UI and settings through its bundled CLI, installs the candidate into the same directory, and checks the restored workspace and rendered settings before uninstalling. The installation and profile paths include spaces and Unicode. This checks installer migration and data preservation; it does not simulate an update-feed download.
 
 Keep signing material out of the repository.
 
