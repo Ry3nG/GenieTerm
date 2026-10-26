@@ -364,6 +364,12 @@ async function windowSmoke(executablePath, { profileDir, longHomes = false, onRe
       ) {
         fail("packaged app did not use the intended long Unicode data and config paths");
       }
+      const cacheCommandId = randomUUID().replaceAll("-", "");
+      await runTerminalCommand(
+        page,
+        `$helperPath = (Get-Command genie -CommandType Application).Source; if ($helperPath.StartsWith($env:LOCALAPPDATA + '\\', [System.StringComparison]::OrdinalIgnoreCase) -and $helperPath.Length -lt 260) { Write-Output ('HELPER_' + 'CACHE_${cacheCommandId}') } else { throw 'Expected a bounded helper path in the isolated user cache' }`,
+        `HELPER_CACHE_${cacheCommandId}`
+      );
       await setSmokeSettings(page, path.dirname(executablePath));
       verifySmokeSettings(configHome);
       console.log(
