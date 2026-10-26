@@ -30,7 +30,7 @@ func TestPowerShellIntegrationMarkers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(rcFile, append([]byte("function global:genie { if ($args[0] -eq 'completion') { '# test completion' } }\n"), original...), 0600); err != nil {
+			if err := os.WriteFile(rcFile, []byte("\ufefffunction global:genie { if ($args[0] -eq 'completion') { '# test completion' } }\n"+strings.TrimPrefix(string(original), "\ufeff")), 0600); err != nil {
 				t.Fatal(err)
 			}
 			session := startSiSession(t, append(os.Environ(), "TERM=xterm-256color"), shellPath, "-NoLogo", "-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", rcFile)
