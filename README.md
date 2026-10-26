@@ -7,7 +7,7 @@
     <a href="https://github.com/Ry3nG/GenieTerm/releases/latest"><strong>Download</strong></a> ·
     <a href="./CONTRIBUTING.md"><strong>Contribute</strong></a>
   </p>
-  <p>macOS · Linux · Windows preview &nbsp; / &nbsp; Apache-2.0</p>
+  <p>macOS · Linux · Windows &nbsp; / &nbsp; Apache-2.0</p>
 </div>
 
 <a href="https://ry3ng.github.io/GenieTerm/">
@@ -44,15 +44,17 @@ No account or telemetry. [How Command AI works](./docs/architecture/command-ai.m
 
 [**Latest stable release →**](https://github.com/Ry3nG/GenieTerm/releases/latest)
 
-| Platform              | Install                                                                                | Updates                                                 |
-| --------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| **macOS 12+**         | Apple silicon or Intel DMG. Drag GenieTerm into Applications.                          | In the app                                              |
-| **Linux x64 / arm64** | Debian / Ubuntu: `.deb`. Other distributions: AppImage. Requires glibc 2.28+.          | AppImage: in the app. `.deb`: download the new package. |
-| **Windows x64**       | Unsigned preview builds on [prereleases](https://github.com/Ry3nG/GenieTerm/releases). | Manual                                                  |
+| Platform              | Install                                                                       | Updates                                                 |
+| --------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------- |
+| **macOS 12+**         | Apple silicon or Intel DMG. Drag GenieTerm into Applications.                 | In the app                                              |
+| **Linux x64 / arm64** | Debian / Ubuntu: `.deb`. Other distributions: AppImage. Requires glibc 2.28+. | AppImage: in the app. `.deb`: download the new package. |
+| **Windows x64**       | Per-user `.exe` installer or unpacked `.zip` from the stable release.         | Installer: in the app. ZIP: replace the app files.      |
 
 **First launch on macOS:** the app is not notarized. After the first launch attempt, use **System Settings → Privacy & Security → Open Anyway**.
 
 **Linux:** install the downloaded package with `sudo apt install ./GenieTerm-linux-*.deb`, or make an AppImage executable with `chmod +x GenieTerm-linux-*.AppImage`. AppImage requires libfuse2. On Ubuntu 23.10 and later, use the `.deb` to keep Chromium's sandbox enabled.
+
+**Windows:** the installer is unsigned, so Windows may show an unknown-publisher or SmartScreen warning. Download it from this repository's releases. Install the new EXE over an earlier preview to retain your settings and workspaces. [Windows installation and terminal notes](./docs/windows.md).
 
 Connect to an SSH host and install the offered `genie` helper to enable durable sessions, command blocks and Host. The command palette's **Quick Start** walks through the workspace.
 

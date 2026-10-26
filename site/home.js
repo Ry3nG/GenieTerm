@@ -68,6 +68,7 @@ function githubUrl(value, pathPrefix) {
     }
 }
 async function loadRelease() {
+    const fallbackVersion = $("[data-version]").textContent.trim();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 7000);
     try {
@@ -95,7 +96,8 @@ async function loadRelease() {
         }
         $("[data-release-status]").textContent = "Stable downloads: " + release.tag_name;
     } catch {
-        $("[data-release-status]").textContent = "Stable downloads: v1.4.1. Check GitHub Releases for newer versions.";
+        $("[data-release-status]").textContent =
+            "Stable downloads: " + fallbackVersion + ". Check GitHub Releases for newer versions.";
     } finally {
         clearTimeout(timeout);
     }

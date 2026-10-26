@@ -1,9 +1,46 @@
 // Copyright 2026, GenieTerm. Apache-2.0.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 const Url = process.argv[2] || "http://127.0.0.1:58764/";
 const Output = "artifacts/site-qa";
+const ReleaseVersion = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
+const ReleaseApiUrl = "https://api.github.com/repos/Ry3nG/GenieTerm/releases/latest";
+function releaseFixture(version) {
+  return {
+    tag_name: "v" + version,
+    html_url: "https://github.com/Ry3nG/GenieTerm/releases/tag/v" + version,
+    draft: false,
+    prerelease: false,
+    assets: [
+      ["darwin-arm64", "dmg"],
+      ["darwin-x64", "dmg"],
+      ["linux-x64", "AppImage"],
+      ["linux-x64", "deb"],
+      ["linux-arm64", "AppImage"],
+      ["linux-arm64", "deb"],
+      ["win32-x64", "exe"],
+      ["win32-x64", "zip"],
+    ].map(([platform, extension]) => {
+      const name = `GenieTerm-${platform}-${version}.${extension}`;
+      return { name, browser_download_url: `https://github.com/Ry3nG/GenieTerm/releases/download/v${version}/${name}` };
+    }),
+  };
+}
+async function mockRelease(context, version) {
+  await context.route(ReleaseApiUrl, (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify(releaseFixture(version)) })
+  );
+}
+async function verifyDownloadLinks(page, version) {
+  const actual = await page.locator("[data-asset]").evaluateAll((links) => links.map((link) => link.href));
+  assert.deepEqual(
+    actual,
+    releaseFixture(version).assets.map((asset) => asset.browser_download_url)
+  );
+  assert.equal(await page.locator("[data-version]").textContent(), "v" + version);
+  assert.equal(await page.locator(".release-link").getAttribute("href"), releaseFixture(version).html_url);
+}
 const Executable = [
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
   chromium.executablePath(),
@@ -20,6 +57,7 @@ try {
     ["compact", 320, 740],
   ]) {
     const context = await Browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 });
+    await mockRelease(context, ReleaseVersion);
     const page = await context.newPage();
     page.on("pageerror", (e) => Errors.push(e.message));
     page.on("response", (r) => {
@@ -117,7 +155,11 @@ try {
     await page.keyboard.press("ArrowRight");
     assert.equal(await page.locator("[role=tab][aria-selected=true]").getAttribute("data-view"), "files");
     assert.equal(await page.locator("#contribute a").count(), 2);
-    assert.equal(await page.locator("[data-asset]").count(), 6);
+    assert.equal(await page.locator("[data-asset]").count(), 8);
+    assert.equal(await page.getByRole("link", { name: "Installer ↓", exact: true }).count(), 1);
+    assert.equal(await page.getByRole("link", { name: "ZIP ↓", exact: true }).count(), 1);
+    await verifyDownloadLinks(page, ReleaseVersion);
+    await page.locator("#download").screenshot({ path: Output + "/" + name + "-downloads.png" });
     console.log(
       name + ": inline video, paired terminals, Host pages and forwarding, AI Write/Fix/Explain/Insert, layout passed"
     );
@@ -128,18 +170,27 @@ try {
   await page.goto(Url);
   assert.equal(await page.locator("[data-film]").evaluate((v) => v.controls), true);
   assert.equal(await page.locator(".fallback-interface").isVisible(), true);
-  assert.equal(await page.locator('[data-asset][href*="v1.4.1"]').count(), 6);
+  assert.equal(await page.locator(`[data-asset][href*="/v${ReleaseVersion}/"]`).count(), 8);
+  await verifyDownloadLinks(page, ReleaseVersion);
   assert.equal(await page.locator("[role=tab]:enabled").count(), 0);
   await nojs.close();
   const offline = await Browser.newContext();
-  await offline.route("https://api.github.com/repos/Ry3nG/GenieTerm/releases/latest", (r) => r.abort());
+  await offline.route(ReleaseApiUrl, (r) => r.abort());
   const p = await offline.newPage();
   await p.goto(Url);
   await p.waitForFunction(() => document.querySelector("[data-release-status]").textContent.includes("Check GitHub"));
-  assert.equal(await p.locator('[data-asset][href*="v1.4.1"]').count(), 6);
+  assert.equal(await p.locator(`[data-asset][href*="/v${ReleaseVersion}/"]`).count(), 8);
+  await verifyDownloadLinks(p, ReleaseVersion);
   await offline.close();
+  const updated = await Browser.newContext();
+  await mockRelease(updated, "99.0.0");
+  const updatedPage = await updated.newPage();
+  await updatedPage.goto(Url);
+  await updatedPage.waitForFunction(() => document.querySelector("[data-version]").textContent === "v99.0.0");
+  await verifyDownloadLinks(updatedPage, "99.0.0");
+  await updated.close();
   assert.deepEqual(Errors, []);
-  console.log("No-JavaScript and release API fallbacks passed; no page or asset errors");
+  console.log("No-JavaScript, release API fallbacks and eight-asset release updates passed; no page or asset errors");
 } finally {
   await Browser.close();
 }

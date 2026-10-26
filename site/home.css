@@ -363,6 +363,12 @@ button:focus-visible,
     color: var(--muted);
     align-self: center;
 }
+.platform-note {
+    margin-top: 12px;
+    font-size: 10px;
+    line-height: 1.6;
+    color: var(--muted);
+}
 .download-foot {
     display: flex;
     justify-content: space-between;
