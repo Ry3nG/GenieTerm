@@ -16,6 +16,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -205,13 +206,14 @@ async function windowSmoke(executablePath, { profileDir, longHomes = false, onRe
     }
   );
   let browser;
+  let appOutput = "";
+  let smokeFailed = false;
   try {
     const wsUrl = await new Promise((resolve, reject) => {
-      let output = "";
       const timeout = setTimeout(() => reject(new Error("DevTools endpoint timed out")), 30000);
       const onOutput = (chunk) => {
-        output += chunk.toString();
-        const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+        appOutput += chunk.toString();
+        const match = appOutput.match(/DevTools listening on (ws:\/\/[^\s]+)/);
         if (match) {
           clearTimeout(timeout);
           resolve(match[1]);
@@ -365,12 +367,40 @@ async function windowSmoke(executablePath, { profileDir, longHomes = false, onRe
     if (errors.length > 0) {
       fail(`packaged window error: ${errors.join("; ")}`);
     }
+  } catch (error) {
+    smokeFailed = true;
+    const diagnosticDir = path.resolve("artifacts", "windows-package-smoke");
+    mkdirSync(diagnosticDir, { recursive: true });
+    const diagnosticPath = path.join(diagnosticDir, `${Date.now()}-${randomUUID().slice(0, 8)}.log`);
+    const appLogPath = path.join(dataHome, "waveapp.log");
+    const appLog = existsSync(appLogPath) ? readFileSync(appLogPath, "utf8") : "";
+    const pageDiagnostics = await Promise.all(
+      (browser?.contexts().flatMap((context) => context.pages()) || []).map(async (candidate) => ({
+        url: candidate.url(),
+        content: await candidate
+          .evaluate(() => {
+            const buffer = window.term?.terminal?.buffer?.active;
+            const lines = [];
+            for (let index = Math.max(0, (buffer?.length || 0) - 40); index < (buffer?.length || 0); index += 1) {
+              lines.push(buffer.getLine(index)?.translateToString() || "");
+            }
+            return { text: document.body?.innerText.slice(0, 4000), terminal: lines.join("\n") };
+          })
+          .catch(() => "unavailable"),
+      }))
+    ).catch(() => []);
+    writeFileSync(
+      diagnosticPath,
+      `${error.stack || error}\nprofile=${isolatedHome}\ndata=${dataHome}\nconfig=${configHome}\npages=${JSON.stringify(pageDiagnostics)}\n${appOutput}\n${appLog}`
+    );
+    console.error(`[${Scope}] failed window diagnostics: ${diagnosticPath}`);
+    throw error;
   } finally {
     if (appProcess.pid) {
       spawnSync("taskkill", ["/PID", String(appProcess.pid), "/T", "/F"], { windowsHide: true });
     }
     await browser?.close().catch(() => {});
-    if (!profileDir) {
+    if (!profileDir && !smokeFailed) {
       try {
         rmSync(isolatedHome, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
       } catch (error) {
