@@ -1,18 +1,29 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as util from "@/util/util";
 
 const MaxHistory = 20;
 
-// this needs to be fixed for windows
+// Windows navigation must stop at drive and network-share roots.
 function getParentDirectory(path: string): string {
-    if (util.isBlank(path) == null) {
+    if (util.isBlank(path)) {
         // this not great, ideally we'd never be passed a null path
         return "/";
     }
     if (path == "/") {
         return "/";
+    }
+    const windowsRoot = path.match(/^[A-Za-z]:[\\/]|^[\\/]{2}[^\\/]+[\\/][^\\/]+(?:[\\/]|$)/)?.[0];
+    if (windowsRoot) {
+        const separator = windowsRoot.includes("\\") ? "\\" : "/";
+        const root = windowsRoot.replace(/[\\/]+$/, "") + separator;
+        const trimmedPath = path.replace(/[\\/]+$/, "");
+        const lastSeparator = Math.max(trimmedPath.lastIndexOf("/"), trimmedPath.lastIndexOf("\\"));
+        if (lastSeparator < root.length) {
+            return path.length <= root.length ? path : root;
+        }
+        return trimmedPath.slice(0, lastSeparator);
     }
     const splitPath = path.split("/");
     splitPath.pop();

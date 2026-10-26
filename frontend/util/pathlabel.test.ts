@@ -20,6 +20,20 @@ describe("formatCwdLabel", () => {
         expect(formatCwdLabel("", "/Users/me")).toBe("");
         expect(formatCwdLabel("/", "/Users/me")).toBe("/");
     });
+
+    it("abbreviates Windows homes from normalized shell paths and native Electron paths", () => {
+        expect(formatCwdLabel("C:/Users/me", "C:\\Users\\me")).toBe("~");
+        expect(formatCwdLabel("c:/users/Me/Code/app", "C:\\Users\\me\\")).toBe("~/Code/app");
+        expect(formatCwdLabel("C:\\Users\\me\\Code\\app", "C:\\Users\\me")).toBe("~/Code/app");
+        expect(formatCwdLabel("C:/Users/meadow", "C:\\Users\\me")).toBe("C:/Users/meadow");
+        expect(formatCwdLabel("\\\\server\\share\\me\\Code", "\\\\server\\share\\me")).toBe("~/Code");
+        expect(formatCwdLabel("C:/")).toBe("C:/");
+    });
+
+    it("preserves case and backslashes in POSIX directory names", () => {
+        expect(formatCwdLabel("/home/Me/Code", "/home/me")).toBe("/home/Me/Code");
+        expect(formatCwdLabel("/home/a\\b", "/home/me")).toBe("/home/a\\b");
+    });
 });
 
 describe("cwdBasename", () => {
@@ -29,6 +43,14 @@ describe("cwdBasename", () => {
         expect(cwdBasename("/")).toBe("/");
         expect(cwdBasename("/Users/me/Code/GenieTerm/", "/Users/me")).toBe("GenieTerm");
         expect(cwdBasename("")).toBe("");
+    });
+
+    it("labels Windows folders and drive roots without exposing the full native path", () => {
+        expect(cwdBasename("c:/users/ME", "C:\\Users\\me")).toBe("~");
+        expect(cwdBasename("C:\\Users\\me\\Documents\\")).toBe("Documents");
+        expect(cwdBasename("\\\\server\\share\\Documents")).toBe("Documents");
+        expect(cwdBasename("C:\\")).toBe("C:/");
+        expect(cwdBasename("D:/")).toBe("D:/");
     });
 });
 

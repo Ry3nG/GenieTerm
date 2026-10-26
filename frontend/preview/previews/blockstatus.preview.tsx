@@ -23,7 +23,7 @@ const Cases: { name: string; conn?: Partial<ConnStatus>; input?: Partial<BlockSt
     { name: "Helper installing", conn: { wshenabled: false, nowshreason: "installing wsh in background" } },
     { name: "Helper off", conn: { wshenabled: false, nowshreason: "conn:wshenabled set to false" } },
     { name: "Shell not reported" },
-    { name: "PowerShell unsupported", input: { report: { integrationDisabled: true, shellType: "pwsh" } } },
+    { name: "PowerShell needs PSReadLine", input: { report: { integrationDisabled: true, shellType: "pwsh" } } },
     { name: "Shell unsupported", input: { report: { integrationDisabled: true, shellType: "unknown" } } },
     { name: "Helper unavailable", conn: { wshenabled: false, nowshreason: "helper not ready" } },
     { name: "Durable prompt", input: { integrationReported: true, durableEligible: true } },

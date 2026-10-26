@@ -890,6 +890,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
                 terminalConnection: connStatus?.connection ?? blockData?.meta?.connection ?? "local",
                 terminalShellIntegrationStatus: shellIntegrationStatus,
                 terminalLastCommand: lastCommand,
+                terminalShellType: shellType,
             });
             if (!pasteText) {
                 return;
@@ -897,7 +898,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             model.termRef.current?.terminal?.paste(pasteText);
             model.giveFocus();
         },
-        [blockData?.meta?.connection, connStatus?.connection, lastCommand, model, shellIntegrationStatus]
+        [blockData?.meta?.connection, connStatus?.connection, lastCommand, model, shellIntegrationStatus, shellType]
     );
 
     const [, drop] = useDrop(

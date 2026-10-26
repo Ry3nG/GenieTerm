@@ -33,7 +33,10 @@ export function getShellIntegrationRecovery(status: ConnStatus, report?: ShellIn
     // just report the same thing again, so don't offer that.
     if (report?.integrationDisabled) {
         if (report.shellType === "pwsh") {
-            return { message: "Command blocks aren't available for PowerShell yet.", action: null };
+            return {
+                message: "PowerShell command blocks need PSReadLine enabled in an interactive terminal.",
+                action: null,
+            };
         }
         return {
             message: "This shell reported that integration is unavailable, so command blocks are off.",

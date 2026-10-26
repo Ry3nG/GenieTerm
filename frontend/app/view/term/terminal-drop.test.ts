@@ -1,9 +1,10 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-import { formatDraggedFileTerminalPaste, getDraggedFileTerminalPath } from "./terminal-drop";
+import { formatDraggedFileTerminalPaste, getDraggedFileTerminalPath, quoteForTerminalPaste } from "./terminal-drop";
 
 describe("terminal-drop", () => {
     it("formats a dragged Files widget path without disabling home expansion", () => {
@@ -98,5 +99,54 @@ describe("terminal-drop", () => {
         };
 
         expect(formatDraggedFileTerminalPaste(draggedFile)).toBe("'/tmp/today'\\''s log.txt' ");
+    });
+
+    it("quotes Windows file paths using the target PowerShell syntax", () => {
+        const path = "C:\\Users\\me\\today's log.txt";
+        expect(quoteForTerminalPaste(path, { terminalShellType: "pwsh" })).toBe("'C:\\Users\\me\\today''s log.txt'");
+        expect(formatDraggedFileTerminalPaste({ path } as DraggedFile, { terminalShellType: "pwsh" })).toBe(
+            "'C:\\Users\\me\\today''s log.txt' "
+        );
+        expect(quoteForTerminalPaste("~/My Docs/today's log.txt", { terminalShellType: "pwsh" })).toBe(
+            "($HOME + '/My Docs/today''s log.txt')"
+        );
+    });
+
+    it("uses remote shell quoting while a manual SSH session runs inside PowerShell", () => {
+        expect(
+            quoteForTerminalPaste("/tmp/today's log.txt", {
+                terminalShellType: "pwsh",
+                terminalShellIntegrationStatus: "running-command",
+                terminalLastCommand: "ssh -p 2222 me@server",
+            })
+        ).toBe("'/tmp/today'\\''s log.txt'");
+    });
+
+    it.skipIf(process.platform !== "win32")("preserves dropped paths when parsed by Windows PowerShell", () => {
+        const paths = [
+            "C:\\Users\\me\\today's log.txt",
+            "C:\\Logs\\$variable `tick (parens) & text.txt",
+            "\\\\server\\share\\中文 file.txt",
+            "~/My Docs/today's log.txt",
+        ];
+        const expressions = paths.map((path) => quoteForTerminalPaste(path, { terminalShellType: "pwsh" }));
+        const script = [
+            "$ErrorActionPreference = 'Stop'",
+            "$ProgressPreference = 'SilentlyContinue'",
+            "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()",
+            `@(${expressions.join("; ")}) | ConvertTo-Json -Compress`,
+        ].join("\n");
+        const output = execFileSync(
+            "powershell.exe",
+            ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
+            {
+                encoding: "utf8",
+                windowsHide: true,
+                timeout: 15000,
+            }
+        );
+        const values = JSON.parse(output.replace(/^\uFEFF/, ""));
+        expect(values.slice(0, 3)).toEqual(paths.slice(0, 3));
+        expect(values[3]).toBe(process.env.USERPROFILE + "/My Docs/today's log.txt");
     });
 });

@@ -3,12 +3,14 @@
 
 import { parseTransferPath } from "@/util/transferutil";
 import { isLocalConnName } from "@/util/util";
+import type { ShellType } from "./completion/types";
 import { quoteForPosixShell } from "./termutil";
 
 type TerminalDropContext = {
     terminalConnection?: string;
     terminalLastCommand?: string;
     terminalShellIntegrationStatus?: string;
+    terminalShellType?: ShellType;
 };
 
 export function getDraggedFileTerminalPath(draggedFile: DraggedFile, context: TerminalDropContext = {}): string {
@@ -39,7 +41,7 @@ export function formatDraggedFileTerminalPaste(draggedFile: DraggedFile, context
     if (!filePath) {
         return "";
     }
-    return `${quoteForTerminalPaste(filePath)} `;
+    return `${quoteForTerminalPaste(filePath, context)} `;
 }
 
 function parseDraggedFileUri(uri: string): ReturnType<typeof parseTransferPath> | null {
@@ -189,7 +191,18 @@ function parseConnectionIdentity(value: string): { user: string; host: string; p
     return { user, host, port };
 }
 
-function quoteForTerminalPaste(filePath: string): string {
+export function quoteForTerminalPaste(filePath: string, context: TerminalDropContext = {}): string {
+    const manualSsh =
+        context.terminalShellIntegrationStatus === "running-command" && getManualSshTarget(context.terminalLastCommand);
+    if (context.terminalShellType === "pwsh" && !manualSsh) {
+        if (filePath === "~") {
+            return "$HOME";
+        }
+        if (filePath.startsWith("~/") || filePath.startsWith("~\\")) {
+            return `($HOME + '${filePath.slice(1).replace(/'/g, "''")}')`;
+        }
+        return `'${filePath.replace(/'/g, "''")}'`;
+    }
     if (filePath === "~") {
         return "~";
     }

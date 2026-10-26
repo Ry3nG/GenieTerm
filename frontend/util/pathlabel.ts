@@ -3,11 +3,18 @@
 
 const MaxCwdLabelSegments = 3;
 
-function trimTrailingSlash(path: string): string {
-    if (path.length > 1 && path.endsWith("/")) {
+function normalizeCwdPath(path: string): string {
+    if (/^[A-Za-z]:[\\/]|^\\\\/.test(path)) {
+        path = path.replace(/\\/g, "/");
+    }
+    if (path.length > 1 && path.endsWith("/") && !/^[A-Za-z]:\/$/.test(path)) {
         return path.slice(0, -1);
     }
     return path;
+}
+
+function comparablePath(path: string): string {
+    return /^[A-Za-z]:\/|^\/\//.test(path) ? path.toLowerCase() : path;
 }
 
 // "/Users/me/Code/app" -> "~/Code/app"; deep paths keep only the last segments ("…/src/view/term")
@@ -15,9 +22,11 @@ export function formatCwdLabel(cwd: string, homeDir?: string): string {
     if (!cwd) {
         return "";
     }
-    let path = trimTrailingSlash(cwd);
-    const home = homeDir ? trimTrailingSlash(homeDir) : "";
-    if (home && (path === home || path.startsWith(home + "/"))) {
+    let path = normalizeCwdPath(cwd);
+    const home = homeDir ? normalizeCwdPath(homeDir) : "";
+    const comparable = comparablePath(path);
+    const comparableHome = comparablePath(home);
+    if (home && (comparable === comparableHome || comparable.startsWith(comparableHome + "/"))) {
         path = "~" + path.slice(home.length);
     }
     const segments = path.split("/").filter((seg) => seg !== "" && seg !== "~");
@@ -32,11 +41,11 @@ export function cwdBasename(cwd: string, homeDir?: string): string {
     if (!cwd) {
         return "";
     }
-    const path = trimTrailingSlash(cwd);
-    if (path === "/") {
-        return "/";
+    const path = normalizeCwdPath(cwd);
+    if (path === "/" || /^[A-Za-z]:\/$/.test(path)) {
+        return path;
     }
-    if (path === "~" || (homeDir && path === trimTrailingSlash(homeDir))) {
+    if (path === "~" || (homeDir && comparablePath(path) === comparablePath(normalizeCwdPath(homeDir)))) {
         return "~";
     }
     const last = path.split("/").filter(Boolean).pop();
