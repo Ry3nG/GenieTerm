@@ -191,12 +191,19 @@ async function windowSmoke(executablePath, { profileDir, longHomes = false, onRe
     : isolatedHome;
   const configHome = path.join(settingsHome, "config");
   const dataHome = path.join(settingsHome, "data");
+  const localAppDataHome = path.join(isolatedHome, "localappdata");
+  const localAppDataKey =
+    Object.keys(process.env).find((key) => key.toUpperCase() === "LOCALAPPDATA") || "LOCALAPPDATA";
+  if (longHomes) {
+    mkdirSync(localAppDataHome, { recursive: true });
+  }
   const appProcess = spawn(
     executablePath,
     ["--remote-debugging-port=0", "--user-data-dir", isolatedHome, "--disable-gpu"],
     {
       env: {
         ...process.env,
+        ...(longHomes ? { [localAppDataKey]: localAppDataHome } : {}),
         GENIETERM_SKIP_SINGLE_INSTANCE: "1",
         WAVETERM_CONFIG_HOME: configHome,
         WAVETERM_DATA_HOME: dataHome,
@@ -381,10 +388,13 @@ async function windowSmoke(executablePath, { profileDir, longHomes = false, onRe
           .evaluate(() => {
             const buffer = window.term?.terminal?.buffer?.active;
             const lines = [];
-            for (let index = Math.max(0, (buffer?.length || 0) - 40); index < (buffer?.length || 0); index += 1) {
-              lines.push(buffer.getLine(index)?.translateToString() || "");
+            for (let index = 0; index < (buffer?.length || 0); index += 1) {
+              const line = buffer.getLine(index)?.translateToString().trimEnd();
+              if (line) {
+                lines.push(line);
+              }
             }
-            return { text: document.body?.innerText.slice(0, 4000), terminal: lines.join("\n") };
+            return { text: document.body?.innerText.slice(0, 4000), terminal: lines.slice(-60).join("\n") };
           })
           .catch(() => "unavailable"),
       }))
@@ -563,10 +573,14 @@ async function installerSmoke(installerPath) {
       }
       console.log(`[${Scope}] NSIS uninstall verified`);
     }
-    try {
-      rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
-    } catch (error) {
-      console.warn(`[${Scope}] temporary installer test directory is still locked: ${error.code || error}`);
+    if (!smokeError) {
+      try {
+        rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+      } catch (error) {
+        console.warn(`[${Scope}] temporary installer test directory is still locked: ${error.code || error}`);
+      }
+    } else {
+      console.error(`[${Scope}] preserving failed installer profile: ${root}`);
     }
   } catch (cleanupError) {
     if (smokeError) {
