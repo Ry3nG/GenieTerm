@@ -91,7 +91,10 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
     const termWrap = Object.create(TermWrap.prototype) as TermWrap;
     Object.assign(termWrap, {
         blockId: "block-1",
+        tabId: "tab-1",
         terminal,
+        controllerReady: false,
+        controllerResyncVersion: 0,
         loaded: true,
         disposed: false,
         searchRequest: 0,
@@ -188,6 +191,107 @@ describe("TermWrap deferred addons", () => {
         expect(termWrap.terminal.loadAddon).toHaveBeenCalledTimes(1);
         expect(termWrap.serializeAddon.serialize).not.toHaveBeenCalled();
         expect(termWrap.dataBytesProcessed).toBe(102400);
+    });
+});
+
+describe("TermWrap controller startup", () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    function makeResizableTermWrap() {
+        const { termWrap, terminal } = makeTermWrap();
+        Object.assign(terminal, { rows: 24, cols: 80 });
+        Object.assign(termWrap, {
+            paneActive: true,
+            fitAddon: { fit: vi.fn(() => Object.assign(terminal, { rows: 30, cols: 100 })) },
+        });
+        return { termWrap, terminal };
+    }
+
+    it("creates the controller with the first fitted size before sending any resize input", async () => {
+        const resync = vi.spyOn(RpcApi, "ControllerResyncCommand").mockResolvedValue(undefined);
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockResolvedValue(undefined);
+        const { termWrap } = makeResizableTermWrap();
+        termWrap.handleResize();
+        expect(resync).toHaveBeenCalledWith(TabRpcClient, {
+            tabid: "tab-1",
+            blockid: "block-1",
+            rtopts: { termsize: { rows: 30, cols: 100 } },
+        });
+        expect(input).not.toHaveBeenCalled();
+        await Promise.resolve();
+        expect(termWrap.controllerReady).toBe(true);
+        expect(input).not.toHaveBeenCalled();
+    });
+
+    it("coalesces size changes while creation is pending and sends the latest size after it completes", async () => {
+        let finishResync: () => void;
+        const pending = new Promise<void>((resolve) => (finishResync = resolve));
+        const resync = vi.spyOn(RpcApi, "ControllerResyncCommand").mockReturnValue(pending);
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockResolvedValue(undefined);
+        const { termWrap, terminal } = makeResizableTermWrap();
+        termWrap.handleResize();
+        vi.mocked(termWrap.fitAddon.fit).mockImplementation(() => Object.assign(terminal, { rows: 40, cols: 120 }));
+        termWrap.handleResize();
+        vi.mocked(termWrap.fitAddon.fit).mockImplementation(() => Object.assign(terminal, { rows: 50, cols: 140 }));
+        termWrap.handleResize();
+        expect(resync).toHaveBeenCalledOnce();
+        expect(input).not.toHaveBeenCalled();
+
+        finishResync();
+        await pending;
+        expect(input).toHaveBeenCalledExactlyOnceWith(TabRpcClient, {
+            blockid: "block-1",
+            termsize: { rows: 50, cols: 140 },
+        });
+        vi.mocked(termWrap.fitAddon.fit).mockImplementation(() => Object.assign(terminal, { rows: 60, cols: 160 }));
+        termWrap.handleResize();
+        expect(input).toHaveBeenLastCalledWith(TabRpcClient, {
+            blockid: "block-1",
+            termsize: { rows: 60, cols: 160 },
+        });
+    });
+
+    it("does not flush a stale resync or a terminal closed during creation", async () => {
+        let finishFirst: () => void;
+        let finishSecond: () => void;
+        const first = new Promise<void>((resolve) => (finishFirst = resolve));
+        const second = new Promise<void>((resolve) => (finishSecond = resolve));
+        vi.spyOn(RpcApi, "ControllerResyncCommand").mockReturnValueOnce(first).mockReturnValueOnce(second);
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockResolvedValue(undefined);
+        const { termWrap, terminal } = makeResizableTermWrap();
+        termWrap.handleResize();
+        const retry = termWrap.resyncController("connection change");
+        Object.assign(terminal, { rows: 40, cols: 120 });
+        finishFirst();
+        await first;
+        expect(termWrap.controllerReady).toBe(false);
+        expect(input).not.toHaveBeenCalled();
+        termWrap.disposed = true;
+        finishSecond();
+        await retry;
+        expect(termWrap.controllerReady).toBe(false);
+        expect(input).not.toHaveBeenCalled();
+    });
+
+    it("keeps resize input blocked after a failed creation until a successful retry", async () => {
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        const resync = vi.spyOn(RpcApi, "ControllerResyncCommand").mockRejectedValueOnce(new Error("disconnected"));
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockResolvedValue(undefined);
+        const { termWrap, terminal } = makeResizableTermWrap();
+        termWrap.handleResize();
+        await Promise.resolve();
+        vi.mocked(termWrap.fitAddon.fit).mockImplementation(() => Object.assign(terminal, { rows: 40, cols: 120 }));
+        termWrap.handleResize();
+        expect(termWrap.controllerReady).toBe(false);
+        expect(input).not.toHaveBeenCalled();
+        resync.mockResolvedValueOnce(undefined);
+        await termWrap.resyncController("reconnected");
+        expect(termWrap.controllerReady).toBe(true);
+        expect(resync).toHaveBeenLastCalledWith(TabRpcClient, {
+            tabid: "tab-1",
+            blockid: "block-1",
+            rtopts: { termsize: { rows: 40, cols: 120 } },
+        });
     });
 });
 

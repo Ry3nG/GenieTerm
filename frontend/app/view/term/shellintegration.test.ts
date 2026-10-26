@@ -40,7 +40,10 @@ describe("shell integration recovery", () => {
             { ...connected, connection: "local" },
             { integrationDisabled: true, shellType: "pwsh" }
         );
-        expect(recovery).toEqual({ message: "Command blocks aren't available for PowerShell yet.", action: null });
+        expect(recovery).toEqual({
+            message: "PowerShell command blocks need PSReadLine enabled in an interactive terminal.",
+            action: null,
+        });
     });
 
     it("does not offer a restart when any shell reports integration:false", () => {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -121,6 +122,9 @@ func TestSocketInodeAndPID(t *testing.T) {
 }
 
 func TestSocketOwnerScan(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Linux /proc file-descriptor symlinks are unavailable on native Windows")
+	}
 	for _, tc := range []struct {
 		name    string
 		cancel  bool

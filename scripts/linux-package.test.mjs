@@ -62,6 +62,33 @@ function writeMetadata(dir, platform, arch, version = Pkg.version) {
   return metadata;
 }
 
+function makeReleaseAssets(includeWindows) {
+  const dir = temporaryDir();
+  const assets = getExpectedReleaseAssets({ productName: Pkg.productName, version: Pkg.version, includeWindows });
+  for (const name of assets.required) {
+    const folder = name.includes("linux-arm64")
+      ? "linux-arm64"
+      : name.includes("linux")
+        ? "linux-x64"
+        : name.includes("darwin") || name.includes("-mac")
+          ? "mac"
+          : "windows";
+    write(path.join(dir, folder, name), "release payload fixture");
+  }
+  writeMetadata(path.join(dir, "mac"), "mac", "x64");
+  for (const arch of ["x64", "arm64"]) {
+    writeMetadata(path.join(dir, `linux-${arch}`), "linux", arch);
+  }
+  if (includeWindows) {
+    writeMetadata(path.join(dir, "windows"), "windows", "x64");
+  }
+  const run = () =>
+    spawnSync(process.execPath, ["scripts/verify-release-assets.mjs", dir, ...(includeWindows ? ["--windows"] : [])], {
+      encoding: "utf8",
+    });
+  return { dir, run };
+}
+
 function desktop() {
   return `[Desktop Entry]\nName=${Pkg.productName}\nComment=${Pkg.description}\nCategories=System;TerminalEmulator;\nStartupWMClass=${Pkg.productName}\nIcon=${Pkg.name}\nKeywords=developer;terminal;emulator;\nExec=/opt/${Pkg.productName}/${Pkg.name} %U\n`;
 }
@@ -276,36 +303,47 @@ describe("Linux update metadata and release assets", () => {
   });
 
   it.each([false, true])("checks the exact release CLI asset set (Windows=%s)", (includeWindows) => {
-    const dir = temporaryDir();
-    const assets = getExpectedReleaseAssets({ productName: Pkg.productName, version: Pkg.version, includeWindows });
-    for (const name of assets.required) {
-      const folder = name.includes("linux-arm64")
-        ? "linux-arm64"
-        : name.includes("linux")
-          ? "linux-x64"
-          : name.includes("darwin") || name.includes("-mac")
-            ? "mac"
-            : "windows";
-      write(path.join(dir, folder, name), "release payload fixture");
-    }
-    writeMetadata(path.join(dir, "mac"), "mac", "x64");
-    for (const arch of ["x64", "arm64"]) {
-      writeMetadata(path.join(dir, `linux-${arch}`), "linux", arch);
-    }
-    if (includeWindows) {
-      writeMetadata(path.join(dir, "windows"), "windows", "x64");
-    }
-    const run = () =>
-      spawnSync(
-        process.execPath,
-        ["scripts/verify-release-assets.mjs", dir, ...(includeWindows ? ["--windows"] : [])],
-        { encoding: "utf8" }
-      );
+    const { dir, run } = makeReleaseAssets(includeWindows);
     expect(run().status).toBe(0);
     write(path.join(dir, "unexpected.rpm"), "unexpected");
     expect(run().stderr).toContain("unexpected release assets");
     rmSync(path.join(dir, "unexpected.rpm"));
     rmSync(path.join(dir, "linux-arm64", `GenieTerm-linux-arm64-${Pkg.version}.deb`));
     expect(run().stderr).toContain("missing release assets");
+  });
+});
+
+describe("Windows stable release assets", () => {
+  it.each([
+    `GenieTerm-win32-x64-${Pkg.version}.exe`,
+    `GenieTerm-win32-x64-${Pkg.version}.zip`,
+    "latest.yml",
+    "beta.yml",
+    "alpha.yml",
+  ])("refuses a stable release missing %s", (name) => {
+    const { dir, run } = makeReleaseAssets(true);
+    rmSync(path.join(dir, "windows", name));
+    const result = run();
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(`missing release assets: ${name}`);
+  });
+
+  it.each(["latest.yml", "beta.yml", "alpha.yml"])("rejects a corrupt Windows installer in %s", (name) => {
+    const { dir, run } = makeReleaseAssets(true);
+    const file = path.join(dir, "windows", name);
+    const metadata = YAML.parse(readFileSync(file, "utf8"));
+    metadata.files[0].sha512 = "wrong";
+    write(file, YAML.stringify(metadata));
+    const result = run();
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(`${name} sha512`);
+  });
+
+  it("rejects an installer left over from a different release", () => {
+    const { dir, run } = makeReleaseAssets(true);
+    write(path.join(dir, "windows", "GenieTerm-win32-x64-0.0.1.exe"), "stale installer");
+    const result = run();
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("unexpected release assets: GenieTerm-win32-x64-0.0.1.exe");
   });
 });

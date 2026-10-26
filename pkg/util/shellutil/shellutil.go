@@ -222,7 +222,12 @@ func WaveshellLocalEnvVars(termType string) map[string]string {
 	}
 	rtn["WAVETERM"], _ = os.Executable()
 	rtn["WAVETERM_VERSION"] = wavebase.WaveVersion
-	rtn["WAVETERM_WSHBINDIR"] = filepath.Join(wavebase.GetWaveDataDir(), WaveHomeBinDir)
+	binDir, err := getLocalHelperBinDir(wavebase.GetWaveDataDir())
+	if err != nil {
+		log.Printf("cannot configure local helper directory: %v\n", err)
+	} else {
+		rtn["WAVETERM_WSHBINDIR"] = binDir
+	}
 	return rtn
 }
 
@@ -282,7 +287,7 @@ func GetLocalWaveFishFilePath() string {
 }
 
 func GetLocalWavePowershellEnv() string {
-	return filepath.Join(wavebase.GetWaveDataDir(), PwshIntegrationDir, "wavepwsh.ps1")
+	return localPowerShellScriptPath(filepath.Join(wavebase.GetWaveDataDir(), PwshIntegrationDir, "wavepwsh.ps1"))
 }
 
 func GetLocalZshZDotDir() string {
@@ -461,7 +466,12 @@ func InitRcFiles(waveHome string, absWshBinDir string) error {
 	if err != nil {
 		return fmt.Errorf("error writing fish-integration wave.fish: %v", err)
 	}
-	err = utilfn.WriteTemplateToFile(filepath.Join(pwshDir, "wavepwsh.ps1"), PwshStartup_wavepwsh, params)
+	pwshStartup := PwshStartup_wavepwsh
+	if runtime.GOOS == "windows" {
+		// Windows PowerShell 5.1 otherwise reads Unicode paths using its ANSI code page.
+		pwshStartup = "\ufeff" + pwshStartup
+	}
+	err = utilfn.WriteTemplateToFile(filepath.Join(pwshDir, "wavepwsh.ps1"), pwshStartup, params)
 	if err != nil {
 		return fmt.Errorf("error writing pwsh-integration wavepwsh.ps1: %v", err)
 	}
@@ -472,8 +482,11 @@ func InitRcFiles(waveHome string, absWshBinDir string) error {
 func initCustomShellStartupFilesInternal() error {
 	log.Printf("initializing genie/wsh helpers and shell startup files\n")
 	waveDataHome := wavebase.GetWaveDataDir()
-	binDir := filepath.Join(waveDataHome, WaveHomeBinDir)
-	err := InitRcFiles(waveDataHome, binDir)
+	binDir, err := getLocalHelperBinDir(waveDataHome)
+	if err != nil {
+		return err
+	}
+	err = InitRcFiles(waveDataHome, binDir)
 	if err != nil {
 		return err
 	}

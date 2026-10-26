@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package cmd
@@ -306,7 +306,7 @@ func serverRunRouterDomainSocket(jwtToken string) error {
 
 	// connect to the forwarded domain socket
 	sockName = wavebase.ExpandHomeDirSafe(sockName)
-	conn, err := net.Dial("unix", sockName)
+	conn, err := wshutil.DialDomainSocket(sockName)
 	if err != nil {
 		return fmt.Errorf("error connecting to domain socket %s: %v", sockName, err)
 	}

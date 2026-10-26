@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
@@ -15,6 +16,9 @@ import (
 )
 
 func TestConnServerInitCreatesPersistentClientSymlinkDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("persistent socket aliases belong to the POSIX remote connserver; Windows is a desktop SSH client")
+	}
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 	t.Setenv("USERPROFILE", homeDir)

@@ -61,6 +61,7 @@ import {
 } from "./osc-handlers";
 import { LocalUrlScanner, type LocalUrl } from "./term-forward";
 import { makeTermLinkHandlers } from "./term-links";
+import { quoteForTerminalPaste } from "./terminal-drop";
 import { TerminalStreamBoundaryTracker } from "./terminal-stream-boundary";
 import {
     bufferLinesToText,
@@ -68,7 +69,6 @@ import {
     createTempFileFromBlob,
     extractAllClipboardData,
     normalizeCursorStyle,
-    quoteForPosixShell,
     takeAppendBatch,
     trimTerminalSelection,
 } from "./termutil";
@@ -155,6 +155,8 @@ export class TermWrap {
     streamBoundary = new TerminalStreamBoundaryTracker();
     handleResize_debounced: () => void;
     hasResized: boolean;
+    controllerReady = false;
+    controllerResyncVersion = 0;
     multiInputCallback: (data: string) => void;
     sendDataHandler: (data: string) => void;
     onInlineAIRequest?: CommandInlineAIRequestHandler;
@@ -414,7 +416,13 @@ export class TermWrap {
                 const file = e.dataTransfer.files[i];
                 const filePath = getApi().getPathForFile(file);
                 if (filePath) {
-                    paths.push(quoteForPosixShell(filePath));
+                    paths.push(
+                        quoteForTerminalPaste(filePath, {
+                            terminalShellType: globalStore.get(this.shellTypeAtom),
+                            terminalShellIntegrationStatus: globalStore.get(this.shellIntegrationStatusAtom),
+                            terminalLastCommand: globalStore.get(this.lastCommandAtom),
+                        })
+                    );
                 }
             }
             if (paths.length > 0) {
@@ -1138,6 +1146,8 @@ export class TermWrap {
 
     async resyncController(reason: string) {
         dlog("resync controller", this.blockId, reason);
+        const version = ++this.controllerResyncVersion;
+        this.controllerReady = false;
         const rtOpts: RuntimeOpts = { termsize: { rows: this.terminal.rows, cols: this.terminal.cols } };
         try {
             await RpcApi.ControllerResyncCommand(TabRpcClient, {
@@ -1145,6 +1155,16 @@ export class TermWrap {
                 blockid: this.blockId,
                 rtopts: rtOpts,
             });
+            if (this.disposed || version !== this.controllerResyncVersion) {
+                return;
+            }
+            this.controllerReady = true;
+            if (rtOpts.termsize.rows !== this.terminal.rows || rtOpts.termsize.cols !== this.terminal.cols) {
+                await RpcApi.ControllerInputCommand(TabRpcClient, {
+                    blockid: this.blockId,
+                    termsize: { rows: this.terminal.rows, cols: this.terminal.cols },
+                });
+            }
         } catch (e) {
             console.log(`error controller resync (${reason})`, this.blockId, e);
         }
@@ -1166,7 +1186,9 @@ export class TermWrap {
                 "->",
                 `${this.terminal.rows}x${this.terminal.cols}`
             );
-            RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize });
+            if (this.controllerReady) {
+                RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize });
+            }
         }
         dlog("resize", `${this.terminal.rows}x${this.terminal.cols}`, `${oldRows}x${oldCols}`, this.hasResized);
         if (!this.hasResized) {

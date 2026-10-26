@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { app, dialog, ipcMain } from "electron";
@@ -165,7 +165,9 @@ function getWaveSrvPath(): string {
 }
 
 function getWaveSrvCwd(): string {
-    return getWaveDataDir();
+    const dataDir = getWaveDataDir();
+    // Windows process creation needs an extended path for working directories beyond MAX_PATH.
+    return process.platform === "win32" ? path.toNamespacedPath(dataDir) : dataDir;
 }
 
 ipcMain.on("get-is-dev", (event) => {

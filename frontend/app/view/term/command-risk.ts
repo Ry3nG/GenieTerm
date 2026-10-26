@@ -82,7 +82,19 @@ const Interpreters = new Set([
     "powershell",
 ]);
 const ShellPrograms = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish"]);
-const Downloaders = new Set(["curl", "wget", "fetch", "http", "https", "iwr", "irm", "invoke-webrequest"]);
+const PowerShellPrograms = new Set(["pwsh", "powershell"]);
+const ExpressionPrograms = new Set(["eval", "iex", "invoke-expression"]);
+const Downloaders = new Set([
+    "curl",
+    "wget",
+    "fetch",
+    "http",
+    "https",
+    "iwr",
+    "irm",
+    "invoke-webrequest",
+    "invoke-restmethod",
+]);
 const NetworkPrograms = new Set([
     "curl",
     "wget",
@@ -100,10 +112,62 @@ const NetworkPrograms = new Set([
     "socat",
     "mosh",
     "aria2c",
+    "iwr",
+    "irm",
+    "invoke-webrequest",
+    "invoke-restmethod",
 ]);
-const DiskPrograms = new Set(["dd", "fdisk", "sfdisk", "gdisk", "sgdisk", "parted", "wipefs", "shred", "format"]);
-const DeletePrograms = new Set(["rm", "unlink", "srm", "shred"]);
-const WritePrograms = new Set(["mkdir", "touch", "cp", "mv", "ln", "tee", "install", "patch", "truncate", "rmdir"]);
+const DiskPrograms = new Set([
+    "dd",
+    "fdisk",
+    "sfdisk",
+    "gdisk",
+    "sgdisk",
+    "parted",
+    "wipefs",
+    "shred",
+    "format",
+    "format-volume",
+    "clear-disk",
+    "initialize-disk",
+]);
+const DeletePrograms = new Set([
+    "rm",
+    "unlink",
+    "srm",
+    "shred",
+    "remove-item",
+    "ri",
+    "del",
+    "erase",
+    "rd",
+    "rmdir",
+    "clear-content",
+    "clc",
+]);
+const WritePrograms = new Set([
+    "mkdir",
+    "touch",
+    "cp",
+    "mv",
+    "ln",
+    "tee",
+    "install",
+    "patch",
+    "truncate",
+    "new-item",
+    "ni",
+    "copy-item",
+    "cpi",
+    "move-item",
+    "mi",
+    "rename-item",
+    "rni",
+    "add-content",
+    "ac",
+    "expand-archive",
+    "compress-archive",
+]);
 const PackageManagers: Record<string, Set<string>> = {
     brew: new Set(["install", "reinstall", "upgrade", "uninstall", "remove", "rm", "tap"]),
     apt: new Set(["install", "reinstall", "remove", "purge", "upgrade", "full-upgrade", "dist-upgrade", "autoremove"]),
@@ -129,11 +193,14 @@ const PackageManagers: Record<string, Set<string>> = {
     go: new Set(["install", "get"]),
     gem: new Set(["install", "uninstall", "update"]),
     composer: new Set(["install", "require", "remove", "update"]),
+    winget: new Set(["install", "uninstall", "upgrade", "import", "repair"]),
+    choco: new Set(["install", "uninstall", "upgrade"]),
+    scoop: new Set(["install", "uninstall", "update", "reset"]),
 };
 const PackageRunners = new Set(["npx", "bunx", "uvx", "pnpx"]);
 const BlockDevicePattern = /^\/dev\/(sd|hd|vd|xvd|nvme|mmcblk|disk|rdisk|md|dm-|mapper\/)/;
 const SystemPathPattern = /^\/(etc|boot|usr|bin|sbin|lib|lib64|System|Library|private\/etc)(\/|$)/;
-const DownloadWordPattern = /\b(curl|wget|fetch|iwr|irm|invoke-webrequest)\b/i;
+const DownloadWordPattern = /\b(curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod)\b/i;
 const ZeroWidthPattern = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g;
 
 function normalizeCommandText(command: string): string {
@@ -145,7 +212,7 @@ function isAssignment(word: string): boolean {
 }
 
 function baseProgram(word: string): string {
-    const slash = word.lastIndexOf("/");
+    const slash = Math.max(word.lastIndexOf("/"), word.lastIndexOf("\\"));
     const base = slash >= 0 ? word.slice(slash + 1) : word;
     return base.toLowerCase().replace(/\.exe$/, "");
 }
@@ -808,14 +875,23 @@ function classifyProgram(words: string[], segment: Segment, findings: Finding[],
             nested.push(args[commandIndex + 1]);
         }
     }
-    const runsCode = Interpreters.has(program) || program === "eval" || program === "source" || program === ".";
+    if (PowerShellPrograms.has(program) || program === "cmd") {
+        const commandIndex = args.findIndex(
+            (arg) => /^-(c|command)$/i.test(arg) || (program === "cmd" && /^\/c$/i.test(arg))
+        );
+        if (commandIndex >= 0 && args[commandIndex + 1] != null) {
+            nested.push(args.slice(commandIndex + 1).join(" "));
+        }
+    }
+    const runsCode =
+        Interpreters.has(program) || ExpressionPrograms.has(program) || program === "source" || program === ".";
     if (runsCode && args.some((arg) => /(\$\(|`|<\()/.test(arg) && DownloadWordPattern.test(arg))) {
         findings.push({ level: "danger", reason: Reason.RemoteCode });
     }
-    if (program === "eval") {
+    if (ExpressionPrograms.has(program)) {
         nested.push(args.join(" "));
     }
-    if (Interpreters.has(program) && segment.pipedFrom != null) {
+    if (runsCode && segment.pipedFrom != null) {
         const from = unwrapCommand(segment.pipedFrom.words).words;
         if (from.length > 0 && Downloaders.has(baseProgram(from[0]))) {
             findings.push({ level: "danger", reason: Reason.RemoteCode });
@@ -837,7 +913,7 @@ function classifyProgram(words: string[], segment: Segment, findings: Finding[],
         }
         return;
     }
-    if (["shutdown", "reboot", "halt", "poweroff"].includes(program)) {
+    if (["shutdown", "reboot", "halt", "poweroff", "stop-computer", "restart-computer"].includes(program)) {
         findings.push({ level: "danger", reason: Reason.Shutdown });
         return;
     }
@@ -868,8 +944,37 @@ function classifyProgram(words: string[], segment: Segment, findings: Finding[],
         });
         return;
     }
-    if (program === "killall" || program === "pkill" || program === "skill") {
+    if (["killall", "pkill", "skill", "stop-process", "spps", "taskkill"].includes(program)) {
         findings.push({ level: "danger", reason: Reason.KillsProcesses });
+        return;
+    }
+    if (
+        ["start-process", "saps", "start"].includes(program) &&
+        args.some((arg, index) => /^-verb$/i.test(arg) && /^runas$/i.test(args[index + 1] ?? ""))
+    ) {
+        findings.push({ level: "danger", reason: Reason.Admin });
+        return;
+    }
+    if (["set-content", "sc", "out-file"].includes(program)) {
+        findings.push({
+            level: "caution",
+            reason: args.some((arg) => /^-append$/i.test(arg)) ? Reason.WritesFiles : Reason.OverwritesFile,
+        });
+        return;
+    }
+    if (
+        [
+            "start-service",
+            "stop-service",
+            "restart-service",
+            "suspend-service",
+            "resume-service",
+            "set-service",
+            "new-service",
+            "remove-service",
+        ].includes(program)
+    ) {
+        findings.push({ level: "caution", reason: Reason.Services });
         return;
     }
     if (

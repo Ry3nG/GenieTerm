@@ -10,7 +10,7 @@ GenieTerm began as a fork of [Wave Terminal](https://github.com/wavetermdev/wave
 
 ## Set up
 
-You need **Node.js 22**, **Go 1.27** or later, and **[Task](https://taskfile.dev/installation/)**. Packaging for Linux or Windows also needs **Zig 0.13**, which builds the backend's C dependencies.
+You need **Node.js 22**, the **Go version specified in `go.mod`** or later, and **[Task](https://taskfile.dev/installation/)**. Packaging for Linux or Windows also needs **Zig 0.13**, which builds the backend's C dependencies.
 
 ```sh
 git clone https://github.com/Ry3nG/GenieTerm.git
@@ -50,7 +50,16 @@ task check            # typecheck, lint, format, unit and Go tests, audits, prev
 task check:release    # all of the above, then package the app and verify the build
 ```
 
-CI runs `task check` on every pull request. It also packages and launch-tests the app on Linux, including an install of the `.deb` on Ubuntu 24.04, and runs the Go and Electron main-process tests on Windows. Windows and macOS packaging run after the change lands on `main`. For UI changes, include a before-and-after screenshot in the pull request and check the view at narrow widths too: blocks can be any size.
+`task check:release` is the macOS package gate. On Windows, use the Windows package commands below. To run Go checks with the same SQLite backend as the packaged Windows app, put Zig on `PATH` and set these variables in PowerShell before `task check`:
+
+```powershell
+$env:CGO_ENABLED = "1"
+$env:CC = "zig cc -target x86_64-windows-gnu"
+```
+
+Preview checks need Chromium. Run `npx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to an existing Edge or Chrome executable. This uses a separate test profile.
+
+CI runs `task check` on every pull request. It also packages and launch-tests the app on Linux, including an install of the `.deb` on Ubuntu 24.04, and runs the full frontend/Electron and Go test suites on Windows. Windows and macOS packaging run after the change lands on `main`. For UI changes, include a before-and-after screenshot in the pull request and check the view at narrow widths too: blocks can be any size.
 
 ## Build a package
 
@@ -66,6 +75,10 @@ task package:verify -- make --require-arch "$(node -p process.arch)"
 task package -- --win --x64
 node scripts/verify-windows-package.mjs make --window-smoke --installer-smoke
 ```
+
+The Windows verifier uses SignTool from the Windows SDK to inspect signatures, including unsigned builds. Installer testing requires an account with no existing GenieTerm installation or running session, because NSIS uses the product's normal registry keys. The verifier refuses to overwrite an existing installation.
+
+To test a real upgrade and verify that a saved workspace and settings survive, add `--upgrade-from=<absolute-path-to-previous-installer.exe>`. This installs both versions in a temporary directory, uses an isolated profile, and uninstalls the test copy afterward.
 
 ## Pull requests
 
