@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package blockcontroller
@@ -69,8 +69,9 @@ type ShellController struct {
 	VersionTs      utilds.VersionTs
 
 	// for shell/cmd
-	ShellProc    *shellexec.ShellProc
-	ShellInputCh chan *BlockInputUnion
+	ShellProc       *shellexec.ShellProc
+	ShellInputCh    chan *BlockInputUnion
+	PendingTermSize *waveobj.TermSize
 	// closed once the current ShellProc's final terminal writes (pty tail, reset seq, exit message) are done
 	OutputDoneCh chan struct{}
 }
@@ -169,9 +170,18 @@ func (sc *ShellController) GetConnName() string {
 
 func (sc *ShellController) SendInput(inputUnion *BlockInputUnion) error {
 	var shellInputCh chan *BlockInputUnion
+	var queuedResize bool
 	sc.WithLock(func() {
 		shellInputCh = sc.ShellInputCh
+		if shellInputCh == nil && sc.ProcStatus == Status_Init && inputUnion.TermSize != nil && len(inputUnion.InputData) == 0 && inputUnion.SigName == "" {
+			termSize := *inputUnion.TermSize
+			sc.PendingTermSize = &termSize
+			queuedResize = true
+		}
 	})
+	if queuedResize {
+		return nil
+	}
 	if shellInputCh == nil {
 		return fmt.Errorf("no shell input chan")
 	}
@@ -540,22 +550,28 @@ func (bc *ShellController) setupAndStartShellProcess(logCtx context.Context, rc 
 	} else {
 		return nil, fmt.Errorf("unknown connection type for conn %q: %s", remoteName, connUnion.ConnType)
 	}
+	return shellProc, nil
+}
+
+func (bc *ShellController) initializeRunningShellProcess(shellProc *shellexec.ShellProc, shellInputCh chan *BlockInputUnion, outputDoneCh chan struct{}) {
 	bc.UpdateControllerAndSendUpdate(func() bool {
 		bc.ShellProc = shellProc
+		bc.ShellInputCh = shellInputCh
+		bc.OutputDoneCh = outputDoneCh
+		if bc.PendingTermSize != nil {
+			shellInputCh <- &BlockInputUnion{TermSize: bc.PendingTermSize}
+			bc.PendingTermSize = nil
+		}
 		bc.ProcStatus = Status_Running
 		return true
 	})
-	return shellProc, nil
 }
 
 func (bc *ShellController) manageRunningShellProcess(shellProc *shellexec.ShellProc, rc *RunShellOpts, blockMeta waveobj.MetaMapType) error {
 	shellInputCh := make(chan *BlockInputUnion, 32)
 	outputDoneCh := make(chan struct{})
 	readDoneCh := make(chan struct{})
-	bc.WithLock(func() {
-		bc.ShellInputCh = shellInputCh
-		bc.OutputDoneCh = outputDoneCh
-	})
+	bc.initializeRunningShellProcess(shellProc, shellInputCh, outputDoneCh)
 
 	go func() {
 		// handles regular output from the pty (goes to the blockfile and xterm)

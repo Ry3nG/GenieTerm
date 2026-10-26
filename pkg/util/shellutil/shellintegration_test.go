@@ -19,6 +19,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/Ry3nG/GenieTerm/pkg/util/ptyutil"
 	"github.com/creack/pty"
 )
 
@@ -203,18 +204,29 @@ func startSiSession(t *testing.T, env []string, name string, args ...string) *si
 	t.Helper()
 	cmd := exec.Command(name, args...)
 	cmd.Env = env
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 200})
+	ptmx, err := ptyutil.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 200})
 	if err != nil {
+		if runtime.GOOS == "windows" {
+			t.Fatalf("cannot start %s in a ConPTY: %v", name, err)
+		}
 		t.Skipf("cannot start %s in a pty: %v", name, err)
 	}
 	s := &siSession{t: t, ptmx: ptmx, cmd: cmd, done: make(chan struct{})}
 	go func() {
 		defer close(s.done)
 		rbuf := make([]byte, 4096)
+		var cursorQuery []byte
 		for {
 			nr, err := ptmx.Read(rbuf)
 			if nr > 0 {
 				s.appendOutput(rbuf[:nr])
+				if runtime.GOOS == "windows" {
+					cursorQuery = append(cursorQuery, rbuf[:nr]...)
+					if bytes.Contains(cursorQuery, []byte("\x1b[6n")) {
+						ptmx.Write([]byte("\x1b[1;1R"))
+					}
+					cursorQuery = append(cursorQuery[:0], cursorQuery[max(0, len(cursorQuery)-3):]...)
+				}
 			}
 			if err != nil {
 				return

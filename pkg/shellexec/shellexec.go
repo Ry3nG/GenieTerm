@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package shellexec
@@ -6,6 +6,7 @@ package shellexec
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,7 +16,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"maps"
@@ -25,6 +25,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/conncontroller"
 	"github.com/Ry3nG/GenieTerm/pkg/util/pamparse"
+	"github.com/Ry3nG/GenieTerm/pkg/util/ptyutil"
 	"github.com/Ry3nG/GenieTerm/pkg/util/shellutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
@@ -33,6 +34,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/wshutil"
 	"github.com/Ry3nG/GenieTerm/pkg/wslconn"
 	"github.com/creack/pty"
+	"golang.org/x/crypto/ssh"
 )
 
 const DefaultGracefulKillWait = 400 * time.Millisecond
@@ -107,10 +109,13 @@ func ExitCodeFromWaitErr(err error) int {
 	if err == nil {
 		return 0
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-			return status.ExitStatus()
-		}
+	var localExit *exec.ExitError
+	if errors.As(err, &localExit) {
+		return localExit.ExitCode()
+	}
+	var remoteExit *ssh.ExitError
+	if errors.As(err, &remoteExit) {
+		return remoteExit.ExitStatus()
 	}
 	return -1
 
@@ -174,7 +179,7 @@ func StartWslShellProcNoWsh(ctx context.Context, termSize waveobj.TermSize, cmdS
 	if termSize.Rows <= 0 || termSize.Cols <= 0 {
 		return nil, fmt.Errorf("invalid term size: %v", termSize)
 	}
-	cmdPty, err := pty.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
+	cmdPty, err := ptyutil.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +298,7 @@ func StartWslShellProc(ctx context.Context, termSize waveobj.TermSize, cmdStr st
 		return nil, fmt.Errorf("invalid term size: %v", termSize)
 	}
 	shellutil.AddTokenSwapEntry(cmdOpts.SwapToken)
-	cmdPty, err := pty.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
+	cmdPty, err := ptyutil.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
 	if err != nil {
 		return nil, err
 	}
@@ -694,7 +699,7 @@ func StartLocalShellProc(logCtx context.Context, termSize waveobj.TermSize, cmdS
 		return nil, fmt.Errorf("invalid term size: %v", termSize)
 	}
 	shellutil.AddTokenSwapEntry(cmdOpts.SwapToken)
-	cmdPty, err := pty.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
+	cmdPty, err := ptyutil.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
 	if err != nil {
 		return nil, err
 	}
@@ -712,9 +717,8 @@ func RunSimpleCmdInPty(ecmd *exec.Cmd, termSize waveobj.TermSize) ([]byte, error
 	if termSize.Rows <= 0 || termSize.Cols <= 0 {
 		return nil, fmt.Errorf("invalid term size: %v", termSize)
 	}
-	cmdPty, err := pty.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
+	cmdPty, err := ptyutil.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(termSize.Rows), Cols: uint16(termSize.Cols)})
 	if err != nil {
-		cmdPty.Close()
 		return nil, err
 	}
 	if runtime.GOOS != "windows" {

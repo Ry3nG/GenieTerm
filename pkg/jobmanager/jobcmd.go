@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package jobmanager
@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Ry3nG/GenieTerm/pkg/util/ptyutil"
 	"github.com/Ry3nG/GenieTerm/pkg/util/unixutil"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
@@ -59,7 +60,7 @@ func MakeJobCmd(jobId string, cmdDef CmdDef) (*JobCmd, error) {
 			ecmd.Env = append(ecmd.Env, fmt.Sprintf("%s=%s", key, val))
 		}
 	}
-	cmdPty, err := pty.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(cmdDef.TermSize.Rows), Cols: uint16(cmdDef.TermSize.Cols)})
+	cmdPty, err := ptyutil.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(cmdDef.TermSize.Rows), Cols: uint16(cmdDef.TermSize.Cols)})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
