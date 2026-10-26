@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -44,9 +45,22 @@ func TestWindowsLongUnicodeSocketTransportAndIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sddl := descriptor.String()
-	if strings.Count(sddl, "(A;") != 1 || !strings.Contains(sddl, ";;;"+userSID+")") {
-		t.Fatalf("pipe ACL must grant access only to current user: %s", sddl)
+	expectedSID, err := windows.StringToSid(userSID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dacl, _, err := descriptor.DACL()
+	if err != nil || dacl == nil || dacl.AceCount != 1 {
+		t.Fatalf("pipe ACL must contain one explicit user grant: %s (%v)", descriptor.String(), err)
+	}
+	var ace *windows.ACCESS_ALLOWED_ACE
+	if err := windows.GetAce(dacl, 0, &ace); err != nil {
+		t.Fatal(err)
+	}
+	grantedSID := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+	requiredAccess := windows.ACCESS_MASK(windows.FILE_GENERIC_READ | windows.FILE_GENERIC_WRITE)
+	if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE || !grantedSID.Equals(expectedSID) || ace.Mask&requiredAccess != requiredAccess {
+		t.Fatalf("pipe ACL must grant read/write access only to current user: %s", descriptor.String())
 	}
 }
 
