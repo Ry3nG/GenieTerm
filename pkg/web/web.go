@@ -13,7 +13,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -26,6 +25,7 @@ import (
 	"github.com/Ry3nG/GenieTerm/pkg/schema"
 	"github.com/Ry3nG/GenieTerm/pkg/service"
 	"github.com/Ry3nG/GenieTerm/pkg/util/fileutil"
+	"github.com/Ry3nG/GenieTerm/pkg/util/localconn"
 	"github.com/Ry3nG/GenieTerm/pkg/wavebase"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
@@ -464,13 +464,11 @@ func MakeTCPListener(serviceName string) (net.Listener, error) {
 
 func MakeUnixListener() (net.Listener, error) {
 	serverAddr := wavebase.GetDomainSocketName()
-	os.Remove(serverAddr) // ignore error
-	rtn, err := net.Listen("unix", serverAddr)
+	rtn, err := localconn.Listen(serverAddr)
 	if err != nil {
 		return nil, fmt.Errorf("error creating listener at %v: %v", serverAddr, err)
 	}
-	os.Chmod(serverAddr, 0700)
-	log.Printf("Server [unix-domain] listening on %s\n", serverAddr)
+	log.Printf("Server [local] listening on %s\n", rtn.Addr())
 	return rtn, nil
 }
 

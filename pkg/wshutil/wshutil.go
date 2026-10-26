@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package wshutil
@@ -19,6 +19,7 @@ import (
 
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/panichandler"
+	"github.com/Ry3nG/GenieTerm/pkg/util/localconn"
 	"github.com/Ry3nG/GenieTerm/pkg/util/packetparser"
 	"github.com/Ry3nG/GenieTerm/pkg/util/shellutil"
 	"github.com/Ry3nG/GenieTerm/pkg/util/utilfn"
@@ -185,6 +186,13 @@ func tryTcpSocket(sockName string) (net.Conn, error) {
 	return net.DialTCP("tcp", nil, addr)
 }
 
+func DialDomainSocket(sockName string) (net.Conn, error) {
+	if runtime.GOOS == "windows" && strings.EqualFold(filepath.Base(sockName), wavebase.DomainSocketBaseName) {
+		return localconn.Dial(sockName)
+	}
+	return net.Dial("unix", sockName)
+}
+
 func SetupDomainSocketRpcClient(sockName string, serverImpl ServerImpl, debugName string) (*WshRpc, error) {
 	sockName = wavebase.ExpandHomeDirSafe(sockName)
 	resolvedPath, err := filepath.EvalSymlinks(sockName)
@@ -197,7 +205,7 @@ func SetupDomainSocketRpcClient(sockName string, serverImpl ServerImpl, debugNam
 	conn, tcpErr := tryTcpSocket(sockName)
 	var unixErr error
 	if tcpErr != nil {
-		conn, unixErr = net.Dial("unix", sockName)
+		conn, unixErr = DialDomainSocket(sockName)
 	}
 	if tcpErr != nil && unixErr != nil {
 		return nil, fmt.Errorf("failed to connect to tcp or unix domain socket: tcp err:%w: unix socket err: %w", tcpErr, unixErr)
