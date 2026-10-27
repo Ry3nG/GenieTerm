@@ -294,6 +294,43 @@ describe("TermWrap controller startup", () => {
             rtopts: { termsize: { rows: 40, cols: 120 } },
         });
     });
+
+    it("handles a resize rejected during SSH disconnect and sends the current size on reconnect", async () => {
+        const error = new Error('connection "remote" is not connected');
+        const log = vi.spyOn(console, "log").mockImplementation(() => {});
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockRejectedValueOnce(error);
+        const resync = vi.spyOn(RpcApi, "ControllerResyncCommand").mockResolvedValue(undefined);
+        const { termWrap } = makeResizableTermWrap();
+        Object.assign(termWrap, { controllerReady: true, hasResized: true });
+
+        termWrap.handleResize();
+        await Promise.resolve();
+        expect(input).toHaveBeenCalledExactlyOnceWith(TabRpcClient, {
+            blockid: "block-1",
+            termsize: { rows: 30, cols: 100 },
+        });
+        expect(log).toHaveBeenCalledWith("fireAndForget error", error);
+        await termWrap.resyncController("reconnected");
+        expect(termWrap.controllerReady).toBe(true);
+        expect(resync).toHaveBeenCalledExactlyOnceWith(TabRpcClient, {
+            tabid: "tab-1",
+            blockid: "block-1",
+            rtopts: { termsize: { rows: 30, cols: 100 } },
+        });
+    });
+
+    it("ignores a queued resize after the terminal is disposed", () => {
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockResolvedValue(undefined);
+        const resync = vi.spyOn(RpcApi, "ControllerResyncCommand").mockResolvedValue(undefined);
+        const { termWrap } = makeResizableTermWrap();
+        Object.assign(termWrap, { controllerReady: true, hasResized: true, disposed: true });
+
+        termWrap.handleResize();
+
+        expect(termWrap.fitAddon.fit).not.toHaveBeenCalled();
+        expect(input).not.toHaveBeenCalled();
+        expect(resync).not.toHaveBeenCalled();
+    });
 });
 
 describe("TermWrap pane visibility", () => {

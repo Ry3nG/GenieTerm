@@ -1205,6 +1205,9 @@ export class TermWrap {
     }
 
     handleResize() {
+        if (this.disposed) {
+            return;
+        }
         if (!this.paneActive) {
             this.pendingResize = true;
             return;
@@ -1221,7 +1224,9 @@ export class TermWrap {
                 `${this.terminal.rows}x${this.terminal.cols}`
             );
             if (this.controllerReady) {
-                RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize });
+                fireAndForget(() =>
+                    RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize })
+                );
             }
         }
         dlog("resize", `${this.terminal.rows}x${this.terminal.cols}`, `${oldRows}x${oldCols}`, this.hasResized);
