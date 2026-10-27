@@ -1435,6 +1435,18 @@ export class TermViewModel implements ViewModel {
         menu.push({ type: "separator" });
 
         const magnified = globalStore.get(this.nodeModel.isMagnified);
+        menu.push({
+            label: "Show Completions",
+            enabled:
+                this.getCurrentInputBuffer() != null &&
+                this.getRunningCmdBlockId() === null &&
+                this.termRef.current?.terminal.buffer.active.type !== "alternate",
+            click: () => {
+                this.nodeModel.focusNode();
+                this.giveFocus();
+                this.completionModel.triggerManualRequest();
+            },
+        });
         menu.push({ label: "Command History", click: () => this.openCommandLibrary() });
         menu.push({ label: "Saved Command Recipes", click: () => this.openCommandLibrary("recipes") });
         const lastCommand = this.findLastCommandBlock();
