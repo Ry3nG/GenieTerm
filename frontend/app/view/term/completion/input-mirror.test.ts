@@ -5,6 +5,23 @@ import { describe, expect, it } from "vitest";
 import { applyPromptInputData, emptyPromptInputBuffer, isTypeaheadInput } from "./input-mirror";
 
 describe("applyPromptInputData", () => {
+    it("preserves the prompt and cursor across terminal focus reports", () => {
+        const buffer = { text: "Write-Output '中文 🚀 spaces'", cursorIndex: 14 };
+        expect(applyPromptInputData(buffer, "\x1b[O")).toEqual(buffer);
+        expect(applyPromptInputData(buffer, "\x1b[I")).toEqual(buffer);
+        expect(applyPromptInputData(emptyPromptInputBuffer(), "\x1b[O\x1b[IGet-Ch")).toEqual({
+            text: "Get-Ch",
+            cursorIndex: 6,
+        });
+        expect(applyPromptInputData(buffer, "\x1b[O\x1b[A")).toBeNull();
+    });
+
+    it("does not mistake focus changes while a command runs for typeahead", () => {
+        expect(isTypeaheadInput("\x1b[O\x1b[I")).toBe(false);
+        expect(isTypeaheadInput("\x1b[O\x03")).toBe(false);
+        expect(isTypeaheadInput("\x1b[Ix")).toBe(true);
+    });
+
     it("inserts printable text at the cursor", () => {
         expect(applyPromptInputData(emptyPromptInputBuffer(), "git status")).toEqual({
             text: "git status",
