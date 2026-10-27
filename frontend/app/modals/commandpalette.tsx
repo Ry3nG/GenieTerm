@@ -12,6 +12,7 @@ import {
 import { atoms, createBlock } from "@/app/store/global";
 import { getCommandPaletteCommands } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
+import { getKeyUtilPlatform } from "@/util/keyutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -21,6 +22,7 @@ type CommandPaletteViewProps = {
     recents: string[];
     onRemember: (id: string) => void;
     onClose: () => void;
+    platform?: NodeJS.Platform;
 };
 
 function HighlightedLabel({ label, positions }: { label: string; positions: number[] }) {
@@ -45,7 +47,13 @@ function HighlightedLabel({ label, positions }: { label: string; positions: numb
     return <>{segments}</>;
 }
 
-export function CommandPaletteView({ commands, recents, onRemember, onClose }: CommandPaletteViewProps) {
+export function CommandPaletteView({
+    commands,
+    recents,
+    onRemember,
+    onClose,
+    platform = getKeyUtilPlatform(),
+}: CommandPaletteViewProps) {
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -222,9 +230,13 @@ export function CommandPaletteView({ commands, recents, onRemember, onClose }: C
                                         {cmd.binding && (
                                             <span
                                                 className="flex shrink-0 gap-1"
-                                                aria-label={cmd.binding.replace(/:/g, " + ")}
+                                                aria-label={
+                                                    platform === "darwin"
+                                                        ? cmd.binding.replace(/:/g, " + ")
+                                                        : formatPaletteBinding(cmd.binding, platform).join(" + ")
+                                                }
                                             >
-                                                {formatPaletteBinding(cmd.binding).map((key, keyIdx) => (
+                                                {formatPaletteBinding(cmd.binding, platform).map((key, keyIdx) => (
                                                     <kbd
                                                         key={keyIdx}
                                                         aria-hidden="true"

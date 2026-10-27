@@ -67,7 +67,9 @@ const KeybindingRow = ({
                         {entry.isDisabled ? (
                             <span className="text-muted text-[12px] italic">disabled</span>
                         ) : (
-                            entry.bindings.map((b, i) => <BindingChips key={i} tokens={formatBindingTokens(b)} />)
+                            entry.bindings.map((b, i) => (
+                                <BindingChips key={i} tokens={formatBindingTokens(b, keyutil.getKeyUtilPlatform())} />
+                            ))
                         )}
                         {isConflict && (
                             <i

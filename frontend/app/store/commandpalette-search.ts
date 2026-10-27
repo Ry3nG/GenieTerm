@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { CommandPaletteCommand } from "./commandpalette";
+import { formatBindingTokens } from "./keybindings";
 
 export const PaletteGroups = ["Terminal", "Tabs", "Blocks & Layout", "Connections", "View", "App", "Other"] as const;
 export type PaletteGroup = (typeof PaletteGroups)[number];
@@ -304,9 +305,12 @@ const PaletteKeyGlyphs: Record<string, string> = {
 };
 
 // keycaps in the order macOS menus use (⌃⌥⇧⌘ then the key), with letters capitalized
-export function formatPaletteBinding(binding: string): string[] {
+export function formatPaletteBinding(binding: string, platform: NodeJS.Platform = "darwin"): string[] {
     if (!binding) {
         return [];
+    }
+    if (platform !== "darwin") {
+        return formatBindingTokens(binding, platform);
     }
     const parts = binding.split(":").filter(Boolean);
     const modifiers = parts
