@@ -366,6 +366,10 @@ func (s *procCacheState) collectSnapshot(numCPU int) *wshrpc.ProcessListResponse
 			continue
 		}
 		pi := ri.info
+		username := pi.User
+		if username == "" {
+			username = s.lookupUID(pi.Uid)
+		}
 		info := wshrpc.ProcessInfo{
 			Pid:        pi.Pid,
 			Ppid:       pi.Ppid,
@@ -375,7 +379,7 @@ func (s *procCacheState) collectSnapshot(numCPU int) *wshrpc.ProcessListResponse
 			MemPct:     -1,
 			Cpu:        -1,
 			NumThreads: pi.NumThreads,
-			User:       s.lookupUID(pi.Uid),
+			User:       username,
 		}
 		if totalMem > 0 && pi.VmRSS >= 0 {
 			info.MemPct = float64(pi.VmRSS) / float64(totalMem) * 100

@@ -474,11 +474,14 @@ func sftpCopy(ctx context.Context, srcConn, destConn *connparse.Connection, opts
 		return false, err
 	}
 	if srcEntry.IsDir && isSameCopyNamespace(srcConn, destConn) {
-		separator := "/"
+		within := fsutil.IsPathWithin(srcPath, finalPath, "/")
 		if isLocalCopyConn(destConn) {
-			separator = string(filepath.Separator)
+			within, err = fsutil.IsLocalPathWithin(srcPath, finalPath)
+			if err != nil {
+				return true, fmt.Errorf("cannot check copy destination %q: %w", finalPath, err)
+			}
 		}
-		if fsutil.IsPathWithin(srcPath, finalPath, separator) {
+		if within {
 			return true, fmt.Errorf("cannot copy directory %q into itself", srcPath)
 		}
 	}

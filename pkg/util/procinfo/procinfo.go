@@ -42,7 +42,8 @@ type ProcInfo struct {
 	CpuSys     float64 // cumulative system CPU seconds; -1 if unavailable
 	VmRSS      int64   // resident set size in bytes; -1 if unavailable
 	Uid        uint32
-	NumThreads int32 // -1 if unavailable
+	User       string // native account name when the platform does not use numeric UIDs
+	NumThreads int32  // -1 if unavailable
 }
 
 // expandTruncatedCommand returns the file name from exePath when comm looks like the

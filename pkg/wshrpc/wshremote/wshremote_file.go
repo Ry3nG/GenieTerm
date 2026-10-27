@@ -86,8 +86,14 @@ func (impl *ServerImpl) RemoteFileCopyCommand(ctx context.Context, data wshrpc.C
 	if err != nil {
 		return false, err
 	}
-	if sameHost && srcEntry.IsDir && fsutil.IsPathWithin(srcPath, finalPath, string(filepath.Separator)) {
-		return true, fmt.Errorf("cannot copy directory %q into itself", srcPath)
+	if sameHost && srcEntry.IsDir {
+		within, err := fsutil.IsLocalPathWithin(srcPath, finalPath)
+		if err != nil {
+			return true, fmt.Errorf("cannot check copy destination %q: %w", finalPath, err)
+		}
+		if within {
+			return true, fmt.Errorf("cannot copy directory %q into itself", srcPath)
+		}
 	}
 	err = fsutil.CopyTree(copyCtx, src, srcEntry, dest, finalPath, fsutil.CopyOpts{Overwrite: opts.Overwrite, Merge: opts.Merge})
 	if err != nil {
