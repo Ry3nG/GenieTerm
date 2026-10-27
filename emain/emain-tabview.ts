@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { adaptFromElectronKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
@@ -336,12 +337,23 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
     if (tabView) {
         return [tabView, true];
     }
-    const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+    let fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
     tabView = getSpareTab(fullConfig);
     tabView.waveWindowId = waveWindowId;
     tabView.lastUsedTs = Date.now();
     setWaveTabView(tabId, tabView);
     tabView.waveTabId = tabId;
+    if (unamePlatform === "win32") {
+        const unsubscribe = waveEventSubscribeSingle({
+            eventType: "config",
+            handler: (event) => {
+                if (event.data?.fullconfig) {
+                    fullConfig = event.data.fullconfig;
+                }
+            },
+        });
+        tabView.webContents.once("destroyed", unsubscribe);
+    }
     tabView.webContents.on("will-navigate", shNavHandler);
     tabView.webContents.on("will-frame-navigate", shFrameNavHandler);
     tabView.webContents.on("did-attach-webview", (event, wc) => {
@@ -357,6 +369,16 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
         const waveEvent = adaptFromElectronKeyEvent(input);
         // console.log("WIN bie", tabView.waveTabId.substring(0, 8), waveEvent.type, waveEvent.code);
         handleCtrlShiftState(tabView.webContents, waveEvent);
+        // xterm consumes Alt+F4 as terminal input, so Windows window closing
+        // must run before renderer key handling and application chord mode.
+        if (unamePlatform === "win32" && input.type == "keyDown" && checkKeyPressed(waveEvent, "Alt:F4")) {
+            const waveWindow = getWaveWindowById(tabView.waveWindowId);
+            if (waveWindow) {
+                e.preventDefault();
+                waveWindow.close();
+                return;
+            }
+        }
         if (input.type == "keyDown" && tabView.keyboardChordMode) {
             e.preventDefault();
             tabView.setKeyboardChordMode(false);

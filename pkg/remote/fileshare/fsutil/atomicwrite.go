@@ -89,8 +89,9 @@ func ResolveLocalWriteTarget(p string) (string, error) {
 }
 
 // ReplaceLocalFile streams r into a temp file next to target (same filesystem), fsyncs it, copies the
-// existing file's mode/owner and renames it over target only after everything succeeded. On any
-// failure the temp file is removed and the original target is left untouched.
+// existing file's mode/owner and replaces target only after the write succeeds. Failures before
+// replacement leave the original untouched and remove the temp file. A partial Windows replacement
+// failure restores the original when possible, otherwise the error reports its retained backup path.
 func ReplaceLocalFile(target string, r io.Reader, opts ReplaceOpts) (int64, error) {
 	existing, err := os.Stat(target)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -103,8 +104,14 @@ func ReplaceLocalFile(target string, r io.Reader, opts ReplaceOpts) (int64, erro
 	hasOwner := false
 	if existing != nil {
 		owner, hasOwner = GetFileOwner(existing)
-		if opts.StrictOwner && hasOwner && owner.Nlink > 1 {
-			return 0, fmt.Errorf("%w: %q has multiple hard links", ErrAtomicReplaceUnavailable, target)
+		if opts.StrictOwner {
+			links, err := localFileLinkCount(target, existing)
+			if err != nil {
+				return 0, fmt.Errorf("%w: cannot check hard links for %q: %v", ErrAtomicReplaceUnavailable, target, err)
+			}
+			if links > 1 {
+				return 0, fmt.Errorf("%w: %q has multiple hard links", ErrAtomicReplaceUnavailable, target)
+			}
 		}
 	}
 	createMode := opts.CreateMode.Perm()
@@ -116,7 +123,7 @@ func ReplaceLocalFile(target string, r io.Reader, opts ReplaceOpts) (int64, erro
 		return 0, err
 	}
 	tempPath := filepath.Join(filepath.Dir(target), tempName)
-	file, err := os.OpenFile(tempPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, createMode)
+	file, err := createLocalReplacement(tempPath, target, createMode, existing != nil)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			return 0, fmt.Errorf("%w: cannot create temp file in %q: %v", ErrAtomicReplaceUnavailable, filepath.Dir(target), err)
@@ -133,6 +140,11 @@ func ReplaceLocalFile(target string, r io.Reader, opts ReplaceOpts) (int64, erro
 			os.Remove(tempPath)
 		}
 	}()
+	if existing != nil {
+		if err := prepareLocalReplacement(target, tempPath); err != nil {
+			return 0, fmt.Errorf("cannot preserve permissions for %q: %w", target, err)
+		}
+	}
 	n, err := io.Copy(file, r)
 	if err != nil {
 		return n, err
@@ -158,7 +170,7 @@ func ReplaceLocalFile(target string, r io.Reader, opts ReplaceOpts) (int64, erro
 	if err := file.Close(); err != nil {
 		return n, fmt.Errorf("cannot close %q: %w", tempPath, err)
 	}
-	if err := os.Rename(tempPath, target); err != nil {
+	if err := commitLocalReplacement(tempPath, target, existing != nil); err != nil {
 		return n, fmt.Errorf("cannot replace %q: %w", target, err)
 	}
 	renamed = true

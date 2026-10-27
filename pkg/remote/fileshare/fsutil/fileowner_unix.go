@@ -17,3 +17,8 @@ func GetFileOwner(info os.FileInfo) (FileOwner, bool) {
 	}
 	return FileOwner{Uid: int(st.Uid), Gid: int(st.Gid), Nlink: uint64(st.Nlink)}, true
 }
+
+func localFileLinkCount(_ string, info os.FileInfo) (uint64, error) {
+	owner, _ := GetFileOwner(info)
+	return owner.Nlink, nil
+}

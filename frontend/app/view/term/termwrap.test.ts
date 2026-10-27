@@ -122,6 +122,7 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
         shellIntegrationStatusAtom: jotai.atom(status),
         shellIntegrationDisabledAtom: jotai.atom(false),
         shellTypeAtom: jotai.atom("unknown"),
+        shellNameAtom: jotai.atom("unknown"),
         altScreenActiveAtom: jotai.atom(false),
         currentInputBufferAtom: jotai.atom(null) as jotai.PrimitiveAtom<TermInputBuffer>,
         cmdBlocksAtom: jotai.atom([]),
@@ -293,6 +294,43 @@ describe("TermWrap controller startup", () => {
             rtopts: { termsize: { rows: 40, cols: 120 } },
         });
     });
+
+    it("handles a resize rejected during SSH disconnect and sends the current size on reconnect", async () => {
+        const error = new Error('connection "remote" is not connected');
+        const log = vi.spyOn(console, "log").mockImplementation(() => {});
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockRejectedValueOnce(error);
+        const resync = vi.spyOn(RpcApi, "ControllerResyncCommand").mockResolvedValue(undefined);
+        const { termWrap } = makeResizableTermWrap();
+        Object.assign(termWrap, { controllerReady: true, hasResized: true });
+
+        termWrap.handleResize();
+        await Promise.resolve();
+        expect(input).toHaveBeenCalledExactlyOnceWith(TabRpcClient, {
+            blockid: "block-1",
+            termsize: { rows: 30, cols: 100 },
+        });
+        expect(log).toHaveBeenCalledWith("fireAndForget error", error);
+        await termWrap.resyncController("reconnected");
+        expect(termWrap.controllerReady).toBe(true);
+        expect(resync).toHaveBeenCalledExactlyOnceWith(TabRpcClient, {
+            tabid: "tab-1",
+            blockid: "block-1",
+            rtopts: { termsize: { rows: 30, cols: 100 } },
+        });
+    });
+
+    it("ignores a queued resize after the terminal is disposed", () => {
+        const input = vi.spyOn(RpcApi, "ControllerInputCommand").mockResolvedValue(undefined);
+        const resync = vi.spyOn(RpcApi, "ControllerResyncCommand").mockResolvedValue(undefined);
+        const { termWrap } = makeResizableTermWrap();
+        Object.assign(termWrap, { controllerReady: true, hasResized: true, disposed: true });
+
+        termWrap.handleResize();
+
+        expect(termWrap.fitAddon.fit).not.toHaveBeenCalled();
+        expect(input).not.toHaveBeenCalled();
+        expect(resync).not.toHaveBeenCalled();
+    });
 });
 
 describe("TermWrap pane visibility", () => {
@@ -423,6 +461,48 @@ describe("TermWrap input", () => {
 });
 
 describe("TermWrap runCommand", () => {
+    it.each(["", "existing 中文 🚀 spaces"])(
+        "replaces known PowerShell input %j without POSIX control bindings",
+        (previous) => {
+            const { termWrap, sent } = makeTermWrap();
+            globalStore.set(termWrap.shellTypeAtom, "pwsh");
+            startPrompt(termWrap);
+            typeInput(termWrap, previous);
+            if (previous) termWrap.handleTermData("\x1b[D\x1b[D");
+            sent.mockClear();
+
+            expect(termWrap.insertCommand("Write-Output 'inserted'")).toBe(true);
+            expect(sent).toHaveBeenLastCalledWith(
+                "\x1b[F" + "\x7f".repeat(previous.length) + "Write-Output 'inserted'"
+            );
+            expect(globalStore.get(termWrap.currentInputBufferAtom)).toEqual({
+                text: "Write-Output 'inserted'",
+                cursorIndex: 23,
+            });
+            expect(sent.mock.calls[0][0]).not.toContain("\r");
+
+            sent.mockClear();
+            expect(termWrap.runCommand("Write-Output 'run'")).toBe(true);
+            expect(sent).toHaveBeenCalledOnce();
+            expect(sent).toHaveBeenCalledWith("\x1b[F" + "\x7f".repeat(23) + "Write-Output 'run'\r");
+        }
+    );
+
+    it.each([null, { text: "one\ntwo", cursorIndex: 7 }])(
+        "does not replace unknown or multiline PowerShell input",
+        (input) => {
+            const { termWrap, sent } = makeTermWrap();
+            globalStore.set(termWrap.shellTypeAtom, "pwsh");
+            globalStore.set(termWrap.currentInputBufferAtom, input);
+            expect(termWrap.getRunBlockedReason("Write-Output 'run'")).toBe(
+                "Clear the PowerShell prompt before running a command"
+            );
+            expect(termWrap.insertCommand("Write-Output 'inserted'")).toBe(false);
+            expect(termWrap.runCommand("Write-Output 'run'")).toBe(false);
+            expect(sent).not.toHaveBeenCalled();
+        }
+    );
+
     it("clears pending input and submits through the typed-input path at an idle prompt", () => {
         const { termWrap, sent } = makeTermWrap();
         startPrompt(termWrap);
@@ -813,5 +893,14 @@ describe("TermWrap shell-integration markers during load", () => {
 
         expect(globalStore.get(termWrap.shellIntegrationDisabledAtom)).toBe(true);
         expect(globalStore.get(termWrap.shellTypeAtom)).toBe("pwsh");
+        expect(globalStore.get(termWrap.shellNameAtom)).toBe("pwsh");
+    });
+
+    it.each(["powershell", "pwsh"])("preserves the actual %s executable name from shell metadata", (shell) => {
+        const { termWrap } = makeTermWrap(null);
+        termWrap.loaded = false;
+        replay(termWrap, `M;${JSON.stringify({ shell, integration: true })}`);
+        expect(globalStore.get(termWrap.shellTypeAtom)).toBe("pwsh");
+        expect(globalStore.get(termWrap.shellNameAtom)).toBe(shell);
     });
 });

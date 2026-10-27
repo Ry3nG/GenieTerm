@@ -193,7 +193,11 @@ func enrichListeningPorts(ctx context.Context, ports []wshrpc.ListeningPort) {
 		ident, ok := identities[p.Pid]
 		if !ok {
 			if info, err := procinfo.GetProcInfo(ctx, snapshot, p.Pid); err == nil {
-				ident = identity{info.Command, users.lookupUID(info.Uid)}
+				username := info.User
+				if username == "" {
+					username = users.lookupUID(info.Uid)
+				}
+				ident = identity{info.Command, username}
 			}
 			identities[p.Pid] = ident
 		}
@@ -328,14 +332,17 @@ func normalizeListeningPorts(ports []wshrpc.ListeningPort) []wshrpc.ListeningPor
 }
 
 func (impl *ServerImpl) RemoteListeningPortsCommand(ctx context.Context) (*wshrpc.ListeningPortsResponse, error) {
-	if runtime.GOOS == "windows" {
-		return nil, fmt.Errorf("listening ports are not supported on Windows yet")
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	var result *wshrpc.ListeningPortsResponse
 	switch runtime.GOOS {
+	case "windows":
+		var err error
+		result, err = windowsListeningPorts(ctx)
+		if err != nil {
+			return nil, err
+		}
 	case "linux":
 		var err error
 		result, err = linuxListeningPorts(ctx, "/proc")

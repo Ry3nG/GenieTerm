@@ -555,7 +555,7 @@ const Columns: ColDef[] = [
         hideOnPlatform: ["windows", "darwin"],
         minTableWidth: 520,
     },
-    { key: "user", label: "User", width: "80px", minWidth: 60, hideOnPlatform: ["windows"], minTableWidth: 440 },
+    { key: "user", label: "User", width: "80px", minWidth: 60, minTableWidth: 440 },
     {
         key: "threads",
         label: "NT",

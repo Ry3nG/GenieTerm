@@ -31,6 +31,39 @@ function file(name: string, isdir = false): FileInfo {
 }
 
 describe("makeFileCompletionProvider", () => {
+    it.each([
+        ["C:\\Users\\No", "C:\\Users", "C:\\Users\\Nomla\\"],
+        ["C:/Users/No", "C:/Users", "C:/Users/Nomla/"],
+        ["C:\\No", "C:\\", "C:\\Nomla\\"],
+        ["\\\\server\\share\\No", "\\\\server\\share", "\\\\server\\share\\Nomla\\"],
+        [".\\sub\\No", "C:\\repo\\.\\sub", ".\\sub\\Nomla\\"],
+        ["./sub/No", "C:\\repo/./sub", "./sub/Nomla/"],
+        ["~\\No", "~", "~\\Nomla\\"],
+    ])("lists the Windows target directory for %s", async (searchTerm, listPath, inserted) => {
+        const listDirectory = vi.fn(async () => [{ path: "C:\\Users\\Nomla", isdir: true }]);
+        const provider = makeFileCompletionProvider(listDirectory);
+        const items = await provider.provideCompletions(
+            makeContext({ cwd: "C:\\repo", shellType: "pwsh", shellName: "powershell", searchTerm })
+        );
+        expect(listDirectory).toHaveBeenCalledWith(listPath, expect.anything());
+        expect(items.map((item) => item.insertText)).toEqual([inserted]);
+    });
+
+    it("keeps POSIX backslashes literal on remote filesystems", async () => {
+        const listDirectory = vi.fn(async () => [{ path: "/repo/a\\b", isdir: true }]);
+        const items = await makeFileCompletionProvider(listDirectory).provideCompletions(
+            makeContext({
+                cwd: "/repo",
+                connId: "devbox",
+                shellType: "pwsh",
+                shellName: "pwsh",
+                searchTerm: "a\\",
+            })
+        );
+        expect(listDirectory).toHaveBeenCalledWith("/repo", expect.anything());
+        expect(items.map((item) => item.insertText)).toEqual(["a\\b/"]);
+    });
+
     it("lists cwd for a plain relative token and appends slash to directories", async () => {
         const listDirectory = vi.fn(async () => [file("src", true), file("scripts", true), file("README.md")]);
         const provider = makeFileCompletionProvider(listDirectory);

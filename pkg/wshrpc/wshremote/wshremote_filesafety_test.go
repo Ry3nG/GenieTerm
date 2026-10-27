@@ -87,6 +87,27 @@ func TestRemoteFileCopyCommandCopiesDirectories(t *testing.T) {
 	}
 }
 
+func TestRemoteFileCopyCommandRejectsWindowsCaseAlias(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows path spelling regression")
+	}
+	source := filepath.Join(t.TempDir(), "MixedCaseSource")
+	if err := os.MkdirAll(source, 0700); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(strings.ToUpper(source), "missing-child")
+	_, err := (&ServerImpl{}).RemoteFileCopyCommand(context.Background(), wshrpc.CommandFileCopyData{
+		SrcUri: localTestURI(source), DestUri: localTestURI(destination),
+	})
+	if err == nil || !strings.Contains(err.Error(), "into itself") {
+		t.Fatalf("expected copy-into-itself error, got %v", err)
+	}
+	entries, err := os.ReadDir(source)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("copy guard created files: %v, %v", entries, err)
+	}
+}
+
 func TestRemoteWriteFileCommandKeepsSymlinkAndMode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks need privileges on windows")

@@ -19,8 +19,9 @@ import { makeHelpFallbackCompletionProvider } from "./help-provider";
 import { makeHistoryCompletionProvider } from "./history-provider";
 import { hasFigSpec, makeLazyFigCompletionProvider } from "./lazy-fig-provider";
 import { makePathCommandCompletionProvider } from "./path-provider";
+import { makePowerShellParameterCompletionProvider } from "./powershell-provider";
 import { buildCompletionContext } from "./tokenizer";
-import type { CompletionItem, ShellType, TermInputBuffer } from "./types";
+import type { CompletionItem, ShellName, ShellType, TermInputBuffer } from "./types";
 
 const CompletionDebounceMs = 90;
 const MaxRecentCommands = 80;
@@ -175,6 +176,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
     const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
     const shellType = useAtomValueSafe<ShellType>(termWrap?.shellTypeAtom) ?? "unknown";
+    const shellName = useAtomValueSafe<ShellName>(termWrap?.shellNameAtom) ?? "unknown";
     const altScreenActive = useAtomValueSafe<boolean>(termWrap?.altScreenActiveAtom);
     const context = useAtomValue(completionModel.contextAtom);
     const recentCommands = React.useMemo(() => recentCommandsFromBlocks(cmdBlocks), [cmdBlocks]);
@@ -184,6 +186,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
             makeHistoryCompletionProvider(),
             makeLazyFigCompletionProvider(runCompletionGenerator),
             makePathCommandCompletionProvider(runCompletionGenerator),
+            makePowerShellParameterCompletionProvider(runCompletionGenerator),
             makeHelpFallbackCompletionProvider(runCompletionGenerator, hasFigSpec),
             makeFileCompletionProvider(listDirectory),
         ]);
@@ -238,6 +241,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
             cwd: (blockData?.meta?.["cmd:cwd"] as string) || "~",
             connId: connection === "local" ? "" : connection,
             shellType,
+            shellName,
             env: {},
             recentCommands,
             requestKind: manualRequest ? "manual" : "auto",
@@ -258,6 +262,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         service,
         shellIntegrationStatus,
         shellType,
+        shellName,
         termWrap,
     ]);
 

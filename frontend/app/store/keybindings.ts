@@ -121,12 +121,38 @@ const KEY_SYMBOLS: Record<string, string> = {
     Tab: "⇥",
 };
 
+const NonMacModifierLabels: Record<string, string> = {
+    Cmd: "Alt",
+    Ctrl: "Ctrl",
+    Control: "Ctrl",
+    Alt: "Alt",
+    Shift: "Shift",
+};
+
+const NonMacKeyLabels: Record<string, string> = {
+    Escape: "Esc",
+    Enter: "Enter",
+    Space: "Space",
+    Backspace: "Backspace",
+    Delete: "Del",
+    Tab: "Tab",
+};
+
 // "Cmd:Shift:k" -> ["⌘", "⇧", "K"] for rendering as separate kbd chips.
-export function formatBindingTokens(binding: string): string[] {
+export function formatBindingTokens(binding: string, platform: NodeJS.Platform = "darwin"): string[] {
     if (!binding) {
         return [];
     }
     return binding.split(":").map((tok) => {
+        if (platform !== "darwin") {
+            if (tok === "Meta" || tok === "Option") {
+                return platform === "win32" ? "Win" : "Super";
+            }
+            const nativeLabel = NonMacModifierLabels[tok] ?? NonMacKeyLabels[tok];
+            if (nativeLabel != null) {
+                return nativeLabel;
+            }
+        }
         if (tok in MOD_SYMBOLS) {
             return MOD_SYMBOLS[tok];
         }
@@ -140,8 +166,8 @@ export function formatBindingTokens(binding: string): string[] {
     });
 }
 
-export function formatBinding(binding: string): string {
-    return formatBindingTokens(binding).join(" ");
+export function formatBinding(binding: string, platform: NodeJS.Platform = "darwin"): string {
+    return formatBindingTokens(binding, platform).join(" ");
 }
 
 // A captured key is bindable only once a non-modifier key is pressed; pure

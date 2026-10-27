@@ -71,6 +71,35 @@ describe("tokenizeForCompletion", () => {
             tokenType: "subcommand",
         });
     });
+
+    it("treats PowerShell backslashes as path separators rather than escapes", () => {
+        const line = 'Get-Item "C:\\" next';
+        expect(tokenizeForCompletion(line, line.length, "pwsh").tokens.map((token) => token.text)).toEqual([
+            "Get-Item",
+            "C:\\",
+            "next",
+        ]);
+        const root = "Get-Item C:\\ next";
+        expect(tokenizeForCompletion(root, root.length, "pwsh").tokens.map((token) => token.text)).toEqual([
+            "Get-Item",
+            "C:\\",
+            "next",
+        ]);
+    });
+
+    it("decodes PowerShell quotes and backtick escapes for filename matching", () => {
+        const quoted = "Get-Item 'C:\\文档\\O''Brien $HOME";
+        expect(tokenizeForCompletion(quoted, quoted.length, "pwsh").searchTerm).toBe("C:\\文档\\O'Brien $HOME");
+        const escaped = "Get-Item C:\\space` name\\a`$b";
+        expect(tokenizeForCompletion(escaped, escaped.length, "pwsh").searchTerm).toBe("C:\\space name\\a$b");
+    });
+
+    it("keeps POSIX escapes and quoted backslashes independent of PowerShell", () => {
+        const escaped = "cat /home/space\\ name";
+        expect(tokenizeForCompletion(escaped, escaped.length, "bash").searchTerm).toBe("/home/space name");
+        const quoted = 'cat "/home/a\\b"';
+        expect(tokenizeForCompletion(quoted, quoted.length, "zsh").searchTerm).toBe("/home/a\\b");
+    });
 });
 
 describe("buildCompletionContext", () => {

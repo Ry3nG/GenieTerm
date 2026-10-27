@@ -86,6 +86,7 @@ run("Production build", "npm", ["run", "build:prod"]);
 run("Preview build", "npx", ["vite", "build"], { cwd: "frontend/preview" });
 run("Preview visual QA", "npm", ["run", "visual:preview"], { timeout: 6 * 60 * 1000 });
 run("Preview interaction QA", "npm", ["run", "interaction:preview"], { timeout: 4 * 60 * 1000 });
+run("Monaco worker lifecycle QA", "node", ["scripts/verify-monaco-workers.mjs"], { timeout: 2 * 60 * 1000 });
 
 if (shouldPackage) {
   const packageOutput = process.env.GENIETERM_BUILD_OUTPUT || DefaultPackageOutput;

@@ -1,7 +1,14 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { CommandToken, CompletionContext, CompletionTokenType, ShellType, TermInputBuffer } from "./types";
+import type {
+    CommandToken,
+    CompletionContext,
+    CompletionTokenType,
+    ShellName,
+    ShellType,
+    TermInputBuffer,
+} from "./types";
 
 interface RawToken {
     text: string;
@@ -19,8 +26,9 @@ function isSeparatorChar(c: string): boolean {
 }
 
 // Quote-aware scan of a shell line into word tokens and segment separators (| || & && ;).
-function scanTokens(line: string): RawToken[] {
+function scanTokens(line: string, shellType: ShellType): RawToken[] {
     const tokens: RawToken[] = [];
+    const escape = shellType === "pwsh" ? "`" : "\\";
     const n = line.length;
     let i = 0;
     while (i < n) {
@@ -51,7 +59,7 @@ function scanTokens(line: string): RawToken[] {
                 continue;
             }
             if (inDouble) {
-                if (ch === "\\" && i + 1 < n) {
+                if (ch === escape && i + 1 < n) {
                     i += 2;
                     continue;
                 }
@@ -71,7 +79,7 @@ function scanTokens(line: string): RawToken[] {
                 i++;
                 continue;
             }
-            if (ch === "\\" && i + 1 < n) {
+            if (ch === escape && i + 1 < n) {
                 i += 2;
                 continue;
             }
@@ -85,8 +93,32 @@ function scanTokens(line: string): RawToken[] {
     return tokens;
 }
 
-function stripQuotes(s: string): string {
-    return s.replace(/^['"]/, "").replace(/['"]$/, "");
+function decodeToken(text: string, shellType: ShellType): string {
+    let quote: string = null;
+    let decoded = "";
+    const escape = shellType === "pwsh" ? "`" : "\\";
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const escaped =
+            ch === escape &&
+            quote !== "'" &&
+            i + 1 < text.length &&
+            (shellType === "pwsh" || quote !== '"' || /[\\"$`\n]/.test(text[i + 1]));
+        if (escaped) {
+            decoded += text[++i];
+        } else if (quote && ch === quote) {
+            if (shellType === "pwsh" && text[i + 1] === quote) {
+                decoded += text[++i];
+            } else {
+                quote = null;
+            }
+        } else if (!quote && (ch === "'" || ch === '"')) {
+            quote = ch;
+        } else {
+            decoded += ch;
+        }
+    }
+    return decoded;
 }
 
 export interface TokenizeResult {
@@ -99,8 +131,12 @@ export interface TokenizeResult {
     tokenType: CompletionTokenType;
 }
 
-export function tokenizeForCompletion(text: string, cursorIndex: number): TokenizeResult {
-    const all = scanTokens(text);
+export function tokenizeForCompletion(
+    text: string,
+    cursorIndex: number,
+    shellType: ShellType = "unknown"
+): TokenizeResult {
+    const all = scanTokens(text, shellType);
 
     // restrict to the segment containing the cursor: tokens after the last separator
     // at/before the cursor and before the next separator.
@@ -128,13 +164,17 @@ export function tokenizeForCompletion(text: string, cursorIndex: number): Tokeni
         }
     }
 
-    const tokens: CommandToken[] = words.map((t) => ({ text: stripQuotes(t.text), start: t.start, end: t.end }));
+    const tokens: CommandToken[] = words.map((t) => ({
+        text: decodeToken(t.text, shellType),
+        start: t.start,
+        end: t.end,
+    }));
 
     let searchTerm = "";
     let tokenIndex = words.length;
     if (editing != null) {
         tokenIndex = words.indexOf(editing);
-        searchTerm = stripQuotes(text.slice(editing.start, cursorIndex));
+        searchTerm = decodeToken(text.slice(editing.start, cursorIndex), shellType);
     }
 
     let tokenType: CompletionTokenType;
@@ -157,12 +197,13 @@ export function buildCompletionContext(
         cwd: string;
         connId: string;
         shellType: ShellType;
+        shellName?: ShellName;
         env: Record<string, string>;
         recentCommands: string[];
         requestKind?: CompletionContext["requestKind"];
     }
 ): CompletionContext {
-    const tok = tokenizeForCompletion(input.text, input.cursorIndex);
+    const tok = tokenizeForCompletion(input.text, input.cursorIndex, env.shellType);
     return {
         inputText: input.text,
         cursorIndex: input.cursorIndex,
@@ -173,6 +214,7 @@ export function buildCompletionContext(
         cwd: env.cwd,
         connId: env.connId,
         shellType: env.shellType,
+        shellName: env.shellName,
         env: env.env,
         recentCommands: env.recentCommands,
         requestKind: env.requestKind,

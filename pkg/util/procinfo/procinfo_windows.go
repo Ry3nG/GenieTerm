@@ -79,7 +79,10 @@ func MakeGlobalSnapshot() (any, error) {
 // GetProcInfo returns a ProcInfo for the given pid.
 // snap must be a non-nil value returned by MakeGlobalSnapshot.
 // Returns nil, nil if the pid is not present in the snapshot.
-func GetProcInfo(_ context.Context, snap any, pid int32) (*ProcInfo, error) {
+func GetProcInfo(ctx context.Context, snap any, pid int32) (*ProcInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if snap == nil {
 		return nil, fmt.Errorf("procinfo: GetProcInfo requires a snapshot on windows")
 	}
@@ -132,6 +135,7 @@ func GetProcInfo(_ context.Context, snap any, pid int32) (*ProcInfo, error) {
 	if r != 0 {
 		info.VmRSS = int64(mc.WorkingSetSize)
 	}
+	info.User = windowsProcessUser(ctx, handle)
 
 	return info, nil
 }

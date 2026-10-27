@@ -7,7 +7,7 @@ import { getOverrideConfigAtom, globalStore, recordTEvent, WOS } from "@/store/g
 import { base64ToString, fireAndForget } from "@/util/util";
 import debug from "debug";
 import { isCmdBlockCommandPlaceholder, makeCmdBlockCommandTooLargePlaceholder } from "./cmdblocks";
-import { normalizeShellType } from "./completion/types";
+import { normalizeShellName, normalizeShellType } from "./completion/types";
 import type { TermWrap } from "./termwrap";
 
 const dlog = debug("wave:termwrap");
@@ -291,6 +291,7 @@ export function decodeOsc16162CommandText(cmd64: string | null | undefined): str
 function handleShellIntegrationMetadata(termWrap: TermWrap, data: { shell?: string; integration?: boolean }) {
     if (data.shell) {
         globalStore.set(termWrap.shellTypeAtom, normalizeShellType(data.shell));
+        globalStore.set(termWrap.shellNameAtom, normalizeShellName(data.shell));
     }
     if (data.integration != null) {
         globalStore.set(termWrap.shellIntegrationDisabledAtom, data.integration === false);

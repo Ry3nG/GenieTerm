@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"runtime"
 
 	"github.com/Ry3nG/GenieTerm/pkg/baseds"
 	"github.com/Ry3nG/GenieTerm/pkg/waveobj"
@@ -47,9 +46,6 @@ func badgeRun(cmd *cobra.Command, args []string) (rtnErr error) {
 		sendActivity("badge", rtnErr == nil)
 	}()
 
-	if badgePid > 0 && runtime.GOOS == "windows" {
-		return fmt.Errorf("--pid flag is not supported on Windows")
-	}
 	if badgePid > 0 && !cmd.Flags().Changed("priority") {
 		badgePriority = 5
 	}

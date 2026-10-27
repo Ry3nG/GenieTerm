@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { quotePowerShellPath } from "@/util/shellquote";
 import { parseTransferPath } from "@/util/transferutil";
 import { isLocalConnName } from "@/util/util";
 import type { ShellType } from "./completion/types";
@@ -195,13 +196,7 @@ export function quoteForTerminalPaste(filePath: string, context: TerminalDropCon
     const manualSsh =
         context.terminalShellIntegrationStatus === "running-command" && getManualSshTarget(context.terminalLastCommand);
     if (context.terminalShellType === "pwsh" && !manualSsh) {
-        if (filePath === "~") {
-            return "$HOME";
-        }
-        if (filePath.startsWith("~/") || filePath.startsWith("~\\")) {
-            return `($HOME + '${filePath.slice(1).replace(/'/g, "''")}')`;
-        }
-        return `'${filePath.replace(/'/g, "''")}'`;
+        return quotePowerShellPath(filePath);
     }
     if (filePath === "~") {
         return "~";

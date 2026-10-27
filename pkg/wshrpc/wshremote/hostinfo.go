@@ -198,6 +198,14 @@ func collectHostInfo(ctx context.Context) wshrpc.HostInfo {
 		if cpus, err := cpu.InfoWithContext(ctx); err == nil && len(cpus) > 0 {
 			info.CpuModel = cpus[0].ModelName
 		}
+	case "windows":
+		info.Os = "Windows"
+		if product, _, version, err := host.PlatformInformationWithContext(ctx); err == nil {
+			info.Os = strings.TrimSpace(product + " " + version)
+		}
+		if cpus, err := cpu.InfoWithContext(ctx); err == nil && len(cpus) > 0 {
+			info.CpuModel = strings.TrimSpace(cpus[0].ModelName)
+		}
 	}
 	if path := nvidiaBinary.find(time.Now()); path != "" {
 		if text, err := runHostCommand(ctx, path, "--query-gpu=driver_version", "--format=csv,noheader"); err == nil {

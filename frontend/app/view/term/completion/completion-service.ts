@@ -14,6 +14,8 @@ export type TermCompletionServiceOptions = {
 };
 
 export const DefaultProviderTimeoutMs = 1500;
+// Starting PowerShell and discovering its cmdlets can exceed the usual provider budget on a cold profile.
+const PowerShellProviderTimeoutMs = 5000;
 
 function matchesShell(provider: CompletionProvider, ctx: CompletionContext): boolean {
     return provider.shellTypes == null || provider.shellTypes.includes(ctx.shellType);
@@ -56,11 +58,14 @@ export class TermCompletionService {
 
     constructor(providers: CompletionProvider[] = [], options: TermCompletionServiceOptions = {}) {
         this.providers = providers;
-        this.providerTimeoutMs = options.providerTimeoutMs ?? DefaultProviderTimeoutMs;
+        this.providerTimeoutMs = options.providerTimeoutMs;
     }
 
     private async provideWithTimeout(provider: CompletionProvider, ctx: CompletionContext): Promise<CompletionItem[]> {
-        if (this.providerTimeoutMs <= 0) {
+        const timeoutMs =
+            this.providerTimeoutMs ??
+            (ctx.shellType === "pwsh" ? PowerShellProviderTimeoutMs : DefaultProviderTimeoutMs);
+        if (timeoutMs <= 0) {
             return provider.provideCompletions(ctx);
         }
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -69,13 +74,8 @@ export class TermCompletionService {
                 provider.provideCompletions(ctx),
                 new Promise<never>((_, reject) => {
                     timeoutId = setTimeout(
-                        () =>
-                            reject(
-                                new Error(
-                                    `completion provider ${provider.id} timed out after ${this.providerTimeoutMs}ms`
-                                )
-                            ),
-                        this.providerTimeoutMs
+                        () => reject(new Error(`completion provider ${provider.id} timed out after ${timeoutMs}ms`)),
+                        timeoutMs
                     );
                 }),
             ]);

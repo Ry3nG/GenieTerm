@@ -78,6 +78,105 @@ function makeTermModel(input: TermInputBuffer = { text: "cd GenieTerm/", cursorI
     return model;
 }
 
+describe("TermViewModel connection recovery", () => {
+    function conn(overrides: Partial<ConnStatus> = {}): ConnStatus {
+        return {
+            connection: "saved-ssh-host",
+            status: "disconnected",
+            connected: false,
+            wshenabled: false,
+            hasconnected: true,
+            activeconnnum: 1,
+            ...overrides,
+        };
+    }
+
+    function setup(initial: ConnStatus) {
+        const model = makeTermModel();
+        const statusAtom = jotai.atom(initial);
+        model.connStatus = statusAtom;
+        model.lastConnStatus = initial;
+        const resync = vi.fn().mockResolvedValue(undefined);
+        Object.assign(model.termRef.current, { hasResized: true, resyncController: resync });
+        const unsubscribe = globalStore.sub(statusAtom, () =>
+            model.handleConnStatusChange(globalStore.get(statusAtom))
+        );
+        return { model, resync, unsubscribe, publish: (status: ConnStatus) => globalStore.set(statusAtom, status) };
+    }
+
+    it("retries after a background helper upgrade becomes ready on an already connected SSH session", () => {
+        const { resync, publish, unsubscribe } = setup(conn());
+        try {
+            const installing = conn({
+                status: "connected",
+                connected: true,
+                nowshreason: "installing wsh in background",
+            });
+            publish(installing);
+            expect(resync).toHaveBeenCalledOnce();
+            publish({ ...installing, wshinstallpct: 50 });
+            publish({ ...installing, wshinstallpct: 100 });
+            expect(resync).toHaveBeenCalledOnce();
+
+            publish({ ...installing, wshenabled: true, nowshreason: "", wshversion: "1.5.1" });
+            expect(resync).toHaveBeenCalledTimes(2);
+            expect(resync).toHaveBeenLastCalledWith("resync handler");
+            publish({ ...installing, wshenabled: true, wshversion: "1.5.1", connhealthstatus: "healthy" });
+            expect(resync).toHaveBeenCalledTimes(2);
+        } finally {
+            unsubscribe();
+        }
+    });
+
+    it("does not restart for helper progress or metadata, but retries when helper availability recovers", () => {
+        const ready = conn({ status: "connected", connected: true, wshenabled: true });
+        const { model, resync, publish, unsubscribe } = setup(ready);
+        try {
+            model.handleConnStatusChange(ready);
+            publish({ ...ready, wshversion: "1.5.1", wshinstallpct: 100 });
+            publish({ ...ready, wshenabled: false, wsherror: "helper restarting" });
+            expect(resync).not.toHaveBeenCalled();
+            publish(ready);
+            expect(resync).toHaveBeenCalledOnce();
+        } finally {
+            unsubscribe();
+        }
+    });
+
+    it("preserves disconnect and connection-switch resync without reacting to disconnected helper metadata", () => {
+        const { resync, publish, unsubscribe } = setup(
+            conn({ status: "connected", connected: true, wshenabled: true })
+        );
+        try {
+            publish(conn());
+            expect(resync).toHaveBeenCalledOnce();
+            publish(conn({ wshenabled: true }));
+            expect(resync).toHaveBeenCalledOnce();
+            publish(conn({ connection: "another-ssh-host" }));
+            expect(resync).toHaveBeenCalledTimes(2);
+            publish(conn({ connection: "another-ssh-host", status: "connected", connected: true, wshenabled: true }));
+            expect(resync).toHaveBeenCalledTimes(3);
+        } finally {
+            unsubscribe();
+        }
+    });
+
+    it("does not resync before the terminal has its initial fitted size", () => {
+        const { model, resync, publish, unsubscribe } = setup(conn());
+        try {
+            model.termRef.current.hasResized = false;
+            const ready = conn({ status: "connected", connected: true, wshenabled: true });
+            publish(ready);
+            expect(resync).not.toHaveBeenCalled();
+            model.termRef.current.hasResized = true;
+            publish({ ...ready, connhealthstatus: "healthy" });
+            expect(resync).toHaveBeenCalledOnce();
+        } finally {
+            unsubscribe();
+        }
+    });
+});
+
 describe("TermViewModel completion key handling", () => {
     it("broadcasts only to basic terminals owned by the active source tab", () => {
         const source = makeTermModel();

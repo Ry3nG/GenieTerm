@@ -89,7 +89,8 @@ function deleteRange(buffer: TermInputBuffer, start: number, end: number): TermI
 // Input typed while a command runs is either consumed by that program or queued as
 // typeahead for the next prompt; signals and a bare Enter never reach the next line editor.
 export function isTypeaheadInput(data: string): boolean {
-    for (const char of data ?? "") {
+    data = (data ?? "").replaceAll("\x1b[I", "").replaceAll("\x1b[O", "");
+    for (const char of data) {
         if (!NonTypeaheadChars.has(char)) {
             return true;
         }
@@ -120,6 +121,12 @@ export function applyPromptInputData(buffer: TermInputBuffer, data: string): Ter
         }
 
         const char = data[idx];
+        // Focus reporting is enabled by shells such as PSReadLine. Opening an app
+        // dialog sends these notifications without editing the shell's prompt.
+        if (data.startsWith("\x1b[I", idx) || data.startsWith("\x1b[O", idx)) {
+            idx += 3;
+            continue;
+        }
         if (char === "\r" || char === "\n" || char === "\x03") {
             return emptyPromptInputBuffer();
         }

@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { expandHomePath } from "@/util/filepath";
 import * as electron from "electron";
 import { FastAverageColor } from "fast-average-color";
 import fs from "fs";
@@ -660,7 +661,7 @@ export function initIpcHandlers() {
 
     electron.ipcMain.on("open-native-path", (event, filePath: string) => {
         console.log("open-native-path", filePath);
-        filePath = filePath.replace("~", electronApp.getPath("home"));
+        filePath = expandHomePath(filePath, electronApp.getPath("home"), unamePlatform === "win32");
         fireAndForget(() =>
             callWithOriginalXdgCurrentDesktopAsync(() =>
                 electron.shell.openPath(filePath).then((excuse) => {

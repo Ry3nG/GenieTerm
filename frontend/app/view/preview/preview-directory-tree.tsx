@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
 import * as React from "react";
 import { confirmFileDelete, isIconValid, isParentDirEntry } from "./preview-directory-utils";
+import { getPreviewFileName } from "./preview-file-path";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
 
@@ -60,7 +61,7 @@ function sortEntries(entries: FileInfo[]): FileInfo[] {
 }
 
 export function makeFileTreeNodeContextMenu(ctx: FileTreeNodeMenuCtx, fileInfo: FileInfo): ContextMenuItem[] {
-    const fileName = fileInfo.name ?? fileInfo.path.split("/").pop() ?? fileInfo.path;
+    const fileName = fileInfo.name ?? getPreviewFileName(fileInfo.path, ctx.connName);
     const menu: ContextMenuItem[] = [
         {
             label: "Copy File Name",

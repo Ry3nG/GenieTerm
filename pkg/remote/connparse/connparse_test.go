@@ -391,6 +391,17 @@ func TestParseURI_WindowsFileURI(t *testing.T) {
 	}
 }
 
+func TestRoutedDrivePathsKeepOriginSemantics(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{"C:/Users/中文 O'Brien/file%20name", "/C:/literal-unix-directory", "/z:/literal-unix-directory"} {
+		origin := &connparse.Connection{Scheme: connparse.ConnectionTypeWsh, Host: "local", Path: path}
+		parsed, err := connparse.ParseURI(origin.GetFullURI())
+		if err != nil || *parsed != *origin {
+			t.Fatalf("cross-host path changed: origin=%#v uri=%q parsed=%#v err=%v", origin, origin.GetFullURI(), parsed, err)
+		}
+	}
+}
+
 func TestParseURI_FileURIWithHost(t *testing.T) {
 	t.Parallel()
 	cstr := "file://localhost/shared/out.txt"

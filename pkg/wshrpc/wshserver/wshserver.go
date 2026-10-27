@@ -450,10 +450,26 @@ func (ws *WshServer) DeleteBlockCommand(ctx context.Context, data wshrpc.Command
 	if err != nil {
 		return fmt.Errorf("error deleting block: %w", err)
 	}
-	wcore.QueueLayoutActionForTab(ctx, tabId, waveobj.LayoutActionData{
-		ActionType: wcore.LayoutActionDataType_Remove,
-		BlockId:    data.BlockId,
-	})
+	tab, err := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+	if err != nil {
+		return fmt.Errorf("error checking remaining tab: %w", err)
+	}
+	// Deleting its last block recursively removes the tab and its layout.
+	if tab != nil {
+		err = wcore.QueueLayoutAction(ctx, tab.LayoutState, waveobj.LayoutActionData{
+			ActionType: wcore.LayoutActionDataType_Remove,
+			BlockId:    data.BlockId,
+		})
+		if err != nil {
+			if !errors.Is(err, wstore.ErrNotFound) {
+				return fmt.Errorf("error queuing block removal: %w", err)
+			}
+			remainingTab, lookupErr := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+			if lookupErr != nil || remainingTab != nil {
+				return fmt.Errorf("error queuing block removal: %w", err)
+			}
+		}
+	}
 	updates := waveobj.ContextGetUpdatesRtn(ctx)
 	wps.Broker.SendUpdateEvents(updates)
 	return nil

@@ -51,7 +51,13 @@ import {
     type CommandInlineAIRequestHandler,
 } from "./command-composer";
 import { applyPromptInputData, emptyPromptInputBuffer, isTypeaheadInput } from "./completion/input-mirror";
-import { normalizeShellType, type ShellType, type TermInputBuffer } from "./completion/types";
+import {
+    normalizeShellName,
+    normalizeShellType,
+    type ShellName,
+    type ShellType,
+    type TermInputBuffer,
+} from "./completion/types";
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -201,6 +207,7 @@ export class TermWrap {
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
     shellIntegrationDisabledAtom: jotai.PrimitiveAtom<boolean>;
     shellTypeAtom: jotai.PrimitiveAtom<ShellType>;
+    shellNameAtom: jotai.PrimitiveAtom<ShellName>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
     claudeCodeActiveAtom: jotai.PrimitiveAtom<boolean>;
     nodeModel: BlockNodeModel; // this can be null
@@ -253,6 +260,7 @@ export class TermWrap {
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
         this.shellIntegrationDisabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellTypeAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellType>;
+        this.shellNameAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellName>;
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
         this.localCompletionInputBuffer = emptyPromptInputBuffer();
@@ -613,6 +621,7 @@ export class TermWrap {
                 oref: WOS.makeORef("block", this.blockId),
             });
             let shellState: ShellIntegrationStatus = null;
+            globalStore.set(this.shellNameAtom, normalizeShellName(rtInfo?.["shell:type"] as string));
 
             if (rtInfo && rtInfo["shell:integration"]) {
                 shellState = rtInfo["shell:state"] as ShellIntegrationStatus;
@@ -754,10 +763,20 @@ export class TermWrap {
     }
 
     getRunBlockedReason(command: string): string | null {
-        return getCommandRunBlockedReason(command, {
+        const reason = getCommandRunBlockedReason(command, {
             shellIntegrationStatus: globalStore.get(this.shellIntegrationStatusAtom),
             altScreenActive: globalStore.get(this.altScreenActiveAtom),
         });
+        if (reason != null) {
+            return reason;
+        }
+        if (globalStore.get(this.shellTypeAtom) === "pwsh") {
+            const input = globalStore.get(this.currentInputBufferAtom);
+            if (input == null || /[\r\n]/.test(input.text)) {
+                return "Clear the PowerShell prompt before running a command";
+            }
+        }
+        return null;
     }
 
     hasBracketedPaste(): boolean {
@@ -767,12 +786,23 @@ export class TermWrap {
     // ctrl-e ctrl-u drops whatever is already typed at the prompt (works in the default
     // emacs keymaps of bash, zsh and fish).
     private makePromptLineData(command: string): string {
+        let clearLine = "\x05\x15";
+        if (globalStore.get(this.shellTypeAtom) === "pwsh") {
+            const input = globalStore.get(this.currentInputBufferAtom);
+            if (input == null || /[\r\n]/.test(input.text)) {
+                return null;
+            }
+            // PSReadLine's Windows keymap inserts Ctrl-E/Ctrl-U literally. End and
+            // Backspace work in both Windows and Emacs modes; surplus backspaces
+            // at the start are harmless when a Unicode grapheme spans code units.
+            clearLine = "\x1b[F" + "\x7f".repeat(input.text.length);
+        }
         // Newlines and tabs would act as keystrokes (run a line, trigger completion), so
         // they go through bracketed paste.
         if (this.hasBracketedPaste() && /[\r\n\t]/.test(command)) {
-            return `\x05\x15\x1b[200~${command}\x1b[201~`;
+            return `${clearLine}\x1b[200~${command}\x1b[201~`;
         }
-        return "\x05\x15" + command;
+        return clearLine + command;
     }
 
     // Types a command at the idle prompt and submits it, through the same path as user
@@ -805,7 +835,11 @@ export class TermWrap {
             this.terminal.paste(command);
             return true;
         }
-        this.handleTermData(this.makePromptLineData(command));
+        const data = this.makePromptLineData(command);
+        if (data == null) {
+            return false;
+        }
+        this.handleTermData(data);
         return true;
     }
 
@@ -1171,6 +1205,9 @@ export class TermWrap {
     }
 
     handleResize() {
+        if (this.disposed) {
+            return;
+        }
         if (!this.paneActive) {
             this.pendingResize = true;
             return;
@@ -1187,7 +1224,9 @@ export class TermWrap {
                 `${this.terminal.rows}x${this.terminal.cols}`
             );
             if (this.controllerReady) {
-                RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize });
+                fireAndForget(() =>
+                    RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize })
+                );
             }
         }
         dlog("resize", `${this.terminal.rows}x${this.terminal.cols}`, `${oldRows}x${oldCols}`, this.hasResized);
