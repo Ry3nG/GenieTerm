@@ -1,7 +1,8 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as monaco from "monaco-editor";
+import { createWebWorker } from "monaco-editor/esm/vs/common/workers.js";
 import "monaco-editor/esm/vs/language/css/monaco.contribution";
 import "monaco-editor/esm/vs/language/html/monaco.contribution";
 import "monaco-editor/esm/vs/language/json/monaco.contribution";
@@ -55,7 +56,9 @@ export function loadMonaco() {
             focusBorder: "#00000000",
         },
     });
-    configureMonacoYaml(monaco, {
+    // monaco-yaml still uses the pre-0.55 worker options and initialization handshake.
+    const yamlMonaco = { ...monaco, editor: { ...monaco.editor, createWebWorker } };
+    configureMonacoYaml(yamlMonaco, {
         validate: true,
         schemas: [],
     });
