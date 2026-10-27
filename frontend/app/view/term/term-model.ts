@@ -117,6 +117,7 @@ export class TermViewModel implements ViewModel {
     gitRefreshTimer: ReturnType<typeof setTimeout> = null;
     gitCwdUnsubFn: () => void;
     lastDoneBlockCount = 0;
+    lastConnStatus: ConnStatus;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.viewType = "term";
@@ -352,6 +353,7 @@ export class TermViewModel implements ViewModel {
             const connAtom = getConnStatusAtom(connName);
             return get(connAtom);
         });
+        this.lastConnStatus = globalStore.get(this.connStatus);
         this.fontSizeAtom = useBlockAtom(blockId, "fontsizeatom", () => {
             return jotai.atom<number>((get) => {
                 const blockData = get(this.blockAtom);
@@ -589,6 +591,23 @@ export class TermViewModel implements ViewModel {
         this.inputQueue = this.inputQueue
             .then(() => RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data }))
             .catch((error) => console.error("Terminal input failed", error));
+    }
+
+    handleConnStatusChange(connStatus: ConnStatus) {
+        if (!this.termRef.current?.hasResized) {
+            return;
+        }
+        const previous = this.lastConnStatus;
+        this.lastConnStatus = connStatus;
+        const isConnected = connStatus?.status == "connected";
+        const wasConnected = previous?.status == "connected";
+        // SSH can connect before a background helper upgrade finishes. A resync
+        // rejected during installation must retry once the helper can attach jobs.
+        const helperBecameReady = isConnected && connStatus?.wshenabled && !previous?.wshenabled;
+        if (isConnected == wasConnected && connStatus?.connection == previous?.connection && !helperBecameReady) {
+            return;
+        }
+        this.termRef.current.resyncController("resync handler");
     }
 
     getCurrentInputBuffer(): TermInputBuffer | null {

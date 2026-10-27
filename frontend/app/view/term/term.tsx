@@ -86,22 +86,10 @@ TerminalPresentationShell.displayName = "TerminalPresentationShell";
 
 const TermResyncHandler = React.memo(({ model }: TerminalViewProps) => {
     const connStatus = jotai.useAtomValue(model.connStatus);
-    const [lastConnStatus, setLastConnStatus] = React.useState<ConnStatus>(connStatus);
 
     React.useEffect(() => {
-        if (!model.termRef.current?.hasResized) {
-            return;
-        }
-        const isConnected = connStatus?.status == "connected";
-        const wasConnected = lastConnStatus?.status == "connected";
-        const curConnName = connStatus?.connection;
-        const lastConnName = lastConnStatus?.connection;
-        if (isConnected == wasConnected && curConnName == lastConnName) {
-            return;
-        }
-        model.termRef.current?.resyncController("resync handler");
-        setLastConnStatus(connStatus);
-    }, [connStatus]);
+        model.handleConnStatusChange(connStatus);
+    }, [connStatus, model]);
 
     return null;
 });
