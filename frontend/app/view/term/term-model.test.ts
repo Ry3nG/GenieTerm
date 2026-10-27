@@ -270,6 +270,35 @@ describe("TermViewModel command history navigation", () => {
 });
 
 describe("TermViewModel completion key handling", () => {
+    it("offers manual completion at a ready prompt even when its marker is still running", () => {
+        const model = makeTermModel();
+        const terminal = { hasSelection: () => false, buffer: { active: { type: "normal" } }, focus: vi.fn() };
+        const status = jotai.atom("ready");
+        const blocks = [{ id: 1, state: "running", command: null }];
+        Object.assign(model.termRef.current, {
+            terminal,
+            shellIntegrationStatusAtom: status,
+            cmdBlocks: blocks,
+            cmdBlocksAtom: jotai.atom(blocks),
+        });
+        model.nodeModel = { isMagnified: jotai.atom(false), focusNode: vi.fn() } as any;
+        model.termMode = jotai.atom("term");
+        model.getSettingsMenuItems = () => [];
+
+        const completionItem = () => model.getContextMenuItems().find((item) => item.label === "Show Completions");
+        expect(completionItem().enabled).toBe(true);
+        completionItem().click();
+        expect(model.nodeModel.focusNode).toHaveBeenCalledOnce();
+        expect(terminal.focus).toHaveBeenCalledOnce();
+        expect(globalStore.get(model.completionModel.manualRequestVersionAtom)).toBe(1);
+
+        globalStore.set(status, "running-command");
+        expect(completionItem().enabled).toBe(false);
+        globalStore.set(status, "ready");
+        terminal.buffer.active.type = "alternate";
+        expect(completionItem().enabled).toBe(false);
+    });
+
     it("Escape cancels manual completion before results arrive without forwarding the key", async () => {
         const model = makeTermModel();
         let resolve: (items: CompletionItem[]) => void;

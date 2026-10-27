@@ -881,7 +881,7 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
     const handleContextMenu = React.useCallback(
         (e: React.MouseEvent<HTMLDivElement>) => {
             const rightClickPaste = globalStore.get(getSettingsKeyAtom("app:rightclickpaste"));
-            if (rightClickPaste) {
+            if (rightClickPaste && !e.shiftKey) {
                 e.preventDefault();
                 e.stopPropagation();
                 getApi().nativePaste();

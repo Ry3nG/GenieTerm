@@ -1439,7 +1439,7 @@ export class TermViewModel implements ViewModel {
             label: "Show Completions",
             enabled:
                 this.getCurrentInputBuffer() != null &&
-                this.getRunningCmdBlockId() === null &&
+                readAtom(this.termRef.current?.shellIntegrationStatusAtom) === "ready" &&
                 this.termRef.current?.terminal.buffer.active.type !== "alternate",
             click: () => {
                 this.nodeModel.focusNode();
