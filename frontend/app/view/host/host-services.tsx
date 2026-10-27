@@ -90,7 +90,7 @@ function ServiceEditor({ model, draft }: { model: HostViewModel; draft: SavedPor
                 />
                 <span>
                     Restore when this host connects
-                    <span className="mt-0.5 inline-block text-[11px] leading-4 text-muted">
+                    <span className="mt-0.5 flex text-[11px] leading-4 text-muted">
                         Reopens the local tunnel on a new SSH connection, including after restarting GenieTerm.
                     </span>
                 </span>
