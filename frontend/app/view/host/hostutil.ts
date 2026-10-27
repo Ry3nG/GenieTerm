@@ -1,16 +1,16 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-export type HostTab = "overview" | "processes" | "ports";
+export type HostTab = "overview" | "processes" | "ports" | "sessions";
 
-export const HostTabs: HostTab[] = ["overview", "processes", "ports"];
+export const HostTabs: HostTab[] = ["overview", "processes", "ports", "sessions"];
 
 export const HostHistoryLength = 60;
 
 const GiB = 1024 * 1024 * 1024;
 
 export function normalizeHostTab(value: unknown, fallback: HostTab = "overview"): HostTab {
-    if (value === "overview" || value === "processes" || value === "ports") {
+    if (value === "overview" || value === "processes" || value === "ports" || value === "sessions") {
         return value;
     }
     return fallback;

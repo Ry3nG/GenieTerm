@@ -235,6 +235,7 @@ export async function copyWithOverwriteConfirmation(
     itemType: "file" | "folder",
     deps: CopyWithOverwriteConfirmationDeps
 ): Promise<FileCopyResult> {
+    if (deps.signal?.aborted) return ConfirmationCanceledResult;
     const initialResult = await runFileCopy(data, deps);
     if (initialResult.ok) {
         return initialResult;

@@ -29,6 +29,13 @@ function job(overrides: Partial<TransferJob>): TransferJob {
 }
 
 describe("transferdisplay", () => {
+    it("labels remote copies without presenting them as downloads or uploads", () => {
+        expect(summarizeTransferJob(job({ operation: "copy", status: "running" }))).toMatchObject({
+            detail: "Copying…",
+            iconClass: "fa-regular fa-copy",
+        });
+        expect(summarizeTransferJob(job({ operation: "copy", status: "completed" })).detail).toBe("Copied");
+    });
     it("maps queue statuses to user-visible labels", () => {
         expect(getTransferStatusLabel("queued")).toBe("Queued");
         expect(getTransferStatusLabel("running")).toBe("Running");

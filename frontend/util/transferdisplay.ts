@@ -122,6 +122,17 @@ export function isRetryableTransferJob(job: TransferJob): boolean {
 }
 
 function getTransferDetail(job: TransferJob): string {
+    if (job.operation === "copy") {
+        if (job.cancelRequestedAt != null && job.status === "running")
+            return "Stopping after the current copy finishes";
+        return {
+            queued: "Waiting to copy",
+            running: "Copying…",
+            completed: "Copied",
+            failed: "Copy failed",
+            canceled: "Canceled",
+        }[job.status];
+    }
     const isUpload = job.operation === "upload";
     switch (job.status) {
         case "queued":
@@ -184,5 +195,6 @@ function getTransferTone(status: TransferJobStatus): TransferDisplayTone {
 }
 
 function getTransferIconClass(operation: TransferJob["operation"]): string {
+    if (operation === "copy") return "fa-regular fa-copy";
     return operation === "upload" ? "fa-solid fa-arrow-up" : "fa-solid fa-arrow-down";
 }

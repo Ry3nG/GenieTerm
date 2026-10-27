@@ -3,6 +3,12 @@
   "$defs": {
     "ConnKeywords": {
       "properties": {
+        "conn:services": {
+          "items": {
+            "$ref": "#/$defs/SavedPortService"
+          },
+          "type": "array"
+        },
         "conn:wshenabled": {
           "type": "boolean"
         },
@@ -147,6 +153,38 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "SavedPortService": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "remotehost": {
+          "type": "string"
+        },
+        "remoteport": {
+          "type": "integer"
+        },
+        "localport": {
+          "type": "integer"
+        },
+        "restore": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "remotehost",
+        "remoteport",
+        "localport",
+        "restore"
+      ]
     }
   },
   "additionalProperties": {

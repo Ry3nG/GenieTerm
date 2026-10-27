@@ -4,6 +4,7 @@
 import type { BlockStatusActionId, TerminalBlockStatusInputs } from "@/app/block/blockstatus";
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import { emitOnboardingEvent, OnboardingAnchor } from "@/app/onboarding/onboarding-events";
+import { setActiveTab } from "@/app/store/activetab";
 import { appHandleKeyDown } from "@/app/store/keymodel";
 import { getLocalHomeDir } from "@/app/store/localhome";
 import { modalsModel } from "@/app/store/modalmodel";
@@ -38,6 +39,7 @@ import {
     WOS,
 } from "@/store/global";
 import * as services from "@/store/services";
+import type { CommandHistoryEntry, CommandLibraryContext } from "@/util/commandlibrary";
 import * as keyutil from "@/util/keyutil";
 import { formatCwdLabel } from "@/util/pathlabel";
 import { isMacOS, isWindows } from "@/util/platformutil";
@@ -50,9 +52,12 @@ import {
     isLikelyNaturalLanguageCommand,
     type CommandInlineAIRequestOptions,
 } from "./command-composer";
+import { matchesRetainedCommand } from "./command-history";
+import { CommandLibraryModel, type CommandLibraryMode } from "./command-library-model";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
 import { makeGitChip } from "./gitchip";
+import { captureCommandOutput, type OutputSnapshot } from "./output-inspector";
 import { TermCommandAiModel } from "./term-commandai";
 import { TermForwardModel } from "./term-forward";
 import {
@@ -112,6 +117,7 @@ export class TermViewModel implements ViewModel {
     commandAiEnabledAtom: jotai.Atom<boolean>;
     forward: TermForwardModel;
     completionModel = new TermCompletionModel();
+    outputSnapshotAtom = jotai.atom(null) as jotai.PrimitiveAtom<OutputSnapshot>;
     gitStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<GitStatusResponse>;
     gitRefreshEpoch = 0;
     gitRefreshTimer: ReturnType<typeof setTimeout> = null;
@@ -376,6 +382,13 @@ export class TermViewModel implements ViewModel {
             const connStatus = get(this.connStatus);
             const isCmd = get(this.isCmdController);
             const rtn: IconButtonDecl[] = [];
+
+            rtn.push({
+                elemtype: "iconbutton",
+                icon: "clock-rotate-left",
+                title: "Command history and recipes",
+                click: () => this.openCommandLibrary(),
+            });
 
             if (get(getSettingsKeyAtom("debug:webglstatus"))) {
                 const webglButton = this.getWebGlIconButton(get);
@@ -689,6 +702,87 @@ export class TermViewModel implements ViewModel {
             target = next.length > 0 ? next[0] : lines[lines.length - 1];
         }
         terminal.scrollToLine(target);
+    }
+
+    getCommandLibraryContext(): CommandLibraryContext {
+        const meta = globalStore.get(this.blockAtom)?.meta;
+        return {
+            blockid: this.blockId,
+            tabid: this.tabModel.tabId,
+            connection: meta?.connection ?? "local",
+            cwd: meta?.["cmd:cwd"] ?? "",
+            shell: this.termRef.current ? globalStore.get(this.termRef.current.shellTypeAtom) : "unknown",
+        };
+    }
+
+    openCommandLibrary(mode: CommandLibraryMode = "history", command?: string) {
+        this.completionModel.invalidate();
+        globalStore.set(this.outputSnapshotAtom, null);
+        CommandLibraryModel.getInstance().open(this.getCommandLibraryContext(), mode, command);
+    }
+
+    insertLibraryCommand(command: string): boolean {
+        this.completionModel.suppressAutoFor(command);
+        return this.termRef.current?.insertCommand(command) ?? false;
+    }
+
+    hasHistoryOutput(entry: CommandHistoryEntry): boolean | undefined {
+        const component = getBlockComponentModel(entry.blockid);
+        const model = component?.viewModel as TermViewModel;
+        if (model?.viewType !== "term" || !model.termRef.current?.loaded) {
+            return undefined;
+        }
+        return model.termRef.current.cmdBlocks.some((block) => matchesRetainedCommand(entry, entry.blockid, block));
+    }
+
+    async openHistoryCommand(entry: CommandHistoryEntry): Promise<boolean> {
+        const info = await RpcApi.BlockInfoCommand(TabRpcClient, entry.blockid);
+        const route = makeFeBlockRouteId(entry.blockid);
+        if (this.hasHistoryOutput(entry) === false) {
+            return false;
+        }
+        await services.WorkspaceService.SetActiveTab(info.workspaceid, info.tabid);
+        if (globalStore.get(atoms.workspaceId) !== info.workspaceid) {
+            getApi().switchWorkspace(info.workspaceid);
+        } else {
+            setActiveTab(info.tabid);
+        }
+        const tabRoute = `tab:${info.tabid}`;
+        if (!(await RpcApi.WaitForRouteCommand(TabRpcClient, { routeid: tabRoute, waitms: 5000 }))) {
+            throw new Error("The original tab is still opening. Try again in a moment.");
+        }
+        await RpcApi.SetBlockFocusCommand(TabRpcClient, entry.blockid, { route: tabRoute });
+        if (!(await RpcApi.WaitForRouteCommand(TabRpcClient, { routeid: route, waitms: 5000 }))) {
+            throw new Error("The original terminal is still opening. Try again in a moment.");
+        }
+        const result = await RpcApi.TermCommandBlockCommand(
+            TabRpcClient,
+            {
+                commandblockid: entry.commandblockid,
+                startts: entry.startts,
+                command: entry.command,
+                focus: true,
+            },
+            { route, timeout: 5000 }
+        );
+        return result.retained;
+    }
+
+    inspectCommandOutput(block?: CmdBlock) {
+        const wrap = this.termRef.current;
+        if (!wrap || wrap.terminal.buffer.active.type === "alternate") {
+            return;
+        }
+        const selected = block ?? this.findLastCommandBlock();
+        if (!selected || selected.startMarker?.line < 0) {
+            return;
+        }
+        this.completionModel.invalidate();
+        CommandLibraryModel.getInstance().close();
+        globalStore.set(
+            this.outputSnapshotAtom,
+            captureCommandOutput(selected, wrap.terminal, globalStore.get(this.blockAtom)?.meta?.connection)
+        );
     }
 
     jumpPastOutput() {
@@ -1011,9 +1105,23 @@ export class TermViewModel implements ViewModel {
     }
 
     handleTerminalKeydown(event: KeyboardEvent): boolean {
+        if (event.isComposing || event.keyCode === 229) {
+            return true;
+        }
         const waveEvent = keyutil.adaptFromReactOrNativeKeyEvent(event);
         if (waveEvent.type != "keydown") {
             return true;
+        }
+
+        if (
+            keyutil.checkKeyPressed(waveEvent, "Escape") &&
+            globalStore.get(this.completionModel.statusAtom) === "loading" &&
+            globalStore.get(this.completionModel.contextAtom)?.requestKind === "manual"
+        ) {
+            this.completionModel.dismiss();
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
         }
 
         if (globalStore.get(this.completionModel.openAtom)) {
@@ -1327,6 +1435,21 @@ export class TermViewModel implements ViewModel {
         menu.push({ type: "separator" });
 
         const magnified = globalStore.get(this.nodeModel.isMagnified);
+        menu.push({ label: "Command History", click: () => this.openCommandLibrary() });
+        menu.push({ label: "Saved Command Recipes", click: () => this.openCommandLibrary("recipes") });
+        const lastCommand = this.findLastCommandBlock();
+        menu.push({
+            label: "Save Last Command as Recipe…",
+            enabled: lastCommand != null,
+            click: () => this.openCommandLibrary("recipes", lastCommand.command),
+        });
+        menu.push({
+            label: "Inspect Last Command Output",
+            enabled:
+                this.findLastCommandBlock() != null &&
+                this.termRef.current?.terminal.buffer.active.type !== "alternate",
+            click: () => this.inspectCommandOutput(),
+        });
         menu.push({
             label: magnified ? "Un-Magnify Block" : "Magnify Block",
             click: () => {

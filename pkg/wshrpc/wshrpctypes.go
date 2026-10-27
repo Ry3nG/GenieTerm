@@ -70,6 +70,7 @@ type WshRpcInterface interface {
 	TestMultiArgCommand(ctx context.Context, arg1 string, arg2 int, arg3 bool) (string, error)
 	SetConfigCommand(ctx context.Context, data MetaSettingsType) error
 	SetConnectionsConfigCommand(ctx context.Context, data ConnConfigRequest) error
+	UpdateSavedPortServiceCommand(ctx context.Context, data CommandUpdateSavedPortServiceData) ([]wconfig.SavedPortService, error)
 	GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error)
 	CommandAiStatusCommand(ctx context.Context, data CommandAiStatusRequest) (CommandAiStatus, error)
 	CommandAiModelsCommand(ctx context.Context, data CommandAiModelsRequest) (CommandAiModels, error)
@@ -165,6 +166,7 @@ type WshRpcInterface interface {
 
 	// terminal
 	TermGetScrollbackLinesCommand(ctx context.Context, data CommandTermGetScrollbackLinesData) (*CommandTermGetScrollbackLinesRtnData, error)
+	TermCommandBlockCommand(ctx context.Context, data CommandTermCommandBlockData) (*CommandTermCommandBlockRtnData, error)
 
 	// file
 	WshRpcFileInterface
@@ -545,6 +547,12 @@ type ConnConfigRequest struct {
 	MetaMapType waveobj.MetaMapType `json:"metamaptype"`
 }
 
+type CommandUpdateSavedPortServiceData struct {
+	Host    string                   `json:"host"`
+	Service wconfig.SavedPortService `json:"service"`
+	Remove  bool                     `json:"remove,omitempty"`
+}
+
 type ConnStatus struct {
 	Status                        string `json:"status"`
 	ConnHealthStatus              string `json:"connhealthstatus,omitempty"`
@@ -821,6 +829,17 @@ type CommandSetRTInfoData struct {
 	ORef   waveobj.ORef   `json:"oref"`
 	Data   map[string]any `json:"data" tstype:"ObjRTInfo"`
 	Delete bool           `json:"delete,omitempty"`
+}
+
+type CommandTermCommandBlockData struct {
+	CommandBlockId int    `json:"commandblockid"`
+	StartTs        int64  `json:"startts"`
+	Command        string `json:"command"`
+	Focus          bool   `json:"focus,omitempty"`
+}
+
+type CommandTermCommandBlockRtnData struct {
+	Retained bool `json:"retained"`
 }
 
 type CommandTermGetScrollbackLinesData struct {

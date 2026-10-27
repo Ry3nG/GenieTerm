@@ -6,10 +6,12 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useMemo, useState } from "react";
 import type { HostViewModel } from "./host-model";
+import { HostServices } from "./host-services";
 import {
     forwardStatusText,
     forwardsWithoutListener,
     forwardUrl,
+    getHelperMissing,
     isBackgroundListener,
     isForwardable,
     isLikelyHttp,
@@ -61,7 +63,16 @@ function ForwardActions({
 }) {
     return (
         <div className="flex items-center justify-end gap-1">
-            {openable && (
+            <Tooltip content="Save as a named service" placement="top">
+                <button
+                    className={IconButton}
+                    onClick={() => model.editService(forward)}
+                    aria-label="Save as a named service"
+                >
+                    <i className="fa-regular fa-bookmark text-[12px]" aria-hidden="true" />
+                </button>
+            </Tooltip>
+            {openable && forward.status !== "error" && (
                 <button
                     className={AccentButton}
                     onClick={() => model.openLocalPort(forward.localport)}
@@ -242,11 +253,12 @@ function ForwardPortForm({ model, onDone }: { model: HostViewModel; onDone: () =
     );
 }
 
-export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
+const HostListeningPorts = memo(({ model }: { model: HostViewModel }) => {
     const state = useAtomValue(model.portsAtom);
     const forwards = useAtomValue(model.forwardsAtom);
     const canForward = useAtomValue(model.canForwardAtom);
     const action = useAtomValue(model.forwardActionAtom);
+    const connectionStatus = useAtomValue(model.connStatus);
     const [formOpen, setFormOpen] = useState(false);
     const [showOther, setShowOther] = useState(false);
     const rows = useMemo(() => makePortRows(state.data?.ports ?? [], forwards), [state.data, forwards]);
@@ -259,6 +271,27 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
         action.error &&
         !rows.some((r) => r.port === action.port && r.remoteHost === action.remoteHost);
 
+    if (!model.env.isMock && connectionStatus?.status !== "connected") {
+        return (
+            <div className="px-4 py-8 text-center text-[12px] text-muted">
+                Connect to this host to discover listening ports and start saved services.
+            </div>
+        );
+    }
+    const helperMissing = model.env.isMock ? null : getHelperMissing(connectionStatus);
+    if (helperMissing) {
+        return (
+            <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-[12px] text-muted">
+                Listening port discovery requires the genie helper. Saved tunnels are available above.
+                <button
+                    className={SecondaryButton}
+                    onClick={() => fireAndForget(() => model.updateHelper(helperMissing.turnedOff))}
+                >
+                    Set up helper
+                </button>
+            </div>
+        );
+    }
     if (state.loading && state.data == null) {
         return (
             <div className="flex h-full items-center justify-center text-[13px] text-muted">
@@ -376,4 +409,13 @@ export const HostPorts = memo(({ model }: { model: HostViewModel }) => {
         </div>
     );
 });
-HostPorts.displayName = "HostPorts";
+HostListeningPorts.displayName = "HostListeningPorts";
+
+export function HostPorts({ model }: { model: HostViewModel }) {
+    return (
+        <div>
+            <HostServices model={model} />
+            <HostListeningPorts model={model} />
+        </div>
+    );
+}

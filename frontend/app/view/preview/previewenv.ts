@@ -15,6 +15,7 @@ export type PreviewEnv = WaveEnvSubset<{
         beginTransferJob: WaveEnv["electron"]["beginTransferJob"];
         finishTransferJob: WaveEnv["electron"]["finishTransferJob"];
         getPathForFile: WaveEnv["electron"]["getPathForFile"];
+        downloadFiles: WaveEnv["electron"]["downloadFiles"];
     };
     rpc: {
         ConnEnsureCommand: WaveEnv["rpc"]["ConnEnsureCommand"];

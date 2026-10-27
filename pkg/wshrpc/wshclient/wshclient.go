@@ -817,6 +817,12 @@ func StreamTestCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan wshrpc.Resp
 	return sendRpcRequestResponseStreamHelper[int](w, "streamtest", nil, opts)
 }
 
+// command "termcommandblock", wshserver.TermCommandBlockCommand
+func TermCommandBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandTermCommandBlockData, opts *wshrpc.RpcOpts) (*wshrpc.CommandTermCommandBlockRtnData, error) {
+	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandTermCommandBlockRtnData](w, "termcommandblock", data, opts)
+	return resp, err
+}
+
 // command "termgetscrollbacklines", wshserver.TermGetScrollbackLinesCommand
 func TermGetScrollbackLinesCommand(w *wshutil.WshRpc, data wshrpc.CommandTermGetScrollbackLinesData, opts *wshrpc.RpcOpts) (*wshrpc.CommandTermGetScrollbackLinesRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandTermGetScrollbackLinesRtnData](w, "termgetscrollbacklines", data, opts)
@@ -832,6 +838,12 @@ func TestCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) error {
 // command "testmultiarg", wshserver.TestMultiArgCommand
 func TestMultiArgCommand(w *wshutil.WshRpc, arg1 string, arg2 int, arg3 bool, opts *wshrpc.RpcOpts) (string, error) {
 	resp, err := sendRpcRequestCallHelper[string](w, "testmultiarg", wshrpc.MultiArg{Args: []any{arg1, arg2, arg3}}, opts)
+	return resp, err
+}
+
+// command "updatesavedportservice", wshserver.UpdateSavedPortServiceCommand
+func UpdateSavedPortServiceCommand(w *wshutil.WshRpc, data wshrpc.CommandUpdateSavedPortServiceData, opts *wshrpc.RpcOpts) ([]wconfig.SavedPortService, error) {
+	resp, err := sendRpcRequestCallHelper[[]wconfig.SavedPortService](w, "updatesavedportservice", data, opts)
 	return resp, err
 }
 

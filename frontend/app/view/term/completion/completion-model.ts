@@ -33,6 +33,7 @@ export class TermCompletionModel {
 
     async requestCompletions(service: CompletionServiceLike, ctx: CompletionContext): Promise<void> {
         const requestId = ++this.requestCounter;
+        globalStore.set(this.contextAtom, ctx);
         globalStore.set(this.statusAtom, "loading");
         let items: CompletionItem[] = [];
         try {
@@ -64,6 +65,7 @@ export class TermCompletionModel {
     }
 
     dismiss(): void {
+        this.requestCounter++;
         globalStore.set(this.openAtom, false);
         globalStore.set(this.itemsAtom, []);
         globalStore.set(this.selectedIndexAtom, 0);
@@ -77,7 +79,19 @@ export class TermCompletionModel {
             return;
         }
         const selectedIndex = globalStore.get(this.selectedIndexAtom);
-        globalStore.set(this.selectedIndexAtom, (selectedIndex + delta + items.length) % items.length);
+        const nextIndex = globalStore.get(this.selectionExplicitAtom)
+            ? (selectedIndex + delta + items.length) % items.length
+            : delta < 0
+              ? items.length - 1
+              : 0;
+        this.selectIndex(nextIndex);
+    }
+
+    selectIndex(index: number): void {
+        if (index < 0 || index >= globalStore.get(this.itemsAtom).length) {
+            return;
+        }
+        globalStore.set(this.selectedIndexAtom, index);
         globalStore.set(this.selectionExplicitAtom, true);
     }
 
@@ -88,7 +102,6 @@ export class TermCompletionModel {
     // Drops any in-flight request and closes the popup; used whenever the prompt input
     // changes so a result computed for older input can never be shown or accepted.
     invalidate(): void {
-        this.requestCounter++;
         this.dismiss();
     }
 

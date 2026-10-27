@@ -295,6 +295,7 @@ describe("copyWithOverwriteConfirmation", () => {
             copyWithOverwriteConfirmation(aborted.data, "file", { ...aborted.deps, signal: controller.signal })
         ).resolves.toMatchObject({ canceled: true });
         expect(globalStore.get(aborted.errorMsgAtom)).toBeNull();
+        expect(aborted.copyFile).not.toHaveBeenCalled();
 
         const { errorMsgAtom, copyFile, deps, data } = makeConfirmationHarness();
         const resultPromise = copyWithOverwriteConfirmation(data, "file", deps);

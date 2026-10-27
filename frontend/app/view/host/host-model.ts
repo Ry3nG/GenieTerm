@@ -7,10 +7,11 @@ import { makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { ProcessViewerViewModel } from "@/app/view/processviewer/processviewer";
-import type { MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
+import type { ConnConfigKeyAtomFnType, MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { fireAndForget, isBlank, makeConnRoute } from "@/util/util";
 import * as jotai from "jotai";
 import { HostView } from "./host";
+import { HostSession, makeHostSessions } from "./host-sessions-util";
 import {
     canForwardPorts,
     HostHistoryLength,
@@ -30,13 +31,26 @@ export type HostEnv = WaveEnvSubset<{
         PortForwardStartCommand: WaveEnv["rpc"]["PortForwardStartCommand"];
         PortForwardStopCommand: WaveEnv["rpc"]["PortForwardStopCommand"];
         PortForwardListCommand: WaveEnv["rpc"]["PortForwardListCommand"];
+        JobControllerListCommand: WaveEnv["rpc"]["JobControllerListCommand"];
+        JobControllerConnectedJobsCommand: WaveEnv["rpc"]["JobControllerConnectedJobsCommand"];
+        JobControllerReconnectJobCommand: WaveEnv["rpc"]["JobControllerReconnectJobCommand"];
+        ConnEnsureCommand: WaveEnv["rpc"]["ConnEnsureCommand"];
+        BlockInfoCommand: WaveEnv["rpc"]["BlockInfoCommand"];
+        WaitForRouteCommand: WaveEnv["rpc"]["WaitForRouteCommand"];
+        SetBlockFocusCommand: WaveEnv["rpc"]["SetBlockFocusCommand"];
         ConnReinstallWshCommand: WaveEnv["rpc"]["ConnReinstallWshCommand"];
         SetConnectionsConfigCommand: WaveEnv["rpc"]["SetConnectionsConfigCommand"];
+        UpdateSavedPortServiceCommand: WaveEnv["rpc"]["UpdateSavedPortServiceCommand"];
         SetMetaCommand: WaveEnv["rpc"]["SetMetaCommand"];
     };
     electron: {
         openExternal: WaveEnv["electron"]["openExternal"];
+        switchWorkspace: WaveEnv["electron"]["switchWorkspace"];
+        setActiveTab: WaveEnv["electron"]["setActiveTab"];
     };
+    services: { workspace: WaveEnv["services"]["workspace"] };
+    atoms: { workspaceId: WaveEnv["atoms"]["workspaceId"] };
+    getConnConfigKeyAtom: ConnConfigKeyAtomFnType<"conn:services">;
     isMock: WaveEnv["isMock"];
     getConnStatusAtom: WaveEnv["getConnStatusAtom"];
     getBlockMetaKeyAtom: MetaKeyAtomFnType<"connection" | "host:tab" | "view">;
@@ -144,11 +158,21 @@ export class HostViewModel implements ViewModel {
     processModelAtom = jotai.atom(null) as jotai.PrimitiveAtom<ProcessViewerViewModel>;
     resourceAtom = jotai.atom<HostResource>("summary") as jotai.PrimitiveAtom<HostResource>;
     topProcessesAtom = jotai.atom<TopProcessesState>(null) as jotai.PrimitiveAtom<TopProcessesState>;
+    sessionsAtom = jotai.atom<HostSession[]>([]);
+    sessionsStateAtom = jotai.atom({ loading: false, error: "", updated: 0, busy: "" });
+    serviceDraftAtom = jotai.atom(null) as jotai.PrimitiveAtom<SavedPortService>;
+    serviceActionAtom = jotai.atom({ busy: false, error: "" });
+    servicesPendingAtom = jotai.atom(null) as jotai.PrimitiveAtom<{
+        conn: string;
+        base: SavedPortService[];
+        services: SavedPortService[];
+    }>;
 
     connection: jotai.Atom<string>;
     connStatus: jotai.Atom<ConnStatus>;
     tabAtom: jotai.Atom<HostTab>;
     canForwardAtom: jotai.Atom<boolean>;
+    savedServicesAtom: jotai.Atom<SavedPortService[]>;
 
     disposed = false;
     unsubs: Array<() => void> = [];
@@ -157,6 +181,9 @@ export class HostViewModel implements ViewModel {
     forwardsSub = { conn: "", unsub: null as () => void, epoch: 0 };
     hostInfoConn = "";
     topPoll = { key: "", timer: null as ReturnType<typeof setTimeout>, epoch: 0 };
+    sessionsSub = { key: "", conn: "", epoch: 0, unsubs: [] as Array<() => void> };
+    sessionsRefresh: Promise<void> = null;
+    sessionsRefreshAgain = false;
 
     constructor({ blockId, waveEnv, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -177,6 +204,12 @@ export class HostViewModel implements ViewModel {
             return normalizeHostTab(get(this.env.getBlockMetaKeyAtom(blockId, "host:tab")), fallback);
         });
         this.canForwardAtom = jotai.atom((get) => canForwardPorts(get(this.connection)));
+        this.savedServicesAtom = jotai.atom((get) => {
+            const conn = get(this.connection);
+            const configured = get(this.env.getConnConfigKeyAtom(conn, "conn:services"));
+            const pending = get(this.servicesPendingAtom);
+            return pending?.conn === conn && pending.base === configured ? pending.services : (configured ?? []);
+        });
 
         const sync = () => this.syncAll();
         this.unsubs.push(globalStore.sub(this.connection, sync));
@@ -213,6 +246,9 @@ export class HostViewModel implements ViewModel {
         this.syncSampling(live && tab === "overview" ? conn : "");
         this.syncPortsPolling(live && tab === "ports" ? conn : "");
         this.syncForwards(canForwardPorts(conn) ? conn : "");
+        this.syncSessions(
+            this.isVisible() && tab === "sessions" && canForwardPorts(conn) ? `${conn}|${this.isConnected()}` : ""
+        );
         const resource = globalStore.get(this.resourceAtom);
         const topSort = resource === "cpu" ? "cpu" : resource === "memory" ? "mem" : "";
         this.syncTopProcesses(live && tab === "overview" && topSort ? `${conn}|${topSort}` : "");
@@ -227,6 +263,107 @@ export class HostViewModel implements ViewModel {
             oref: makeORef("block", this.blockId),
             meta: { "host:tab": tab },
         });
+    }
+
+    syncSessions(key: string) {
+        const s = this.sessionsSub;
+        if (s.key === key) {
+            return;
+        }
+        s.unsubs.forEach((unsub) => unsub());
+        s.unsubs = [];
+        s.key = key;
+        s.epoch++;
+        if (!key) {
+            return;
+        }
+        const conn = globalStore.get(this.connection);
+        if (s.conn !== conn) {
+            globalStore.set(this.sessionsAtom, []);
+            globalStore.set(this.sessionsStateAtom, { loading: false, error: "", updated: 0, busy: "" });
+        }
+        s.conn = conn;
+        const refresh = () => fireAndForget(() => this.refreshSessions());
+        s.unsubs.push(waveEventSubscribeSingle({ eventType: "block:jobstatus", handler: refresh }));
+        s.unsubs.push(
+            waveEventSubscribeSingle({
+                eventType: "waveobj:update",
+                handler: (event) => {
+                    if (event.data?.otype === "job") {
+                        refresh();
+                    }
+                },
+            })
+        );
+        refresh();
+    }
+
+    async refreshSessions() {
+        if (!this.sessionsSub.key || this.disposed) {
+            return;
+        }
+        if (this.sessionsRefresh) {
+            this.sessionsRefreshAgain = true;
+            return this.sessionsRefresh;
+        }
+        const { conn, epoch } = this.sessionsSub;
+        globalStore.set(this.sessionsStateAtom, (prev) => ({ ...prev, loading: true, error: "" }));
+        this.sessionsRefresh = (async () => {
+            try {
+                const [jobs, connected] = await Promise.all([
+                    this.env.rpc.JobControllerListCommand(TabRpcClient),
+                    this.env.rpc.JobControllerConnectedJobsCommand(TabRpcClient),
+                ]);
+                if (this.sessionsSub.epoch !== epoch || this.disposed) {
+                    return;
+                }
+                globalStore.set(this.sessionsAtom, makeHostSessions(jobs ?? [], conn, connected ?? []));
+                globalStore.set(this.sessionsStateAtom, (prev) => ({ ...prev, loading: false, updated: Date.now() }));
+            } catch (e) {
+                if (this.sessionsSub.epoch === epoch && !this.disposed) {
+                    globalStore.set(this.sessionsStateAtom, (prev) => ({
+                        ...prev,
+                        loading: false,
+                        error: errorText(e),
+                    }));
+                }
+            }
+        })();
+        await this.sessionsRefresh;
+        this.sessionsRefresh = null;
+        if (this.sessionsRefreshAgain) {
+            this.sessionsRefreshAgain = false;
+            await this.refreshSessions();
+        }
+    }
+
+    async openSession(session: HostSession, reconnect = false) {
+        globalStore.set(this.sessionsStateAtom, (prev) => ({ ...prev, busy: session.id, error: "" }));
+        try {
+            if (reconnect) {
+                await this.env.rpc.ConnEnsureCommand(TabRpcClient, { connname: globalStore.get(this.connection) });
+                await this.env.rpc.JobControllerReconnectJobCommand(TabRpcClient, session.id);
+                await this.refreshSessions();
+            }
+            if (session.blockid) {
+                const info = await this.env.rpc.BlockInfoCommand(TabRpcClient, session.blockid);
+                await this.env.services.workspace.SetActiveTab(info.workspaceid, info.tabid);
+                if (globalStore.get(this.env.atoms.workspaceId) !== info.workspaceid) {
+                    this.env.electron.switchWorkspace(info.workspaceid);
+                } else {
+                    this.env.electron.setActiveTab(info.tabid);
+                }
+                const route = `tab:${info.tabid}`;
+                const ready = await this.env.rpc.WaitForRouteCommand(TabRpcClient, { routeid: route, waitms: 5000 });
+                if (ready) {
+                    await this.env.rpc.SetBlockFocusCommand(TabRpcClient, session.blockid, { route });
+                }
+            }
+        } catch (e) {
+            globalStore.set(this.sessionsStateAtom, (prev) => ({ ...prev, error: errorText(e) }));
+        } finally {
+            globalStore.set(this.sessionsStateAtom, (prev) => ({ ...prev, busy: "" }));
+        }
     }
 
     getProcessModel(): ProcessViewerViewModel {
@@ -517,6 +654,9 @@ export class HostViewModel implements ViewModel {
         f.epoch++;
         f.conn = conn;
         globalStore.set(this.forwardsAtom, []);
+        globalStore.set(this.serviceDraftAtom, null);
+        globalStore.set(this.serviceActionAtom, { busy: false, error: "" });
+        globalStore.set(this.forwardActionAtom, null);
         if (conn === "") {
             return;
         }
@@ -553,22 +693,91 @@ export class HostViewModel implements ViewModel {
                 remotehost: remoteHost,
                 localport: localPort,
             });
-            globalStore.set(this.forwardsAtom, (prev) => [...prev.filter((f) => f.id !== forward.id), forward]);
+            if (this.disposed || globalStore.get(this.connection) !== conn) {
+                return forward;
+            }
+            globalStore.set(this.forwardsAtom, (prev) => [
+                ...prev.filter(
+                    (f) =>
+                        f.id !== forward.id &&
+                        !(f.remotehost === forward.remotehost && f.remoteport === forward.remoteport)
+                ),
+                forward,
+            ]);
             globalStore.set(this.forwardActionAtom, null);
             if (openAfter) {
                 this.openLocalPort(forward.localport);
             }
             return forward;
         } catch (e) {
-            globalStore.set(this.forwardActionAtom, { port: remotePort, remoteHost, error: errorText(e), busy: false });
+            if (!this.disposed && globalStore.get(this.connection) === conn) {
+                globalStore.set(this.forwardActionAtom, {
+                    port: remotePort,
+                    remoteHost,
+                    error: errorText(e),
+                    busy: false,
+                });
+            }
             return null;
         }
     }
 
+    editService(forward?: PortForwardInfo) {
+        const existing =
+            forward &&
+            globalStore
+                .get(this.savedServicesAtom)
+                .find(
+                    (service) => service.remoteport === forward.remoteport && service.remotehost === forward.remotehost
+                );
+        globalStore.set(
+            this.serviceDraftAtom,
+            existing ?? {
+                id: crypto.randomUUID(),
+                name: forward ? `Service ${forward.remoteport}` : "",
+                remotehost: forward?.remotehost ?? "127.0.0.1",
+                remoteport: forward?.remoteport ?? 0,
+                localport: forward?.localport ?? 0,
+                restore: false,
+            }
+        );
+        globalStore.set(this.serviceActionAtom, { busy: false, error: "" });
+    }
+
+    async saveService(service: SavedPortService, remove = false): Promise<boolean> {
+        if (globalStore.get(this.serviceActionAtom).busy) {
+            return false;
+        }
+        const conn = globalStore.get(this.connection);
+        const base = globalStore.get(this.env.getConnConfigKeyAtom(conn, "conn:services"));
+        globalStore.set(this.serviceActionAtom, { busy: true, error: "" });
+        try {
+            const services = await this.env.rpc.UpdateSavedPortServiceCommand(TabRpcClient, {
+                host: conn,
+                service,
+                remove,
+            });
+            globalStore.set(this.servicesPendingAtom, { conn, base, services });
+            if (globalStore.get(this.connection) === conn) {
+                globalStore.set(this.serviceDraftAtom, null);
+            }
+            return true;
+        } catch (e) {
+            if (globalStore.get(this.connection) === conn) {
+                globalStore.set(this.serviceActionAtom, { busy: false, error: errorText(e) });
+            }
+            return false;
+        } finally {
+            if (globalStore.get(this.connection) === conn) {
+                globalStore.set(this.serviceActionAtom, (prev) => ({ ...prev, busy: false }));
+            }
+        }
+    }
+
     async stopForward(forward: PortForwardInfo) {
-        globalStore.set(this.forwardsAtom, (prev) => prev.filter((f) => f.id !== forward.id));
         try {
             await this.env.rpc.PortForwardStopCommand(TabRpcClient, { id: forward.id });
+            globalStore.set(this.forwardsAtom, (prev) => prev.filter((f) => f.id !== forward.id));
         } catch (e) {
             globalStore.set(this.forwardActionAtom, {
                 port: forward.remoteport,
@@ -619,6 +828,7 @@ export class HostViewModel implements ViewModel {
             ["overview", "Overview"],
             ["processes", "Processes"],
             ["ports", "Ports"],
+            ["sessions", "Sessions"],
         ];
         return [
             ...items.map(([tab, label]) => ({
@@ -637,6 +847,7 @@ export class HostViewModel implements ViewModel {
         this.syncPortsPolling("");
         this.syncTopProcesses("");
         this.syncForwards("");
+        this.syncSessions("");
         for (const unsub of this.unsubs) {
             unsub();
         }

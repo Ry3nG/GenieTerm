@@ -30,8 +30,10 @@ import { formatCmdBlockDuration, getCmdBlockStatus, getCommandRunBlockedReason }
 import { blockHasCommand, getBlockOutputText, isCmdBlockCommandPlaceholder, type CmdBlock } from "./cmdblocks";
 import { describeCommandAiProblem, getBlockAiTask, type CommandInlineAIAction } from "./command-composer";
 import { RiskBadge, TermCommandComposer } from "./command-composer-ui";
+import { CommandLibraryPanel } from "./command-library-ui";
 import { TermCompletion } from "./completion/completion-ui";
 import type { ShellType } from "./completion/types";
+import { TermOutputInspector } from "./output-inspector-ui";
 import { TermLinkTooltip } from "./term-tooltip";
 import { formatDraggedFileTerminalPaste } from "./terminal-drop";
 import {
@@ -572,6 +574,17 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                 <button
                     type="button"
                     className="term-command-action-btn cursor-pointer"
+                    title="Inspect output"
+                    aria-label="Inspect output"
+                    onMouseDown={preventButtonFocus}
+                    onClick={() => model.inspectCommandOutput(activeBlock)}
+                    disabled={termWrap == null || altScreenActive}
+                >
+                    <i className="fa-solid fa-file-lines" aria-hidden="true" />
+                </button>
+                <button
+                    type="button"
+                    className="term-command-action-btn cursor-pointer"
                     title={rerunBlockedReason ?? "Re-run command"}
                     aria-label="Re-run command"
                     onMouseDown={preventButtonFocus}
@@ -603,6 +616,17 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                         <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
                     </button>
                 )}
+                <button
+                    type="button"
+                    className="term-command-action-btn cursor-pointer"
+                    title="Save as recipe"
+                    aria-label="Save as recipe"
+                    onMouseDown={preventButtonFocus}
+                    onClick={() => model.openCommandLibrary("recipes", activeBlock.command)}
+                    disabled={commandIsPlaceholder}
+                >
+                    <i className="fa-regular fa-bookmark" aria-hidden="true" />
+                </button>
             </div>
         </div>
     );
@@ -932,6 +956,18 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <TerminalPresentationShell presentationMode={terminalPresentationMode}>
                 <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             </TerminalPresentationShell>
+            <TermOutputInspector model={model} />
+            <CommandLibraryPanel
+                context={model.getCommandLibraryContext()}
+                onInsert={(command) => model.insertLibraryCommand(command)}
+                onJump={(entry) => model.openHistoryCommand(entry)}
+                hasOutput={(entry) => model.hasHistoryOutput(entry)}
+                onClose={() => {
+                    if (globalStore.get(model.nodeModel.isFocused) && document.hasFocus()) {
+                        model.giveFocus();
+                    }
+                }}
+            />
             <TermForwardDock model={model} />
             <TermInlineAIDock model={model} termWrap={termWrapInst} />
             <TermCompletion model={model} blockData={blockData} termWrap={termWrapInst} />

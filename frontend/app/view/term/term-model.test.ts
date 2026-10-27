@@ -12,8 +12,14 @@ vi.mock("@/app/view/vdom/vdom-model", () => ({
     VDomModel: class {},
 }));
 
+import { activeTabIdAtom, configureTabMode, SingleView, TabCacheCeiling } from "@/app/store/activetab";
 import { RpcApi } from "@/app/store/wshclientapi";
+import { makeFeBlockRouteId } from "@/app/store/wshrouter";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
+import * as global from "@/store/global";
 import { globalStore, registerBlockComponentModel, unregisterBlockComponentModel } from "@/store/global";
+import { WorkspaceService } from "@/store/services";
+import type { CommandHistoryEntry } from "@/util/commandlibrary";
 import * as jotai from "jotai";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { CompletionContext, CompletionItem, TermInputBuffer } from "./completion/types";
@@ -177,7 +183,110 @@ describe("TermViewModel connection recovery", () => {
     });
 });
 
+describe("TermViewModel command history navigation", () => {
+    it("activates the owning tab in the shared renderer before focusing its retained command", async () => {
+        const model = makeTermModel();
+        const entry: CommandHistoryEntry = {
+            id: "retained-command",
+            blockid: "history-block",
+            tabid: "history-tab",
+            commandblockid: 7,
+            command: "printf hello",
+            connection: "",
+            cwd: "/work",
+            shell: "bash",
+            startts: 1000,
+            donets: 1100,
+            exitcode: 0,
+            status: "success",
+        };
+        const oldMode = SingleView;
+        const oldCeiling = TabCacheCeiling;
+        const oldTab = globalStore.get(activeTabIdAtom);
+        const events: string[] = [];
+        const electronSelect = vi.fn((tabId: string) => {
+            expect(globalStore.get(activeTabIdAtom)).toBe(tabId);
+            events.push("renderer-tab-active");
+        });
+        const switchWorkspace = vi.fn();
+        vi.stubGlobal("window", { api: { setActiveTab: electronSelect, switchWorkspace } });
+        const mocks = [
+            vi.spyOn(global, "atoms", "get").mockReturnValue({
+                ...global.atoms,
+                workspaceId: jotai.atom("same-workspace"),
+            }),
+            vi.spyOn(RpcApi, "BlockInfoCommand").mockResolvedValue({
+                blockid: entry.blockid,
+                tabid: entry.tabid,
+                workspaceid: "same-workspace",
+                block: null,
+                files: [],
+            }),
+            vi.spyOn(WorkspaceService, "SetActiveTab").mockImplementation(async () => {
+                events.push("workspace-tab-saved");
+            }),
+        ];
+        const waitForRoute = vi.spyOn(RpcApi, "WaitForRouteCommand").mockImplementation(async (_client, data) => {
+            expect(globalStore.get(activeTabIdAtom)).toBe(entry.tabid);
+            events.push(`ready:${data.routeid}`);
+            return true;
+        });
+        const focus = vi.spyOn(RpcApi, "SetBlockFocusCommand").mockImplementation(async () => {
+            events.push("terminal-focused");
+        });
+        const retained = vi.spyOn(RpcApi, "TermCommandBlockCommand").mockImplementation(async () => {
+            events.push("retained-command");
+            return { retained: true };
+        });
+        try {
+            configureTabMode(true);
+            globalStore.set(activeTabIdAtom, "current-tab");
+            expect(await model.openHistoryCommand(entry)).toBe(true);
+            expect(globalStore.get(activeTabIdAtom)).toBe(entry.tabid);
+            expect(WorkspaceService.SetActiveTab).toHaveBeenCalledWith("same-workspace", entry.tabid);
+            expect(electronSelect).toHaveBeenCalledExactlyOnceWith(entry.tabid);
+            expect(switchWorkspace).not.toHaveBeenCalled();
+            expect(focus).toHaveBeenCalledWith(TabRpcClient, entry.blockid, { route: `tab:${entry.tabid}` });
+            expect(retained).toHaveBeenCalledWith(
+                TabRpcClient,
+                { commandblockid: entry.commandblockid, startts: entry.startts, command: entry.command, focus: true },
+                { route: makeFeBlockRouteId(entry.blockid), timeout: 5000 }
+            );
+            expect(events).toEqual([
+                "workspace-tab-saved",
+                "renderer-tab-active",
+                `ready:tab:${entry.tabid}`,
+                "terminal-focused",
+                `ready:${makeFeBlockRouteId(entry.blockid)}`,
+                "retained-command",
+            ]);
+        } finally {
+            configureTabMode(oldMode, oldCeiling);
+            globalStore.set(activeTabIdAtom, oldTab);
+            [...mocks, waitForRoute, focus, retained].forEach((mock) => mock.mockRestore());
+            vi.unstubAllGlobals();
+        }
+    });
+});
+
 describe("TermViewModel completion key handling", () => {
+    it("Escape cancels manual completion before results arrive without forwarding the key", async () => {
+        const model = makeTermModel();
+        let resolve: (items: CompletionItem[]) => void;
+        const pending = model.completionModel.requestCompletions(
+            { provideCompletions: () => new Promise<CompletionItem[]>((done) => (resolve = done)) },
+            makeContext({ requestKind: "manual" })
+        );
+        const event = makeKeydownEvent("Escape");
+        expect(model.handleTerminalKeydown(event)).toBe(false);
+        expect(event.preventDefault).toHaveBeenCalledOnce();
+        expect(event.stopPropagation).toHaveBeenCalledOnce();
+        resolve([makeItem()]);
+        await pending;
+        expect(globalStore.get(model.completionModel.openAtom)).toBe(false);
+        expect(globalStore.get(model.completionModel.statusAtom)).toBe("idle");
+    });
+
     it("broadcasts only to basic terminals owned by the active source tab", () => {
         const source = makeTermModel();
         const sameTab = makeTermModel();

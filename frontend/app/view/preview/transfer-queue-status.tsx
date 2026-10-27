@@ -88,7 +88,10 @@ function DirectoryTransferQueueStatus({ onRetryUpload }: { onRetryUpload?: (job:
                     setQueue(nextQueue ?? createTransferQueue());
                     setBridgeError(null);
                     const retriedJob = nextQueue?.jobs.find((job) => job.id === jobId);
-                    if (retriedJob?.operation !== "upload" || retriedJob.status !== "queued") {
+                    if (
+                        (retriedJob?.operation !== "upload" && retriedJob?.operation !== "copy") ||
+                        retriedJob.status !== "queued"
+                    ) {
                         return;
                     }
                     if (onRetryUpload) {

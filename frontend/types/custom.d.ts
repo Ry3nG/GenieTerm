@@ -3,6 +3,7 @@
 
 import type { BlockStatusActionId, TerminalBlockStatusInputs } from "@/app/block/blockstatus";
 import type { WaveEnv } from "@/app/waveenv/waveenv";
+import type { CommandLibrary, CommandLibraryChange } from "@/util/commandlibrary";
 import type { TransferError, TransferJobInput, TransferQueue } from "@/util/transferqueue";
 import { type Placement } from "@floating-ui/react";
 import type * as jotai from "jotai";
@@ -75,6 +76,9 @@ declare global {
         getDataDir: () => string; // get-data-dir
         getConfigDir: () => string; // get-config-dir
         getHomeDir: () => string; // get-home-dir
+        getCommandLibrary: () => Promise<CommandLibrary>; // command-library:get
+        changeCommandLibrary: (change: CommandLibraryChange) => Promise<void>; // command-library:change
+        onCommandLibraryChanged: (callback: (revision: number) => void) => () => void; // command-library:changed
         getWebviewPreload: () => string; // get-webview-preload
         getAboutModalDetails: () => AboutModalDetails; // get-about-modal-details
         getZoomFactor: () => number; // get-zoom-factor
@@ -86,6 +90,7 @@ declare global {
         onIframeNavigate: (callback: (url: string) => void) => void;
         downloadFile: (path: string) => void; // download
         downloadFolder: (path: string) => void; // download-folder
+        downloadFiles: (items: { path: string; isdir: boolean }[]) => Promise<boolean>; // download-files
         getTransferQueue: () => Promise<TransferQueue>; // transfer-queue:get
         clearTransferQueue: () => Promise<TransferQueue>; // transfer-queue:clear
         cancelTransferJob: (jobId: string) => Promise<TransferQueue>; // transfer-queue:cancel

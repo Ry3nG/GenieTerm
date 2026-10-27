@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import {
     ExpandableMenu,
@@ -19,9 +20,9 @@ import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { CSSProperties, forwardRef, useCallback, useEffect } from "react";
 import WorkspaceSVG from "../asset/workspace.svg";
 import { IconButton } from "../element/iconbutton";
-import { globalStore } from "@/app/store/jotaiStore";
 import { makeORef } from "../store/wos";
 import { waveEventSubscribeSingle } from "../store/wps";
+import { WorkspaceTemplatePanel } from "./workspace-template-panel";
 import { WorkspaceEditor } from "./workspaceeditor";
 import "./workspaceswitcher.scss";
 
@@ -63,11 +64,15 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
         }
         const newList: WorkspaceList = [];
         for (const entry of workspaceList) {
+            const workspace = await env.services.workspace.GetWorkspace(entry.workspaceid);
+            if (!workspace) {
+                continue;
+            }
             // This just ensures that the atom exists for easier setting of the object
             globalStore.get(env.wos.getWaveObjectAtom(makeORef("workspace", entry.workspaceid)));
             newList.push({
                 windowId: entry.windowid,
-                workspace: await env.services.workspace.GetWorkspace(entry.workspaceid),
+                workspace,
             });
         }
         setWorkspaceList(newList);
@@ -149,6 +154,7 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
                         </ExpandableMenuItem>
                     )}
                 </div>
+                <WorkspaceTemplatePanel workspace={activeWorkspace} />
             </PopoverContent>
         </Popover>
     );

@@ -11,6 +11,7 @@ import * as path from "path";
 import { PNG } from "pngjs";
 import { Readable } from "stream";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
+import type { CommandLibraryChange } from "../frontend/util/commandlibrary";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import * as keyutil from "../frontend/util/keyutil";
 import {
@@ -21,6 +22,7 @@ import {
 } from "../frontend/util/transferqueue";
 import { fireAndForget, parseDataUrl } from "../frontend/util/util";
 import { applyDockIconVariant, getAppIconPath, normalizeAppIconVariant, type AppIconVariant } from "./app-icon";
+import { makeCommandLibraryStore } from "./command-library";
 import {} from "./emain-activity";
 import { callWithOriginalXdgCurrentDesktopAsync, getWaveDataDir, unamePlatform } from "./emain-platform";
 import { clearTabCache, getWaveTabViewByWebContentsId } from "./emain-tabview";
@@ -34,9 +36,15 @@ import {
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { safeOpenExternal } from "./safe-open";
-import { registerDownloadFolderHandler, startTrackedFolderDownload } from "./transfer/download-folder";
+import { downloadDestinationExists, planBatchDownloads, type BatchDownloadItem } from "./transfer/download-batch";
+import {
+    buildFolderDownloadTransferJobInput,
+    registerDownloadFolderHandler,
+    startTrackedFolderDownload,
+} from "./transfer/download-folder";
 import {
     buildFileDownloadTransferJobInput,
+    buildLocalFileUri,
     configureDownloadTransferPersistence,
     createDownloadTransferJobId,
     downloadTransferTracker,
@@ -297,6 +305,8 @@ function attachNativeDownloadItem(jobId: string, item: electron.DownloadItem) {
         item.cancel();
         return;
     }
+    const destination = downloadTransferTracker.findJob(jobId)?.destination;
+    if (destination?.startsWith("file://")) item.setSavePath(fileURLToPath(destination));
     registerTransferCancelHandle(jobId, () => item.cancel());
     item.on("updated", () => {
         runTransferUpdate("native download progress", () => {
@@ -355,11 +365,15 @@ function startRetriedTransferJob(job: TransferJob, sender: electron.WebContents)
         void startTrackedFolderDownload(job.id, job.source, fileURLToPath(job.destination));
         return;
     }
-    if (job.operation === "download" && job.transport === "wsh" && job.destination === NativeDownloadDestination) {
+    if (
+        job.operation === "download" &&
+        job.transport === "wsh" &&
+        (job.destination === NativeDownloadDestination || job.destination.startsWith("file://"))
+    ) {
         startTrackedFileDownload(job.id, job.source, sender);
         return;
     }
-    if (job.operation === "upload") {
+    if (job.operation === "upload" || job.operation === "copy") {
         // The renderer that asked for the retry re-runs the copy and reports back via begin/finish.
         setRendererTransferJobOwner(job.id, sender);
         return;
@@ -389,7 +403,7 @@ function registerTransferQueueBridge() {
         }
         if (invokeTransferCancelHandle(jobId)) {
             downloadTransferTracker.cancel(jobId);
-        } else if (job.status === "running" && job.operation === "upload") {
+        } else if (job.status === "running" && (job.operation === "upload" || job.operation === "copy")) {
             // In-flight RPC copies cannot be interrupted; the renderer skips remaining work and reports the
             // real outcome of the current copy when it finishes.
             downloadTransferTracker.requestCancel(jobId);
@@ -454,8 +468,44 @@ function registerTransferQueueBridge() {
     });
 }
 
+function registerCommandLibraryBridge() {
+    const store = makeCommandLibraryStore(path.join(getWaveDataDir(), "command-library.json"));
+    const subscribers = new Map<number, electron.WebContents>();
+    electron.ipcMain.handle("command-library:get", (event) => {
+        if (!getWaveTabViewByWebContentsId(event.sender.id)) {
+            throw new Error("No terminal tab found.");
+        }
+        if (!subscribers.has(event.sender.id)) {
+            subscribers.set(event.sender.id, event.sender);
+            event.sender.once("destroyed", () => subscribers.delete(event.sender.id));
+        }
+        return store.get();
+    });
+    electron.ipcMain.handle("command-library:change", (event, change: CommandLibraryChange) => {
+        if (!getWaveTabViewByWebContentsId(event.sender.id)) {
+            throw new Error("No terminal tab found.");
+        }
+        store.update(change);
+    });
+    store.subscribe((library) => {
+        for (const contents of subscribers.values()) {
+            if (!contents.isDestroyed()) {
+                contents.send("command-library:changed", library.revision);
+            }
+        }
+    });
+    electronApp.on("before-quit", () => {
+        try {
+            store.flush();
+        } catch (error) {
+            console.error("Could not save command library", error);
+        }
+    });
+}
+
 export function initIpcHandlers() {
     registerTransferQueueBridge();
+    registerCommandLibraryBridge();
 
     electron.ipcMain.on("open-external", (event, url) => {
         if (url && typeof url === "string") {
@@ -515,6 +565,116 @@ export function initIpcHandlers() {
             downloadTransferTracker.enqueue(jobInput);
             startTrackedFileDownload(jobInput.id, jobInput.source, event.sender);
         });
+    });
+    electron.ipcMain.handle("download-files", async (event, items: BatchDownloadItem[]) => {
+        planBatchDownloads(items, "", "keep", () => false);
+        const senderWindow = electron.BrowserWindow.fromWebContents(event.sender);
+        const options: electron.OpenDialogOptions = {
+            title: "Download selected items",
+            buttonLabel: "Download here",
+            properties: ["openDirectory", "createDirectory"],
+        };
+        try {
+            options.defaultPath = electronApp.getPath("downloads");
+        } catch {
+            // Windows profiles without a Downloads known folder can still use the native picker.
+        }
+        const destination = senderWindow
+            ? await electron.dialog.showOpenDialog(senderWindow, options)
+            : await electron.dialog.showOpenDialog(options);
+        if (destination.canceled || !destination.filePaths[0]) return false;
+        const folder = destination.filePaths[0];
+        let plans = planBatchDownloads(items, folder, "keep", downloadDestinationExists);
+        const conflicts = plans.filter((plan) => path.basename(plan.destination) !== plan.label).length;
+        if (conflicts > 0) {
+            const confirmation: electron.MessageBoxOptions = {
+                type: "question",
+                title: "Some names already exist",
+                message: `${conflicts} selected items have a name conflict.`,
+                detail: "Keep both adds a number to each conflicting name. Skip existing leaves those destination items unchanged.",
+                buttons: ["Keep both", "Skip existing", "Cancel"],
+                defaultId: 0,
+                cancelId: 2,
+                noLink: true,
+            };
+            const choice = senderWindow
+                ? await electron.dialog.showMessageBox(senderWindow, confirmation)
+                : await electron.dialog.showMessageBox(confirmation);
+            if (choice.response === 2) return false;
+            plans = planBatchDownloads(
+                items,
+                folder,
+                choice.response === 1 ? "skip" : "keep",
+                downloadDestinationExists
+            );
+        }
+        const groupId = createDownloadTransferJobId("batch");
+        const jobs = plans.map((plan) => ({
+            ...(plan.isdir
+                ? buildFolderDownloadTransferJobInput(
+                      plan.path,
+                      plan.destination,
+                      createDownloadTransferJobId("folder-download")
+                  )
+                : {
+                      ...buildFileDownloadTransferJobInput(plan.path, createDownloadTransferJobId("file-download")),
+                      destination: buildLocalFileUri(plan.destination),
+                  }),
+            groupId,
+        }));
+        jobs.forEach((job) => downloadTransferTracker.enqueue(job));
+        let next = 0;
+        const worker = async () => {
+            while (next < jobs.length) {
+                const job = jobs[next++];
+                if (downloadTransferTracker.findJob(job.id)?.status !== "queued") continue;
+                if (event.sender.isDestroyed()) {
+                    downloadTransferTracker.cancel(job.id);
+                    continue;
+                }
+                try {
+                    if (downloadDestinationExists(fileURLToPath(job.destination))) {
+                        downloadTransferTracker.fail(job.id, {
+                            code: "destination_changed",
+                            message:
+                                "The destination appeared while this download was queued. Choose a new destination.",
+                            retryable: false,
+                        });
+                        continue;
+                    }
+                    if (job.itemType === "folder") {
+                        await fs.promises.mkdir(fileURLToPath(job.destination), { recursive: true });
+                        await startTrackedFolderDownload(job.id, job.source, fileURLToPath(job.destination));
+                    } else startTrackedFileDownload(job.id, job.source, event.sender);
+                    if (!isInactiveTransferStatus(downloadTransferTracker.findJob(job.id)?.status))
+                        await new Promise<void>((resolve) => {
+                            let settled = false;
+                            let unsubscribe = () => {};
+                            unsubscribe = downloadTransferTracker.subscribe((queue) => {
+                                const current = queue.jobs.find((candidate) => candidate.id === job.id);
+                                if (current && !isInactiveTransferStatus(current.status)) return;
+                                settled = true;
+                                unsubscribe();
+                                resolve();
+                            });
+                            if (settled) unsubscribe();
+                        });
+                } catch (error) {
+                    runTransferUpdate("fail batch download", () =>
+                        downloadTransferTracker.fail(job.id, {
+                            code: "download_failed",
+                            message: "Download failed.",
+                            detail: String(error),
+                            retryable: true,
+                        })
+                    );
+                }
+            }
+        };
+        void Promise.all([worker(), worker(), worker()]).catch((error) =>
+            console.error("Batch download failed", error)
+        );
+        return true;
     });
     registerDownloadFolderHandler({
         resolveConnKeywords: async (connection) => {
