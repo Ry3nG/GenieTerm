@@ -424,6 +424,48 @@ describe("TermWrap input", () => {
 });
 
 describe("TermWrap runCommand", () => {
+    it.each(["", "existing 中文 🚀 spaces"])(
+        "replaces known PowerShell input %j without POSIX control bindings",
+        (previous) => {
+            const { termWrap, sent } = makeTermWrap();
+            globalStore.set(termWrap.shellTypeAtom, "pwsh");
+            startPrompt(termWrap);
+            typeInput(termWrap, previous);
+            if (previous) termWrap.handleTermData("\x1b[D\x1b[D");
+            sent.mockClear();
+
+            expect(termWrap.insertCommand("Write-Output 'inserted'")).toBe(true);
+            expect(sent).toHaveBeenLastCalledWith(
+                "\x1b[F" + "\x7f".repeat(previous.length) + "Write-Output 'inserted'"
+            );
+            expect(globalStore.get(termWrap.currentInputBufferAtom)).toEqual({
+                text: "Write-Output 'inserted'",
+                cursorIndex: 23,
+            });
+            expect(sent.mock.calls[0][0]).not.toContain("\r");
+
+            sent.mockClear();
+            expect(termWrap.runCommand("Write-Output 'run'")).toBe(true);
+            expect(sent).toHaveBeenCalledOnce();
+            expect(sent).toHaveBeenCalledWith("\x1b[F" + "\x7f".repeat(23) + "Write-Output 'run'\r");
+        }
+    );
+
+    it.each([null, { text: "one\ntwo", cursorIndex: 7 }])(
+        "does not replace unknown or multiline PowerShell input",
+        (input) => {
+            const { termWrap, sent } = makeTermWrap();
+            globalStore.set(termWrap.shellTypeAtom, "pwsh");
+            globalStore.set(termWrap.currentInputBufferAtom, input);
+            expect(termWrap.getRunBlockedReason("Write-Output 'run'")).toBe(
+                "Clear the PowerShell prompt before running a command"
+            );
+            expect(termWrap.insertCommand("Write-Output 'inserted'")).toBe(false);
+            expect(termWrap.runCommand("Write-Output 'run'")).toBe(false);
+            expect(sent).not.toHaveBeenCalled();
+        }
+    );
+
     it("clears pending input and submits through the typed-input path at an idle prompt", () => {
         const { termWrap, sent } = makeTermWrap();
         startPrompt(termWrap);

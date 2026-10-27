@@ -763,10 +763,20 @@ export class TermWrap {
     }
 
     getRunBlockedReason(command: string): string | null {
-        return getCommandRunBlockedReason(command, {
+        const reason = getCommandRunBlockedReason(command, {
             shellIntegrationStatus: globalStore.get(this.shellIntegrationStatusAtom),
             altScreenActive: globalStore.get(this.altScreenActiveAtom),
         });
+        if (reason != null) {
+            return reason;
+        }
+        if (globalStore.get(this.shellTypeAtom) === "pwsh") {
+            const input = globalStore.get(this.currentInputBufferAtom);
+            if (input == null || /[\r\n]/.test(input.text)) {
+                return "Clear the PowerShell prompt before running a command";
+            }
+        }
+        return null;
     }
 
     hasBracketedPaste(): boolean {
@@ -776,12 +786,23 @@ export class TermWrap {
     // ctrl-e ctrl-u drops whatever is already typed at the prompt (works in the default
     // emacs keymaps of bash, zsh and fish).
     private makePromptLineData(command: string): string {
+        let clearLine = "\x05\x15";
+        if (globalStore.get(this.shellTypeAtom) === "pwsh") {
+            const input = globalStore.get(this.currentInputBufferAtom);
+            if (input == null || /[\r\n]/.test(input.text)) {
+                return null;
+            }
+            // PSReadLine's Windows keymap inserts Ctrl-E/Ctrl-U literally. End and
+            // Backspace work in both Windows and Emacs modes; surplus backspaces
+            // at the start are harmless when a Unicode grapheme spans code units.
+            clearLine = "\x1b[F" + "\x7f".repeat(input.text.length);
+        }
         // Newlines and tabs would act as keystrokes (run a line, trigger completion), so
         // they go through bracketed paste.
         if (this.hasBracketedPaste() && /[\r\n\t]/.test(command)) {
-            return `\x05\x15\x1b[200~${command}\x1b[201~`;
+            return `${clearLine}\x1b[200~${command}\x1b[201~`;
         }
-        return "\x05\x15" + command;
+        return clearLine + command;
     }
 
     // Types a command at the idle prompt and submits it, through the same path as user
@@ -814,7 +835,11 @@ export class TermWrap {
             this.terminal.paste(command);
             return true;
         }
-        this.handleTermData(this.makePromptLineData(command));
+        const data = this.makePromptLineData(command);
+        if (data == null) {
+            return false;
+        }
+        this.handleTermData(data);
         return true;
     }
 
