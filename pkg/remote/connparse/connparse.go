@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package connparse
@@ -57,6 +57,12 @@ func (c *Connection) GetPathWithHost() string {
 }
 
 func (c *Connection) GetFullURI() string {
+	if c.Scheme == ConnectionTypeWsh && strings.HasPrefix(c.Path, "/") &&
+		(windowsDriveRegex.MatchString(c.Path[1:]) || strings.HasPrefix(c.Path, "/./")) {
+		// The second slash distinguishes a literal Unix /C:/ directory from C:/
+		// on a Windows source, and keeps an explicit absolute /./ marker intact.
+		return c.Scheme + "://" + c.Host + "/" + c.Path
+	}
 	if c.Scheme == "file" && c.Host == "" {
 		filePath := c.Path
 		if windowsDriveRegex.MatchString(filePath) {

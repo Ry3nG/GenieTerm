@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	pathpkg "path"
+	"strings"
 	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
@@ -245,17 +246,36 @@ func Mkdir(ctx context.Context, path string) error {
 	return wshclient.RemoteMkdirCommand(RpcClient, conn.Path, &wshrpc.RpcOpts{Route: wshutil.MakeConnectionRouteId(conn.Host)})
 }
 
+func parseCopyConnection(ctx context.Context, uri string) (*connparse.Connection, error) {
+	conn, err := parseConnection(ctx, uri)
+	if err != nil {
+		return nil, err
+	}
+	if conn.Scheme == "file" && conn.Host == "" {
+		// A destination helper may run a different OS. Preserve the origin's parsed
+		// path instead of making that helper reinterpret a Windows file URI as Unix.
+		conn.Scheme = connparse.ConnectionTypeWsh
+		conn.Host = wshrpc.LocalConnName
+		if strings.HasPrefix(conn.Path, "/") {
+			// Wsh shorthand treats /a, /~/x and /C:/ specially. /./ keeps these
+			// absolute filesystem paths literal even on an older destination helper.
+			conn.Path = "/." + conn.Path
+		}
+	}
+	return conn, nil
+}
+
 func Move(ctx context.Context, data wshrpc.CommandFileCopyData) error {
 	opts := data.Opts
 	if opts == nil {
 		opts = &wshrpc.FileCopyOpts{}
 	}
 	log.Printf("Move: srcuri: %v, desturi: %v, opts: %v", data.SrcUri, data.DestUri, opts)
-	srcConn, err := parseConnection(ctx, data.SrcUri)
+	srcConn, err := parseCopyConnection(ctx, data.SrcUri)
 	if err != nil {
 		return fmt.Errorf("error parsing source connection: %w", err)
 	}
-	destConn, err := parseConnection(ctx, data.DestUri)
+	destConn, err := parseCopyConnection(ctx, data.DestUri)
 	if err != nil {
 		return fmt.Errorf("error parsing destination connection: %w", err)
 	}
@@ -285,11 +305,11 @@ func Copy(ctx context.Context, data wshrpc.CommandFileCopyData) error {
 		opts = &wshrpc.FileCopyOpts{}
 	}
 	log.Printf("Copy: srcuri: %v, desturi: %v, opts: %v", data.SrcUri, data.DestUri, opts)
-	srcConn, err := parseConnection(ctx, data.SrcUri)
+	srcConn, err := parseCopyConnection(ctx, data.SrcUri)
 	if err != nil {
 		return fmt.Errorf("error parsing source connection: %w", err)
 	}
-	destConn, err := parseConnection(ctx, data.DestUri)
+	destConn, err := parseCopyConnection(ctx, data.DestUri)
 	if err != nil {
 		return fmt.Errorf("error parsing destination connection: %w", err)
 	}
