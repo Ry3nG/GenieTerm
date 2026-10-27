@@ -203,6 +203,10 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         }
     }, [selectedIndex, selectionExplicit]);
     const recentCommands = React.useMemo(() => recentCommandsFromBlocks(cmdBlocks), [cmdBlocks]);
+    const recentCommandsRef = React.useRef(recentCommands);
+    recentCommandsRef.current = recentCommands;
+    const connection = (blockData?.meta?.connection as string) || "";
+    const cwd = (blockData?.meta?.["cmd:cwd"] as string) || "~";
     const service = React.useMemo(() => {
         const listDirectory: ListDirectoryForCompletion = (path, ctx) => listDirectoryForCompletion(path, ctx);
         return new TermCompletionService([
@@ -260,14 +264,13 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         if (!manualRequest && inputBuffer.text.trim() === completionModel.suppressedAutoText?.trim()) {
             return;
         }
-        const connection = (blockData?.meta?.connection as string) || "";
         const ctx = buildCompletionContext(inputBuffer, {
-            cwd: (blockData?.meta?.["cmd:cwd"] as string) || "~",
+            cwd,
             connId: connection === "local" ? "" : connection,
             shellType,
             shellName,
             env: {},
-            recentCommands,
+            recentCommands: recentCommandsRef.current,
             requestKind: manualRequest ? "manual" : "auto",
         });
         const timeout = window.setTimeout(
@@ -277,13 +280,13 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         return () => window.clearTimeout(timeout);
     }, [
         altScreenActive,
-        blockData?.meta,
+        connection,
+        cwd,
         completionModel,
         focused,
         inputBuffer?.cursorIndex,
         inputBuffer?.text,
         manualRequestVersion,
-        recentCommands,
         service,
         shellIntegrationStatus,
         shellType,
