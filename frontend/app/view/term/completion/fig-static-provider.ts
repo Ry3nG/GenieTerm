@@ -51,6 +51,7 @@ export type RunCompletionGenerator = (req: {
     args: string[];
     cwd: string;
     connId: string;
+    env?: Record<string, string>;
 }) => Promise<{ stdout: string; supported: boolean } | null>;
 
 type FigProviderOptions = {

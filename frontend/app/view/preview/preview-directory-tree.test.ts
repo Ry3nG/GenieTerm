@@ -5,6 +5,21 @@ import { describe, expect, it, vi } from "vitest";
 import { makeFileTreeNodeContextMenu, makeTreeNodeKey, makeTreeNodeRenderKey } from "./preview-directory-tree";
 
 describe("preview directory tree", () => {
+    it("copies only the basename of a native Windows path without name metadata", () => {
+        const writeText = vi.fn(async () => {});
+        vi.stubGlobal("navigator", { clipboard: { writeText } });
+        try {
+            const menu = makeFileTreeNodeContextMenu({ model: {}, connName: "", setErrorMsg: vi.fn() } as any, {
+                path: "C:\\中文 files\\note.txt",
+                isdir: false,
+            });
+            menu.find((item) => item.label === "Copy File Name")?.click?.();
+            expect(writeText).toHaveBeenCalledWith("note.txt");
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("keys home-shortened paths by connection", () => {
         expect(makeTreeNodeKey("local", "~/projects")).toBe("local:~/projects");
         expect(makeTreeNodeKey("zrgong@paw-5090-ws", "~/projects")).toBe("zrgong@paw-5090-ws:~/projects");

@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { adaptFromElectronKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
@@ -336,12 +337,23 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
     if (tabView) {
         return [tabView, true];
     }
-    const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+    let fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
     tabView = getSpareTab(fullConfig);
     tabView.waveWindowId = waveWindowId;
     tabView.lastUsedTs = Date.now();
     setWaveTabView(tabId, tabView);
     tabView.waveTabId = tabId;
+    if (unamePlatform === "win32") {
+        const unsubscribe = waveEventSubscribeSingle({
+            eventType: "config",
+            handler: (event) => {
+                if (event.data?.fullconfig) {
+                    fullConfig = event.data.fullconfig;
+                }
+            },
+        });
+        tabView.webContents.once("destroyed", unsubscribe);
+    }
     tabView.webContents.on("will-navigate", shNavHandler);
     tabView.webContents.on("will-frame-navigate", shFrameNavHandler);
     tabView.webContents.on("did-attach-webview", (event, wc) => {

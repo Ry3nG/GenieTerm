@@ -122,6 +122,7 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
         shellIntegrationStatusAtom: jotai.atom(status),
         shellIntegrationDisabledAtom: jotai.atom(false),
         shellTypeAtom: jotai.atom("unknown"),
+        shellNameAtom: jotai.atom("unknown"),
         altScreenActiveAtom: jotai.atom(false),
         currentInputBufferAtom: jotai.atom(null) as jotai.PrimitiveAtom<TermInputBuffer>,
         cmdBlocksAtom: jotai.atom([]),
@@ -813,5 +814,14 @@ describe("TermWrap shell-integration markers during load", () => {
 
         expect(globalStore.get(termWrap.shellIntegrationDisabledAtom)).toBe(true);
         expect(globalStore.get(termWrap.shellTypeAtom)).toBe("pwsh");
+        expect(globalStore.get(termWrap.shellNameAtom)).toBe("pwsh");
+    });
+
+    it.each(["powershell", "pwsh"])("preserves the actual %s executable name from shell metadata", (shell) => {
+        const { termWrap } = makeTermWrap(null);
+        termWrap.loaded = false;
+        replay(termWrap, `M;${JSON.stringify({ shell, integration: true })}`);
+        expect(globalStore.get(termWrap.shellTypeAtom)).toBe("pwsh");
+        expect(globalStore.get(termWrap.shellNameAtom)).toBe(shell);
     });
 });

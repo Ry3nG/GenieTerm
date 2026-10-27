@@ -6,6 +6,7 @@
 // ranked list. Keep this stable so providers can be built in parallel.
 
 export type ShellType = "zsh" | "bash" | "fish" | "pwsh" | "unknown";
+export type ShellName = ShellType | "powershell";
 
 export type CompletionItemKind = "file" | "folder" | "command" | "subcommand" | "flag" | "argument" | "history" | "ai";
 
@@ -42,6 +43,7 @@ export interface CompletionContext {
     // bare interactive `ssh host` typed at the prompt (degrades to static specs).
     connId: string;
     shellType: ShellType;
+    shellName?: ShellName;
     env: Record<string, string>;
     // recent commands (most-recent first) from this terminal's command blocks; feeds the history provider
     recentCommands: string[];
@@ -97,4 +99,13 @@ export function normalizeShellType(shell?: string): ShellType {
         return "pwsh";
     }
     return "unknown";
+}
+
+export function normalizeShellName(shell?: string): ShellName {
+    const name = shell
+        ?.split(/[\\/]/)
+        .pop()
+        ?.toLowerCase()
+        .replace(/\.exe$/, "");
+    return name === "powershell" ? "powershell" : normalizeShellType(shell);
 }

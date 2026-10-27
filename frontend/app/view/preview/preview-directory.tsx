@@ -35,7 +35,6 @@ import { PrimitiveAtom, atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
-import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
 import { DirectoryUploadDropOverlay } from "./directory-upload-drop-overlay";
 import "./directorypreview.scss";
@@ -63,6 +62,12 @@ import {
     resizeDirectoryColumns,
     type FileCopyResult,
 } from "./preview-directory-utils";
+import {
+    getPreviewFileName,
+    getPreviewRenamePath,
+    isLocalWindowsFilePath,
+    quotePreviewFilePath,
+} from "./preview-file-path";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
 import { DirectoryTransferQueueStatus } from "./transfer-queue-status";
@@ -173,6 +178,7 @@ function DirectoryTable({
     newDirectory,
 }: DirectoryTableProps) {
     const env = useWaveEnv<PreviewEnv>();
+    const conn = useAtomValue(model.connection);
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const defaultSort = useAtomValue(env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
@@ -257,15 +263,13 @@ function DirectoryTable({
 
     const updateName = useCallback(
         (path: string, isDir: boolean) => {
-            const fileName = path.split("/").at(-1);
+            const fileName = getPreviewFileName(path, conn);
             setEntryManagerProps({
                 entryManagerType: EntryManagerType.EditName,
                 startingValue: fileName,
                 onSave: (newName: string) => {
-                    let newPath: string;
                     if (newName !== fileName) {
-                        const lastInstance = path.lastIndexOf(fileName);
-                        newPath = path.substring(0, lastInstance) + newName;
+                        const newPath = getPreviewRenamePath(path, newName, conn);
                         console.log(`replacing ${fileName} with ${newName}: ${path}`);
                         handleRename(model, path, newPath, isDir, setErrorMsg);
                     }
@@ -273,7 +277,7 @@ function DirectoryTable({
                 },
             });
         },
-        [model, setErrorMsg]
+        [model, conn, setErrorMsg]
     );
 
     const defaultSorting = useMemo<SortingState>(
@@ -474,7 +478,8 @@ function TableBody({
             if (finfo == null) {
                 return;
             }
-            const fileName = finfo.path.split("/").pop();
+            const fileName = finfo.name || getPreviewFileName(finfo.path, conn);
+            const quotingLabel = isLocalWindowsFilePath(finfo.path, conn) ? "PowerShell Quoted" : "Shell Quoted";
             // the ".." row points at the parent directory; rename/delete on it would act on the parent
             const isParentRow = isParentDirEntry(finfo);
             const menu: ContextMenuItem[] = [
@@ -512,12 +517,18 @@ function TableBody({
                     click: () => fireAndForget(() => navigator.clipboard.writeText(finfo.path)),
                 },
                 {
-                    label: "Copy File Name (Shell Quoted)",
-                    click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([fileName]))),
+                    label: `Copy File Name (${quotingLabel})`,
+                    click: () =>
+                        fireAndForget(() =>
+                            navigator.clipboard.writeText(quotePreviewFilePath(fileName, finfo.path, conn))
+                        ),
                 },
                 {
-                    label: "Copy Full File Name (Shell Quoted)",
-                    click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([finfo.path]))),
+                    label: `Copy Full File Name (${quotingLabel})`,
+                    click: () =>
+                        fireAndForget(() =>
+                            navigator.clipboard.writeText(quotePreviewFilePath(finfo.path, finfo.path, conn))
+                        ),
                 }
             );
             addOpenMenuItems(menu, conn, finfo);

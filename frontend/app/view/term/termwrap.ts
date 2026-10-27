@@ -51,7 +51,13 @@ import {
     type CommandInlineAIRequestHandler,
 } from "./command-composer";
 import { applyPromptInputData, emptyPromptInputBuffer, isTypeaheadInput } from "./completion/input-mirror";
-import { normalizeShellType, type ShellType, type TermInputBuffer } from "./completion/types";
+import {
+    normalizeShellName,
+    normalizeShellType,
+    type ShellName,
+    type ShellType,
+    type TermInputBuffer,
+} from "./completion/types";
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -201,6 +207,7 @@ export class TermWrap {
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
     shellIntegrationDisabledAtom: jotai.PrimitiveAtom<boolean>;
     shellTypeAtom: jotai.PrimitiveAtom<ShellType>;
+    shellNameAtom: jotai.PrimitiveAtom<ShellName>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
     claudeCodeActiveAtom: jotai.PrimitiveAtom<boolean>;
     nodeModel: BlockNodeModel; // this can be null
@@ -253,6 +260,7 @@ export class TermWrap {
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
         this.shellIntegrationDisabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellTypeAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellType>;
+        this.shellNameAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellName>;
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.claudeCodeActiveAtom = jotai.atom(false);
         this.localCompletionInputBuffer = emptyPromptInputBuffer();
@@ -613,6 +621,7 @@ export class TermWrap {
                 oref: WOS.makeORef("block", this.blockId),
             });
             let shellState: ShellIntegrationStatus = null;
+            globalStore.set(this.shellNameAtom, normalizeShellName(rtInfo?.["shell:type"] as string));
 
             if (rtInfo && rtInfo["shell:integration"]) {
                 shellState = rtInfo["shell:state"] as ShellIntegrationStatus;
