@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent, webUtils, WebviewTag } from "electron";
+import type { CommandLibraryChange } from "../frontend/util/commandlibrary";
 import type { TransferJobInput, TransferQueue } from "../frontend/util/transferqueue";
 
 // update type in custom.d.ts (ElectronApi type)
@@ -15,6 +16,13 @@ contextBridge.exposeInMainWorld("api", {
     getDataDir: () => ipcRenderer.sendSync("get-data-dir"),
     getConfigDir: () => ipcRenderer.sendSync("get-config-dir"),
     getHomeDir: () => ipcRenderer.sendSync("get-home-dir"),
+    getCommandLibrary: () => ipcRenderer.invoke("command-library:get"),
+    changeCommandLibrary: (change: CommandLibraryChange) => ipcRenderer.invoke("command-library:change", change),
+    onCommandLibraryChanged: (callback: (revision: number) => void) => {
+        const listener = (_event: IpcRendererEvent, revision: number) => callback(revision);
+        ipcRenderer.on("command-library:changed", listener);
+        return () => ipcRenderer.off("command-library:changed", listener);
+    },
     getAboutModalDetails: () => ipcRenderer.sendSync("get-about-modal-details"),
     getWebviewPreload: () => ipcRenderer.sendSync("get-webview-preload"),
     getZoomFactor: () => ipcRenderer.sendSync("get-zoom-factor"),
@@ -25,6 +33,7 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("contextmenu-click", (_event, menuId: string, id: string | null) => callback(menuId, id)),
     downloadFile: (filePath) => ipcRenderer.send("download", { filePath }),
     downloadFolder: (filePath) => ipcRenderer.send("download-folder", { filePath }),
+    downloadFiles: (items) => ipcRenderer.invoke("download-files", items),
     getTransferQueue: () => ipcRenderer.invoke("transfer-queue:get"),
     clearTransferQueue: () => ipcRenderer.invoke("transfer-queue:clear"),
     cancelTransferJob: (jobId: string) => ipcRenderer.invoke("transfer-queue:cancel", jobId),

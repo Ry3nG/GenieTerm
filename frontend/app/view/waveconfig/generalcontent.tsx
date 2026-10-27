@@ -177,7 +177,7 @@ const TerminalSettings: SettingDefinition[] = [
     {
         key: "app:rightclickpaste",
         label: "Right-click paste",
-        description: "Paste from the clipboard with a right-click.",
+        description: "Paste with a right-click. Hold Shift to open the terminal menu.",
         kind: "toggle",
     },
     {

@@ -8,7 +8,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { makeFeBlockRouteId } from "@/app/store/wshrouter";
 import { TermViewModel } from "@/app/view/term/term-model";
 import { bufferLinesToText } from "@/app/view/term/termutil";
-import { isBlank } from "@/util/util";
+import { isBlank, sleep } from "@/util/util";
 import debug from "debug";
 
 const dlog = debug("wave:vdom");
@@ -103,6 +103,47 @@ export class TermWshClient extends WshClient {
             }, 50);
             return oref;
         }
+    }
+
+    async handle_termcommandblock(
+        _rh: RpcResponseHelper,
+        data: CommandTermCommandBlockData
+    ): Promise<CommandTermCommandBlockRtnData> {
+        let termWrap = this.model.termRef.current;
+        if (data.focus) {
+            const deadline = Date.now() + 3000;
+            while (!termWrap?.loaded && !termWrap?.disposed && Date.now() < deadline) {
+                await sleep(50);
+                termWrap = this.model.termRef.current;
+            }
+            if (!termWrap?.loaded && !termWrap?.disposed) {
+                throw new Error("The original terminal is still loading. Try opening it again.");
+            }
+            if (termWrap?.terminal?.buffer.active.type === "alternate") {
+                throw new Error("Return to the shell prompt to view the original command output.");
+            }
+        }
+        if (termWrap?.disposed || !termWrap?.loaded || termWrap.terminal?.buffer.active.type !== "normal") {
+            return { retained: false };
+        }
+        const block = termWrap.cmdBlocks.find(
+            (candidate) =>
+                candidate.id === data.commandblockid &&
+                candidate.startTs === data.startts &&
+                candidate.command === data.command &&
+                candidate.startMarker != null &&
+                !candidate.startMarker.isDisposed &&
+                candidate.startMarker.line >= 0
+        );
+        if (!block) {
+            return { retained: false };
+        }
+        if (data.focus) {
+            termWrap.terminal.scrollToLine(block.startMarker.line);
+            globalStore.set(termWrap.hoveredBlockIdAtom, block.id);
+            termWrap.terminal.focus();
+        }
+        return { retained: true };
     }
 
     async handle_termgetscrollbacklines(

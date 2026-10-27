@@ -36,6 +36,12 @@ import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overl
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import { debounce } from "throttle-debounce";
+import {
+    getTransferSelection,
+    selectDirectoryEntry,
+    type DirectorySelection,
+    type SelectionModifiers,
+} from "./directory-selection";
 import { DirectoryUploadDropOverlay } from "./directory-upload-drop-overlay";
 import "./directorypreview.scss";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
@@ -102,7 +108,7 @@ function toUploadOutcome(result: FileCopyResult): TransferJobOutcome {
 function makeUploadFailure(errorText: string, retryable: boolean): TransferError {
     return {
         code: retryable ? "upload_confirmation_required" : "upload_failed",
-        message: retryable ? "Upload needs confirmation." : "Upload failed.",
+        message: retryable ? "Transfer needs confirmation." : "Transfer failed.",
         detail: errorText,
         retryable,
     };
@@ -149,6 +155,8 @@ declare module "@tanstack/react-table" {
 }
 
 interface DirectoryTableProps {
+    selection: DirectorySelection;
+    onSelect: (entry: FileInfo, visible: FileInfo[], modifiers: SelectionModifiers) => void;
     model: PreviewModel;
     data: FileInfo[];
     search: string;
@@ -165,6 +173,8 @@ interface DirectoryTableProps {
 const columnHelper = createColumnHelper<FileInfo>();
 
 function DirectoryTable({
+    selection,
+    onSelect,
     model,
     data,
     search,
@@ -363,6 +373,9 @@ function DirectoryTable({
 
     return (
         <OverlayScrollbarsComponent
+            role="grid"
+            aria-label="Files"
+            aria-multiselectable="true"
             options={{ scrollbars: { autoHide: "leave" } }}
             events={{ scroll: onScroll, initialized: (instance) => setScrollElement(instance.elements().viewport) }}
             className="dir-table"
@@ -380,6 +393,8 @@ function DirectoryTable({
                 ))}
             </div>
             <TableComponent
+                selection={selection}
+                onSelect={onSelect}
                 bodyRef={bodyRef}
                 model={model}
                 data={data}
@@ -398,6 +413,8 @@ function DirectoryTable({
 }
 
 interface TableBodyProps {
+    selection: DirectorySelection;
+    onSelect: (entry: FileInfo, visible: FileInfo[], modifiers: SelectionModifiers) => void;
     bodyRef: React.RefObject<HTMLDivElement>;
     model: PreviewModel;
     data: Array<FileInfo>;
@@ -413,6 +430,8 @@ interface TableBodyProps {
 }
 
 function TableBody({
+    selection,
+    onSelect,
     bodyRef,
     model,
     table,
@@ -430,6 +449,8 @@ function TableBody({
     const conn = useAtomValue(model.connection);
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
     const rows = parentDirectoryFirst(table.getRowModel().flatRows);
+    const selectedPaths = useMemo(() => new Set(selection.files.map((file) => file.path)), [selection]);
+    const visibleFiles = useMemo(() => rows.map((row) => row.original), [table.getRowModel()]);
     const rowVirtualizer = useVirtualizer({
         count: rows.length,
         getScrollElement: () => scrollElement,
@@ -571,6 +592,7 @@ function TableBody({
                     >
                         <i className="fa-solid fa-xmark" />
                         <input
+                            data-directory-search-input
                             type="text"
                             value={search}
                             onChange={() => {}}
@@ -598,6 +620,8 @@ function TableBody({
                             }}
                         >
                             <TableRow
+                                selected={selectedPaths.has(row.original.path)}
+                                onSelect={(event) => onSelect(row.original, visibleFiles, event)}
                                 model={model}
                                 row={row}
                                 focusIndex={focusIndex}
@@ -615,6 +639,8 @@ function TableBody({
 }
 
 type TableRowProps = {
+    selected: boolean;
+    onSelect: (event: React.MouseEvent) => void;
     model: PreviewModel;
     row: Row<FileInfo>;
     focusIndex: number;
@@ -624,7 +650,17 @@ type TableRowProps = {
     handleFileContextMenu: (e: any, finfo: FileInfo) => Promise<void>;
 };
 
-function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handleFileContextMenu }: TableRowProps) {
+function TableRow({
+    selected,
+    onSelect,
+    model,
+    row,
+    focusIndex,
+    setFocusIndex,
+    setSearch,
+    idx,
+    handleFileContextMenu,
+}: TableRowProps) {
     const dirPath = useAtomValue(model.statFilePath);
     const connection = useAtomValue(model.connection);
 
@@ -656,7 +692,9 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
 
     return (
         <div
-            className={cn("dir-table-body-row cursor-pointer", { focused: focusIndex === idx })}
+            className={cn("dir-table-body-row cursor-pointer select-none", { focused: focusIndex === idx, selected })}
+            aria-selected={selected}
+            role="row"
             data-rowindex={idx}
             onDoubleClick={() => {
                 const newFileName = row.getValue("path") as string;
@@ -664,7 +702,10 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
                 setSearch("");
                 globalStore.set(model.directorySearchActive, false);
             }}
-            onClick={() => setFocusIndex(idx)}
+            onClick={(event) => {
+                setFocusIndex(idx);
+                onSelect(event);
+            }}
             onContextMenu={(e) => handleFileContextMenu(e, row.original)}
             ref={dragRef}
         >
@@ -698,6 +739,18 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     const treeViewMode = useAtomValue(model.treeViewMode);
     const fileView = useAtomValue(env.getSettingsKeyAtom("preview:fileview")) ?? "list";
     const [selectedPath, setSelectedPath] = useState("");
+    const [selection, setSelection] = useState<DirectorySelection>({ files: [], anchor: null });
+    const [copyOpen, setCopyOpen] = useState(false);
+    const [copyFolder, setCopyFolder] = useState("");
+    const [copyConnection, setCopyConnection] = useState("");
+    const [batchBusy, setBatchBusy] = useState(false);
+    const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
+    const onSelect = useCallback((entry: FileInfo, visible: FileInfo[], modifiers: SelectionModifiers) => {
+        setSelection((current) => selectDirectoryEntry(current, entry, visible, modifiers));
+    }, []);
+    useEffect(() => {
+        setSelection({ files: [], anchor: null });
+    }, [searchText, showHiddenFiles, fileView]);
     const [refreshVersion, setRefreshVersion] = useAtom(model.refreshVersion);
     const [isLocalDragOver, setIsLocalDragOver] = useState(false);
     const conn = useAtomValue(model.connection);
@@ -733,6 +786,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         setUnfilteredData([]);
         setFocusIndex(-1);
         setSelectedPath(null);
+        setSelection({ files: [], anchor: null });
         fireAndForget(async () => {
             const entries: FileInfo[] = [];
             let lastPublishedCount = 0;
@@ -803,9 +857,15 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 return true;
             }
             if (checkKeyPressed(waveEvent, "Escape")) {
+                setSelection({ files: [], anchor: null });
+                setCopyOpen(false);
                 setSearchText("");
                 globalStore.set(model.directorySearchActive, false);
                 return;
+            }
+            if (checkKeyPressed(waveEvent, "Cmd:a")) {
+                setSelection({ files: filteredData.filter((file) => !isParentDirEntry(file)), anchor: null });
+                return true;
             }
             if (checkKeyPressed(waveEvent, "ArrowUp")) {
                 setFocusIndex((idx) =>
@@ -894,12 +954,13 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         async (
             data: CommandFileCopyData,
             itemType: TransferItemType,
-            signal?: AbortSignal
+            signal?: AbortSignal,
+            refresh = true
         ): Promise<FileCopyResult> => {
             return copyWithOverwriteConfirmation(data, itemType, {
                 copyFile: (nextData) =>
                     env.rpc.FileCopyCommand(TabRpcClient, nextData, { timeout: nextData.opts?.timeout }),
-                refresh: () => model.refreshCallback?.(),
+                refresh: refresh ? () => model.refreshCallback?.() : undefined,
                 setErrorMsg,
                 watchErrorMsg: (listener) =>
                     globalStore.sub(model.errorMsgAtom, () => listener(globalStore.get(model.errorMsgAtom))),
@@ -912,7 +973,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
     // RPC copies cannot be interrupted mid-flight, so a cancel only takes effect before the copy starts or while it
     // is waiting on the overwrite prompt; otherwise the real outcome of the copy is reported.
     const runTrackedUpload = useCallback(
-        async (jobId: string, itemType: TransferItemType, data: CommandFileCopyData): Promise<void> => {
+        async (jobId: string, itemType: TransferItemType, data: CommandFileCopyData, refresh = true): Promise<void> => {
             const started = await env.electron.beginTransferJob(jobId);
             if (!started) {
                 return;
@@ -932,7 +993,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             });
             let outcome: TransferJobOutcome;
             try {
-                outcome = toUploadOutcome(await handleDropCopy(data, itemType, controller.signal));
+                outcome = toUploadOutcome(await handleDropCopy(data, itemType, controller.signal, refresh));
             } catch (e) {
                 outcome = { status: "failed", error: makeUploadFailure(`${e}`, true) };
             } finally {
@@ -959,11 +1020,84 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             await runTrackedUpload(job.id, job.itemType, {
                 srcuri: job.source,
                 desturi: job.destination.slice(0, lastSeparator + 1),
-                opts: { timeout: CopyTimeoutYear },
+                opts: { timeout: CopyTimeoutYear, recursive: job.itemType === "folder" },
             });
         },
         [env.electron, runTrackedUpload]
     );
+
+    const downloadSelected = async () => {
+        setBatchBusy(true);
+        try {
+            await env.electron.downloadFiles(
+                getTransferSelection(selection.files).map((file) => ({
+                    path: formatRemoteUri(file.path, conn),
+                    isdir: !!file.isdir,
+                }))
+            );
+        } catch (error) {
+            setErrorMsg({ status: "Download failed", text: String(error), level: "error" });
+        } finally {
+            setBatchBusy(false);
+        }
+    };
+
+    const copySelected = async () => {
+        setBatchBusy(true);
+        try {
+            const files = getTransferSelection(selection.files);
+            if (files.length > 200) throw new Error("Select at most 200 items per transfer.");
+            const destination = await env.rpc.FileInfoCommand(TabRpcClient, {
+                info: { path: formatRemoteUri(copyFolder.trim(), copyConnection || "local") },
+            });
+            if (!destination?.isdir) throw new Error("Choose an existing destination folder.");
+            const destinationPath = destination.path.replace(/\/+$/, "");
+            const desturi = formatRemoteUri(destinationPath + "/", copyConnection || "local");
+            if (
+                (conn || "local") === (copyConnection || "local") &&
+                files.some((file) => {
+                    const source = file.path.replace(/\/+$/, "");
+                    return (
+                        `${destinationPath}/${file.name}` === source ||
+                        (file.isdir && (destinationPath === source || destinationPath.startsWith(source + "/")))
+                    );
+                })
+            )
+                throw new Error(
+                    "Choose a different folder; selected items cannot be copied onto themselves or into their own folders."
+                );
+            const groupId = createUploadTransferGroupId("copy");
+            const jobs = files.map((file) => ({
+                id: createUploadTransferJobId("copy"),
+                operation: "copy" as const,
+                itemType: file.isdir ? ("folder" as const) : ("file" as const),
+                transport: "wsh" as const,
+                source: formatRemoteUri(file.path, conn),
+                destination: `${desturi}${file.name}`,
+                label: file.name,
+                groupId,
+            }));
+            await env.electron.enqueueTransferJobs(jobs);
+            for (const job of jobs) {
+                await runTrackedUpload(
+                    job.id,
+                    job.itemType,
+                    {
+                        srcuri: job.source,
+                        desturi,
+                        opts: { timeout: CopyTimeoutYear, recursive: job.itemType === "folder" },
+                    },
+                    false
+                );
+            }
+            model.refreshCallback?.();
+            setCopyOpen(false);
+        } catch (error) {
+            setErrorMsg({ status: "Copy failed", text: String(error), level: "error" });
+        } finally {
+            setBatchBusy(false);
+        }
+    };
 
     const buildLocalUploadItems = useCallback(
         (dataTransfer: DataTransfer): LocalUploadItem[] =>
@@ -1187,7 +1321,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 className="dir-table-container"
                 onChangeCapture={(e) => {
                     const event = e as React.ChangeEvent<HTMLInputElement>;
-                    if (!entryManagerProps) {
+                    if (!entryManagerProps && event.target.hasAttribute("data-directory-search-input")) {
                         setSearchText(event.target.value.toLowerCase());
                     }
                 }}
@@ -1201,8 +1335,88 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             >
                 {!treeViewMode && isLocalDragOver && <DirectoryUploadDropOverlay />}
                 <DirectoryTransferQueueStatus onRetryUpload={retryUpload} />
+                {selection.files.length > 0 && (
+                    <div
+                        className="flex shrink-0 flex-col gap-2 border-b border-border bg-accent/5 px-3 py-2"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-secondary mr-auto" aria-live="polite">
+                                {selection.files.length} selected
+                            </span>
+                            {!!conn && (
+                                <button
+                                    className="cursor-pointer rounded px-2 py-1 hover:bg-hoverbg disabled:opacity-40"
+                                    disabled={batchBusy}
+                                    onClick={() => void downloadSelected()}
+                                >
+                                    <i aria-hidden="true" className="fa-solid fa-download mr-1" />
+                                    Download
+                                </button>
+                            )}
+                            <button
+                                className="cursor-pointer rounded px-2 py-1 hover:bg-hoverbg disabled:opacity-40"
+                                disabled={batchBusy}
+                                onClick={() => {
+                                    setCopyOpen(!copyOpen);
+                                    setCopyConnection(conn || "");
+                                    setCopyFolder(dirPath || "~");
+                                }}
+                            >
+                                <i aria-hidden="true" className="fa-regular fa-copy mr-1" />
+                                Copy to…
+                            </button>
+                            <button
+                                className="cursor-pointer rounded px-2 py-1 hover:bg-hoverbg"
+                                aria-label="Clear selection"
+                                onClick={() => {
+                                    setSelection({ files: [], anchor: null });
+                                    setCopyOpen(false);
+                                }}
+                            >
+                                <i className="fa-solid fa-xmark" />
+                            </button>
+                        </div>
+                        {copyOpen && (
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <select
+                                    aria-label="Copy destination host"
+                                    className="min-w-24 rounded border border-border bg-panel px-2 py-1"
+                                    value={copyConnection}
+                                    onChange={(event) => setCopyConnection(event.target.value)}
+                                >
+                                    <option value="">Local</option>
+                                    {Array.from(new Set([conn, ...Object.keys(fullConfig?.connections ?? {})]))
+                                        .filter(Boolean)
+                                        .map((host) => (
+                                            <option key={host} value={host}>
+                                                {host}
+                                            </option>
+                                        ))}
+                                </select>
+                                <input
+                                    aria-label="Copy destination folder"
+                                    className="min-w-32 flex-1 rounded border border-border bg-transparent px-2 py-1 outline-none focus:border-accent"
+                                    value={copyFolder}
+                                    onChange={(event) => setCopyFolder(event.target.value)}
+                                    onKeyDown={(event) => event.stopPropagation()}
+                                    placeholder="Destination folder"
+                                />
+                                <button
+                                    className="bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer px-2 py-1 disabled:opacity-40"
+                                    disabled={batchBusy || !copyFolder.trim()}
+                                    onClick={() => void copySelected()}
+                                >
+                                    {batchBusy ? "Copying…" : "Copy selected"}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
                 {treeViewMode ? (
                     <DirectoryTreeView
+                        selection={selection}
+                        onSelect={onSelect}
                         model={model}
                         data={filteredData}
                         rootDir={dirPath}
@@ -1211,6 +1425,8 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     />
                 ) : (
                     <DirectoryTable
+                        selection={selection}
+                        onSelect={onSelect}
                         model={model}
                         data={filteredData}
                         search={searchText}

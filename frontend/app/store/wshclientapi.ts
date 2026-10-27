@@ -822,6 +822,12 @@ export class RpcApiType {
         return client.wshRpcStream("streamtest", null, opts);
     }
 
+    // command "termcommandblock" [call]
+    TermCommandBlockCommand(client: WshClient, data: CommandTermCommandBlockData, opts?: RpcOpts): Promise<CommandTermCommandBlockRtnData> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "termcommandblock", data, opts);
+        return client.wshRpcCall("termcommandblock", data, opts);
+    }
+
     // command "termgetscrollbacklines" [call]
     TermGetScrollbackLinesCommand(client: WshClient, data: CommandTermGetScrollbackLinesData, opts?: RpcOpts): Promise<CommandTermGetScrollbackLinesRtnData> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "termgetscrollbacklines", data, opts);
@@ -838,6 +844,12 @@ export class RpcApiType {
     TestMultiArgCommand(client: WshClient, arg1: string, arg2: number, arg3: boolean, opts?: RpcOpts): Promise<string> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "testmultiarg", { args: [arg1, arg2, arg3] }, opts);
         return client.wshRpcCall("testmultiarg", { args: [arg1, arg2, arg3] }, opts);
+    }
+
+    // command "updatesavedportservice" [call]
+    UpdateSavedPortServiceCommand(client: WshClient, data: CommandUpdateSavedPortServiceData, opts?: RpcOpts): Promise<SavedPortService[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "updatesavedportservice", data, opts);
+        return client.wshRpcCall("updatesavedportservice", data, opts);
     }
 
     // command "updatetabname" [call]

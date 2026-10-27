@@ -234,12 +234,22 @@ type FullConfigType struct {
 	BuildTime      string                          `json:"buildtime" configfile:"-"`
 }
 
+type SavedPortService struct {
+	Id         string `json:"id"`
+	Name       string `json:"name"`
+	RemoteHost string `json:"remotehost"`
+	RemotePort int    `json:"remoteport"`
+	LocalPort  int    `json:"localport"`
+	Restore    bool   `json:"restore"`
+}
+
 type ConnKeywords struct {
-	ConnWshEnabled          *bool  `json:"conn:wshenabled,omitempty"`
-	ConnAskBeforeWshInstall *bool  `json:"conn:askbeforewshinstall,omitempty"`
-	ConnWshPath             string `json:"conn:wshpath,omitempty"`
-	ConnShellPath           string `json:"conn:shellpath,omitempty"`
-	ConnIgnoreSshConfig     *bool  `json:"conn:ignoresshconfig,omitempty"`
+	ConnServices            []SavedPortService `json:"conn:services,omitempty"`
+	ConnWshEnabled          *bool              `json:"conn:wshenabled,omitempty"`
+	ConnAskBeforeWshInstall *bool              `json:"conn:askbeforewshinstall,omitempty"`
+	ConnWshPath             string             `json:"conn:wshpath,omitempty"`
+	ConnShellPath           string             `json:"conn:shellpath,omitempty"`
+	ConnIgnoreSshConfig     *bool              `json:"conn:ignoresshconfig,omitempty"`
 
 	DisplayHidden *bool   `json:"display:hidden,omitempty"`
 	DisplayName   string  `json:"display:name,omitempty"`
@@ -429,7 +439,10 @@ func ReadWaveHomeConfigFile(fileName string) (waveobj.MetaMapType, []ConfigError
 func WriteWaveHomeConfigFile(fileName string, m waveobj.MetaMapType) error {
 	configWriteLock.Lock()
 	defer configWriteLock.Unlock()
+	return writeWaveHomeConfigFileLocked(fileName, m)
+}
 
+func writeWaveHomeConfigFileLocked(fileName string, m waveobj.MetaMapType) error {
 	configDirAbsPath := wavebase.GetWaveConfigDir()
 	fullFileName := filepath.Join(configDirAbsPath, fileName)
 	barr, err := jsonMarshalConfigInOrder(m)
@@ -737,6 +750,9 @@ func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 }
 
 func SetConnectionsConfigValue(connName string, toMerge waveobj.MetaMapType) error {
+	configWriteLock.Lock()
+	defer configWriteLock.Unlock()
+
 	m, cerrs := ReadWaveHomeConfigFile(ConnectionsFile)
 	if len(cerrs) > 0 {
 		return fmt.Errorf("error reading config file: %v", cerrs[0])
@@ -760,7 +776,7 @@ func SetConnectionsConfigValue(connName string, toMerge waveobj.MetaMapType) err
 	} else {
 		m[connName] = connData
 	}
-	return WriteWaveHomeConfigFile(ConnectionsFile, m)
+	return writeWaveHomeConfigFileLocked(ConnectionsFile, m)
 }
 
 func MigratePresetsBackgrounds() {

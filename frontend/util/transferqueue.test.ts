@@ -32,6 +32,24 @@ const baseJobInput: TransferJobInput = {
 };
 
 describe("transferqueue", () => {
+    it("recovers interrupted remote copies in the existing retry queue", () => {
+        const copying = startTransferJob(
+            enqueueTransferJob(createTransferQueue(), { ...baseJobInput, operation: "copy", transport: "wsh" }, 1000),
+            "job-1",
+            1100
+        );
+        const recovered = recoverTransferQueue(copying, 2000);
+        expect(recovered.jobs[0]).toMatchObject({
+            operation: "copy",
+            status: "failed",
+            lastError: { retryable: true },
+        });
+        expect(retryTransferJob(recovered, "job-1", 3000).jobs[0]).toMatchObject({
+            operation: "copy",
+            status: "queued",
+            attempt: 2,
+        });
+    });
     it("recovers interrupted downloads and uploads as retryable failures", () => {
         const download = startTransferJob(enqueueTransferJob(createTransferQueue(), baseJobInput, 1000), "job-1", 1100);
         const uploadInput = { ...baseJobInput, id: "upload-1", operation: "upload" as const };

@@ -8,6 +8,7 @@ import { memo, useEffect, useState } from "react";
 import { HostOverviewPane } from "./host-detail";
 import type { HostViewModel } from "./host-model";
 import { HostPorts } from "./host-ports";
+import { HostSessions } from "./host-sessions";
 import {
     formatHostSubtitle,
     getHelperMissing,
@@ -27,6 +28,7 @@ const TabLabels: Record<HostTab, string> = {
     overview: "Overview",
     processes: "Processes",
     ports: "Ports",
+    sessions: "Sessions",
 };
 
 function connKindLabel(conn: string): string {
@@ -94,7 +96,7 @@ const HostHeader = memo(({ model }: { model: HostViewModel }) => {
                         aria-selected={tab === key}
                         onClick={() => fireAndForget(() => model.setTab(key))}
                         className={cn(
-                            "inline-flex h-7 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[12px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent @[520px]/host:flex-none",
+                            "inline-flex h-7 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[12px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent @[640px]/host:flex-none",
                             tab === key ? "bg-hoverbg text-primary" : "text-secondary hover:bg-hover hover:text-primary"
                         )}
                     >
@@ -217,18 +219,24 @@ export function HostView(props: ViewComponentProps<HostViewModel>) {
     const connected = connStatus?.status === "connected" || model.env.isMock;
     const helperMissing = model.env.isMock ? null : getHelperMissing(connStatus);
     let content: React.ReactNode;
-    if (!connected) {
-        content = <NotConnected model={model} />;
-    } else if (helperMissing != null) {
-        content = <HelperMissingPane model={model} missing={helperMissing} />;
-    } else if (tab === "processes") {
-        content = <ProcessesTab model={model} props={props} />;
+    if (tab === "sessions") {
+        content = (
+            <OverlayScrollbarsComponent className="h-full" options={{ scrollbars: { autoHide: "leave" } }}>
+                <HostSessions model={model} />
+            </OverlayScrollbarsComponent>
+        );
     } else if (tab === "ports") {
         content = (
             <OverlayScrollbarsComponent className="h-full" options={{ scrollbars: { autoHide: "leave" } }}>
                 <HostPorts model={model} />
             </OverlayScrollbarsComponent>
         );
+    } else if (!connected) {
+        content = <NotConnected model={model} />;
+    } else if (helperMissing != null) {
+        content = <HelperMissingPane model={model} missing={helperMissing} />;
+    } else if (tab === "processes") {
+        content = <ProcessesTab model={model} props={props} />;
     } else {
         content = <HostOverviewPane model={model} />;
     }

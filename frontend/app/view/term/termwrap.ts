@@ -50,6 +50,7 @@ import {
     shouldAutoComposeInlineAI,
     type CommandInlineAIRequestHandler,
 } from "./command-composer";
+import { makeCommandHistoryEntry } from "./command-history";
 import { applyPromptInputData, emptyPromptInputBuffer, isTypeaheadInput } from "./completion/input-mirror";
 import {
     normalizeShellName,
@@ -1468,6 +1469,9 @@ export class TermWrap {
         this.pendingCmdBlock.cwd = replaying
             ? null
             : (globalStore.get(getBlockMetaKeyAtom(this.blockId, "cmd:cwd")) as string) || null;
+        if (!replaying) {
+            this.recordCommandHistory(this.pendingCmdBlock, false);
+        }
         this.publishCmdBlocks();
     }
 
@@ -1488,6 +1492,7 @@ export class TermWrap {
         }
         if (!replaying) {
             this.cmdBlocksCacheDirty = true;
+            this.recordCommandHistory(block, true);
             if (blockHasCommand(block)) {
                 emitOnboardingEvent({
                     type: "command-done",
@@ -1508,6 +1513,27 @@ export class TermWrap {
         }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();
+    }
+
+    recordCommandHistory(block: CmdBlock, update: boolean) {
+        if (typeof window === "undefined" || !getApi()?.changeCommandLibrary) {
+            return;
+        }
+        const entry = makeCommandHistoryEntry(
+            {
+                blockid: this.blockId,
+                tabid: this.tabId,
+                connection: globalStore.get(getBlockMetaKeyAtom(this.blockId, "connection")) ?? "",
+                cwd: globalStore.get(getBlockMetaKeyAtom(this.blockId, "cmd:cwd")) ?? "",
+                shell: globalStore.get(this.shellTypeAtom),
+            },
+            block
+        );
+        if (entry) {
+            void getApi()
+                .changeCommandLibrary({ type: "record", entry, update })
+                .catch(() => {});
+        }
     }
 
     notifyCommandDone(block: CmdBlock) {
@@ -1550,6 +1576,7 @@ export class TermWrap {
         }
         if (!replaying) {
             this.cmdBlocksCacheDirty = true;
+            this.recordCommandHistory(block, true);
         }
         this.publishCmdBlocks();
         this.scheduleCmdDecorationSync();

@@ -27,6 +27,8 @@ Fields are optional, and scripts differ in which they emit. For example, `cur` i
 
 A typical prompt cycle is `M`, `A`, then `C`, command output, `D`, and the next `A`. The initial prompt has no preceding exit status. Zsh uses precmd/preexec and line-editor hooks; Bash uses the bundled bash-preexec integration; Fish and PowerShell have their own hooks. The scripts suppress semantic integration inside tmux/screen environments. Bash also reports disabled integration when extdebug or missing bash-preexec support prevents normal hooks.
 
+On Windows, PowerShell prefixes semantic markers with an OSC 633 property. ConPTY synchronously flushes pending screen output for that supported sequence; otherwise it can pass the custom OSC 16162 markers through ahead of the text they delimit. The frontend ignores the property and continues to use the same command-marker protocol.
+
 `handleOsc16162Command()` consumes the OSC even when data is empty or malformed, keeping parser errors from propagating through xterm's write queue. `decodeOsc16162CommandText()` catches base64 failures and substitutes a non-executable placeholder when its estimated decoded size exceeds 8 KiB. New consumers must not treat that placeholder as a command to copy or rerun.
 
 ## Command blocks and replay

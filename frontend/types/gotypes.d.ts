@@ -671,6 +671,19 @@ declare global {
         error?: string;
     };
 
+    // wshrpc.CommandTermCommandBlockData
+    type CommandTermCommandBlockData = {
+        commandblockid: number;
+        startts: number;
+        command: string;
+        focus?: boolean;
+    };
+
+    // wshrpc.CommandTermCommandBlockRtnData
+    type CommandTermCommandBlockRtnData = {
+        retained: boolean;
+    };
+
     // wshrpc.CommandTermGetScrollbackLinesData
     type CommandTermGetScrollbackLinesData = {
         linestart: number;
@@ -684,6 +697,13 @@ declare global {
         linestart: number;
         lines: string[];
         lastupdated: number;
+    };
+
+    // wshrpc.CommandUpdateSavedPortServiceData
+    type CommandUpdateSavedPortServiceData = {
+        host: string;
+        service: SavedPortService;
+        remove?: boolean;
     };
 
     // wshrpc.CommandVarData
@@ -750,6 +770,7 @@ declare global {
 
     // wconfig.ConnKeywords
     type ConnKeywords = {
+        "conn:services"?: SavedPortService[];
         "conn:wshenabled"?: boolean;
         "conn:askbeforewshinstall"?: boolean;
         "conn:wshpath"?: string;
@@ -1330,6 +1351,16 @@ declare global {
     type RuntimeOpts = {
         termsize?: TermSize;
         winsize?: WinSize;
+    };
+
+    // wconfig.SavedPortService
+    type SavedPortService = {
+        id: string;
+        name: string;
+        remotehost: string;
+        remoteport: number;
+        localport: number;
+        restore: boolean;
     };
 
     // wconfig.SettingsType

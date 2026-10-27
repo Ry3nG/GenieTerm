@@ -45,6 +45,21 @@ Configuration is JSON under the config directory, normally `~/.config/genieterm`
 
 GenieTerm is a soft fork of Wave Terminal. Internal `Wave*`, `wshrpc`, `WAVETERM_*`, and compatibility `.waveterm` names are deliberate: changing them indiscriminately breaks saved data, shell environments, or remote protocols. New remote installs use `~/.genieterm/bin/genie`, with legacy helper paths recognized during connection setup. The helper carries a protocol stamp: `genie version --protocol` prints `genie v<version>+p<N>`, where `N` comes from `wavebase.HelperProtocol` in `pkg/wavebase/wavebase.go`. A running job manager keeps its existing executable after a helper update, so protocol changes must account for older managers.
 
+## Interaction scope
+
+| Feature | Behavior and boundary |
+| --- | --- |
+| Completion | Automatic suggestions keep shell Tab behavior until explicitly selected; arrows choose, click inserts, and manual completion selects the first result. Escape dismisses pending requests; IME composition is left to the terminal. |
+| Command history | Search the latest 500 commands by text, host, folder and result. Insert fills an idle prompt without running it. Opening the original checks retained terminal markers; missing output leaves the command available. |
+| Host sessions | Lists GenieTerm's known durable SSH jobs, including connection and exit state, with open/reconnect actions. It does not discover arbitrary server processes or promise recovery of a lost job manager. |
+| Output inspector | Captures a command's output on demand, searches/copies that fixed snapshot and can jump to retained output. Capture is limited to the last 2,000 terminal rows and 256K characters; it is not a live log or a separate terminal. |
+| Workspace setups | Saves supported pane types, layout proportions and host/folder context; launch creates fresh IDs with optional destination overrides. Commands, environment, credentials and job identities are excluded, and configured startup widgets are bypassed. |
+| Command recipes | Up to 100 local recipes with text/choice parameters and a destination/shell-aware preview. Parameters are literal arguments in simple commands, with shell quoting; insertion requires an idle prompt. There are no dynamic providers, workflow execution or cloud sync. |
+| Batch Files actions | Selection supports queued copies/downloads with shared collision choices and progress/retry/cancel controls. Batch download chooses the local destination once; it is not a directory synchronizer. |
+| Saved services | Named SSH port-forward definitions keep endpoint/local-port preferences. Restore is opt-in and attempted once per new SSH connection; an explicit stop or failed bind is not repeatedly retried on that connection. Forgetting a definition leaves an existing tunnel running. |
+
+The Electron main process owns `command-library.json` under the data directory, serializing history/recipe changes from every window. It persists bounded metadata with debounced atomic writes and a quit flush, never terminal output. Workspace setups use keyed client metadata; saved services use `conn:services` in connection config, with per-ID updates under the backend config lock.
+
 ## Directory map
 
 | Path                                                          | Contents                                                         |

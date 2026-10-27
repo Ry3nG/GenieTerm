@@ -10,6 +10,7 @@ import { addOpenMenuItems } from "@/util/previewutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
 import * as React from "react";
+import type { DirectorySelection, SelectionModifiers } from "./directory-selection";
 import { confirmFileDelete, isIconValid, isParentDirEntry } from "./preview-directory-utils";
 import { getPreviewFileName } from "./preview-file-path";
 import { type PreviewModel } from "./preview-model";
@@ -32,6 +33,9 @@ export type FileTreeNodeMenuCtx = {
 };
 
 type TreeCtx = {
+    selectedPaths: Set<string>;
+    entries: Map<string, FileInfo>;
+    onSelect: (entry: FileInfo, event: React.MouseEvent) => void;
     model: PreviewModel;
     rpc: PreviewEnv["rpc"];
     connName: string;
@@ -93,6 +97,12 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
     const isExpanded = isDir && ctx.expanded.has(fileInfo.path);
     const [children, setChildren] = React.useState<FileInfo[]>(null);
     const [loading, setLoading] = React.useState(false);
+    React.useEffect(() => {
+        ctx.entries.set(fileInfo.path, fileInfo);
+        return () => {
+            ctx.entries.delete(fileInfo.path);
+        };
+    }, [ctx.entries, fileInfo]);
 
     React.useEffect(() => {
         if (!isExpanded || children != null) {
@@ -144,17 +154,16 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
         if (e.detail > 1) {
             return;
         }
-        if (isDir) {
-            ctx.model.toggleTreeExpanded(fileInfo.path);
-            return;
-        }
-        fireAndForget(() => createBlock({ meta: { view: "preview", file: fileInfo.path, connection: ctx.connName } }));
+        ctx.onSelect(fileInfo, e);
     };
 
     // double-click a folder to enter it: re-roots the tree at that folder (matches
     // the table view's double-click-to-navigate)
     const onDoubleClick = () => {
         if (!isDir) {
+            fireAndForget(() =>
+                createBlock({ meta: { view: "preview", file: fileInfo.path, connection: ctx.connName } })
+            );
             return;
         }
         fireAndForget(() => ctx.model.goHistory(fileInfo.path));
@@ -200,6 +209,7 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
             <div
                 className={cn(
                     "flex items-center gap-1.5 h-[22px] pr-2 rounded hover:bg-hoverbg cursor-pointer",
+                    ctx.selectedPaths.has(fileInfo.path) && "bg-accent/15 ring-1 ring-inset ring-accent/30",
                     dropOver && "bg-accent/20 ring-1 ring-inset ring-accent/50"
                 )}
                 style={{ paddingLeft: depth * IndentPx + 6 }}
@@ -210,8 +220,21 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
                 onDrop={onDrop}
                 onContextMenu={onContextMenu}
                 title={fileInfo.path}
+                data-selection-path={fileInfo.path}
+                aria-selected={ctx.selectedPaths.has(fileInfo.path)}
+                role="treeitem"
+                aria-level={depth + 1}
+                aria-expanded={isDir ? isExpanded : undefined}
             >
-                <span className="w-3 shrink-0 text-center text-muted text-[10px]">
+                <span
+                    className="w-3 shrink-0 text-center text-muted text-[10px]"
+                    onClick={(event) => {
+                        if (isDir) {
+                            event.stopPropagation();
+                            ctx.model.toggleTreeExpanded(fileInfo.path);
+                        }
+                    }}
+                >
                     {isDir && (
                         <i className={cn("fa fa-solid fa-fw", isExpanded ? "fa-chevron-down" : "fa-chevron-right")} />
                     )}
@@ -237,12 +260,16 @@ function FileTreeNode({ ctx, fileInfo, depth }: { ctx: TreeCtx; fileInfo: FileIn
 }
 
 export function DirectoryTreeView({
+    selection,
+    onSelect,
     model,
     data,
     rootDir,
     refreshVersion,
     onUploadFiles,
 }: {
+    selection: DirectorySelection;
+    onSelect: (entry: FileInfo, visible: FileInfo[], modifiers: SelectionModifiers) => void;
     model: PreviewModel;
     data: FileInfo[];
     rootDir: string;
@@ -256,6 +283,9 @@ export function DirectoryTreeView({
     const expandedArr = useAtomValue(model.treeExpanded);
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
     const expanded = React.useMemo(() => new Set(expandedArr), [expandedArr]);
+    const treeRef = React.useRef<HTMLDivElement>(null);
+    const entries = React.useRef(new Map<string, FileInfo>()).current;
+    const selectedPaths = React.useMemo(() => new Set(selection.files.map((file) => file.path)), [selection]);
 
     const iconClass = React.useCallback(
         (mimeType: string): string => {
@@ -277,6 +307,14 @@ export function DirectoryTreeView({
     );
 
     const ctx: TreeCtx = {
+        selectedPaths,
+        entries,
+        onSelect: (entry, event) => {
+            const visible = Array.from(treeRef.current?.querySelectorAll<HTMLElement>("[data-selection-path]") ?? [])
+                .map((element) => entries.get(element.dataset.selectionPath))
+                .filter(Boolean);
+            onSelect(entry, visible, event);
+        },
         model,
         rpc: env.rpc,
         connName,
@@ -309,6 +347,10 @@ export function DirectoryTreeView({
 
     return (
         <div
+            ref={treeRef}
+            role="tree"
+            aria-label="Files"
+            aria-multiselectable="true"
             className="flex h-full flex-col overflow-y-auto py-1 text-[13px]"
             onDragOver={onRootDragOver}
             onDrop={onRootDrop}

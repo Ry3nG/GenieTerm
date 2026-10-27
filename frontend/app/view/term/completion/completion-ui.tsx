@@ -3,7 +3,6 @@
 
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { globalStore } from "@/store/global";
 import { fireAndForget, useAtomValueSafe } from "@/util/util";
 import { formatRemoteUri } from "@/util/waveutil";
 import { FloatingPortal, VirtualElement, flip, offset, shift, useFloating } from "@floating-ui/react";
@@ -171,6 +170,8 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
     const open = useAtomValue(completionModel.openAtom);
     const items = useAtomValue(completionModel.itemsAtom);
     const selectedIndex = useAtomValue(completionModel.selectedIndexAtom);
+    const selectionExplicit = useAtomValue(completionModel.selectionExplicitAtom);
+    const status = useAtomValue(completionModel.statusAtom);
     const manualRequestVersion = useAtomValue(completionModel.manualRequestVersionAtom);
     const inputBuffer = useAtomValueSafe<TermInputBuffer>(termWrap?.currentInputBufferAtom);
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
@@ -179,7 +180,33 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
     const shellName = useAtomValueSafe<ShellName>(termWrap?.shellNameAtom) ?? "unknown";
     const altScreenActive = useAtomValueSafe<boolean>(termWrap?.altScreenActiveAtom);
     const context = useAtomValue(completionModel.contextAtom);
+    const [showLoading, setShowLoading] = React.useState(false);
+    const listRef = React.useRef<HTMLDivElement>(null);
+    const focused = useAtomValue(model.nodeModel.isFocused);
+    const visible = focused && (open || showLoading);
+    React.useEffect(() => {
+        setShowLoading(false);
+        if (status !== "loading" || context?.requestKind !== "manual") {
+            return;
+        }
+        const timer = window.setTimeout(() => setShowLoading(true), 250);
+        return () => window.clearTimeout(timer);
+    }, [status, context]);
+    React.useEffect(() => {
+        if (!focused) {
+            completionModel.invalidate();
+        }
+    }, [focused, completionModel]);
+    React.useEffect(() => {
+        if (selectionExplicit) {
+            listRef.current?.children[selectedIndex]?.scrollIntoView({ block: "nearest" });
+        }
+    }, [selectedIndex, selectionExplicit]);
     const recentCommands = React.useMemo(() => recentCommandsFromBlocks(cmdBlocks), [cmdBlocks]);
+    const recentCommandsRef = React.useRef(recentCommands);
+    recentCommandsRef.current = recentCommands;
+    const connection = (blockData?.meta?.connection as string) || "";
+    const cwd = (blockData?.meta?.["cmd:cwd"] as string) || "~";
     const service = React.useMemo(() => {
         const listDirectory: ListDirectoryForCompletion = (path, ctx) => listDirectoryForCompletion(path, ctx);
         return new TermCompletionService([
@@ -195,13 +222,13 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
     cursorPointRef.current = getTerminalCursorMetrics(termWrap);
 
     const { refs, floatingStyles, update } = useFloating({
-        open,
+        open: visible,
         placement: "bottom-start",
         middleware: [offset({ mainAxis: 4, crossAxis: 0 }), flip(), shift({ padding: 8 })],
     });
 
     React.useLayoutEffect(() => {
-        if (!open) {
+        if (!visible) {
             return;
         }
         const virtualEl: VirtualElement = {
@@ -214,7 +241,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         fireAndForget(async () => {
             await update?.();
         });
-    }, [open, inputBuffer?.text, inputBuffer?.cursorIndex, items.length]);
+    }, [visible, inputBuffer?.text, inputBuffer?.cursorIndex, items.length]);
 
     const lastManualRequestVersion = React.useRef(manualRequestVersion);
     React.useEffect(() => {
@@ -224,6 +251,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         completionModel.invalidate();
         if (
             termWrap == null ||
+            !focused ||
             inputBuffer == null ||
             shellIntegrationStatus === "running-command" ||
             altScreenActive
@@ -236,14 +264,13 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         if (!manualRequest && inputBuffer.text.trim() === completionModel.suppressedAutoText?.trim()) {
             return;
         }
-        const connection = (blockData?.meta?.connection as string) || "";
         const ctx = buildCompletionContext(inputBuffer, {
-            cwd: (blockData?.meta?.["cmd:cwd"] as string) || "~",
+            cwd,
             connId: connection === "local" ? "" : connection,
             shellType,
             shellName,
             env: {},
-            recentCommands,
+            recentCommands: recentCommandsRef.current,
             requestKind: manualRequest ? "manual" : "auto",
         });
         const timeout = window.setTimeout(
@@ -253,12 +280,13 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         return () => window.clearTimeout(timeout);
     }, [
         altScreenActive,
-        blockData?.meta,
+        connection,
+        cwd,
         completionModel,
+        focused,
         inputBuffer?.cursorIndex,
         inputBuffer?.text,
         manualRequestVersion,
-        recentCommands,
         service,
         shellIntegrationStatus,
         shellType,
@@ -266,7 +294,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
         termWrap,
     ]);
 
-    if (!open || items.length === 0) {
+    if (!visible || (!showLoading && items.length === 0)) {
         return null;
     }
     const selectedItem = items[selectedIndex];
@@ -294,25 +322,51 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
                 className="z-50 w-[min(480px,calc(100vw-24px))] overflow-hidden rounded-lg border border-border text-primary shadow-2xl"
                 onMouseDown={(e) => e.preventDefault()}
             >
-                <div className="max-h-72 overflow-y-auto py-1">
-                    {items.map((item, idx) => {
-                        const selected = idx === selectedIndex;
-                        return (
-                            <div
-                                key={`${item.source ?? "completion"}:${item.kind}:${item.insertText}:${idx}`}
-                                className={[
-                                    "grid min-h-8 cursor-pointer grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 px-2 text-xs",
-                                    selected ? "bg-accent/80 text-primary" : "text-secondary hover:bg-accent/20",
-                                ].join(" ")}
-                                onMouseEnter={() => globalStore.set(completionModel.selectedIndexAtom, idx)}
-                                onClick={() => model.acceptCompletionSelected()}
-                            >
-                                <i className={itemIconClass(item.kind)} aria-hidden="true" />
-                                <div className="min-w-0 truncate font-mono">{item.label}</div>
-                                {item.detail && <div className="max-w-44 truncate opacity-75">{item.detail}</div>}
-                            </div>
-                        );
-                    })}
+                {showLoading && status === "loading" ? (
+                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-secondary" role="status">
+                        <i className="fa-solid fa-circle-notch animate-spin" aria-hidden="true" />
+                        Finding completions…
+                    </div>
+                ) : (
+                    <div
+                        ref={listRef}
+                        className="max-h-64 overflow-y-auto py-1"
+                        role="listbox"
+                        aria-label="Completions"
+                    >
+                        {items.map((item, idx) => {
+                            const selected = idx === selectedIndex;
+                            return (
+                                <div
+                                    key={`${item.source ?? "completion"}:${item.kind}:${item.insertText}:${idx}`}
+                                    role="option"
+                                    aria-selected={selected && selectionExplicit}
+                                    className={[
+                                        "grid min-h-8 cursor-pointer grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 px-2 text-xs",
+                                        selected && selectionExplicit
+                                            ? "bg-accent/80 text-primary"
+                                            : "text-secondary hover:bg-accent/20",
+                                    ].join(" ")}
+                                    onClick={() => {
+                                        completionModel.selectIndex(idx);
+                                        model.acceptCompletionSelected();
+                                    }}
+                                >
+                                    <i className={itemIconClass(item.kind)} aria-hidden="true" />
+                                    <div className="min-w-0 truncate font-mono">{item.label}</div>
+                                    {item.detail && <div className="max-w-44 truncate opacity-75">{item.detail}</div>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+                <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-border px-2.5 py-1.5 text-[10px] text-secondary">
+                    <span>↑↓ Choose</span>
+                    <span>{selectionExplicit ? "Tab Insert" : "Tab Shell completion"}</span>
+                    {!selectionExplicit && completionModel.canAcceptWithArrowRight(inputBuffer) && (
+                        <span>→ Complete</span>
+                    )}
+                    <span className="ml-auto">Esc Dismiss</span>
                 </div>
             </div>
         </FloatingPortal>

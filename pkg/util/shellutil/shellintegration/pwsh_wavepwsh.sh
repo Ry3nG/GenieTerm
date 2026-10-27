@@ -46,6 +46,11 @@ function Global:_waveterm_si_blocked {
 
 function Global:_waveterm_si_osc([string]$body) {
     if (-not $Global:_WAVETERM_SI_VT -or (_waveterm_si_blocked)) { return }
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT -and $body.StartsWith("16162;")) {
+        # ConPTY passes unknown OSC through before pending screen output. OSC 633 synchronously
+        # flushes its renderer, keeping our command markers at the correct buffer positions.
+        [Console]::Write($Global:_WAVETERM_SI_ESC + "]633;P;GenieTermFlush=1" + $Global:_WAVETERM_SI_BEL)
+    }
     # [Console]::Write bypasses $PSStyle.OutputRendering / NO_COLOR stripping that can affect Write-Host
     [Console]::Write($Global:_WAVETERM_SI_ESC + "]" + $body + $Global:_WAVETERM_SI_BEL)
 }

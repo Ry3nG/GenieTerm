@@ -123,6 +123,31 @@ describe("TermCompletionModel", () => {
         expect(model.shouldAcceptSelectedFromKey()).toBe(false);
     });
 
+    it("starts keyboard selection at the first suggestion instead of skipping it", async () => {
+        const model = new TermCompletionModel();
+        await model.requestCompletions(
+            { provideCompletions: async () => [item("checkout"), item("cherry-pick")] },
+            makeContext()
+        );
+        model.moveSelection(1);
+        expect(model.getSelectedItem().label).toBe("checkout");
+        expect(model.shouldAcceptSelectedFromKey()).toBe(true);
+        model.moveSelection(1);
+        expect(model.getSelectedItem().label).toBe("cherry-pick");
+    });
+
+    it("accepts a clicked candidate without changing keyboard selection on hover", async () => {
+        const model = new TermCompletionModel();
+        await model.requestCompletions(
+            { provideCompletions: async () => [item("checkout"), item("cherry-pick")] },
+            makeContext()
+        );
+        model.selectIndex(1);
+        const sendData = vi.fn();
+        expect(model.acceptSelected(sendData, { text: "git ch", cursorIndex: 6 })).toBe(true);
+        expect(sendData).toHaveBeenCalledWith("\x7f\x7fcherry-pick");
+    });
+
     it("accepts the selected item through the provided send function", async () => {
         const model = new TermCompletionModel();
         const service = { provideCompletions: vi.fn(async () => [item("checkout")]) };
@@ -163,6 +188,21 @@ describe("TermCompletionModel", () => {
         await pending;
 
         expect(globalStore.get(model.openAtom)).toBe(false);
+        expect(globalStore.get(model.itemsAtom)).toEqual([]);
+    });
+
+    it("does not reopen when a pending request is dismissed", async () => {
+        const model = new TermCompletionModel();
+        let resolve: (items: CompletionItem[]) => void;
+        const pending = model.requestCompletions(
+            { provideCompletions: () => new Promise<CompletionItem[]>((done) => (resolve = done)) },
+            makeContext({ requestKind: "manual" })
+        );
+        model.dismiss();
+        resolve([item("checkout")]);
+        await pending;
+        expect(globalStore.get(model.openAtom)).toBe(false);
+        expect(globalStore.get(model.statusAtom)).toBe("idle");
         expect(globalStore.get(model.itemsAtom)).toEqual([]);
     });
 

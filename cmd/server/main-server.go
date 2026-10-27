@@ -288,6 +288,7 @@ func main() {
 	sigutil.InstallSIGUSR1Handler()
 	wconfig.MigratePresetsBackgrounds()
 	startConfigWatcher()
+	portforward.GetManager()
 	maybeStartPprofServer()
 	go stdinReadWatch()
 	go purgeLocalTelemetry()

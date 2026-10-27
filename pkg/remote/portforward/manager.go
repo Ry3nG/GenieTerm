@@ -66,30 +66,32 @@ type eventState struct {
 }
 
 type Manager struct {
-	lock         sync.Mutex
-	forwards     map[string]*forward
-	keys         map[forwardKey]*forward
-	events       map[string]*eventState
-	pending      map[Dialer]int
-	clients      map[Dialer]int
-	sessionCount int
-	dialCount    int
-	closed       bool
-	lookup       func(string) Dialer
-	listen       func(wshrpc.CommandPortForwardStartData) (net.Listener, error)
-	publish      func(string, []wshrpc.PortForwardInfo)
-	closeDialer  func(Dialer)
-	dialTimeout  time.Duration
-	wake         chan struct{}
-	done         chan struct{}
-	closeOnce    sync.Once
-	workers      sync.WaitGroup
+	lock          sync.Mutex
+	forwards      map[string]*forward
+	keys          map[forwardKey]*forward
+	restoreErrors map[forwardKey]wshrpc.PortForwardInfo
+	events        map[string]*eventState
+	pending       map[Dialer]int
+	clients       map[Dialer]int
+	sessionCount  int
+	dialCount     int
+	closed        bool
+	lookup        func(string) Dialer
+	listen        func(wshrpc.CommandPortForwardStartData) (net.Listener, error)
+	publish       func(string, []wshrpc.PortForwardInfo)
+	closeDialer   func(Dialer)
+	dialTimeout   time.Duration
+	wake          chan struct{}
+	done          chan struct{}
+	closeOnce     sync.Once
+	workers       sync.WaitGroup
 }
 
 func MakeManager(lookup func(string) Dialer, publish func(string, []wshrpc.PortForwardInfo)) *Manager {
 	m := &Manager{
 		forwards: make(map[string]*forward), keys: make(map[forwardKey]*forward),
-		events: make(map[string]*eventState), pending: make(map[Dialer]int), clients: make(map[Dialer]int),
+		restoreErrors: make(map[forwardKey]wshrpc.PortForwardInfo),
+		events:        make(map[string]*eventState), pending: make(map[Dialer]int), clients: make(map[Dialer]int),
 		lookup: lookup, listen: listen, publish: publish, closeDialer: func(d Dialer) { d.Close() },
 		dialTimeout: dialTimeout, wake: make(chan struct{}, 1), done: make(chan struct{}),
 	}
@@ -181,6 +183,7 @@ func (m *Manager) Start(ctx context.Context, data wshrpc.CommandPortForwardStart
 		},
 	}
 	m.forwards[f.info.Id], m.keys[key] = f, f
+	delete(m.restoreErrors, key)
 	m.changedLocked(data.ConnName, true)
 	m.workers.Add(1)
 	go m.acceptLoop(f)
@@ -193,6 +196,11 @@ func (m *Manager) listLocked(connName string) []wshrpc.PortForwardInfo {
 	for _, f := range m.forwards {
 		if connName == "" || connName == f.info.ConnName {
 			result = append(result, f.info)
+		}
+	}
+	for _, info := range m.restoreErrors {
+		if connName == "" || connName == info.ConnName {
+			result = append(result, info)
 		}
 	}
 	sort.Slice(result, func(i, j int) bool {
@@ -234,6 +242,12 @@ func (m *Manager) Stop(id string) error {
 	defer m.lock.Unlock()
 	if f := m.forwards[id]; f != nil {
 		m.removeLocked(f)
+	}
+	for key, info := range m.restoreErrors {
+		if info.Id == id {
+			delete(m.restoreErrors, key)
+			m.changedLocked(info.ConnName, true)
+		}
 	}
 	return nil
 }

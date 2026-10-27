@@ -8,6 +8,7 @@ import (
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/conncontroller"
+	"github.com/Ry3nG/GenieTerm/pkg/wconfig"
 	"github.com/Ry3nG/GenieTerm/pkg/wps"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc/wshclient"
@@ -37,10 +38,12 @@ func lookupClient(name string) Dialer {
 func GetManager() *Manager {
 	serverOnce.Do(func() {
 		serverManager = makeServerManager()
+		restorer := makeServiceRestorer()
 		client := wshclient.GetBareRpcClient()
 		client.EventListener.On(wps.Event_ConnChange, func(*wps.WaveEvent) {
 			// Refresh all names because SSHOpts.String omits an explicit :22 in event scopes.
 			serverManager.Refresh("")
+			restorer.restore(serverManager, wconfig.GetWatcher().GetFullConfig().Connections)
 		})
 		wps.Broker.Subscribe(wshclient.GetBareRpcClientRouteId(), wps.SubscriptionRequest{
 			Event: wps.Event_ConnChange, AllScopes: true,

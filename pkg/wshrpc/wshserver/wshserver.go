@@ -529,6 +529,10 @@ func (ws *WshServer) SetConnectionsConfigCommand(ctx context.Context, data wshrp
 	return wconfig.SetConnectionsConfigValue(data.Host, data.MetaMapType)
 }
 
+func (ws *WshServer) UpdateSavedPortServiceCommand(ctx context.Context, data wshrpc.CommandUpdateSavedPortServiceData) ([]wconfig.SavedPortService, error) {
+	return wconfig.UpdateSavedPortService(data.Host, data.Service, data.Remove)
+}
+
 func (ws *WshServer) GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error) {
 	watcher := wconfig.GetWatcher()
 	return watcher.GetFullConfig(), nil

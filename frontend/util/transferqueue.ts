@@ -1,4 +1,4 @@
-export type TransferOperation = "download" | "upload";
+export type TransferOperation = "download" | "upload" | "copy";
 export type TransferItemType = "file" | "folder";
 export type TransferTransport = "wsh" | "rsync" | "scp" | "sftp";
 export type TransferJobStatus = "queued" | "running" | "completed" | "failed" | "canceled";
@@ -86,7 +86,7 @@ export function recoverTransferQueue(raw: unknown, now: number): TransferQueue {
                 typeof job.source === "string" &&
                 typeof job.destination === "string" &&
                 typeof job.label === "string" &&
-                (job.operation === "download" || job.operation === "upload") &&
+                (job.operation === "download" || job.operation === "upload" || job.operation === "copy") &&
                 TransferStatuses.includes(job.status)
         )
         .map((job) => {
