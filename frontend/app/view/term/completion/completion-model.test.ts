@@ -1,10 +1,11 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { globalStore } from "@/store/global";
 import { TermCompletionModel } from "./completion-model";
+import { TermCompletionService } from "./completion-service";
 import type { CompletionContext, CompletionItem } from "./types";
 
 function makeContext(overrides: Partial<CompletionContext> = {}): CompletionContext {
@@ -32,6 +33,37 @@ function item(label: string): CompletionItem {
 }
 
 describe("TermCompletionModel", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it.each(["cancel", "new input"])("does not reopen a cold PowerShell result after %s", async (action) => {
+        vi.useFakeTimers();
+        const model = new TermCompletionModel();
+        const service = new TermCompletionService([
+            {
+                id: "cold-command",
+                provideCompletions: () => new Promise((resolve) => setTimeout(() => resolve([item("checkout")]), 2300)),
+            },
+        ]);
+        const pending = model.requestCompletions(service, makeContext({ shellType: "pwsh" }));
+        await vi.advanceTimersByTimeAsync(1800);
+        expect(globalStore.get(model.statusAtom)).toBe("loading");
+
+        model.invalidate();
+        if (action === "new input") {
+            await model.requestCompletions(
+                new TermCompletionService([{ id: "new", provideCompletions: async () => [item("cherry-pick")] }]),
+                makeContext({ shellType: "pwsh", inputText: "git che", cursorIndex: 7, searchTerm: "che" })
+            );
+        }
+        await vi.advanceTimersByTimeAsync(500);
+        await pending;
+
+        expect(globalStore.get(model.openAtom)).toBe(action === "new input");
+        expect(globalStore.get(model.itemsAtom).map((entry) => entry.label)).toEqual(
+            action === "new input" ? ["cherry-pick"] : []
+        );
+    });
+
     it("opens with requested completions and stores the matching context", async () => {
         const model = new TermCompletionModel();
         const service = { provideCompletions: vi.fn(async () => [item("checkout")]) };
