@@ -76,7 +76,6 @@ const ActionKeywords: Record<string, string> = {
     "block:new-host-processes": "top htop ps kill process list",
     "block:new-host-ports": "port forward forwarding tunnel ssh -L localhost jupyter tensorboard listening",
 };
-const RecentStorageKey = "genieterm:command-palette:recent:v1";
 const RecentLimit = 5;
 const ActionOrder = new Map(
     [
@@ -109,7 +108,6 @@ export type IndexedPaletteCommand = {
 };
 export type PaletteMatch = { item: IndexedPaletteCommand; score: number; positions: number[] };
 export type PaletteSection = { title: string; matches: PaletteMatch[] };
-type PaletteStorage = Pick<Storage, "getItem" | "setItem">;
 
 export function getPaletteGroup(id: string): PaletteGroup {
     return ActionGroups[id] ?? PrefixGroups[id.split(":", 1)[0]] ?? "Other";
@@ -271,22 +269,8 @@ export function normalizePaletteRecents(value: unknown): string[] {
     );
 }
 
-export function readPaletteRecents(storage?: PaletteStorage): string[] {
-    try {
-        return normalizePaletteRecents(JSON.parse((storage ?? window.localStorage).getItem(RecentStorageKey) ?? "[]"));
-    } catch {
-        return [];
-    }
-}
-
-export function rememberPaletteCommand(id: string, recents: string[], storage?: PaletteStorage): string[] {
-    const updated = normalizePaletteRecents([id, ...recents]);
-    try {
-        (storage ?? window.localStorage).setItem(RecentStorageKey, JSON.stringify(updated));
-    } catch {
-        // Storage can be disabled or full; commands must still run in that case.
-    }
-    return updated;
+export function rememberPaletteCommand(id: string, recents: string[]): string[] {
+    return normalizePaletteRecents([id, ...recents]);
 }
 
 const PaletteModifierOrder = ["Ctrl", "Alt", "Shift", "Cmd"];

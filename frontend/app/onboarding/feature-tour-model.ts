@@ -16,7 +16,7 @@ import { atom, PrimitiveAtom } from "jotai";
 import { CurrentOnboardingVersion } from "./onboarding-common";
 import { OnboardingModel, setClientMeta } from "./onboarding-model";
 
-export const FeatureTourSteps = ["history", "recipes", "output", "setups", "host", "files"] as const;
+export const FeatureTourSteps = ["history", "output", "host", "files"] as const;
 export type FeatureTourStep = (typeof FeatureTourSteps)[number];
 
 export function isFeatureTourStep(value: unknown): value is FeatureTourStep {
@@ -48,14 +48,6 @@ function currentTerminal(): TermViewModel {
 }
 
 export async function openFeatureTourTarget(step: FeatureTourStep): Promise<void> {
-    if (step === "setups") {
-        const button = Array.from(document.querySelectorAll<HTMLElement>(".workspace-switcher-button")).find(
-            (element) => element.checkVisibility({ visibilityProperty: true })
-        );
-        if (!button) throw new Error("Show the tab bar to open Saved setups, then try again.");
-        if (button.getAttribute("aria-expanded") !== "true") button.click();
-        return;
-    }
     const terminal = currentTerminal();
     if (step === "host" || step === "files") {
         const context = terminal?.getCommandLibraryContext();
@@ -70,8 +62,8 @@ export async function openFeatureTourTarget(step: FeatureTourStep): Promise<void
     }
     if (!terminal) throw new Error("Open a terminal pane, then try this step again.");
     refocusNode(terminal.blockId);
-    if (step === "history" || step === "recipes") {
-        terminal.openCommandLibrary(step);
+    if (step === "history") {
+        terminal.openCommandLibrary();
         return;
     }
     terminal.inspectCommandOutput();

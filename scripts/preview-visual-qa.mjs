@@ -33,7 +33,7 @@ const PreviewCases = [
   {
     name: "workflow-tools",
     path: "/?preview=workflow-tools",
-    checks: ["Saved setups", "Command library", "printf 'hello world'", "Insert into"],
+    checks: ["Open command history", "Command history", "printf 'hello world'", "Insert into"],
     viewports: [
       { name: "desktop", width: 1000, height: 1000 },
       { name: "narrow", width: 390, height: 1000 },
@@ -123,8 +123,7 @@ const PreviewCases = [
       "That didn't work",
       "Connected to gpu-01",
       "GenieTerm 1.6",
-      "Command history and recipes",
-      "Saved workspace setups",
+      "Command history",
       "Open remote servers here",
       "Quick Start",
       "Command AI, with the AI you already have",

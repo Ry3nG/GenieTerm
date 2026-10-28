@@ -468,8 +468,19 @@ function registerTransferQueueBridge() {
     });
 }
 
+let commandHistoryStore: ReturnType<typeof makeCommandLibraryStore>;
+
+export async function flushCommandHistory() {
+    await commandHistoryStore?.flush();
+}
+
 function registerCommandLibraryBridge() {
-    const store = makeCommandLibraryStore(path.join(getWaveDataDir(), "command-library.json"));
+    const store = makeCommandLibraryStore(
+        path.join(getWaveDataDir(), "command-history.json"),
+        750,
+        path.join(getWaveDataDir(), "command-library.json")
+    );
+    commandHistoryStore = store;
     const subscribers = new Map<number, electron.WebContents>();
     electron.ipcMain.handle("command-library:get", (event) => {
         if (!getWaveTabViewByWebContentsId(event.sender.id)) {
@@ -481,24 +492,17 @@ function registerCommandLibraryBridge() {
         }
         return store.get();
     });
-    electron.ipcMain.handle("command-library:change", (event, change: CommandLibraryChange) => {
+    electron.ipcMain.handle("command-library:change", async (event, change: CommandLibraryChange) => {
         if (!getWaveTabViewByWebContentsId(event.sender.id)) {
             throw new Error("No terminal tab found.");
         }
-        store.update(change);
+        await store.update(change);
     });
     store.subscribe((library) => {
         for (const contents of subscribers.values()) {
             if (!contents.isDestroyed()) {
                 contents.send("command-library:changed", library.revision);
             }
-        }
-    });
-    electronApp.on("before-quit", () => {
-        try {
-            store.flush();
-        } catch (error) {
-            console.error("Could not save command library", error);
         }
     });
 }

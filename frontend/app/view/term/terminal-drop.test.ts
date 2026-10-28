@@ -122,31 +122,35 @@ describe("terminal-drop", () => {
         ).toBe("'/tmp/today'\\''s log.txt'");
     });
 
-    it.skipIf(process.platform !== "win32")("preserves dropped paths when parsed by Windows PowerShell", () => {
-        const paths = [
-            "C:\\Users\\me\\today's log.txt",
-            "C:\\Logs\\$variable `tick (parens) & text.txt",
-            "\\\\server\\share\\中文 file.txt",
-            "~/My Docs/today's log.txt",
-        ];
-        const expressions = paths.map((path) => quoteForTerminalPaste(path, { terminalShellType: "pwsh" }));
-        const script = [
-            "$ErrorActionPreference = 'Stop'",
-            "$ProgressPreference = 'SilentlyContinue'",
-            "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()",
-            `@(${expressions.join("; ")}) | ConvertTo-Json -Compress`,
-        ].join("\n");
-        const output = execFileSync(
-            "powershell.exe",
-            ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
-            {
-                encoding: "utf8",
-                windowsHide: true,
-                timeout: 15000,
-            }
-        );
-        const values = JSON.parse(output.replace(/^\uFEFF/, ""));
-        expect(values.slice(0, 3)).toEqual(paths.slice(0, 3));
-        expect(values[3]).toBe(process.env.USERPROFILE + "/My Docs/today's log.txt");
-    });
+    it.skipIf(process.platform !== "win32")(
+        "preserves dropped paths when parsed by Windows PowerShell",
+        () => {
+            const paths = [
+                "C:\\Users\\me\\today's log.txt",
+                "C:\\Logs\\$variable `tick (parens) & text.txt",
+                "\\\\server\\share\\中文 file.txt",
+                "~/My Docs/today's log.txt",
+            ];
+            const expressions = paths.map((path) => quoteForTerminalPaste(path, { terminalShellType: "pwsh" }));
+            const script = [
+                "$ErrorActionPreference = 'Stop'",
+                "$ProgressPreference = 'SilentlyContinue'",
+                "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()",
+                `@(${expressions.join("; ")}) | ConvertTo-Json -Compress`,
+            ].join("\n");
+            const output = execFileSync(
+                "powershell.exe",
+                ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
+                {
+                    encoding: "utf8",
+                    windowsHide: true,
+                    timeout: 15000,
+                }
+            );
+            const values = JSON.parse(output.replace(/^\uFEFF/, ""));
+            expect(values.slice(0, 3)).toEqual(paths.slice(0, 3));
+            expect(values[3]).toBe(process.env.USERPROFILE + "/My Docs/today's log.txt");
+        },
+        20000
+    );
 });

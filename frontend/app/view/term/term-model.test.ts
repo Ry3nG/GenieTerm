@@ -81,6 +81,8 @@ function makeTermModel(input: TermInputBuffer = { text: "cd GenieTerm/", cursorI
     model.shouldHandleCtrlVPaste = vi.fn(() => false);
     model.acceptCompletionSelected = vi.fn(() => true);
     model.inputQueue = Promise.resolve();
+    model.pendingInput = [];
+    model.inputSending = false;
     return model;
 }
 
@@ -361,7 +363,7 @@ describe("TermViewModel completion key handling", () => {
         }
     });
 
-    it("delivers rapid terminal input to the controller in keystroke order", async () => {
+    it("sends the first keystroke immediately and coalesces queued input in order", async () => {
         const pending: Array<() => void> = [];
         const send = vi
             .spyOn(RpcApi, "ControllerInputCommand")
@@ -369,6 +371,7 @@ describe("TermViewModel completion key handling", () => {
         try {
             const model = makeTermModel();
             model.sendDataToController("a");
+            expect(send).toHaveBeenCalledTimes(1);
             model.sendDataToController(" ");
             model.sendDataToController("b");
 
@@ -376,12 +379,43 @@ describe("TermViewModel completion key handling", () => {
             pending.shift()();
             await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
             pending.shift()();
-            await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
-            pending.shift()();
             await model.inputQueue;
-            expect(send.mock.calls.map(([, data]) => data.inputdata64)).toEqual(["YQ==", "IA==", "Yg=="]);
+            expect(send.mock.calls.map(([, data]) => data.inputdata64)).toEqual(["YQ==", "IGI="]);
         } finally {
             send.mockRestore();
+        }
+    });
+
+    it("preserves Unicode and control bytes across an input burst and recovers after failure", async () => {
+        let rejectFirst: (error: Error) => void;
+        const send = vi
+            .spyOn(RpcApi, "ControllerInputCommand")
+            .mockImplementationOnce(
+                () =>
+                    new Promise<void>((_, reject) => {
+                        rejectFirst = reject;
+                    })
+            )
+            .mockResolvedValue(undefined);
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const model = makeTermModel();
+            model.sendDataToController("first");
+            const burst = ["中", "文", "🚀", "\u0003", "\r", ...Array(1000).fill("x")];
+            burst.forEach((data) => model.sendDataToController(data));
+            expect(send).toHaveBeenCalledTimes(1);
+            rejectFirst(new Error("connection lost"));
+            await model.inputQueue;
+            expect(send).toHaveBeenCalledTimes(2);
+            expect(Buffer.from(send.mock.calls[1][1].inputdata64, "base64").toString("utf8")).toBe(burst.join(""));
+            expect(model.pendingInput).toEqual([]);
+            expect(model.inputSending).toBe(false);
+            model.sendDataToController("after");
+            await model.inputQueue;
+            expect(send).toHaveBeenCalledTimes(3);
+        } finally {
+            send.mockRestore();
+            log.mockRestore();
         }
     });
 

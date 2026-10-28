@@ -22,7 +22,6 @@ import WorkspaceSVG from "../asset/workspace.svg";
 import { IconButton } from "../element/iconbutton";
 import { makeORef } from "../store/wos";
 import { waveEventSubscribeSingle } from "../store/wps";
-import { WorkspaceTemplateMenu } from "./workspace-template-menu";
 import { WorkspaceEditor } from "./workspaceeditor";
 import "./workspaceswitcher.scss";
 
@@ -154,7 +153,6 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
                         </ExpandableMenuItem>
                     )}
                 </div>
-                <WorkspaceTemplateMenu workspace={activeWorkspace} />
             </PopoverContent>
         </Popover>
     );

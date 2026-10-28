@@ -10,7 +10,7 @@ GenieTerm teaches by having the user do things in their own terminal. There are 
 
 Upgrades do not open a modal or a feature walkthrough at startup. **What's New in GenieTerm 1.6** in the command palette opens the release introduction (`onboarding-upgrade.tsx`) on request. It lists unseen releases, or the current release when the client is already up to date, and offers **Try new features** or **Close**.
 
-**Try new features** opens the six-step feature walkthrough (`feature-tour.tsx`). Each step can open its real tool without running commands or transfers. Client meta stores `onboarding:featuretour`, `onboarding:featurestep`, and `onboarding:featureversion`. Progress resumes only when the user requests the walkthrough again, even if it was active when the app closed. Completed walkthroughs can be replayed. Client-state subscriptions start when the walkthrough is requested, not when the workspace mounts.
+**Try new features** opens the four-step feature walkthrough (history, output, Host and Files) (`feature-tour.tsx`). Each step can open its real tool without running commands or transfers. Client meta stores `onboarding:featuretour`, `onboarding:featurestep`, and `onboarding:featureversion`. Progress resumes only when the user requests the walkthrough again, even if it was active when the app closed. Completed walkthroughs can be replayed. Client-state subscriptions start when the walkthrough is requested, not when the workspace mounts.
 
 ## Quick Start
 

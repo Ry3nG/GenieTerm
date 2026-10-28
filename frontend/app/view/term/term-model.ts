@@ -53,7 +53,7 @@ import {
     type CommandInlineAIRequestOptions,
 } from "./command-composer";
 import { matchesRetainedCommand } from "./command-history";
-import { CommandLibraryModel, type CommandLibraryMode } from "./command-library-model";
+import { CommandLibraryModel } from "./command-library-model";
 import { TermCompletionModel } from "./completion/completion-model";
 import type { TermInputBuffer } from "./completion/types";
 import { makeGitChip } from "./gitchip";
@@ -71,6 +71,8 @@ import { TermWrap, WebGLSupported } from "./termwrap";
 
 export class TermViewModel implements ViewModel {
     inputQueue: Promise<void> = Promise.resolve();
+    pendingInput: string[] = [];
+    inputSending = false;
     viewType: string;
     nodeModel: BlockNodeModel;
     tabModel: TabModel;
@@ -386,7 +388,7 @@ export class TermViewModel implements ViewModel {
             rtn.push({
                 elemtype: "iconbutton",
                 icon: "clock-rotate-left",
-                title: "Command history and recipes",
+                title: "Command history",
                 click: () => this.openCommandLibrary(),
             });
 
@@ -600,10 +602,29 @@ export class TermViewModel implements ViewModel {
     }
 
     sendDataToController(data: string) {
-        const b64data = stringToBase64(data);
-        this.inputQueue = this.inputQueue
-            .then(() => RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data }))
-            .catch((error) => console.error("Terminal input failed", error));
+        if (!data) return;
+        this.pendingInput.push(data);
+        if (this.inputSending) return;
+        this.inputSending = true;
+        this.inputQueue = this.flushPendingInput();
+    }
+
+    async flushPendingInput() {
+        try {
+            while (this.pendingInput.length) {
+                const data = this.pendingInput.splice(0).join("");
+                try {
+                    await RpcApi.ControllerInputCommand(TabRpcClient, {
+                        blockid: this.blockId,
+                        inputdata64: stringToBase64(data),
+                    });
+                } catch (error) {
+                    console.error("Terminal input failed", error);
+                }
+            }
+        } finally {
+            this.inputSending = false;
+        }
     }
 
     handleConnStatusChange(connStatus: ConnStatus) {
@@ -715,10 +736,10 @@ export class TermViewModel implements ViewModel {
         };
     }
 
-    openCommandLibrary(mode: CommandLibraryMode = "history", command?: string) {
+    openCommandLibrary() {
         this.completionModel.invalidate();
         globalStore.set(this.outputSnapshotAtom, null);
-        CommandLibraryModel.getInstance().open(this.getCommandLibraryContext(), mode, command);
+        CommandLibraryModel.getInstance().open(this.getCommandLibraryContext());
     }
 
     insertLibraryCommand(command: string): boolean {
@@ -1452,13 +1473,6 @@ export class TermViewModel implements ViewModel {
             },
         });
         menu.push({ label: "Command History", click: () => this.openCommandLibrary() });
-        menu.push({ label: "Saved Command Recipes", click: () => this.openCommandLibrary("recipes") });
-        const lastCommand = this.findLastCommandBlock();
-        menu.push({
-            label: "Save Last Command as Recipe…",
-            enabled: lastCommand != null,
-            click: () => this.openCommandLibrary("recipes", lastCommand.command),
-        });
         menu.push({
             label: "Inspect Last Command Output",
             enabled:

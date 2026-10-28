@@ -616,17 +616,6 @@ const TermCommandActionBar = React.memo(({ model, termWrap }: { model: TermViewM
                         <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
                     </button>
                 )}
-                <button
-                    type="button"
-                    className="term-command-action-btn cursor-pointer"
-                    title="Save as recipe"
-                    aria-label="Save as recipe"
-                    onMouseDown={preventButtonFocus}
-                    onClick={() => model.openCommandLibrary("recipes", activeBlock.command)}
-                    disabled={commandIsPlaceholder}
-                >
-                    <i className="fa-regular fa-bookmark" aria-hidden="true" />
-                </button>
             </div>
         </div>
     );

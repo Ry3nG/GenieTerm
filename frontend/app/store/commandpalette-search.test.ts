@@ -9,7 +9,6 @@ import {
     getPaletteGroup,
     indexPaletteCommands,
     normalizePaletteRecents,
-    readPaletteRecents,
     rememberPaletteCommand,
     scorePaletteText,
     searchPaletteCommands,
@@ -149,30 +148,10 @@ describe("palette groups and recents", () => {
     });
 
     it("deduplicates and caps history, moving the last action to the front", () => {
-        const storage = { getItem: vi.fn(), setItem: vi.fn() };
-        const recents = rememberPaletteCommand("c", ["a", "b", "c", "d", "e", "f"], storage);
+        const recents = rememberPaletteCommand("c", ["a", "b", "c", "d", "e", "f"]);
         expect(recents).toEqual(["c", "a", "b", "d", "e"]);
-        expect(storage.setItem).toHaveBeenCalledWith(expect.any(String), JSON.stringify(recents));
-        storage.getItem.mockReturnValue(storage.setItem.mock.calls[0][1]);
-        expect(readPaletteRecents(storage)).toEqual(recents);
         expect(normalizePaletteRecents([null, 1, "", "a", "a", "b"])).toEqual(["a", "b"]);
         expect(normalizePaletteRecents({})).toEqual([]);
-    });
-
-    it("survives malformed history and unavailable storage", () => {
-        const storage = {
-            getItem: vi.fn(() => "invalid json"),
-            setItem: vi.fn(() => {
-                throw new Error("quota");
-            }),
-        };
-        expect(readPaletteRecents(storage)).toEqual([]);
-        storage.getItem.mockImplementation(() => {
-            throw new Error("denied");
-        });
-        expect(readPaletteRecents(storage)).toEqual([]);
-        expect(rememberPaletteCommand("tab:new", [], storage)).toEqual(["tab:new"]);
-        expect(readPaletteRecents()).toEqual([]);
     });
 
     it("preserves shortcut formatting while separating keycaps", () => {

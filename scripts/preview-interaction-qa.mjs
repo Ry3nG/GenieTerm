@@ -273,39 +273,9 @@ async function runBlockStatusInteractions(browser, baseUrl) {
 
 async function runWorkflowToolsInteractions(browser, baseUrl) {
   const { page, assertClean } = await newCheckedPage(browser, baseUrl, "workflow-tools", { width: 1000, height: 1000 });
-  await assertCount(page.getByRole("region", { name: "Workspace setups" }), 0, "setups stay unmounted until requested");
-  await page.getByRole("button", { name: "Saved setups", exact: true }).click();
-  await page.getByRole("button", { name: "Multi-host setup", exact: true }).click();
-  await page.getByRole("button", { name: "Open workspace", exact: true }).click();
-  const destinations = page.getByLabel("Launched pane destinations");
-  await page.waitForFunction(() =>
-    document.querySelector('[aria-label="Launched pane destinations"]').textContent.includes("prod")
-  );
-  const original = JSON.parse(await destinations.textContent());
-  if (
-    original[0].connection !== "prod" ||
-    original[1].connection !== "staging" ||
-    original[2].connection != null ||
-    original[0]["cmd:cwd"] !== "/srv/api" ||
-    original[1]["cmd:cwd"] !== "/srv/worker" ||
-    original[2].file !== "/local/logs"
-  ) {
-    throw new Error("Setup launch replaced saved pane destinations without an override");
-  }
-  await page.getByRole("region", { name: "Workspace setups" }).getByRole("combobox").selectOption("");
-  await page.getByLabel("Folder", { exact: true }).fill("/override");
-  await page.getByRole("button", { name: "Open workspace", exact: true }).click();
-  await page.waitForFunction(() =>
-    document.querySelector('[aria-label="Launched pane destinations"]').textContent.includes("/override")
-  );
-  const overridden = JSON.parse(await destinations.textContent());
-  if (overridden.some((meta) => meta.connection != null || (meta.file ?? meta["cmd:cwd"]) !== "/override")) {
-    throw new Error("Explicit local host and folder overrides did not reach every pane");
-  }
-
   await page.getByLabel("Idle terminal").uncheck();
-  await page.getByRole("button", { name: "Open command library", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Command library" });
+  await page.getByRole("button", { name: "Open command history", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Command history" });
   await dialog.getByRole("button", { name: "Insert", exact: true }).click();
   await assertVisible(dialog.getByText(/Wait for an idle prompt/), "busy terminal insertion rejected");
   await page.getByLabel("Idle terminal").check();
@@ -314,18 +284,8 @@ async function runWorkflowToolsInteractions(browser, baseUrl) {
     page.getByLabel("Inserted command").filter({ hasText: "printf 'hello world'" }),
     "history insertion"
   );
-  await page.getByRole("button", { name: "Open command library", exact: true }).click();
-  await dialog.getByRole("tab", { name: "Recipes", exact: true }).click();
-  await dialog.getByRole("button", { name: "New recipe", exact: true }).click();
-  await dialog.getByLabel("Name", { exact: true }).fill("Literal argument");
-  await dialog.getByLabel("Command", { exact: true }).fill("printf {{value}}");
-  await dialog.getByLabel("Default value", { exact: true }).fill("hello; echo surprise");
-  await dialog.getByRole("button", { name: "Save recipe", exact: true }).click();
-  await dialog.getByRole("button", { name: "Insert command", exact: true }).click();
-  await assertVisible(
-    page.getByLabel("Inserted command").filter({ hasText: "printf 'hello; echo surprise'" }),
-    "quoted recipe insertion"
-  );
+  await page.getByRole("button", { name: "Open command history", exact: true }).click();
+  await assertCount(dialog.getByRole("tab"), 0, "history has no recipe subsystem");
   await assertClean();
   await page.close();
   log("workflow tools interactions passed");
@@ -334,16 +294,9 @@ async function runWorkflowToolsInteractions(browser, baseUrl) {
 async function runFeatureTourInteractions(browser, baseUrl) {
   const { page, assertClean } = await newCheckedPage(browser, baseUrl, "feature-tour", { width: 390, height: 740 });
   const tour = page.getByRole("dialog", { name: "What's new in GenieTerm 1.6", exact: true });
-  const actions = [
-    "Open command history",
-    "Open recipes",
-    "Inspect last output",
-    "Open saved setups",
-    "Open Host",
-    "Open Files",
-  ];
+  const actions = ["Open command history", "Inspect last output", "Open Host", "Open Files"];
   for (let index = 0; index < actions.length; index++) {
-    await assertVisible(tour.getByLabel(`Step ${index + 1} of 6`), "tour progress");
+    await assertVisible(tour.getByLabel(`Step ${index + 1} of 4`), "tour progress");
     await tour.getByRole("button", { name: actions[index], exact: true }).click();
     await tour.getByRole("button", { name: index === actions.length - 1 ? "Done" : "Next", exact: true }).click();
   }
@@ -351,7 +304,7 @@ async function runFeatureTourInteractions(browser, baseUrl) {
   await page.getByRole("button", { name: "Restart feature tour" }).click();
   await tour.getByRole("button", { name: "Skip", exact: true }).click();
   await tour.getByRole("button", { name: "Back", exact: true }).click();
-  await assertVisible(tour.getByLabel("Step 1 of 6"), "tour back navigation");
+  await assertVisible(tour.getByLabel("Step 1 of 4"), "tour back navigation");
   await page.getByRole("button", { name: "Show unavailable output" }).click();
   await assertVisible(tour.getByRole("alert"), "unavailable feature explanation");
   await tour.getByRole("button", { name: "Finish tour later" }).click();

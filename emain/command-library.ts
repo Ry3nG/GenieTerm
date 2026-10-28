@@ -1,7 +1,7 @@
 // Copyright 2026, GenieTerm.
 // SPDX-License-Identifier: Apache-2.0
 
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
 import {
     applyCommandLibraryChange,
@@ -13,51 +13,78 @@ import {
 
 const MaxSnapshotBytes = 32 * 1024 * 1024;
 
-export function makeCommandLibraryStore(filePath: string, delayMs = 750) {
+export function makeCommandLibraryStore(filePath: string, delayMs = 750, legacyPath?: string) {
     let library = emptyCommandLibrary();
     let timer: ReturnType<typeof setTimeout>;
     let dirty = false;
     let readError = "";
     let writeError = "";
+    let loaded: Promise<void>;
+    let writing: Promise<void>;
     const listeners = new Set<(library: CommandLibrary) => void>();
-    try {
-        if (fs.existsSync(filePath)) {
-            if (fs.statSync(filePath).size > MaxSnapshotBytes) {
-                throw new Error("The command library file is too large.");
+    const load = () => {
+        loaded ??= (async () => {
+            try {
+                let source = filePath;
+                let stat;
+                try {
+                    stat = await fs.stat(source);
+                } catch (error) {
+                    if (error.code !== "ENOENT") throw error;
+                    if (!legacyPath) return;
+                    source = legacyPath;
+                    try {
+                        stat = await fs.stat(source);
+                    } catch (legacyError) {
+                        if (legacyError.code === "ENOENT") return;
+                        throw legacyError;
+                    }
+                }
+                if (stat.size > MaxSnapshotBytes) throw new Error("The command history file is too large.");
+                const raw = JSON.parse(await fs.readFile(source, "utf8"));
+                if (![1, 2].includes(raw?.version)) throw new Error("Unsupported command history version.");
+                library = recoverCommandLibrary(raw);
+                dirty = source !== filePath;
+            } catch {
+                readError = "Could not read the saved command history. Your existing file has been kept.";
             }
-            const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
-            if (raw?.version !== 1) {
-                throw new Error("Unsupported command library version.");
-            }
-            library = recoverCommandLibrary(raw);
-        }
-    } catch {
-        readError = "Could not read the saved command library. Your existing file has been kept.";
-    }
+        })();
+        return loaded;
+    };
 
-    const flush = () => {
+    const flush = async () => {
         clearTimeout(timer);
         timer = null;
-        if (!dirty) {
-            return;
-        }
+        if (!loaded) return;
+        await loaded;
+        if (writing) return writing;
+        if (!dirty || readError) return;
+        writing = (async () => {
+            try {
+                await fs.mkdir(path.dirname(filePath), { recursive: true });
+                while (dirty) {
+                    const snapshot = library;
+                    const temp = `${filePath}.${process.pid}.tmp`;
+                    await fs.writeFile(temp, JSON.stringify(snapshot), { mode: 0o600 });
+                    await fs.rename(temp, filePath);
+                    dirty = library !== snapshot;
+                }
+                const recovered = !!writeError;
+                writeError = "";
+                if (recovered) listeners.forEach((listener) => listener(library));
+            } catch {
+                writeError = "Could not save the command history on this computer.";
+                throw new Error(writeError);
+            }
+        })();
         try {
-            fs.mkdirSync(path.dirname(filePath), { recursive: true });
-            const temp = `${filePath}.${process.pid}.tmp`;
-            fs.writeFileSync(temp, JSON.stringify(library), { mode: 0o600 });
-            fs.renameSync(temp, filePath);
-        } catch {
-            writeError = "Could not save the command library on this computer.";
-            throw new Error(writeError);
-        }
-        dirty = false;
-        const recovered = !!writeError;
-        writeError = "";
-        if (recovered) {
-            listeners.forEach((listener) => listener(library));
+            await writing;
+        } finally {
+            writing = null;
         }
     };
-    const update = (change: CommandLibraryChange) => {
+    const update = async (change: CommandLibraryChange) => {
+        await load();
         if (readError) {
             throw new Error(readError);
         }
@@ -68,24 +95,22 @@ export function makeCommandLibraryStore(filePath: string, delayMs = 750) {
         library = next;
         dirty = true;
         if (!timer) {
-            timer = setTimeout(() => {
-                try {
-                    flush();
-                } catch {
-                    listeners.forEach((listener) => listener(library));
-                }
-            }, delayMs);
+            timer = setTimeout(
+                () => void flush().catch(() => listeners.forEach((listener) => listener(library))),
+                delayMs
+            );
         }
         listeners.forEach((listener) => listener(library));
         return library;
     };
     return {
-        get: () => {
+        get: async () => {
+            await load();
             if (readError) {
                 throw new Error(readError);
             }
             if (writeError) {
-                flush();
+                await flush();
             }
             return library;
         },

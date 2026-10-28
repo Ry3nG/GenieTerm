@@ -3,16 +3,10 @@
 
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import {
-    emptyCommandLibrary,
-    type CommandLibraryChange,
-    type CommandLibraryContext,
-    type CommandRecipe,
-} from "@/util/commandlibrary";
+import { emptyCommandLibrary, type CommandLibraryChange, type CommandLibraryContext } from "@/util/commandlibrary";
 import { atom, type PrimitiveAtom } from "jotai";
 
-export type CommandLibraryMode = "history" | "recipes";
-export type CommandLibraryOpenState = { blockid: string; mode: CommandLibraryMode; draft: CommandRecipe };
+export type CommandLibraryOpenState = { blockid: string };
 
 export class CommandLibraryModel {
     private static instance: CommandLibraryModel;
@@ -33,7 +27,7 @@ export class CommandLibraryModel {
         return CommandLibraryModel.instance;
     }
 
-    open(context: CommandLibraryContext, mode: CommandLibraryMode = "history", command?: string) {
+    open(context: CommandLibraryContext) {
         this.unsubscribe?.();
         this.unsubscribe = getApi().onCommandLibraryChanged(() => {
             clearTimeout(this.refreshTimer);
@@ -41,23 +35,8 @@ export class CommandLibraryModel {
         });
         globalStore.set(this.openAtom, {
             blockid: context.blockid,
-            mode,
-            draft: command == null ? null : this.makeRecipe(context, command),
         });
         void this.refresh();
-    }
-
-    makeRecipe(context: CommandLibraryContext, command = ""): CommandRecipe {
-        return {
-            id: crypto.randomUUID(),
-            name: "",
-            template: command,
-            connection: context.connection ?? "",
-            cwd: context.cwd ?? "",
-            shell: context.shell ?? "unknown",
-            arguments: [],
-            updatedts: Date.now(),
-        };
     }
 
     close() {
@@ -67,6 +46,8 @@ export class CommandLibraryModel {
         this.request++;
         globalStore.set(this.openAtom, null);
         globalStore.set(this.loadingAtom, false);
+        globalStore.set(this.libraryAtom, emptyCommandLibrary());
+        globalStore.set(this.errorAtom, "");
     }
 
     async refresh() {
@@ -93,7 +74,9 @@ export class CommandLibraryModel {
     async change(change: CommandLibraryChange): Promise<boolean> {
         try {
             await getApi().changeCommandLibrary(change);
-            await this.refresh();
+            if (globalStore.get(this.openAtom)) {
+                await this.refresh();
+            }
             return !globalStore.get(this.errorAtom);
         } catch (error) {
             globalStore.set(this.errorAtom, error instanceof Error ? error.message : String(error));

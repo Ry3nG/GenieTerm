@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -18,7 +18,7 @@ import {
     setGlobalIsStarting,
     setUserConfirmedQuit,
 } from "./emain-activity";
-import { initIpcHandlers } from "./emain-ipc";
+import { flushCommandHistory, initIpcHandlers } from "./emain-ipc";
 import { log } from "./emain-log";
 import { initMenuEventSubscriptions, makeAndSetAppMenu, makeDockTaskbar } from "./emain-menu";
 import {
@@ -52,6 +52,8 @@ import { configureAutoUpdater, updater } from "./updater";
 const electronApp = electron.app;
 
 let confirmQuit = true;
+let historyFlushedForQuit = false;
+let historyQuitPending = false;
 
 const waveDataDir = getWaveDataDir();
 const waveConfigDir = getWaveConfigDir();
@@ -150,6 +152,19 @@ electronApp.on("before-quit", (e) => {
         }
         setUserConfirmedQuit(true);
         electronApp.quit();
+        return;
+    }
+    if (!historyFlushedForQuit) {
+        e.preventDefault();
+        if (!historyQuitPending) {
+            historyQuitPending = true;
+            void flushCommandHistory()
+                .catch((error) => console.error("Could not save command history", error))
+                .finally(() => {
+                    historyFlushedForQuit = true;
+                    electronApp.quit();
+                });
+        }
         return;
     }
     setGlobalIsQuitting(true);

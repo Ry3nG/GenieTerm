@@ -132,6 +132,8 @@ type MetaTSType struct {
 	VDomRoute         string `json:"vdom:route,omitempty"`
 	VDomPersist       bool   `json:"vdom:persist,omitempty"`
 
+	CommandPaletteRecent []string `json:"commandpalette:recent,omitempty"`
+
 	OnboardingGithubStar     bool     `json:"onboarding:githubstar,omitempty"`     // for client
 	OnboardingLastVersion    string   `json:"onboarding:lastversion,omitempty"`    // for client (tracks semver of last 'onboarding' shown)
 	OnboardingQuickStart     string   `json:"onboarding:quickstart,omitempty"`     // for client (active|done|dismissed)

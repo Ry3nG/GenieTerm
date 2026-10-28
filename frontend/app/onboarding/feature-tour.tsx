@@ -18,26 +18,12 @@ export const FeatureTourContent: Record<
         instruction:
             "Search for a command, then select it. Insert puts it at an idle prompt for you to review; you press Enter to run it. You can reopen this panel with the clock icon in the terminal header.",
     },
-    recipes: {
-        title: "Turn a command into a reusable recipe",
-        body: "Save frequent commands with named arguments instead of editing the same long command every time.",
-        action: "Open recipes",
-        instruction:
-            "Choose New recipe, name it, and try a command such as echo {{message}}. Fill in the argument, save, and review the resolved command before inserting it. Recipes stay on this computer.",
-    },
     output: {
         title: "Search just one command's output",
         body: "Inspect a fixed snapshot without losing your place in the terminal scrollback.",
         action: "Inspect last output",
         instruction:
             "Run a command first, then open its output here. Use Search to find text, copy the snapshot, or jump back to the original output. The terminal menu also has Inspect Last Command Output.",
-    },
-    setups: {
-        title: "Reuse your workspace layout",
-        body: "Saved setups remember tabs, pane sizes, hosts and folders so you can reopen a familiar work environment.",
-        action: "Open saved setups",
-        instruction:
-            "In the workspace menu, expand Saved setups, choose Save current and name your setup. Select it to preview the layout. Keep saved hosts and folders, or override them before opening a fresh workspace. Running commands are not restored.",
     },
     host: {
         title: "Keep remote sessions and services handy",

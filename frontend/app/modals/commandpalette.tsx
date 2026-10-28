@@ -1,17 +1,20 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { ClientModel } from "@/app/store/client-model";
 import type { CommandPaletteCommand } from "@/app/store/commandpalette";
 import {
     buildPaletteSections,
     formatPaletteBinding,
     indexPaletteCommands,
-    readPaletteRecents,
+    normalizePaletteRecents,
     rememberPaletteCommand,
 } from "@/app/store/commandpalette-search";
 import { atoms, createBlock } from "@/app/store/global";
 import { getCommandPaletteCommands } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getKeyUtilPlatform } from "@/util/keyutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -277,7 +280,8 @@ export function CommandPaletteView({
 export function CommandPalette() {
     const baseCommands = useMemo(() => getCommandPaletteCommands(), []);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
-    const [recents] = useState(readPaletteRecents);
+    const client = useAtomValue(ClientModel.getInstance().clientAtom);
+    const recents = normalizePaletteRecents(client?.meta?.["commandpalette:recent"]);
     const commands = useMemo(() => {
         const connections = Object.entries(fullConfig?.connections ?? {})
             .filter(([, config]) => config != null && !config["display:hidden"])
@@ -302,7 +306,16 @@ export function CommandPalette() {
         <CommandPaletteView
             commands={commands}
             recents={recents}
-            onRemember={(id) => rememberPaletteCommand(id, readPaletteRecents())}
+            onRemember={(id) => {
+                if (!client) return;
+                // Storage can be disabled or full; commands must still run in that case.
+                fireAndForget(() =>
+                    RpcApi.SetMetaCommand(TabRpcClient, {
+                        oref: `client:${client.oid}`,
+                        meta: { "commandpalette:recent": rememberPaletteCommand(id, recents) },
+                    })
+                );
+            }}
             onClose={() => modalsModel.popModal()}
         />
     );

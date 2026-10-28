@@ -7,6 +7,7 @@ import { defineConfig } from "electron-vite";
 import { ViteImageOptimizer } from "vite-plugin-image-optimizer";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { rendererStorageStartup } from "./scripts/renderer-storage-build.mjs";
 
 // from our electron build
 const CHROME = "chrome140";
@@ -104,6 +105,7 @@ export default defineConfig({
         },
         plugins: [
             tsconfigPaths(),
+            rendererStorageStartup(),
             { ...ViteImageOptimizer(), apply: "build" },
             svgr({
                 svgrOptions: { exportType: "default", ref: true, svgo: false, titleProp: true },

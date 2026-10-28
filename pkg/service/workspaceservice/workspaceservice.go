@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package workspaceservice
@@ -20,19 +20,6 @@ import (
 const DefaultTimeout = 2 * time.Second
 
 type WorkspaceService struct{}
-
-func (svc *WorkspaceService) CreateWorkspaceSetup(ctx context.Context, name string, icon string, color string) (string, error) {
-	// Setup templates provide their own safe blocks; configured new-tab widgets may run commands.
-	ws, err := wcore.CreateWorkspace(ctx, name, icon, color, true, true)
-	if err != nil {
-		return "", err
-	}
-	return ws.OID, nil
-}
-
-func (svc *WorkspaceService) CreateTabSetup(ctx context.Context, workspaceId string, tabName string) (string, error) {
-	return wcore.CreateTab(ctx, workspaceId, tabName, false, true)
-}
 
 func (svc *WorkspaceService) CreateWorkspace_Meta() tsgenmeta.MethodMeta {
 	return tsgenmeta.MethodMeta{

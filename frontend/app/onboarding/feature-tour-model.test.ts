@@ -35,7 +35,7 @@ vi.mock("./onboarding-model", () => ({
 const Meta = {
     "onboarding:featureversion": CurrentOnboardingVersion,
     "onboarding:featuretour": "active",
-    "onboarding:featurestep": "recipes",
+    "onboarding:featurestep": "output",
 };
 function setMeta(meta: MetaType) {
     globalStore.set(ClientModel.getInstance().clientAtom as ReturnType<typeof atom<Client>>, { meta } as Client);
@@ -56,7 +56,7 @@ afterEach(() => {
 
 describe("feature tour lifecycle", () => {
     it("resumes dismissed progress and restarts completed or obsolete tours", () => {
-        expect(savedFeatureStep({ ...Meta, "onboarding:featuretour": "dismissed" })).toBe("recipes");
+        expect(savedFeatureStep({ ...Meta, "onboarding:featuretour": "dismissed" })).toBe("output");
         expect(savedFeatureStep({ ...Meta, "onboarding:featuretour": "done" })).toBe("history");
         expect(savedFeatureStep({ ...Meta, "onboarding:featureversion": "v1.3.0" })).toBe("history");
         expect(savedFeatureStep({ ...Meta, "onboarding:featurestep": "invalid" })).toBe("history");
@@ -66,12 +66,12 @@ describe("feature tour lifecycle", () => {
         setMeta(Meta);
         expect(globalStore.get(model.stepAtom)).toBeNull();
         model.start();
-        expect(globalStore.get(model.stepAtom)).toBe("recipes");
+        expect(globalStore.get(model.stepAtom)).toBe("output");
         model.move(1);
         model.close();
         await Promise.resolve();
         expect(setClientMeta).toHaveBeenLastCalledWith(
-            expect.objectContaining({ "onboarding:featurestep": "output", "onboarding:featuretour": "dismissed" })
+            expect.objectContaining({ "onboarding:featurestep": "host", "onboarding:featuretour": "dismissed" })
         );
         expect(globalStore.get(model.stepAtom)).toBeNull();
     });
@@ -102,12 +102,11 @@ describe("real feature actions", () => {
         vi.mocked(getBlockComponentModel).mockReturnValue({ viewModel: vm } as any);
         return vm;
     }
-    it("opens history and recipes in an active-tab terminal without inserting commands", async () => {
+    it("opens history in an active-tab terminal without inserting commands", async () => {
         const vm = terminal();
         vi.mocked(getFocusedBlockId).mockReturnValue("background-terminal");
         await openFeatureTourTarget("history");
-        await openFeatureTourTarget("recipes");
-        expect(vm.openCommandLibrary.mock.calls).toEqual([["history"], ["recipes"]]);
+        expect(vm.openCommandLibrary.mock.calls).toEqual([[]]);
         expect(getBlockComponentModel).not.toHaveBeenCalledWith("background-terminal");
         expect(createBlock).not.toHaveBeenCalled();
     });
@@ -131,18 +130,5 @@ describe("real feature actions", () => {
         expect(createBlock).toHaveBeenNthCalledWith(2, {
             meta: { view: "preview", connection: "gpu", file: "/srv/project" },
         });
-    });
-    it("opens the visible workspace switcher and reports a hidden tab bar", async () => {
-        const click = vi.fn();
-        vi.stubGlobal("document", {
-            querySelectorAll: () => [
-                { checkVisibility: () => false },
-                { checkVisibility: () => true, getAttribute: () => "false", click },
-            ],
-        });
-        await openFeatureTourTarget("setups");
-        expect(click).toHaveBeenCalledOnce();
-        vi.stubGlobal("document", { querySelectorAll: () => [] });
-        await expect(openFeatureTourTarget("setups")).rejects.toThrow("Show the tab bar");
     });
 });

@@ -1202,6 +1202,7 @@ declare global {
         "vdom:correlationid"?: string;
         "vdom:route"?: string;
         "vdom:persist"?: boolean;
+        "commandpalette:recent"?: string[];
         "onboarding:githubstar"?: boolean;
         "onboarding:lastversion"?: string;
         "onboarding:quickstart"?: string;

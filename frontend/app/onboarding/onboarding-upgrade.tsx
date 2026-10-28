@@ -29,20 +29,13 @@ const UpgradeReleases: UpgradeRelease[] = [
         items: [
             {
                 icon: "fa-clock-rotate-left",
-                title: "Command history and recipes",
-                description:
-                    "Find earlier commands by host and folder. Save commands with arguments, then review and insert them at your prompt.",
+                title: "Command history",
+                description: "Find earlier commands by host and folder, then insert them at your prompt.",
             },
             {
                 icon: "fa-magnifying-glass",
                 title: "Search command output",
                 description: "Inspect, search and copy a snapshot of one command's output from the terminal menu.",
-            },
-            {
-                icon: "fa-table-columns",
-                title: "Saved workspace setups",
-                description:
-                    "Save your pane layout, hosts and folders in the workspace menu, then open a fresh workspace from that setup.",
             },
             {
                 icon: "fa-server",
