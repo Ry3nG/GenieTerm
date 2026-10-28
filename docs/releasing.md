@@ -13,7 +13,7 @@ Releases are built and published from this repository by GitHub Actions. The ver
 
 Update payload integrity is covered by the update manifests (`latest-mac.yml`, `latest-linux.yml`, `latest-linux-arm64.yml`, `latest.yml`), which record size and SHA-512. Windows ships `GenieTerm-win32-x64-X.Y.Z.exe` for normal per-user installation and a `.zip` for an unpacked copy. An unsigned Windows installer may trigger SmartScreen's unrecognized-app warning; publishing a stable version does not imply a trusted code signature.
 
-## Before tagging
+## Before publishing
 
 1. Land everything on `main` and make sure CI is green there. CI runs the merge gate (`scripts/v1-gate.mjs`), and it packages and launch-tests Linux x64 (including a `.deb` install on Ubuntu 24.04), Windows x64 and macOS arm64. Pull requests run the gate, Linux packaging and the Windows tests; Windows and macOS packaging run on pushes to `main`.
 2. On a Mac, run `task check:release`. It runs the merge gate, packages arm64, verifies the bundle, and launches it.
@@ -22,7 +22,7 @@ Update payload integrity is covered by the update manifests (`latest-mac.yml`, `
    - Follow with sections for what changed.
    - The notes become the GitHub Release body and travel in the update metadata.
 4. Bump the version with `npm version X.Y.Z --no-git-tag-version` and commit.
-5. For larger releases, dry-run the release workflow first: `gh workflow run release.yml --ref <branch>` builds and verifies every platform without publishing.
+5. Use the one-pass publication below once the release commit is ready. For testing packaging changes independently, `gh workflow run release.yml --ref <branch>` still builds and verifies every platform without publishing. A separate dry run is optional: publication runs the same checks before exposing any assets.
 
 Before a major release, also try these by hand in the installed app:
 
@@ -34,14 +34,22 @@ Before a major release, also try these by hand in the installed app:
 - Finish a long command in a background tab and check the notification.
 - Update from the previous stable release.
 
-## Tag and publish
+## Build, verify and publish once
+
+```sh
+gh workflow run release.yml --ref main -f publish=true -f tag=vX.Y.Z
+```
+
+The explicit tag must match `package.json`. Manual publication is restricted to `main`; omitting `publish=true` always performs a dry run. Preflight and the platform builds run in parallel. Once every gate and the combined artifact verification pass, the workflow creates an annotated tag at the exact commit it built and publishes those same artifacts. There is no second build after verification. An existing tag must resolve to that commit; it is never moved. The repository's `GITHUB_TOKEN` creates the tag, so its push does not trigger a duplicate workflow.
+
+Tag-triggered publication is also supported:
 
 ```sh
 git tag -a vX.Y.Z -m "GenieTerm X.Y.Z"
 git push origin vX.Y.Z
 ```
 
-Pushing the tag runs `.github/workflows/release.yml`:
+Both publication paths run `.github/workflows/release.yml`:
 
 - **Preflight.** Checks that the tag matches `package.json` and runs the merge gate.
 - **macOS.** Builds arm64 and x64 on a native runner. It verifies the bundle identity, the helpers, `codesign --verify --deep --strict` and the update manifests, launch-tests arm64, and fails if packaging modified the checkout.
@@ -52,7 +60,7 @@ Pushing the tag runs `.github/workflows/release.yml`:
   A separate job installs the x64 `.deb` on `ubuntu-24.04` and checks the PATH link, the desktop entry and the AppArmor profile. It then launches the app with Chromium's sandbox required, uninstalls it, and checks the cleanup.
 
 - **Windows.** Runs for stable tags, prerelease tags and manual runs. It verifies the x64 package, bundled helpers and update metadata, runs a PowerShell command in the packaged app, and installs, launches and uninstalls the NSIS package. If signing credentials are configured, all required executable signatures must verify.
-- **Publish.** Runs only if every build passed. `scripts/verify-release-assets.mjs` checks the exact asset set and every manifest. The job creates a draft, compares the uploaded assets with the verified artifacts (name, size, SHA-256), and only then publishes. It never overwrites a published release.
+- **Publish.** Runs only if preflight and every build and installation check passed. `scripts/verify-release-assets.mjs` checks the exact asset set and every manifest. For manual publication, the tag is created only after these checks. The job creates a draft, compares the uploaded assets with the verified artifacts (name, size, SHA-256), and only then publishes. It never overwrites a published release. Runs for the same release are serialized so another dispatch cannot cancel publication midway.
 
 If publishing fails after the draft exists, fix the cause and re-run the workflow, which reuses the draft. Delete the draft if its assets should be discarded.
 

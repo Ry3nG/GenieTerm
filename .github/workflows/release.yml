@@ -7,19 +7,28 @@ name: Release
 # - Windows x64 ships unsigned unless WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD are both configured.
 #   Configured signing is required to succeed; partial credentials fail the build.
 # - Linux ships AppImage (auto-update) and deb (manual update) on native Ubuntu runners.
-# - workflow_dispatch builds and verifies everything without publishing.
+# - workflow_dispatch defaults to a dry run; publish=true creates the tag after all checks pass.
 on:
     push:
         tags:
             - "v*"
     workflow_dispatch:
+        inputs:
+            publish:
+                description: Publish verified artifacts (main only)
+                type: boolean
+                default: false
+            tag:
+                description: Explicit version tag for publication (e.g. v1.6.0)
+                type: string
+                default: ""
 
 permissions:
     contents: read
 
 concurrency:
-    group: release-${{ github.ref }}
-    cancel-in-progress: true
+    group: release-${{ inputs.publish && inputs.tag || github.ref_name }}
+    cancel-in-progress: false
 
 env:
     NODE_VERSION: 22
@@ -30,6 +39,10 @@ jobs:
         name: Release preflight
         runs-on: ubuntu-latest
         timeout-minutes: 40
+        outputs:
+            tag: ${{ steps.plan.outputs.tag }}
+            publish: ${{ steps.plan.outputs.publish }}
+            createTag: ${{ steps.plan.outputs.createTag }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -44,18 +57,12 @@ jobs:
                   go-version-file: ${{ env.GO_VERSION_FILE }}
                   cache-dependency-path: go.sum
 
-            - name: Verify tag matches package version
-              if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-              run: |
-                  VERSION="$(node -p "require('./package.json').version")"
-                  if [ "v${VERSION}" != "${GITHUB_REF_NAME}" ]; then
-                    echo "Tag ${GITHUB_REF_NAME} does not match package version v${VERSION}" >&2
-                    exit 1
-                  fi
-                  if ! [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
-                    echo "Release versions must be X.Y.Z or X.Y.Z-beta.N (got ${VERSION})" >&2
-                    exit 1
-                  fi
+            - name: Validate release plan
+              id: plan
+              run: node scripts/release-plan.mjs
+              env:
+                  INPUT_PUBLISH: ${{ inputs.publish }}
+                  INPUT_TAG: ${{ inputs.tag }}
 
             - name: Force Git dependencies to HTTPS
               run: |
@@ -74,7 +81,6 @@ jobs:
 
     build-macos:
         name: Build macOS (arm64 + x64)
-        needs: preflight
         runs-on: macos-latest
         timeout-minutes: 90
         steps:
@@ -151,7 +157,6 @@ jobs:
 
     build-linux:
         name: Build Linux (${{ matrix.arch }})
-        needs: preflight
         strategy:
             fail-fast: false
             matrix:
@@ -243,7 +248,6 @@ jobs:
 
     build-windows:
         name: Build Windows x64
-        needs: preflight
         runs-on: windows-latest
         timeout-minutes: 90
         steps:
@@ -405,10 +409,11 @@ jobs:
 
     publish:
         name: Verify and publish GitHub Release
-        needs: [build-macos, build-linux, linux-deb-ubuntu-2404, build-windows]
+        needs: [preflight, build-macos, build-linux, linux-deb-ubuntu-2404, build-windows]
         # Every release must contain verified packages for all supported platforms.
         if: >-
             !cancelled() &&
+            needs.preflight.result == 'success' &&
             needs.build-macos.result == 'success' &&
             needs.build-linux.result == 'success' &&
             needs.linux-deb-ubuntu-2404.result == 'success' &&
@@ -449,11 +454,16 @@ jobs:
                   set -euo pipefail
                   node scripts/verify-release-assets.mjs release-artifacts --windows
 
+            - name: Create or verify release tag
+              if: needs.preflight.outputs.createTag == 'true'
+              run: node scripts/ensure-release-tag.mjs
+              env:
+                  TAG_NAME: ${{ needs.preflight.outputs.tag }}
+
             - name: Publish release
-              if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+              if: needs.preflight.outputs.publish == 'true'
               run: |
                   set -euo pipefail
-                  TAG_NAME="${GITHUB_REF_NAME}"
                   mapfile -t ASSETS < <(find release-artifacts -type f | sort)
                   case "${TAG_NAME}" in
                     *-*) PUBLISH_FLAGS=(--prerelease --latest=false) ;;
@@ -496,3 +506,4 @@ jobs:
                   gh release edit "${TAG_NAME}" --draft=false "${PUBLISH_FLAGS[@]}"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG_NAME: ${{ needs.preflight.outputs.tag }}
