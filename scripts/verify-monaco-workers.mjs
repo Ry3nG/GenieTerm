@@ -31,13 +31,28 @@ async function check(name, action) {
   assert.deepEqual(Report.warnings, [], "Worker initialization warnings");
 }
 
+async function disposeModel() {
+  await page.evaluate(async () => {
+    const probe = window.monacoProbe;
+    // A focused editor can schedule highlighting even when its model is plain text.
+    // Wait for Monaco's actual delayed task, rather than racing disposal against a fixed sleep.
+    const highlighter = probe.editor?.getContribution("editor.contrib.wordHighlighter")?.wordHighlighter;
+    while (highlighter?.runDelayer.completionPromise) {
+      await highlighter.runDelayer.completionPromise;
+    }
+    probe.editor?.setModel(null);
+    probe.editor?.dispose();
+    probe.model?.dispose();
+    probe.editor = null;
+    probe.model = null;
+  });
+}
+
 async function replaceModel(language, value) {
+  await disposeModel();
   await page.evaluate(
     ({ language, value }) => {
       const probe = window.monacoProbe;
-      probe.editor?.setModel(null);
-      probe.editor?.dispose();
-      probe.model?.dispose();
       probe.model = probe.monaco.editor.createModel(value, language);
       probe.editor = probe.monaco.editor.create(document.getElementById("editor"), { model: probe.model });
     },
@@ -179,17 +194,16 @@ try {
     });
     const completion = await workerResponse("doComplete", "yamlworker");
     // Monaco also schedules word highlighting after a cursor move; close a settled editor below.
-    await page.waitForTimeout(150);
     return { formatted, completion };
   });
   await check("YAML disposal and subsequent plaintext editing remain usable", async () => {
     await replaceModel("plaintext", "another owned model");
     await page.evaluate(() => {
-      const { editor, model } = window.monacoProbe;
-      editor.setModel(null);
-      editor.dispose();
-      model.dispose();
+      const { editor } = window.monacoProbe;
+      editor.focus();
+      editor.setPosition({ lineNumber: 1, column: 3 });
     });
+    await disposeModel();
     await workerResponse("resetSchema", "yamlworker");
     await page.waitForTimeout(1000);
   });
