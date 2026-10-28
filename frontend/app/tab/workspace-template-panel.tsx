@@ -57,7 +57,7 @@ export function WorkspaceTemplatePanel({ workspace }: { workspace: Workspace }) 
     const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
     const [selected, setSelected] = useState<WorkspaceTemplate>(null);
     const [name, setName] = useState(workspace.name || "My setup");
-    const [connection, setConnection] = useState("");
+    const [connection, setConnection] = useState<string>(null);
     const [folder, setFolder] = useState("");
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
@@ -250,11 +250,8 @@ export function WorkspaceTemplatePanel({ workspace }: { workspace: Workspace }) 
                             onClick={() => {
                                 setSelected(template);
                                 setSaving(false);
-                                const meta = template.tabs
-                                    .flatMap((tab) => tab.blocks)
-                                    .find((block) => block.view !== "web");
-                                setConnection(meta?.connection || "");
-                                setFolder(meta?.["cmd:cwd"] || (meta?.view === "preview" ? meta.file : "") || "~");
+                                setConnection(null);
+                                setFolder("");
                             }}
                         >
                             {template.name}
@@ -283,9 +280,10 @@ export function WorkspaceTemplatePanel({ workspace }: { workspace: Workspace }) 
                         Host
                         <select
                             className={cn(field, "mt-1 text-secondary")}
-                            value={connection}
-                            onChange={(e) => setConnection(e.target.value)}
+                            value={connection ?? "*"}
+                            onChange={(e) => setConnection(e.target.value === "*" ? null : e.target.value)}
                         >
+                            <option value="*">Keep saved hosts</option>
                             <option value="">Local</option>
                             {Array.from(new Set([connection, ...Object.keys(config?.connections ?? {})]))
                                 .filter(Boolean)
@@ -302,7 +300,7 @@ export function WorkspaceTemplatePanel({ workspace }: { workspace: Workspace }) 
                             className={cn(field, "mt-1 text-secondary")}
                             value={folder}
                             onChange={(e) => setFolder(e.target.value)}
-                            placeholder="~"
+                            placeholder="Keep each pane's saved folder"
                         />
                     </label>
                     <div className="flex flex-wrap gap-1">

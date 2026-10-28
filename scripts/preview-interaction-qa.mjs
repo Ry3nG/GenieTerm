@@ -271,6 +271,64 @@ async function runBlockStatusInteractions(browser, baseUrl) {
   log("block status interactions passed");
 }
 
+async function runWorkflowToolsInteractions(browser, baseUrl) {
+  const { page, assertClean } = await newCheckedPage(browser, baseUrl, "workflow-tools", { width: 1000, height: 1000 });
+  await page.getByRole("button", { name: "Multi-host setup", exact: true }).click();
+  await page.getByRole("button", { name: "Open workspace", exact: true }).click();
+  const destinations = page.getByLabel("Launched pane destinations");
+  await page.waitForFunction(() =>
+    document.querySelector('[aria-label="Launched pane destinations"]').textContent.includes("prod")
+  );
+  const original = JSON.parse(await destinations.textContent());
+  if (
+    original[0].connection !== "prod" ||
+    original[1].connection !== "staging" ||
+    original[2].connection != null ||
+    original[0]["cmd:cwd"] !== "/srv/api" ||
+    original[1]["cmd:cwd"] !== "/srv/worker" ||
+    original[2].file !== "/local/logs"
+  ) {
+    throw new Error("Setup launch replaced saved pane destinations without an override");
+  }
+  await page.getByRole("region", { name: "Workspace setups" }).getByRole("combobox").selectOption("");
+  await page.getByLabel("Folder", { exact: true }).fill("/override");
+  await page.getByRole("button", { name: "Open workspace", exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[aria-label="Launched pane destinations"]').textContent.includes("/override")
+  );
+  const overridden = JSON.parse(await destinations.textContent());
+  if (overridden.some((meta) => meta.connection != null || (meta.file ?? meta["cmd:cwd"]) !== "/override")) {
+    throw new Error("Explicit local host and folder overrides did not reach every pane");
+  }
+
+  await page.getByLabel("Idle terminal").uncheck();
+  await page.getByRole("button", { name: "Open command library", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Command library" });
+  await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+  await assertVisible(dialog.getByText(/Wait for an idle prompt/), "busy terminal insertion rejected");
+  await page.getByLabel("Idle terminal").check();
+  await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+  await assertVisible(
+    page.getByLabel("Inserted command").filter({ hasText: "printf 'hello world'" }),
+    "history insertion"
+  );
+  await page.getByRole("button", { name: "Open command library", exact: true }).click();
+  await dialog.getByRole("tab", { name: "Recipes", exact: true }).click();
+  await dialog.getByRole("button", { name: "New recipe", exact: true }).click();
+  await dialog.getByLabel("Name", { exact: true }).fill("Literal argument");
+  await dialog.getByLabel("Command", { exact: true }).fill("printf {{value}}");
+  await dialog.getByLabel("Default value", { exact: true }).fill("hello; echo surprise");
+  await dialog.getByRole("button", { name: "Save recipe", exact: true }).click();
+  await dialog.getByRole("button", { name: "Insert command", exact: true }).click();
+  await assertVisible(
+    page.getByLabel("Inserted command").filter({ hasText: "printf 'hello; echo surprise'" }),
+    "quoted recipe insertion"
+  );
+  await assertClean();
+  await page.close();
+  log("workflow tools interactions passed");
+}
+
 async function main() {
   const port = await findFreePort();
   const baseUrl = `http://${Host}:${port}`;
@@ -291,6 +349,7 @@ async function main() {
     await runTransferQueueInteractions(browser, baseUrl);
     await runHostInteractions(browser, baseUrl);
     await runFilesUploadDropInteractions(browser, baseUrl);
+    await runWorkflowToolsInteractions(browser, baseUrl);
     log("all preview interaction QA checks passed");
   } catch (error) {
     failure = error.stack || error.message;

@@ -183,6 +183,24 @@ describe("TermViewModel connection recovery", () => {
     });
 });
 
+describe("TermViewModel command library insertion", () => {
+    it.each([null, "running-command"])("rejects insertion without a confirmed idle prompt (%s)", (status) => {
+        const model = makeTermModel();
+        const insertCommand = vi.fn(() => true);
+        Object.assign(model.termRef.current, { shellIntegrationStatusAtom: jotai.atom(status), insertCommand });
+        expect(model.insertLibraryCommand("echo hello")).toBe(false);
+        expect(insertCommand).not.toHaveBeenCalled();
+    });
+    it("inserts into a ready prompt and preserves the terminal's own refusal", () => {
+        const model = makeTermModel();
+        const insertCommand = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(false);
+        Object.assign(model.termRef.current, { shellIntegrationStatusAtom: jotai.atom("ready"), insertCommand });
+        expect(model.insertLibraryCommand("echo hello")).toBe(true);
+        expect(insertCommand).toHaveBeenCalledWith("echo hello");
+        expect(model.insertLibraryCommand("echo hello\necho again")).toBe(false);
+    });
+});
+
 describe("TermViewModel command history navigation", () => {
     it("activates the owning tab in the shared renderer before focusing its retained command", async () => {
         const model = makeTermModel();

@@ -97,9 +97,9 @@ export function instantiateTemplateLayout(
     };
 }
 
-export function resolveTemplateMeta(meta: MetaType, connection: string, folder: string): MetaType {
+export function resolveTemplateMeta(meta: MetaType, connection?: string, folder = ""): MetaType {
     const resolved = captureTemplateMeta(meta);
-    if (resolved.view !== "web") resolved.connection = connection || undefined;
+    if (resolved.view !== "web" && connection != null) resolved.connection = connection || undefined;
     if (resolved.view === "term") resolved["cmd:cwd"] = folder.trim() || meta["cmd:cwd"] || "~";
     if (resolved.view === "preview" && folder.trim()) resolved.file = folder.trim();
     return resolved;

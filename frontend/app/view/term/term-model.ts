@@ -722,8 +722,12 @@ export class TermViewModel implements ViewModel {
     }
 
     insertLibraryCommand(command: string): boolean {
+        const wrap = this.termRef.current;
+        if (!wrap || globalStore.get(wrap.shellIntegrationStatusAtom) !== "ready") {
+            return false;
+        }
         this.completionModel.suppressAutoFor(command);
-        return this.termRef.current?.insertCommand(command) ?? false;
+        return wrap.insertCommand(command);
     }
 
     hasHistoryOutput(entry: CommandHistoryEntry): boolean | undefined {

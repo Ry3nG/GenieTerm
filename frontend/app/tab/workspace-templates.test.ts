@@ -68,6 +68,23 @@ describe("workspace template capture", () => {
             connection: undefined,
         });
     });
+    it("preserves each pane's host and folder unless explicitly overridden", () => {
+        const panes: MetaType[] = [
+            { view: "term", connection: "prod", "cmd:cwd": "/srv/api" },
+            { view: "term", connection: "staging", "cmd:cwd": "/srv/worker" },
+            { view: "preview", file: "/local/logs" },
+        ];
+        expect(panes.map((meta) => resolveTemplateMeta(meta))).toEqual(panes.map(captureTemplateMeta));
+        expect(resolveTemplateMeta(panes[0], "").connection).toBeUndefined();
+        expect(resolveTemplateMeta(panes[1], undefined, "/new")).toMatchObject({
+            connection: "staging",
+            "cmd:cwd": "/new",
+        });
+        expect(resolveTemplateMeta(panes[1], "dev")).toMatchObject({
+            connection: "dev",
+            "cmd:cwd": "/srv/worker",
+        });
+    });
     it("does not capture credentials embedded in browser URLs", () => {
         expect(
             captureTemplateMeta({ view: "web", url: "https://user:secret@example.com/logs?token=secret#auth" }).url

@@ -23,12 +23,19 @@ export function planBatchDownloads(
     directory: string,
     conflicts: "keep" | "skip",
     exists: (candidate: string) => boolean,
-    pathApi = path
+    pathApi = path,
+    platform: NodeJS.Platform = pathApi === path.win32 ? "win32" : process.platform
 ): BatchDownloadPlan[] {
     if (!Array.isArray(items) || items.length === 0 || items.length > 200)
         throw new Error("Choose between 1 and 200 files or folders.");
     const reserved = new Set<string>();
-    const normalize = (value: string) => (pathApi === path.win32 ? value.toLowerCase() : value);
+    // Reserve aliases too: typical macOS volumes ignore case and Unicode normalization.
+    const normalize = (value: string) =>
+        platform === "darwin"
+            ? value.normalize("NFD").toLowerCase()
+            : platform === "win32"
+              ? value.toLowerCase()
+              : value;
     const plans: BatchDownloadPlan[] = [];
     for (const item of items) {
         const parsed = parseWshRemoteUri(item.path);
@@ -42,7 +49,11 @@ export function planBatchDownloads(
             label === "." ||
             label === ".." ||
             /[\\/\0]/.test(label) ||
-            (pathApi === path.win32 && /[:*?"<>|]/.test(label))
+            (platform === "win32" &&
+                (/[:*?"<>|]/.test(label) ||
+                    Array.from(label).some((char) => char.charCodeAt(0) < 32) ||
+                    /[. ]$/.test(label) ||
+                    /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(label)))
         )
             throw new Error(`Cannot use this local file name: ${label}`);
         let destination = pathApi.join(directory, label);

@@ -21,6 +21,15 @@ const CleanupTimeoutMs = 5000;
 
 const PreviewCases = [
   {
+    name: "workflow-tools",
+    path: "/?preview=workflow-tools",
+    checks: ["Multi-host setup", "Command library", "printf 'hello world'", "Insert into"],
+    viewports: [
+      { name: "desktop", width: 1000, height: 1000 },
+      { name: "narrow", width: 390, height: 1000 },
+    ],
+  },
+  {
     name: "blockstatus",
     path: "/?preview=blockstatus",
     checks: [
