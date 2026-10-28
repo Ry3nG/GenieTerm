@@ -695,10 +695,7 @@ function getAppCommands(): CommandPaletteCommand[] {
             })
         ),
         makePaletteCommand("app:whats-new", "What's New in GenieTerm 1.6", () =>
-            fireAndForget(async () => {
-                const { FeatureTourModel } = await import("@/app/onboarding/feature-tour-model");
-                FeatureTourModel.getInstance().start();
-            })
+            globalStore.set(modalsModel.upgradeOnboardingOpen, true)
         ),
         makePaletteCommand("app:about", "About GenieTerm", () => modalsModel.pushModal("AboutModal")),
         makePaletteCommand("app:settings", "Settings", () => modalsModel.pushModal("SettingsModal")),

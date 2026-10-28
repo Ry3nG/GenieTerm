@@ -8,7 +8,9 @@ GenieTerm teaches by having the user do things in their own terminal. There are 
 
 `ModalsRenderer` opens the welcome modal (`onboarding.tsx`) until the client has agreed to the terms. **Get Started** agrees, records `onboarding:lastversion`, closes the modal and starts Quick Start. **Skip** records `onboarding:quickstart = "dismissed"` instead.
 
-On the primary window's startup, a client whose `onboarding:lastversion` is older than `CurrentOnboardingVersion` (`onboarding-common.tsx`) gets What's New (`onboarding-upgrade.tsx`). It lists the releases since that version and offers **Start Quick Start** or **Not Now**.
+Upgrades do not open a modal or a feature walkthrough at startup. **What's New in GenieTerm 1.6** in the command palette opens the release introduction (`onboarding-upgrade.tsx`) on request. It lists unseen releases, or the current release when the client is already up to date, and offers **Try new features** or **Close**.
+
+**Try new features** opens the six-step feature walkthrough (`feature-tour.tsx`). Each step can open its real tool without running commands or transfers. Client meta stores `onboarding:featuretour`, `onboarding:featurestep`, and `onboarding:featureversion`. Progress resumes only when the user requests the walkthrough again, even if it was active when the app closed. Completed walkthroughs can be replayed. Client-state subscriptions start when the walkthrough is requested, not when the workspace mounts.
 
 ## Quick Start
 

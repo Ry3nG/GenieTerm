@@ -61,10 +61,9 @@ describe("feature tour lifecycle", () => {
         expect(savedFeatureStep({ ...Meta, "onboarding:featureversion": "v1.3.0" })).toBe("history");
         expect(savedFeatureStep({ ...Meta, "onboarding:featurestep": "invalid" })).toBe("history");
     });
-    it("starts only active saved tours automatically and preserves progress on close", async () => {
+    it("resumes saved progress only when started and preserves progress on close", async () => {
         const model = FeatureTourModel.getInstance();
-        setMeta({ ...Meta, "onboarding:featuretour": "dismissed" });
-        model.resume();
+        setMeta(Meta);
         expect(globalStore.get(model.stepAtom)).toBeNull();
         model.start();
         expect(globalStore.get(model.stepAtom)).toBe("recipes");

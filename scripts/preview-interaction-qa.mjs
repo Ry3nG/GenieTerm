@@ -273,6 +273,8 @@ async function runBlockStatusInteractions(browser, baseUrl) {
 
 async function runWorkflowToolsInteractions(browser, baseUrl) {
   const { page, assertClean } = await newCheckedPage(browser, baseUrl, "workflow-tools", { width: 1000, height: 1000 });
+  await assertCount(page.getByRole("region", { name: "Workspace setups" }), 0, "setups stay unmounted until requested");
+  await page.getByRole("button", { name: "Saved setups", exact: true }).click();
   await page.getByRole("button", { name: "Multi-host setup", exact: true }).click();
   await page.getByRole("button", { name: "Open workspace", exact: true }).click();
   const destinations = page.getByLabel("Launched pane destinations");

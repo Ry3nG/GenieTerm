@@ -4,11 +4,7 @@
 import Logo from "@/app/asset/logo";
 import { Button } from "@/app/element/button";
 import { FlexiModal } from "@/app/modals/modal";
-import {
-    CurrentOnboardingVersion,
-    isOnboardingCurrent,
-    OnboardingGradientBg,
-} from "@/app/onboarding/onboarding-common";
+import { CurrentOnboardingVersion, OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { setClientMeta } from "@/app/onboarding/onboarding-model";
 import { FeatureItem, FeatureRow } from "@/app/onboarding/onboarding-tour";
 import { ClientModel } from "@/app/store/client-model";
@@ -151,7 +147,8 @@ function shortVersion(version: string): string {
 }
 
 function UpgradeNotes({ lastVersion = "v0.0.0" }: { lastVersion?: string }) {
-    const releases = UpgradeReleases.filter((release) => isOlderThan(lastVersion, release.version));
+    const unseen = UpgradeReleases.filter((release) => isOlderThan(lastVersion, release.version));
+    const releases = unseen.length ? unseen : UpgradeReleases.slice(0, 1);
     return (
         <div className="flex flex-col gap-6">
             {releases.map((release, index) => (
@@ -183,21 +180,11 @@ const UpgradeOnboardingModal = () => {
     const lastVersion = initialVersionRef.current;
 
     useEffect(() => {
-        if (isOnboardingCurrent(lastVersion)) {
-            globalStore.set(modalsModel.upgradeOnboardingOpen, false);
-        }
-    }, [lastVersion]);
-
-    useEffect(() => {
         disableGlobalKeybindings();
         return () => {
             enableGlobalKeybindings();
         };
     }, []);
-
-    if (isOnboardingCurrent(lastVersion)) {
-        return null;
-    }
 
     const doClose = () => {
         globalStore.set(modalsModel.upgradeOnboardingOpen, false);
@@ -212,7 +199,7 @@ const UpgradeOnboardingModal = () => {
         FeatureTourModel.getInstance().start();
     };
 
-    const handleNotNow = () => {
+    const handleClose = () => {
         setClientMeta({
             "onboarding:lastversion": CurrentOnboardingVersion,
         });
@@ -237,8 +224,8 @@ const UpgradeOnboardingModal = () => {
                 </div>
                 <footer className="flex flex-col items-center gap-3 unselectable">
                     <div className="flex items-center gap-2.5 [&>button]:!px-5 [&>button]:!py-2 [&>button]:text-sm">
-                        <Button className="grey font-[600] cursor-pointer" onClick={handleNotNow}>
-                            Not Now
+                        <Button className="grey font-[600] cursor-pointer" onClick={handleClose}>
+                            Close
                         </Button>
                         <Button className="font-[600] cursor-pointer" onClick={handleStartFeatureTour}>
                             Try new features

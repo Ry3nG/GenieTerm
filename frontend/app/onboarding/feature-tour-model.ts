@@ -135,16 +135,6 @@ export class FeatureTourModel {
         this.setStep(savedFeatureStep(clientMeta()));
     }
 
-    resume() {
-        this.init();
-        const meta = clientMeta();
-        if (
-            meta["onboarding:featuretour"] === "active" &&
-            meta["onboarding:featureversion"] === CurrentOnboardingVersion
-        )
-            this.start();
-    }
-
     setStep(step: FeatureTourStep) {
         globalStore.set(this.stepAtom, step);
         globalStore.set(this.errorAtom, "");

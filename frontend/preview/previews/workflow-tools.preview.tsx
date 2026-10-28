@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getApi } from "@/app/store/global";
-import { WorkspaceTemplatePanel } from "@/app/tab/workspace-template-panel";
+import { WorkspaceTemplateMenu } from "@/app/tab/workspace-template-menu";
 import { captureTemplateTab } from "@/app/tab/workspace-templates";
 import { CommandLibraryModel } from "@/app/view/term/command-library-model";
 import { CommandLibraryPanel } from "@/app/view/term/command-library-ui";
@@ -110,7 +110,7 @@ export function WorkflowToolsPreview() {
         <div className="w-full max-w-[1000px] px-4 py-4">
             <div className="mx-auto max-w-sm rounded border border-border bg-panel">
                 <WaveEnvContext.Provider value={env}>
-                    <WorkspaceTemplatePanel workspace={{ name: "Source workspace" } as Workspace} />
+                    <WorkspaceTemplateMenu workspace={{ name: "Source workspace" } as Workspace} />
                 </WaveEnvContext.Provider>
             </div>
             <output aria-label="Launched pane destinations" className="block break-all text-xs">

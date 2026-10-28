@@ -64,6 +64,6 @@ Connect to an SSH host and install the offered `genie` helper to enable durable 
 
 ## Project
 
-[Architecture](./docs/architecture/README.md) · [Release notes](./docs/releases/) · [Security](./SECURITY.md) · [Code of conduct](./CODE_OF_CONDUCT.md)
+[Product direction](./docs/product-direction.md) · [Architecture](./docs/architecture/README.md) · [Release notes](./docs/releases/) · [Security](./SECURITY.md) · [Code of conduct](./CODE_OF_CONDUCT.md)
 
 GenieTerm began as a fork of [Wave Terminal](https://github.com/wavetermdev/waveterm). Licensed under [Apache-2.0](./LICENSE); see [NOTICE](./NOTICE) and [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).

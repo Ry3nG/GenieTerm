@@ -1,11 +1,10 @@
 // Copyright 2026, GenieTerm.
 // SPDX-License-Identifier: Apache-2.0
 
-import { atoms, globalPrimaryTabStartup } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { cn } from "@/util/util";
 import { FloatingPortal } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
 import { FeatureTourModel, FeatureTourStep, FeatureTourSteps } from "./feature-tour-model";
 
 export const FeatureTourContent: Record<
@@ -38,7 +37,7 @@ export const FeatureTourContent: Record<
         body: "Saved setups remember tabs, pane sizes, hosts and folders so you can reopen a familiar work environment.",
         action: "Open saved setups",
         instruction:
-            "In the workspace menu, choose Save current and name your setup. Select it to preview the layout. Keep saved hosts and folders, or override them before opening a fresh workspace. Running commands are not restored.",
+            "In the workspace menu, expand Saved setups, choose Save current and name your setup. Select it to preview the layout. Keep saved hosts and folders, or override them before opening a fresh workspace. Running commands are not restored.",
     },
     host: {
         title: "Keep remote sessions and services handy",
@@ -127,10 +126,6 @@ export function FeatureTourLayer() {
     const busy = useAtomValue(model.busyAtom);
     const error = useAtomValue(model.errorAtom);
     const modalOpen = useAtomValue(atoms.modalOpen);
-    useEffect(() => {
-        model.init();
-        if (globalPrimaryTabStartup) model.resume();
-    }, []);
     if (!step || modalOpen) return null;
     return (
         <FloatingPortal>
