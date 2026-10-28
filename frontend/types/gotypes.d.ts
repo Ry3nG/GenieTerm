@@ -1207,6 +1207,9 @@ declare global {
         "onboarding:quickstart"?: string;
         "onboarding:quickstartstep"?: string;
         "onboarding:tips"?: string[];
+        "onboarding:featuretour"?: string;
+        "onboarding:featurestep"?: string;
+        "onboarding:featureversion"?: string;
         count?: number;
     };
 

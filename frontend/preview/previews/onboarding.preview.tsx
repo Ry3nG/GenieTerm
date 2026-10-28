@@ -15,7 +15,7 @@ import { UpgradeNotes } from "@/app/onboarding/onboarding-upgrade";
 
 function OnboardingModalWrapper({ width, children }: { width: string; children: React.ReactNode }) {
     return (
-        <div className={`${width} rounded-[10px] p-[30px] relative overflow-hidden bg-panel`}>
+        <div className={`${width} max-w-full rounded-[10px] p-[30px] relative overflow-hidden bg-panel`}>
             <OnboardingGradientBg />
             <div className="relative z-10 flex flex-col w-full h-full">{children}</div>
         </div>
@@ -101,7 +101,7 @@ function UpgradeNotesV() {
         <OnboardingModalWrapper width="w-[560px]">
             <header className="flex flex-col gap-2 items-center unselectable mb-6">
                 <Logo />
-                <div className="text-[25px] font-normal text-foreground">GenieTerm 1.4</div>
+                <div className="text-[25px] font-normal text-foreground">GenieTerm 1.6</div>
                 <div className="text-[14px] text-secondary">What's new since your last update.</div>
             </header>
             <UpgradeNotes lastVersion="v1.1.0" />

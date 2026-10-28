@@ -9,7 +9,7 @@ import {
     isOnboardingCurrent,
     OnboardingGradientBg,
 } from "@/app/onboarding/onboarding-common";
-import { OnboardingModel, setClientMeta } from "@/app/onboarding/onboarding-model";
+import { setClientMeta } from "@/app/onboarding/onboarding-model";
 import { FeatureItem, FeatureRow } from "@/app/onboarding/onboarding-tour";
 import { ClientModel } from "@/app/store/client-model";
 import { getApi, globalStore } from "@/app/store/global";
@@ -19,6 +19,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import coerce from "semver/functions/coerce";
 import lt from "semver/functions/lt";
+import { FeatureTourModel } from "./feature-tour-model";
 
 const ReleaseNotesUrl = "https://github.com/Ry3nG/GenieTerm/releases/latest";
 
@@ -27,6 +28,40 @@ type UpgradeRelease = { version: string; items: FeatureItem[] };
 // 1.4 adds no onboarding step, so 1.3 users get it through the update prompt and the offer
 // itself; people coming from older versions see it here with everything else they missed.
 const UpgradeReleases: UpgradeRelease[] = [
+    {
+        version: "v1.6.0",
+        items: [
+            {
+                icon: "fa-clock-rotate-left",
+                title: "Command history and recipes",
+                description:
+                    "Find earlier commands by host and folder. Save commands with arguments, then review and insert them at your prompt.",
+            },
+            {
+                icon: "fa-magnifying-glass",
+                title: "Search command output",
+                description: "Inspect, search and copy a snapshot of one command's output from the terminal menu.",
+            },
+            {
+                icon: "fa-table-columns",
+                title: "Saved workspace setups",
+                description:
+                    "Save your pane layout, hosts and folders in the workspace menu, then open a fresh workspace from that setup.",
+            },
+            {
+                icon: "fa-server",
+                title: "Remote sessions and saved forwards",
+                description:
+                    "Find durable SSH sessions in Host and save named port forwards, with optional restoration on connection.",
+            },
+            {
+                icon: "fa-copy",
+                title: "Batch file operations",
+                description:
+                    "Select multiple files and folders to copy or download together, with progress, retry and name-conflict choices.",
+            },
+        ],
+    },
     {
         version: "v1.4.0",
         items: [
@@ -171,23 +206,21 @@ const UpgradeOnboardingModal = () => {
         }, 10);
     };
 
-    const handleStartQuickStart = () => {
+    const handleStartFeatureTour = () => {
         setClientMeta({ "onboarding:lastversion": CurrentOnboardingVersion });
         globalStore.set(modalsModel.upgradeOnboardingOpen, false);
-        OnboardingModel.getInstance().start();
+        FeatureTourModel.getInstance().start();
     };
 
     const handleNotNow = () => {
-        const quickStart = clientData.meta?.["onboarding:quickstart"];
         setClientMeta({
             "onboarding:lastversion": CurrentOnboardingVersion,
-            ...(quickStart === "done" ? {} : { "onboarding:quickstart": "dismissed" }),
         });
         doClose();
     };
 
     return (
-        <FlexiModal className="w-[560px] rounded-[10px] !p-[30px] relative overflow-hidden bg-panel">
+        <FlexiModal className="w-[560px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] overflow-y-auto rounded-[10px] !p-[24px] relative bg-panel">
             <OnboardingGradientBg />
             <div className="relative z-10 flex flex-col w-full gap-6">
                 <header className="flex flex-col gap-2 items-center unselectable">
@@ -207,8 +240,8 @@ const UpgradeOnboardingModal = () => {
                         <Button className="grey font-[600] cursor-pointer" onClick={handleNotNow}>
                             Not Now
                         </Button>
-                        <Button className="font-[600] cursor-pointer" onClick={handleStartQuickStart}>
-                            Start Quick Start
+                        <Button className="font-[600] cursor-pointer" onClick={handleStartFeatureTour}>
+                            Try new features
                         </Button>
                     </div>
                     <button

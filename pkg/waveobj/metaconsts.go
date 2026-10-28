@@ -135,6 +135,9 @@ const (
 	MetaKey_OnboardingQuickStart     = "onboarding:quickstart"
 	MetaKey_OnboardingQuickStartStep = "onboarding:quickstartstep"
 	MetaKey_OnboardingTips           = "onboarding:tips"
+	MetaKey_OnboardingFeatureTour    = "onboarding:featuretour"
+	MetaKey_OnboardingFeatureStep    = "onboarding:featurestep"
+	MetaKey_OnboardingFeatureVersion = "onboarding:featureversion"
 
 	MetaKey_Count = "count"
 )

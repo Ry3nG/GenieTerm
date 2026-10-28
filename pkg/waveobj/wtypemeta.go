@@ -137,6 +137,9 @@ type MetaTSType struct {
 	OnboardingQuickStart     string   `json:"onboarding:quickstart,omitempty"`     // for client (active|done|dismissed)
 	OnboardingQuickStartStep string   `json:"onboarding:quickstartstep,omitempty"` // for client
 	OnboardingTips           []string `json:"onboarding:tips,omitempty"`           // for client
+	OnboardingFeatureTour    string   `json:"onboarding:featuretour,omitempty"`
+	OnboardingFeatureStep    string   `json:"onboarding:featurestep,omitempty"`
+	OnboardingFeatureVersion string   `json:"onboarding:featureversion,omitempty"`
 
 	Count int `json:"count,omitempty"` // temp for cpu plot. will remove later
 }

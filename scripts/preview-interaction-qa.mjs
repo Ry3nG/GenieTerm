@@ -329,6 +329,36 @@ async function runWorkflowToolsInteractions(browser, baseUrl) {
   log("workflow tools interactions passed");
 }
 
+async function runFeatureTourInteractions(browser, baseUrl) {
+  const { page, assertClean } = await newCheckedPage(browser, baseUrl, "feature-tour", { width: 390, height: 740 });
+  const tour = page.getByRole("dialog", { name: "What's new in GenieTerm 1.6", exact: true });
+  const actions = [
+    "Open command history",
+    "Open recipes",
+    "Inspect last output",
+    "Open saved setups",
+    "Open Host",
+    "Open Files",
+  ];
+  for (let index = 0; index < actions.length; index++) {
+    await assertVisible(tour.getByLabel(`Step ${index + 1} of 6`), "tour progress");
+    await tour.getByRole("button", { name: actions[index], exact: true }).click();
+    await tour.getByRole("button", { name: index === actions.length - 1 ? "Done" : "Next", exact: true }).click();
+  }
+  await assertVisible(page.getByText("Tour closed", { exact: true }), "tour completion");
+  await page.getByRole("button", { name: "Restart feature tour" }).click();
+  await tour.getByRole("button", { name: "Skip", exact: true }).click();
+  await tour.getByRole("button", { name: "Back", exact: true }).click();
+  await assertVisible(tour.getByLabel("Step 1 of 6"), "tour back navigation");
+  await page.getByRole("button", { name: "Show unavailable output" }).click();
+  await assertVisible(tour.getByRole("alert"), "unavailable feature explanation");
+  await tour.getByRole("button", { name: "Finish tour later" }).click();
+  await assertVisible(page.getByText("Tour closed", { exact: true }), "tour dismissal");
+  await assertClean();
+  await page.close();
+  log("feature tour interactions passed");
+}
+
 async function main() {
   const port = await findFreePort();
   const baseUrl = `http://${Host}:${port}`;
@@ -350,6 +380,7 @@ async function main() {
     await runHostInteractions(browser, baseUrl);
     await runFilesUploadDropInteractions(browser, baseUrl);
     await runWorkflowToolsInteractions(browser, baseUrl);
+    await runFeatureTourInteractions(browser, baseUrl);
     log("all preview interaction QA checks passed");
   } catch (error) {
     failure = error.stack || error.message;

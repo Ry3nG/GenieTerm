@@ -688,8 +688,16 @@ function getAppCommands(): CommandPaletteCommand[] {
         makePaletteCommand("app:check-for-updates", "Check for Updates", () => getApi().checkForUpdates()),
         makePaletteCommand("app:quick-start", "Quick Start", () =>
             fireAndForget(async () => {
+                const { FeatureTourModel } = await import("@/app/onboarding/feature-tour-model");
+                FeatureTourModel.getInstance().close();
                 const { OnboardingModel } = await import("@/app/onboarding/onboarding-model");
                 OnboardingModel.getInstance().startFromPalette();
+            })
+        ),
+        makePaletteCommand("app:whats-new", "What's New in GenieTerm 1.6", () =>
+            fireAndForget(async () => {
+                const { FeatureTourModel } = await import("@/app/onboarding/feature-tour-model");
+                FeatureTourModel.getInstance().start();
             })
         ),
         makePaletteCommand("app:about", "About GenieTerm", () => modalsModel.pushModal("AboutModal")),

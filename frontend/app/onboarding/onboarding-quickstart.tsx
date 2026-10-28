@@ -10,6 +10,7 @@ import { cn, useAtomValueSafe } from "@/util/util";
 import { autoUpdate, flip, FloatingPortal, offset, Placement, shift, useFloating } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useState } from "react";
+import { FeatureTourModel } from "./feature-tour-model";
 import { OnboardingAnchor, OnboardingAnchorName, onboardingAnchorSelector } from "./onboarding-events";
 import {
     getQuickStartProgress,
@@ -699,6 +700,7 @@ export function OnboardingGuideLayer() {
     const step = useAtomValue(model.stepAtom);
     const tip = useAtomValue(model.tipAtom);
     const modalOpen = useAtomValue(atoms.modalOpen);
+    const featureStep = useAtomValue(FeatureTourModel.getInstance().stepAtom);
 
     useEffect(() => {
         model.init();
@@ -707,7 +709,7 @@ export function OnboardingGuideLayer() {
         }
     }, []);
 
-    if (modalOpen) {
+    if (modalOpen || featureStep != null) {
         return null;
     }
     if (step != null) {

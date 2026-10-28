@@ -21,6 +21,16 @@ const CleanupTimeoutMs = 5000;
 
 const PreviewCases = [
   {
+    name: "feature-tour",
+    path: "/?preview=feature-tour",
+    checks: ["New in GenieTerm 1.6", "Find a command you already ran", "Open command history", "Skip"],
+    viewports: [
+      { name: "desktop", width: 1240, height: 900 },
+      { name: "narrow", width: 390, height: 700 },
+      { name: "compact", width: 360, height: 520 },
+    ],
+  },
+  {
     name: "workflow-tools",
     path: "/?preview=workflow-tools",
     checks: ["Multi-host setup", "Command library", "printf 'hello world'", "Insert into"],
@@ -112,7 +122,9 @@ const PreviewCases = [
       "You're all set",
       "That didn't work",
       "Connected to gpu-01",
-      "GenieTerm 1.4",
+      "GenieTerm 1.6",
+      "Command history and recipes",
+      "Saved workspace setups",
       "Open remote servers here",
       "Quick Start",
       "Command AI, with the AI you already have",

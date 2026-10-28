@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 import { isOnboardingCurrent } from "@/app/onboarding/onboarding-common";
@@ -7,7 +7,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { atoms, globalPrimaryTabStartup } from "@/store/global";
 import { modalsModel } from "@/store/modalmodel";
 import * as jotai from "jotai";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { getModalComponent } from "./modalregistry";
 
 const ModalsRenderer = () => {
@@ -15,6 +15,7 @@ const ModalsRenderer = () => {
     const [newInstallOnboardingOpen, setNewInstallOnboardingOpen] = jotai.useAtom(modalsModel.newInstallOnboardingOpen);
     const [upgradeOnboardingOpen, setUpgradeOnboardingOpen] = jotai.useAtom(modalsModel.upgradeOnboardingOpen);
     const [modals] = jotai.useAtom(modalsModel.modalsAtom);
+    const showedWelcome = useRef(false);
     const rtn: React.ReactElement[] = [];
     for (const modal of modals) {
         const ModalComponent = getModalComponent(modal.displayName);
@@ -32,6 +33,7 @@ const ModalsRenderer = () => {
     }
     useEffect(() => {
         if (!clientData.tosagreed) {
+            showedWelcome.current = true;
             setNewInstallOnboardingOpen(true);
         }
     }, [clientData]);
@@ -40,14 +42,14 @@ const ModalsRenderer = () => {
         if (!globalPrimaryTabStartup) {
             return;
         }
-        if (!clientData.tosagreed) {
+        if (!clientData.tosagreed || showedWelcome.current) {
             return;
         }
         const lastVersion = clientData.meta?.["onboarding:lastversion"] ?? "v0.0.0";
         if (!isOnboardingCurrent(lastVersion)) {
             setUpgradeOnboardingOpen(true);
         }
-    }, []);
+    }, [clientData.tosagreed, clientData.meta?.["onboarding:lastversion"]]);
     useEffect(() => {
         globalStore.set(atoms.modalOpen, rtn.length > 0);
     }, [rtn]);
