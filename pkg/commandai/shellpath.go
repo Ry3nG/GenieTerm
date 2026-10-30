@@ -62,6 +62,7 @@ func loginPath(refresh bool) string {
 			dirs = append(dirs, nvm[0])
 		}
 	}
+	dirs = append(dirs, bundledCodexDirs(runtime.GOOS, home)...)
 	unique := []string{}
 	seen := map[string]bool{}
 	for _, d := range dirs {
@@ -72,6 +73,24 @@ func loginPath(refresh bool) string {
 	}
 	pathCache.value = strings.Join(unique, string(os.PathListSeparator))
 	return pathCache.value
+}
+
+func bundledCodexDirs(platform, home string) []string {
+	if platform != "darwin" {
+		return nil
+	}
+	roots := []string{"/Applications"}
+	if home != "" {
+		roots = append([]string{filepath.Join(home, "Applications")}, roots...)
+	}
+	var dirs []string
+	for _, root := range roots {
+		for _, app := range []string{"ChatGPT.app", "Codex.app"} {
+			resources := filepath.Join(root, app, "Contents", "Resources")
+			dirs = append(dirs, filepath.Join(resources, "codex-cli", "CodexCLI.app", "Contents", "MacOS"), resources)
+		}
+	}
+	return dirs
 }
 
 func newerNode(a, b string) bool {

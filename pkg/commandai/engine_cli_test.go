@@ -228,3 +228,37 @@ func TestPathResolver(t *testing.T) {
 		t.Fatal("cache/refresh failed")
 	}
 }
+
+func TestBundledCodexDiscovery(t *testing.T) {
+	home := t.TempDir()
+	dirs := bundledCodexDirs("darwin", home)
+	if len(dirs) != 8 || len(bundledCodexDirs("linux", home)) != 0 || len(bundledCodexDirs("windows", home)) != 0 {
+		t.Fatalf("unexpected application directories: %v", dirs)
+	}
+	old := resolvePath
+	t.Cleanup(func() { resolvePath = old })
+	bin := t.TempDir()
+	for _, dir := range dirs[:4] {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		fakeCLI(t, dir, "codex", `printf 'codex-cli 0.165.0'`)
+		resolvePath = func(bool) string { return bin + ":" + dir }
+		if p, err := lookPath(EngineCodex); err != nil || p != filepath.Join(dir, "codex") {
+			t.Fatalf("bundled CLI: %s %v", p, err)
+		}
+		fakeCLI(t, bin, "codex", `exit 0`)
+		if p, err := lookPath(EngineCodex); err != nil || p != filepath.Join(bin, "codex") {
+			t.Fatalf("PATH precedence: %s %v", p, err)
+		}
+		if err := os.Remove(filepath.Join(bin, "codex")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(filepath.Join(dir, "codex"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if p, err := lookPath(EngineCodex); err == nil {
+			t.Fatalf("non-executable accepted: %s", p)
+		}
+	}
+}

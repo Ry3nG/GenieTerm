@@ -335,7 +335,7 @@ function ProblemView({ result, actions }: { result: CommandAiResult; actions: Co
                 {problem.fixCommand && (
                     <>
                         <div className="mt-2.5 text-[12px] text-secondary">
-                            Run this in a terminal on this computer:
+                            Run this in a local terminal on the computer running GenieTerm:
                         </div>
                         <CopyCommandPill command={problem.fixCommand} onCopy={actions.copyText} />
                     </>
@@ -374,7 +374,7 @@ function engineStatusLine(engine: CommandAiEngineInfo): string {
         }
         return engine.account ? `Signed in · ${engine.account}` : "Signed in";
     }
-    return engine.detail || (engine.available ? "Not signed in" : "Not installed");
+    return engine.detail || (engine.available ? "Not signed in" : "CLI not found on this computer");
 }
 
 function SetupView({ status, actions }: { status: CommandAiStatus | null; actions: CommandAiSheetActions }) {

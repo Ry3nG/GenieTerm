@@ -45,7 +45,7 @@ func TestCLIDetection(t *testing.T) {
 	defer func() { resolvePath = old }()
 	for _, id := range []string{EngineCodex, EngineClaude} {
 		info := detectOne(context.Background(), resolveSettings(wshrpc.CommandAiRequest{Engine: id}), true)
-		if info.Available || info.Detail != "Not installed" || info.FixCommand != installCommand(id) {
+		if info.Available || info.Detail != "CLI not found on this computer" || info.FixCommand != installCommand(id) {
 			t.Fatal(info)
 		}
 	}

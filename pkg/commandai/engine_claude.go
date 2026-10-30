@@ -56,7 +56,7 @@ func (claudeEngine) run(ctx context.Context, s settings, system, message string)
 }
 
 func cliMissing(id string) error {
-	return &engineError{status: StatusUnavailable, detail: "Not installed", fix: installCommand(id)}
+	return &engineError{status: StatusUnavailable, detail: "CLI not found on this computer", fix: installCommand(id)}
 }
 
 func authFailure(id string) error {

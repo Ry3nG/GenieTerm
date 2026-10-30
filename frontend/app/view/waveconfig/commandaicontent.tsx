@@ -53,7 +53,7 @@ function engineStatusText(engine: CommandAiEngineInfo): string {
     const ready = engine.available && engine.signedin;
     if (engine.kind === "cli") {
         if (!engine.available) {
-            return "Not installed";
+            return "CLI not found on this computer";
         }
         if (!ready) {
             return "Not signed in";
@@ -682,7 +682,7 @@ const CommandAiSettingsContent = memo(({ model }: { model: WaveConfigViewModel }
                                 description={
                                     info.available
                                         ? `Run this in a terminal on this computer, then choose Check again.`
-                                        : `${info.label} isn't installed for your user account. Install it, then choose Check again.`
+                                        : `GenieTerm couldn't find ${info.label} in this computer's PATH or supported application locations. If it is already installed, make it available in PATH, then choose Check again. Otherwise, install it below.`
                                 }
                             >
                                 <CopyCommand command={info.fixcommand} />

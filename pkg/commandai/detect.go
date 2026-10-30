@@ -78,7 +78,7 @@ func detectOne(ctx context.Context, s settings, refresh bool) wshrpc.CommandAiEn
 		info.Kind = KindCli
 		path, err := lookPath(s.engine)
 		if err != nil {
-			info.Detail = "Not installed"
+			info.Detail = "CLI not found on this computer"
 			info.FixCommand = installCommand(s.engine)
 			break
 		}
