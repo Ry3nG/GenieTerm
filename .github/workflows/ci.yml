@@ -60,6 +60,9 @@ jobs:
                   GIT_TERMINAL_PROMPT: "0"
 
             # scripts/v1-gate.mjs is the single source of truth for the gate; the release preflight runs it too.
+            - name: Install interactive shells for integration tests
+              run: sudo apt-get update && sudo apt-get install -y zsh fish
+
             - name: V1 gate
               run: node scripts/v1-gate.mjs
 
