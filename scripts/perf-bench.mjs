@@ -174,10 +174,12 @@ function launchApp(appPath, dataDir) {
       },
     }
   );
-  const session = { app, launchTs: Date.now(), wsUrl: null, browser: null, stderr: "", exit: null };
-  app.stdout.resume();
+  const session = { app, launchTs: Date.now(), wsUrl: null, browser: null, output: "", exit: null };
+  app.stdout.on("data", (chunk) => {
+    session.output = (session.output + chunk.toString()).slice(-16000);
+  });
   app.stderr.on("data", (chunk) => {
-    session.stderr = (session.stderr + chunk.toString()).slice(-16000);
+    session.output = (session.output + chunk.toString()).slice(-16000);
     session.wsUrl ??= chunk.toString().match(/DevTools listening on (ws:\/\/\S+)/)?.[1] ?? null;
   });
   app.on("exit", (code, signal) => {
@@ -360,7 +362,7 @@ async function measureSession(opts, dataDir, report) {
     await sleep(30000);
     report.withTabsSettled = await sampleProcesses(session.app.pid, 5000);
   } catch (error) {
-    throw new Error(`${error.message}\nApp exit: ${JSON.stringify(session.exit)}\n${session.stderr}`, { cause: error });
+    throw new Error(`${error.message}\nApp exit: ${JSON.stringify(session.exit)}\n${session.output}`, { cause: error });
   } finally {
     await stopApp(session);
   }
