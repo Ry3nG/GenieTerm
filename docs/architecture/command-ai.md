@@ -4,6 +4,8 @@
 
 Command AI turns a request into shell commands, explains why a command failed, and explains what a command does. GenieTerm has no AI service of its own. Each request goes from the user's computer to an engine they chose, and only when they ask. GenieTerm never runs a proposed command: the user inserts it at the prompt, runs it, or copies it.
 
+The sheet also offers **Continue in AI terminal** for larger tasks. It previews context through the existing server sanitization pipeline, then an explicit **Copy context & open Codex/Claude** action copies that reviewed text and creates a terminal on the same connection and working directory. Only the fixed CLI name is used as the command; prompt text is never placed in argv or block metadata. The user pastes it into the interactive CLI. The command terminal runs once, so restoring its block does not start another agent automatically. The target host needs the CLI on its own PATH; local engine discovery is separate.
+
 ## Engines
 
 | Engine                | Id          | How it runs                                                                             |
