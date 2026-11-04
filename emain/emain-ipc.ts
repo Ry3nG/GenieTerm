@@ -361,7 +361,7 @@ function startTrackedFileDownload(jobId: string, filePath: string, sender: elect
 }
 
 function startRetriedTransferJob(job: TransferJob, sender: electron.WebContents) {
-    if ((job.transport === "rsync" || job.transport === "scp") && job.destination.startsWith("file://")) {
+    if (job.operation === "download" && job.itemType === "folder" && job.destination.startsWith("file://")) {
         void startTrackedFolderDownload(job.id, job.source, fileURLToPath(job.destination));
         return;
     }
@@ -402,7 +402,8 @@ function registerTransferQueueBridge() {
             return downloadTransferTracker.getQueue();
         }
         if (invokeTransferCancelHandle(jobId)) {
-            downloadTransferTracker.cancel(jobId);
+            if (job.itemType === "folder") downloadTransferTracker.requestCancel(jobId);
+            else downloadTransferTracker.cancel(jobId);
         } else if (job.status === "running" && (job.operation === "upload" || job.operation === "copy")) {
             // In-flight RPC copies cannot be interrupted; the renderer skips remaining work and reports the
             // real outcome of the current copy when it finishes.
@@ -647,7 +648,6 @@ export function initIpcHandlers() {
                         continue;
                     }
                     if (job.itemType === "folder") {
-                        await fs.promises.mkdir(fileURLToPath(job.destination), { recursive: true });
                         await startTrackedFolderDownload(job.id, job.source, fileURLToPath(job.destination));
                     } else startTrackedFileDownload(job.id, job.source, event.sender);
                     if (!isInactiveTransferStatus(downloadTransferTracker.findJob(job.id)?.status))
@@ -681,10 +681,7 @@ export function initIpcHandlers() {
         return true;
     });
     registerDownloadFolderHandler({
-        resolveConnKeywords: async (connection) => {
-            const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
-            return fullConfig?.connections?.[connection];
-        },
+        run: (data) => RpcApi.FileDownloadDirectoryCommand(ElectronWshClient, data, { timeout: 24 * 60 * 60 * 1000 }),
     });
 
     electron.ipcMain.on("get-cursor-point", (event) => {

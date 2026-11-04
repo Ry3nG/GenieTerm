@@ -23,6 +23,8 @@ import (
 	"github.com/pkg/sftp"
 )
 
+var ErrSFTPUnavailable = errors.New("SFTP is unavailable")
+
 func shouldUseSFTP(conn *connparse.Connection) bool {
 	opts, err := remote.ParseOpts(conn.Host)
 	if err != nil {
@@ -47,7 +49,7 @@ func openSFTP(conn *connparse.Connection) (*sftp.Client, error) {
 	}
 	client, err := sftp.NewClient(sshConn.GetClient())
 	if err != nil {
-		return nil, fmt.Errorf("SFTP is unavailable on %q: %w", conn.Host, err)
+		return nil, fmt.Errorf("%w on %q: %w", ErrSFTPUnavailable, conn.Host, err)
 	}
 	return client, nil
 }

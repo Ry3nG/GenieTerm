@@ -5,6 +5,7 @@ package fsutil
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -93,6 +94,13 @@ func ResolveLocalWriteTarget(p string) (string, error) {
 // replacement leave the original untouched and remove the temp file. A partial Windows replacement
 // failure restores the original when possible, otherwise the error reports its retained backup path.
 func ReplaceLocalFile(target string, r io.Reader, opts ReplaceOpts) (int64, error) {
+	return ReplaceLocalFileContext(context.Background(), target, r, opts)
+}
+
+func ReplaceLocalFileContext(ctx context.Context, target string, r io.Reader, opts ReplaceOpts) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	existing, err := os.Stat(target)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return 0, fmt.Errorf("cannot stat %q: %w", target, err)
@@ -169,6 +177,9 @@ func ReplaceLocalFile(target string, r io.Reader, opts ReplaceOpts) (int64, erro
 	closed = true
 	if err := file.Close(); err != nil {
 		return n, fmt.Errorf("cannot close %q: %w", tempPath, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return n, err
 	}
 	if err := commitLocalReplacement(tempPath, target, existing != nil); err != nil {
 		return n, fmt.Errorf("cannot replace %q: %w", target, err)

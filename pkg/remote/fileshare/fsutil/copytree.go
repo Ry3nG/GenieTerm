@@ -51,6 +51,7 @@ type CopyDest interface {
 type CopyOpts struct {
 	Overwrite bool
 	Merge     bool
+	OnSkip    func(string)
 }
 
 func ResolveCopyDestPath(dest CopyDest, destPath string, srcBaseName string, destHasSlash bool) (string, error) {
@@ -103,10 +104,10 @@ func CopyTree(ctx context.Context, src CopySource, srcEntry *CopyEntry, dest Cop
 		return copyOneFile(ctx, src, srcEntry, dest, destPath)
 	}
 	if existing == nil {
-		return copyDirStaged(ctx, src, srcEntry, dest, destPath, false)
+		return copyDirStaged(ctx, src, srcEntry, dest, destPath, false, opts.OnSkip)
 	}
 	if existing.IsDir && opts.Merge {
-		return copyDirContents(ctx, src, srcEntry, dest, destPath)
+		return copyDirContents(ctx, src, srcEntry, dest, destPath, true, opts.OnSkip)
 	}
 	if !opts.Overwrite {
 		if existing.IsDir {
@@ -114,7 +115,7 @@ func CopyTree(ctx context.Context, src CopySource, srcEntry *CopyEntry, dest Cop
 		}
 		return fmt.Errorf(OverwriteRequiredError, destPath)
 	}
-	return copyDirStaged(ctx, src, srcEntry, dest, destPath, true)
+	return copyDirStaged(ctx, src, srcEntry, dest, destPath, true, opts.OnSkip)
 }
 
 func copyOneFile(ctx context.Context, src CopySource, srcEntry *CopyEntry, dest CopyDest, destPath string) error {
@@ -140,7 +141,7 @@ func makeSiblingTempPath(dest CopyDest, destPath string) (string, error) {
 	return dest.Join(dest.Dir(destPath), tempName), nil
 }
 
-func copyDirStaged(ctx context.Context, src CopySource, srcEntry *CopyEntry, dest CopyDest, destPath string, replaceExisting bool) error {
+func copyDirStaged(ctx context.Context, src CopySource, srcEntry *CopyEntry, dest CopyDest, destPath string, replaceExisting bool, onSkip func(string)) error {
 	stagingPath, err := makeSiblingTempPath(dest, destPath)
 	if err != nil {
 		return err
@@ -148,7 +149,11 @@ func copyDirStaged(ctx context.Context, src CopySource, srcEntry *CopyEntry, des
 	if err := dest.Mkdir(stagingPath, srcEntry.Mode.Perm()|0700); err != nil {
 		return fmt.Errorf("cannot create directory next to %q: %w", destPath, err)
 	}
-	if err := copyDirContents(ctx, src, srcEntry, dest, stagingPath); err != nil {
+	if err := copyDirContents(ctx, src, srcEntry, dest, stagingPath, false, onSkip); err != nil {
+		removeStaging(dest, stagingPath)
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		removeStaging(dest, stagingPath)
 		return err
 	}
@@ -187,7 +192,7 @@ func removeStaging(dest CopyDest, stagingPath string) {
 	}
 }
 
-func copyDirContents(ctx context.Context, src CopySource, srcDir *CopyEntry, dest CopyDest, destDir string) error {
+func copyDirContents(ctx context.Context, src CopySource, srcDir *CopyEntry, dest CopyDest, destDir string, merge bool, onSkip func(string)) error {
 	if err := ctx.Err(); err != nil {
 		return context.Cause(ctx)
 	}
@@ -202,14 +207,23 @@ func copyDirContents(ctx context.Context, src CopySource, srcDir *CopyEntry, des
 		if entry.Name == "" || entry.Name == "." || entry.Name == ".." {
 			continue
 		}
+		if dest.Base(entry.Name) != entry.Name || strings.Contains(entry.Name, "/") {
+			return fmt.Errorf("invalid file name in directory listing: %q", entry.Name)
+		}
 		if entry.Mode&os.ModeSymlink != 0 {
 			resolved, err := src.Stat(entry.Path)
 			if err != nil {
 				log.Printf("copy: skipping symlink %q: %v\n", entry.Path, err)
+				if onSkip != nil {
+					onSkip(entry.Path)
+				}
 				continue
 			}
 			if resolved.IsDir {
 				log.Printf("copy: skipping symlinked directory %q\n", entry.Path)
+				if onSkip != nil {
+					onSkip(entry.Path)
+				}
 				continue
 			}
 			entry = &CopyEntry{Path: entry.Path, Name: entry.Name, Size: resolved.Size, Mode: resolved.Mode, IsDir: false}
@@ -219,6 +233,9 @@ func copyDirContents(ctx context.Context, src CopySource, srcDir *CopyEntry, des
 		if err != nil {
 			return fmt.Errorf("cannot stat destination %q: %w", childDest, err)
 		}
+		if existing != nil && !merge {
+			return fmt.Errorf("source names collide at destination %q", childDest)
+		}
 		if entry.IsDir {
 			if existing == nil {
 				if err := dest.Mkdir(childDest, entry.Mode.Perm()|0700); err != nil {
@@ -227,13 +244,16 @@ func copyDirContents(ctx context.Context, src CopySource, srcDir *CopyEntry, des
 			} else if !existing.IsDir {
 				return fmt.Errorf("cannot merge directory %q into existing file %q", entry.Path, childDest)
 			}
-			if err := copyDirContents(ctx, src, entry, dest, childDest); err != nil {
+			if err := copyDirContents(ctx, src, entry, dest, childDest, merge, onSkip); err != nil {
 				return err
 			}
 			continue
 		}
 		if !entry.Mode.IsRegular() {
 			log.Printf("copy: skipping special file %q\n", entry.Path)
+			if onSkip != nil {
+				onSkip(entry.Path)
+			}
 			continue
 		}
 		if existing != nil && existing.IsDir {

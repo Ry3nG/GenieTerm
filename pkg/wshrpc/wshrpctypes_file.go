@@ -20,6 +20,7 @@ type WshRpcFileInterface interface {
 	FileReadCommand(ctx context.Context, data FileData) (*FileData, error)
 	FileMoveCommand(ctx context.Context, data CommandFileCopyData) error
 	FileCopyCommand(ctx context.Context, data CommandFileCopyData) error
+	FileDownloadDirectoryCommand(ctx context.Context, data CommandFileDownloadDirectoryData) chan RespOrErrorUnion[FileTransferProgress]
 	FileInfoCommand(ctx context.Context, data FileData) (*FileInfo, error)
 	FileListCommand(ctx context.Context, data FileListData) ([]*FileInfo, error)
 	FileJoinCommand(ctx context.Context, paths []string) (*FileInfo, error)
@@ -116,6 +117,18 @@ type CommandFileCopyData struct {
 	SrcUri  string        `json:"srcuri"`
 	DestUri string        `json:"desturi"`
 	Opts    *FileCopyOpts `json:"opts,omitempty"`
+}
+
+type CommandFileDownloadDirectoryData struct {
+	SrcUri   string `json:"srcuri"`
+	DestPath string `json:"destpath"`
+}
+
+type FileTransferProgress struct {
+	BytesTransferred int64 `json:"bytestransferred"`
+	FilesCompleted   int64 `json:"filescompleted"`
+	FilesSkipped     int64 `json:"filesskipped"`
+	Done             bool  `json:"done,omitempty"`
 }
 
 type FileCopyOpts struct {

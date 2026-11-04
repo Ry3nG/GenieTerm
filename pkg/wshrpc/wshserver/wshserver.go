@@ -381,6 +381,10 @@ func (ws *WshServer) FileCopyCommand(ctx context.Context, data wshrpc.CommandFil
 	return wshfs.Copy(ctx, data)
 }
 
+func (ws *WshServer) FileDownloadDirectoryCommand(ctx context.Context, data wshrpc.CommandFileDownloadDirectoryData) chan wshrpc.RespOrErrorUnion[wshrpc.FileTransferProgress] {
+	return wshfs.DownloadDirectory(ctx, data)
+}
+
 func (ws *WshServer) FileMoveCommand(ctx context.Context, data wshrpc.CommandFileCopyData) error {
 	return wshfs.Move(ctx, data)
 }

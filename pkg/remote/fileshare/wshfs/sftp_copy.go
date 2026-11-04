@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/fileshare/fspath"
@@ -327,8 +328,26 @@ func (s *rpcCopySource) Stat(p string) (*fsutil.CopyEntry, error) {
 
 func (s *rpcCopySource) ReadDir(p string) ([]*fsutil.CopyEntry, error) {
 	var rtn []*fsutil.CopyEntry
-	ch := wshclient.RemoteListEntriesCommand(RpcClient, wshrpc.CommandRemoteListEntriesData{Path: p}, &wshrpc.RpcOpts{Route: s.route})
-	for respUnion := range ch {
+	opts := &wshrpc.RpcOpts{Route: s.route}
+	ch := wshclient.RemoteListEntriesCommand(RpcClient, wshrpc.CommandRemoteListEntriesData{Path: p}, opts)
+	for {
+		var respUnion wshrpc.RespOrErrorUnion[wshrpc.CommandRemoteListEntriesRtnData]
+		select {
+		case <-s.ctx.Done():
+			if opts.StreamCancelFn != nil {
+				cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+				opts.StreamCancelFn(cancelCtx)
+				cancel()
+			}
+			for range ch {
+			}
+			return nil, s.ctx.Err()
+		case value, ok := <-ch:
+			if !ok {
+				return rtn, nil
+			}
+			respUnion = value
+		}
 		if respUnion.Error != nil {
 			return nil, respUnion.Error
 		}
@@ -336,7 +355,6 @@ func (s *rpcCopySource) ReadDir(p string) ([]*fsutil.CopyEntry, error) {
 			rtn = append(rtn, rpcCopyEntry(info))
 		}
 	}
-	return rtn, nil
 }
 
 type rpcStreamReadCloser struct {
@@ -418,29 +436,30 @@ func openCopySource(ctx context.Context, conn *connparse.Connection) (fsutil.Cop
 			client.Close()
 			return nil, "", nil, err
 		}
-		return &sftpCopySource{client: client}, path.Clean(remotePath), func() { client.Close() }, nil
+		stop := context.AfterFunc(ctx, func() { client.Close() })
+		return &sftpCopySource{client: client}, path.Clean(remotePath), func() { stop(); client.Close() }, nil
 	}
 	return MakeRpcCopySource(ctx, wshutil.MakeConnectionRouteId(conn.Host)), conn.Path, noopClose, nil
 }
 
-// openCopyDest returns a nil dest for wsh-enabled remote hosts, which can't be streamed to from here.
+// openCopyDest returns a nil dest when a wsh-enabled remote host has no SFTP subsystem.
 func openCopyDest(conn *connparse.Connection) (fsutil.CopyDest, string, func(), error) {
 	if isLocalCopyConn(conn) {
 		return fsutil.LocalCopyDest{}, localCopyPath(conn), noopClose, nil
 	}
-	if shouldUseSFTP(conn) {
-		client, err := openSFTP(conn)
-		if err != nil {
-			return nil, "", nil, err
+	client, err := openSFTP(conn)
+	if err != nil {
+		if errors.Is(err, ErrSFTPUnavailable) && !shouldUseSFTP(conn) {
+			return nil, "", noopClose, nil
 		}
-		remotePath, err := resolveSFTPPath(client, conn.Path)
-		if err != nil {
-			client.Close()
-			return nil, "", nil, err
-		}
-		return &sftpCopyDest{client: client}, path.Clean(remotePath), func() { client.Close() }, nil
+		return nil, "", nil, err
 	}
-	return nil, "", noopClose, nil
+	remotePath, err := resolveSFTPPath(client, conn.Path)
+	if err != nil {
+		client.Close()
+		return nil, "", nil, err
+	}
+	return &sftpCopyDest{client: client}, path.Clean(remotePath), func() { client.Close() }, nil
 }
 
 func sftpCopy(ctx context.Context, srcConn, destConn *connparse.Connection, opts *wshrpc.FileCopyOpts) (bool, error) {
@@ -497,7 +516,7 @@ func isSameCopyNamespace(srcConn, destConn *connparse.Connection) bool {
 }
 
 // sftpCopyToWsh handles SFTP -> wsh-enabled host. The destination's copy command pulls from a wsh
-// route, which an SFTP-only host doesn't have, so this path still buffers one bounded file.
+// route, which an SFTP-only host doesn't have, so hosts without an SFTP subsystem still use one bounded file.
 func sftpCopyToWsh(ctx context.Context, src fsutil.CopySource, srcEntry *fsutil.CopyEntry, srcBaseName string, destConn *connparse.Connection, destHasSlash bool, opts *wshrpc.FileCopyOpts) error {
 	if srcEntry.IsDir {
 		return errors.New(FolderCopyUnsupported)
