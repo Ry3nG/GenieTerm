@@ -35,6 +35,10 @@ Payloads and PTY reads are at most 64 KiB. The first send after idle is immediat
 
 `jobcontroller.runOutputLoop()` appends each read under `jobStream.runIfCurrent()` in `pkg/jobcontroller/jobreconnect.go`. The same stream lock protects replacement and resume-position calculation. A superseded stream therefore cannot append after the replacement's starting offset was captured. Preserve this boundary when modifying output batching.
 
+When reconnect detects a sequence gap, the local controller records missing bytes in the existing output-file metadata and includes that total in block job status. The durable-session indicator displays the gap without writing synthetic bytes into shell output. This works with older remote managers because it uses the existing connect sequence response.
+
+Job input keeps the existing reorder queue. An input-write mutex preserves byte order without holding the job lifecycle lock across a blocked PTY write. Explicit control-only packets can resize or signal the job immediately while leaving a sequence placeholder; mixed input/control packets remain ordered. Unix job PTYs use a pollable descriptor so closing cancels blocked I/O. Ordinary Ctrl-C bytes remain ordered input, not an out-of-band signal. Already-running remote managers keep their old behavior until replaced.
+
 ACKs confirm receipt, not persistence to filestore. A disconnect between receipt and append can lose already-acknowledged bytes; adding another local batching delay would enlarge that interval. `TermWrap` reconciles file offsets, fetches missing data, discards overlap, and checks file epochs so truncation does not mix old and new output.
 
 ## Compatibility and validation

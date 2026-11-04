@@ -310,6 +310,11 @@ func FileDeleteCommand(w *wshutil.WshRpc, data wshrpc.CommandDeleteFileData, opt
 	return err
 }
 
+// command "filedownloaddirectory", wshserver.FileDownloadDirectoryCommand
+func FileDownloadDirectoryCommand(w *wshutil.WshRpc, data wshrpc.CommandFileDownloadDirectoryData, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.FileTransferProgress] {
+	return sendRpcRequestResponseStreamHelper[wshrpc.FileTransferProgress](w, "filedownloaddirectory", data, opts)
+}
+
 // command "fileinfo", wshserver.FileInfoCommand
 func FileInfoCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOpts) (*wshrpc.FileInfo, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.FileInfo](w, "fileinfo", data, opts)

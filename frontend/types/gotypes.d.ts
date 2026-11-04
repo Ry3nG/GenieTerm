@@ -113,6 +113,7 @@ declare global {
         cmdexitts?: number;
         cmdexitcode?: number;
         cmdexitsignal?: string;
+        outputgap?: number;
     };
 
     // wshrpc.BlocksListEntry
@@ -395,6 +396,12 @@ declare global {
         srcuri: string;
         desturi: string;
         opts?: FileCopyOpts;
+    };
+
+    // wshrpc.CommandFileDownloadDirectoryData
+    type CommandFileDownloadDirectoryData = {
+        srcuri: string;
+        destpath: string;
     };
 
     // wshrpc.CommandFileStreamData
@@ -948,6 +955,14 @@ declare global {
         append?: boolean;
     };
 
+    // wshrpc.FileTransferProgress
+    type FileTransferProgress = {
+        bytestransferred: number;
+        filescompleted: number;
+        filesskipped: number;
+        done?: boolean;
+    };
+
     // wconfig.FullConfigType
     type FullConfigType = {
         settings: SettingsType;
@@ -1238,6 +1253,7 @@ declare global {
         "shell:version"?: string;
         "shell:uname"?: string;
         "shell:integration"?: boolean;
+        "shell:promptreplace"?: boolean;
         "shell:omz"?: boolean;
         "shell:comp"?: string;
         "shell:inputempty"?: boolean;

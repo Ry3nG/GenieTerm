@@ -312,6 +312,12 @@ export class RpcApiType {
         return client.wshRpcCall("filedelete", data, opts);
     }
 
+    // command "filedownloaddirectory" [responsestream]
+	FileDownloadDirectoryCommand(client: WshClient, data: CommandFileDownloadDirectoryData, opts?: RpcOpts): AsyncGenerator<FileTransferProgress, void, boolean> {
+        if (this.mockClient) return this.mockClient.mockWshRpcStream(client, "filedownloaddirectory", data, opts);
+        return client.wshRpcStream("filedownloaddirectory", data, opts);
+    }
+
     // command "fileinfo" [call]
     FileInfoCommand(client: WshClient, data: FileData, opts?: RpcOpts): Promise<FileInfo> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "fileinfo", data, opts);
