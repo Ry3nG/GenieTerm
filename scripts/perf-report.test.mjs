@@ -2,9 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { decodeAppend, findEcho, hasFinalOutputLine, percentile, summarizeReports } from "./perf-report.mjs";
+import {
+  decodeAppend,
+  findEcho,
+  hasFinalOutputLine,
+  makeOutputLineTracker,
+  percentile,
+  summarizeReports,
+} from "./perf-report.mjs";
 
 describe("performance measurements", () => {
+  it("recognizes completion split across packets without mixing terminals", () => {
+    const tracker = makeOutputLineTracker("GT_BENCH_DONE");
+    tracker.append("first", "1000\r\nGT_BENCH_");
+    tracker.append("second", "DONE\r\n");
+    expect(tracker.has("first")).toBe(false);
+    expect(tracker.has("second")).toBe(false);
+    tracker.append("first", "DO");
+    tracker.append("first", "NE\r");
+    tracker.append("first", "\n$ ");
+    expect(tracker.has("first")).toBe(true);
+    tracker.append("second", "printf 'GT_BENCH_DONE'\r\n");
+    expect(tracker.has("second")).toBe(false);
+    tracker.append("second", "GT_BENCH_DONE\r\n" + "output\n".repeat(1000));
+    expect(tracker.has("second")).toBe(true);
+  });
   it("waits for generated output rather than the echoed throughput command", () => {
     expect(hasFinalOutputLine("$ seq 1 200000\r\n", 200000)).toBe(false);
     expect(hasFinalOutputLine("199999\r\n200000\r\n$ ", 200000)).toBe(true);

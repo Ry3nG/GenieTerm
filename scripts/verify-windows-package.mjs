@@ -199,7 +199,7 @@ async function windowSmoke(executablePath, { profileDir, longHomes = false, onRe
   }
   const appProcess = spawn(
     executablePath,
-    ["--remote-debugging-port=0", "--user-data-dir", isolatedHome, "--disable-gpu"],
+    ["--remote-debugging-port=0", `--user-data-dir=${isolatedHome}`, "--disable-gpu"],
     {
       env: {
         ...process.env,

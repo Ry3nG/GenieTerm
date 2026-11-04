@@ -10,18 +10,28 @@
 // opening extra tabs. Footprint is macOS phys_footprint (what Activity Monitor shows), not RSS.
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { decodeAppend, findEcho, hasFinalOutputLine, percentile, summarizeReports } from "./perf-report.mjs";
+import {
+  decodeAppend,
+  findEcho,
+  hasFinalOutputLine,
+  makeOutputLineTracker,
+  percentile,
+  summarizeReports,
+} from "./perf-report.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
 const ThroughputLines = 200000;
 const EchoSamples = 25;
+const BusyDurationSeconds = 30;
+const BusyLinesPerBurst = 1000;
+const BusyPauseSeconds = 0.1;
 
 function parseArgs(argv) {
   const opts = { app: null, out: null, tabs: 3, settings: null, startupRuns: 0, runs: 1, busyTabs: 0 };
@@ -164,7 +174,7 @@ function launchApp(appPath, dataDir) {
   const configDir = path.join(dataDir, "config");
   const app = spawn(
     path.join(appPath, "Contents", "MacOS", "GenieTerm"),
-    ["--remote-debugging-port=0", "--user-data-dir", dataDir],
+    ["--remote-debugging-port=0", `--user-data-dir=${dataDir}`],
     {
       env: {
         ...process.env,
@@ -174,7 +184,16 @@ function launchApp(appPath, dataDir) {
       },
     }
   );
-  const session = { app, launchTs: Date.now(), wsUrl: null, browser: null, output: "", exit: null };
+  const session = {
+    app,
+    dataDir,
+    launchTs: Date.now(),
+    wsUrl: null,
+    browser: null,
+    output: "",
+    exit: null,
+    lifecycle: [],
+  };
   app.stdout.on("data", (chunk) => {
     session.output = (session.output + chunk.toString()).slice(-16000);
   });
@@ -196,7 +215,29 @@ async function connect(session) {
     throw new Error("GenieTerm did not expose a DevTools endpoint");
   }
   session.browser = await chromium.connectOverCDP(session.wsUrl);
+  const record = (event) => session.lifecycle.push({ ms: Date.now() - session.launchTs, ...event });
+  session.browser.on("disconnected", () => record({ event: "browser-disconnected" }));
+  let pageId = 0;
+  const watchPage = (page) => {
+    const id = ++pageId;
+    record({ event: "page-open", id, url: page.url() });
+    page.on("close", () => record({ event: "page-close", id }));
+    page.on("crash", () => record({ event: "page-crash", id }));
+    page.on("pageerror", (error) => record({ event: "page-error", id, message: error.message }));
+  };
+  for (const context of session.browser.contexts()) {
+    context.pages().forEach(watchPage);
+    context.on("page", watchPage);
+  }
   return session.browser;
+}
+
+function sessionDiagnostics(session) {
+  let appLog = "";
+  try {
+    appLog = readFileSync(path.join(session.dataDir, "data", "logs", "waveapp.log"), "utf8").slice(-12000);
+  } catch {}
+  return `App exit: ${JSON.stringify(session.exit)}\nLifecycle: ${JSON.stringify(session.lifecycle)}\n${session.output}\n${appLog}`;
 }
 
 function isAlive(pid) {
@@ -250,11 +291,13 @@ async function measureSession(opts, dataDir, report) {
     await cdp.send("Network.enable");
     const received = [];
     const sent = [];
+    const busyFinished = makeOutputLineTracker("GT_BENCH_DONE");
     cdp.on("Network.webSocketFrameReceived", (event) => {
       const data = decodeAppend(event.response.payloadData);
       if (data == null) {
         return;
       }
+      busyFinished.append(data.blockId, data.data);
       received.push({ ts: performance.now(), blockId: data.blockId, data: data.data.slice(-1024) });
     });
     cdp.on("Network.webSocketFrameSent", (event) => {
@@ -318,29 +361,31 @@ async function measureSession(opts, dataDir, report) {
         await busyTextarea.focus();
         busyBlocks.push(await busyTextarea.evaluate((el) => el.closest("[data-blockid]").dataset.blockid));
         await page.keyboard.type(
-          'sh -c \'i=0; while [ "$i" -lt 300 ]; do seq 1 10000; sleep 0.1; i=$((i+1)); done; printf "GT_BENCH_%s\\n" DONE\'\n'
+          `sh -c 'end=$(($(date +%s)+${BusyDurationSeconds})); while [ "$(date +%s)" -lt "$end" ]; do seq 1 ${BusyLinesPerBurst}; sleep ${BusyPauseSeconds}; done; printf "GT_BENCH_%s\\n" DONE'\n`
         );
       }
       await page.evaluate(() => window.api.createTab());
       await sleep(2500);
-      const activeBlockId = await page
-        .locator(".xterm-helper-textarea:visible")
-        .first()
-        .evaluate((el) => el.closest("[data-blockid]").dataset.blockid);
       const busyStart = received.length;
       report.busyKeystrokeEchoMs = await measureEcho(page, received, sent);
-      report.busyOutputMessages = received.slice(busyStart).filter((event) => event.blockId !== activeBlockId).length;
+      report.busyOutputMessagesByTab = busyBlocks.map(
+        (blockId) => received.slice(busyStart).filter((event) => event.blockId === blockId).length
+      );
+      report.busyOutputMessages = report.busyOutputMessagesByTab.reduce((sum, count) => sum + count, 0);
       report.busyTabs = opts.busyTabs;
-      if (report.busyOutputMessages === 0)
-        throw new Error("Background workload produced no observed output during echo probe");
-      for (let wait = 0; wait < 1200 && busyBlocks.length > 0; wait++) {
-        for (let i = busyBlocks.length - 1; i >= 0; i--) {
-          if (received.some((event) => event.blockId === busyBlocks[i] && event.data.includes("GT_BENCH_DONE")))
-            busyBlocks.splice(i, 1);
-        }
+      report.busyWorkload = {
+        durationSeconds: BusyDurationSeconds,
+        linesPerBurst: BusyLinesPerBurst,
+        pauseSeconds: BusyPauseSeconds,
+      };
+      if (report.busyOutputMessagesByTab.some((count) => count === 0))
+        throw new Error("A background tab produced no observed output during echo probe");
+      const deadline = Date.now() + BusyDurationSeconds * 1000 + 10000;
+      while (busyBlocks.some((blockId) => !busyFinished.has(blockId)) && Date.now() < deadline) {
         await sleep(100);
       }
-      if (busyBlocks.length > 0) throw new Error("Background workload did not finish");
+      if (busyBlocks.some((blockId) => !busyFinished.has(blockId)))
+        throw new Error("Background workload did not finish");
       received.length = 0;
     }
 
@@ -362,7 +407,7 @@ async function measureSession(opts, dataDir, report) {
     await sleep(30000);
     report.withTabsSettled = await sampleProcesses(session.app.pid, 5000);
   } catch (error) {
-    throw new Error(`${error.message}\nApp exit: ${JSON.stringify(session.exit)}\n${session.output}`, { cause: error });
+    throw new Error(`${error.message}\n${sessionDiagnostics(session)}`, { cause: error });
   } finally {
     await stopApp(session);
   }

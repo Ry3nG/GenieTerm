@@ -52,6 +52,26 @@ export function findEcho(received, blockId, sentAt, marker) {
   return received.find((event) => event.blockId === blockId && event.ts >= sentAt && event.data.includes(marker));
 }
 
+export function makeOutputLineTracker(line) {
+  const tails = new Map();
+  const completed = new Set();
+  return {
+    append(blockId, data) {
+      if (completed.has(blockId)) return;
+      const text = (tails.get(blockId) ?? "") + data;
+      if (hasFinalOutputLine(text, line)) {
+        completed.add(blockId);
+        tails.delete(blockId);
+      } else {
+        tails.set(blockId, text.slice(-(String(line).length + 2)));
+      }
+    },
+    has(blockId) {
+      return completed.has(blockId);
+    },
+  };
+}
+
 export function hasFinalOutputLine(text, lines) {
   return new RegExp(`(?:^|[\\r\\n])${lines}\\r?\\n`).test(text);
 }

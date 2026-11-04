@@ -27,7 +27,7 @@ function fail(scope, message) {
 
 function launchSmoke(appPath) {
   const userDataDir = mkdtempSync(path.join(tmpdir(), "genieterm-installed-smoke-"));
-  run(Scope, "open", ["-n", appPath, "--args", "--user-data-dir", userDataDir, "--disable-gpu"]);
+  run(Scope, "open", ["-n", appPath, "--args", `--user-data-dir=${userDataDir}`, "--disable-gpu"]);
   const pids = waitForLaunch(userDataDir);
   for (const pid of pids) {
     try {
@@ -153,8 +153,7 @@ async function launchPackagedAppForCdp(executablePath, userDataDir, withoutSandb
     executablePath,
     [
       "--remote-debugging-port=0",
-      "--user-data-dir",
-      userDataDir,
+      `--user-data-dir=${userDataDir}`,
       "--disable-gpu",
       ...(withoutSandbox ? ["--no-sandbox"] : []),
     ],
