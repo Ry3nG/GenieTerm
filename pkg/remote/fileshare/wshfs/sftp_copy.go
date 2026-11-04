@@ -447,6 +447,9 @@ func openCopyDest(conn *connparse.Connection) (fsutil.CopyDest, string, func(), 
 	if isLocalCopyConn(conn) {
 		return fsutil.LocalCopyDest{}, localCopyPath(conn), noopClose, nil
 	}
+	if strings.HasPrefix(conn.Host, "wsl://") {
+		return nil, "", noopClose, nil
+	}
 	client, err := openSFTP(conn)
 	if err != nil {
 		if errors.Is(err, ErrSFTPUnavailable) && !shouldUseSFTP(conn) {

@@ -15,8 +15,17 @@ import (
 
 	"github.com/Ry3nG/GenieTerm/pkg/remote"
 	"github.com/Ry3nG/GenieTerm/pkg/remote/conncontroller"
+	"github.com/Ry3nG/GenieTerm/pkg/remote/connparse"
 	"github.com/Ry3nG/GenieTerm/pkg/wshrpc"
 )
+
+func TestSFTPCopyToWSLKeepsHelperFallback(t *testing.T) {
+	dest, _, closeDest, err := openCopyDest(&connparse.Connection{Scheme: "wsh", Host: "wsl://Ubuntu", Path: "/home/user/file"})
+	if err != nil || dest != nil {
+		t.Fatalf("WSL destination must keep its helper fallback: %v, %v", dest, err)
+	}
+	closeDest()
+}
 
 func TestDownloadDirectoryUsesAuthenticatedConnection(t *testing.T) {
 	host := makeSFTPTestConnection(t)
