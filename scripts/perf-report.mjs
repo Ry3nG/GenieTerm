@@ -51,3 +51,7 @@ export function decodeAppend(payload) {
 export function findEcho(received, blockId, sentAt, marker) {
   return received.find((event) => event.blockId === blockId && event.ts >= sentAt && event.data.includes(marker));
 }
+
+export function hasFinalOutputLine(text, lines) {
+  return new RegExp(`(?:^|[\\r\\n])${lines}\\r?\\n`).test(text);
+}

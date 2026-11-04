@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { decodeAppend, findEcho, percentile, summarizeReports } from "./perf-report.mjs";
+import { decodeAppend, findEcho, hasFinalOutputLine, percentile, summarizeReports } from "./perf-report.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -248,7 +248,7 @@ async function measureSession(opts, dataDir, report) {
       if (data == null) {
         return;
       }
-      received.push({ ts: performance.now(), ...data });
+      received.push({ ts: performance.now(), blockId: data.blockId, data: data.data.slice(-1024) });
     });
     cdp.on("Network.webSocketFrameSent", (event) => {
       const payload = event.response.payloadData;
@@ -277,15 +277,21 @@ async function measureSession(opts, dataDir, report) {
     const throughputStart = performance.now();
     await page.keyboard.type(`seq 1 ${ThroughputLines}\n`);
     let lastLineTs = null;
+    let scanned = recvStart;
+    let tail = "";
     for (let i = 0; i < 600 && lastLineTs == null; i++) {
       await sleep(100);
-      for (let j = recvStart; j < received.length; j++) {
-        if (received[j].blockId === throughputBlockId && received[j].data.includes(`${ThroughputLines}\r\n`)) {
-          lastLineTs = received[j].ts;
+      for (; scanned < received.length; scanned++) {
+        const event = received[scanned];
+        if (event.blockId !== throughputBlockId) continue;
+        tail = (tail + event.data).slice(-2048);
+        if (hasFinalOutputLine(tail, ThroughputLines)) {
+          lastLineTs = event.ts;
           break;
         }
       }
     }
+    if (lastLineTs == null) throw new Error("Throughput probe did not receive its final output line");
     report.throughput = {
       lines: ThroughputLines,
       seconds: lastLineTs == null ? null : Number(((lastLineTs - throughputStart) / 1000).toFixed(2)),

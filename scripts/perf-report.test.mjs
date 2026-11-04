@@ -2,9 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { decodeAppend, findEcho, percentile, summarizeReports } from "./perf-report.mjs";
+import { decodeAppend, findEcho, hasFinalOutputLine, percentile, summarizeReports } from "./perf-report.mjs";
 
 describe("performance measurements", () => {
+  it("waits for generated output rather than the echoed throughput command", () => {
+    expect(hasFinalOutputLine("$ seq 1 200000\r\n", 200000)).toBe(false);
+    expect(hasFinalOutputLine("199999\r\n200000\r\n$ ", 200000)).toBe(true);
+    expect(hasFinalOutputLine("200000", 200000)).toBe(false);
+  });
   it("does not count another terminal's output or stale output as input echo", () => {
     const events = [
       { blockId: "busy", ts: 12, data: "x" },
