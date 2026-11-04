@@ -382,6 +382,22 @@ jobs:
             - name: Launch packaged app (window smoke)
               run: node scripts/verify-installed-app.mjs --window-smoke make/mac-arm64/GenieTerm.app
 
+            - name: Record packaged performance samples
+              timeout-minutes: 15
+              run: |
+                  node scripts/perf-bench.mjs make/mac-arm64/GenieTerm.app --startup-runs 3 --out "$RUNNER_TEMP/genieterm-startup.json"
+                  node scripts/perf-bench.mjs make/mac-arm64/GenieTerm.app --runs 3 --busy-tabs 2 --out "$RUNNER_TEMP/genieterm-workloads.json"
+
+            - name: Upload performance evidence
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: macos-performance
+                  retention-days: 30
+                  if-no-files-found: error
+                  path: |
+                      ${{ runner.temp }}/genieterm-startup.json
+                      ${{ runner.temp }}/genieterm-workloads.json
+
             - name: Verify packaging left the checkout unchanged
               run: |
                   CHANGES="$(git status --porcelain --untracked-files=all)"

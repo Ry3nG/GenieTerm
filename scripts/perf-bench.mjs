@@ -15,6 +15,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { decodeAppend, findEcho, percentile, summarizeReports } from "./perf-report.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -23,7 +24,7 @@ const ThroughputLines = 200000;
 const EchoSamples = 25;
 
 function parseArgs(argv) {
-  const opts = { app: null, out: null, tabs: 3, settings: null, startupRuns: 0 };
+  const opts = { app: null, out: null, tabs: 3, settings: null, startupRuns: 0, runs: 1, busyTabs: 0 };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--out") {
@@ -32,15 +33,31 @@ function parseArgs(argv) {
       opts.tabs = Number(argv[++i]);
     } else if (arg === "--startup-runs") {
       opts.startupRuns = Number(argv[++i]);
+    } else if (arg === "--runs") {
+      opts.runs = Number(argv[++i]);
+    } else if (arg === "--busy-tabs") {
+      opts.busyTabs = Number(argv[++i]);
     } else if (arg === "--settings") {
       opts.settings = JSON.parse(argv[++i]);
-    } else if (!opts.app) {
+    } else if (!opts.app && !arg.startsWith("--")) {
       opts.app = arg;
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
     }
   }
   if (!opts.app) {
-    console.error("usage: perf-bench.mjs <GenieTerm.app> [--out report.json] [--tabs N] [--settings JSON]");
+    console.error(
+      "usage: perf-bench.mjs <GenieTerm.app> [--out report.json] [--tabs N] [--runs N] [--busy-tabs N] [--startup-runs N] [--settings JSON]"
+    );
     process.exit(2);
+  }
+  for (const key of ["tabs", "startupRuns", "runs", "busyTabs"]) {
+    if (!Number.isSafeInteger(opts[key]) || opts[key] < (key === "runs" ? 1 : 0)) {
+      throw new Error(`${key} must be a ${key === "runs" ? "positive" : "nonnegative"} integer`);
+    }
+  }
+  if (opts.startupRuns > 0 && (opts.runs > 1 || opts.busyTabs > 0)) {
+    throw new Error("Use --startup-runs separately from workload --runs and --busy-tabs");
   }
   return opts;
 }
@@ -122,22 +139,6 @@ async function sampleProcesses(rootPid, cpuWindowMs) {
     totalCpuPct: Number(rows.reduce((acc, row) => acc + (row.cpuPct ?? 0), 0).toFixed(1)),
     processes: rows,
   };
-}
-
-function decodeAppend(payload) {
-  if (!payload.includes('"fileop":"append"')) {
-    return null;
-  }
-  const b64 = payload.match(/"data64":"([^"]*)"/)?.[1];
-  return b64 == null ? null : Buffer.from(b64, "base64").toString("latin1");
-}
-
-function percentile(values, p) {
-  if (values.length === 0) {
-    return null;
-  }
-  const sorted = [...values].sort((a, b) => a - b);
-  return Number(sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))].toFixed(2));
 }
 
 async function visibleAppPage(browser, timeoutMs) {
@@ -247,15 +248,16 @@ async function measureSession(opts, dataDir, report) {
       if (data == null) {
         return;
       }
-      received.push({ ts: performance.now(), data });
+      received.push({ ts: performance.now(), ...data });
     });
     cdp.on("Network.webSocketFrameSent", (event) => {
-      if (event.response.payloadData.includes("controllerinput")) {
-        sent.push(performance.now());
+      const payload = event.response.payloadData;
+      if (payload.includes('"command":"controllerinput"') && payload.includes('"inputdata64":"eA=="')) {
+        sent.push({ ts: performance.now(), blockId: payload.match(/"blockid":"([^"]*)"/)?.[1] });
       }
     });
 
-    const textarea = page.locator(".xterm-helper-textarea").first();
+    const textarea = page.locator(".xterm-helper-textarea:visible").first();
     await textarea.waitFor({ timeout: 15000 });
     await sleep(5000);
     progress("sampling idle");
@@ -266,33 +268,19 @@ async function measureSession(opts, dataDir, report) {
     }));
 
     progress("measuring keystroke echo");
-    await textarea.focus();
-    const echoMs = [];
-    for (let i = 0; i < EchoSamples; i++) {
-      const sentBefore = sent.length;
-      const recvBefore = received.length;
-      await page.keyboard.type("x");
-      for (let wait = 0; wait < 100 && (sent.length === sentBefore || received.length === recvBefore); wait++) {
-        await sleep(5);
-      }
-      if (sent.length > sentBefore && received.length > recvBefore) {
-        echoMs.push(received[recvBefore].ts - sent[sentBefore]);
-      }
-      await sleep(60);
-    }
-    await page.keyboard.press("Control+U");
-    report.keystrokeEchoMs = { p50: percentile(echoMs, 50), p95: percentile(echoMs, 95), samples: echoMs.length };
+    report.keystrokeEchoMs = await measureEcho(page, received, sent);
 
     await sleep(500);
     progress("measuring throughput");
     const recvStart = received.length;
+    const throughputBlockId = await textarea.evaluate((el) => el.closest("[data-blockid]").dataset.blockid);
     const throughputStart = performance.now();
     await page.keyboard.type(`seq 1 ${ThroughputLines}\n`);
     let lastLineTs = null;
     for (let i = 0; i < 600 && lastLineTs == null; i++) {
       await sleep(100);
       for (let j = recvStart; j < received.length; j++) {
-        if (received[j].data.includes(`${ThroughputLines}\r\n`)) {
+        if (received[j].blockId === throughputBlockId && received[j].data.includes(`${ThroughputLines}\r\n`)) {
           lastLineTs = received[j].ts;
           break;
         }
@@ -305,6 +293,43 @@ async function measureSession(opts, dataDir, report) {
     };
     await sleep(3000);
     report.afterThroughput = await sampleProcesses(session.app.pid, 5000);
+
+    if (opts.busyTabs > 0) {
+      progress(`measuring foreground echo with ${opts.busyTabs} background output tabs`);
+      received.length = 0;
+      const busyBlocks = [];
+      for (let i = 0; i < opts.busyTabs; i++) {
+        await page.evaluate(() => window.api.createTab());
+        await sleep(2500);
+        const busyTextarea = page.locator(".xterm-helper-textarea:visible").first();
+        await busyTextarea.focus();
+        busyBlocks.push(await busyTextarea.evaluate((el) => el.closest("[data-blockid]").dataset.blockid));
+        await page.keyboard.type(
+          'sh -c \'i=0; while [ "$i" -lt 300 ]; do seq 1 10000; sleep 0.1; i=$((i+1)); done; printf "GT_BENCH_%s\\n" DONE\'\n'
+        );
+      }
+      await page.evaluate(() => window.api.createTab());
+      await sleep(2500);
+      const activeBlockId = await page
+        .locator(".xterm-helper-textarea:visible")
+        .first()
+        .evaluate((el) => el.closest("[data-blockid]").dataset.blockid);
+      const busyStart = received.length;
+      report.busyKeystrokeEchoMs = await measureEcho(page, received, sent);
+      report.busyOutputMessages = received.slice(busyStart).filter((event) => event.blockId !== activeBlockId).length;
+      report.busyTabs = opts.busyTabs;
+      if (report.busyOutputMessages === 0)
+        throw new Error("Background workload produced no observed output during echo probe");
+      for (let wait = 0; wait < 1200 && busyBlocks.length > 0; wait++) {
+        for (let i = busyBlocks.length - 1; i >= 0; i--) {
+          if (received.some((event) => event.blockId === busyBlocks[i] && event.data.includes("GT_BENCH_DONE")))
+            busyBlocks.splice(i, 1);
+        }
+        await sleep(100);
+      }
+      if (busyBlocks.length > 0) throw new Error("Background workload did not finish");
+      received.length = 0;
+    }
 
     progress("opening tabs");
     const pagesBefore = browser.contexts().flatMap((context) => context.pages()).length;
@@ -326,6 +351,31 @@ async function measureSession(opts, dataDir, report) {
   } finally {
     await stopApp(session);
   }
+}
+
+async function measureEcho(page, received, sent) {
+  const textarea = page.locator(".xterm-helper-textarea:visible").first();
+  const blockId = await textarea.evaluate((el) => el.closest("[data-blockid]").dataset.blockid);
+  await textarea.focus();
+  const echoMs = [];
+  for (let i = 0; i < EchoSamples; i++) {
+    const sentBefore = sent.length;
+    const recvBefore = received.length;
+    await page.keyboard.type("x");
+    for (let wait = 0; wait < 100; wait++) {
+      const input = sent.slice(sentBefore).find((event) => event.blockId === blockId);
+      const echo = input && findEcho(received.slice(recvBefore), blockId, input.ts, "x");
+      if (echo) {
+        echoMs.push(echo.ts - input.ts);
+        break;
+      }
+      await sleep(5);
+    }
+    await sleep(60);
+  }
+  await page.keyboard.press("Control+C");
+  if (echoMs.length !== EchoSamples) throw new Error(`Only ${echoMs.length}/${EchoSamples} echo samples completed`);
+  return { p50: percentile(echoMs, 50), p95: percentile(echoMs, 95), samples: echoMs.length };
 }
 
 // second launch on the same data dir: onboarding is done and the workspace restores, like a returning user
@@ -393,6 +443,21 @@ async function measureStartupRuns(opts, dataDir, report) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  const reports = [];
+  for (let i = 0; i < opts.runs; i++) {
+    progress(`workload run ${i + 1}/${opts.runs}`);
+    reports.push(await measureRun(opts));
+  }
+  const result =
+    opts.runs === 1
+      ? reports[0]
+      : { app: opts.app, settings: opts.settings ?? {}, runs: reports, summary: summarizeReports(reports) };
+  const json = JSON.stringify(result, null, 2);
+  if (opts.out) writeFileSync(opts.out, json);
+  console.log(json);
+}
+
+async function measureRun(opts) {
   const dataDir = mkdtempSync(path.join(tmpdir(), "genieterm-bench-"));
   const configDir = path.join(dataDir, "config");
   mkdirSync(configDir, { recursive: true });
@@ -411,11 +476,7 @@ async function main() {
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }
-  const json = JSON.stringify(report, null, 2);
-  if (opts.out) {
-    writeFileSync(opts.out, json);
-  }
-  console.log(json);
+  return report;
 }
 
 main().catch((err) => {

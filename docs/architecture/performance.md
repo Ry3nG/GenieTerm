@@ -51,3 +51,18 @@ go test ./pkg/jobmanager -run 'TestDurable(VirtualThroughput|DeterministicLink|L
 ```
 
 The larger window increases queued data per session, including base64 and transport overhead. Many-session memory use and interactive latency under a saturated shared SSH transport need end-to-end measurement; the stream harness alone cannot establish those limits.
+
+## Repeated packaged-app measurements
+
+Run on macOS with a packaged app, using the same machine, settings and tab counts for both versions:
+
+```sh
+node scripts/perf-bench.mjs /path/to/GenieTerm.app --startup-runs 5 --out startup.json
+node scripts/perf-bench.mjs /path/to/GenieTerm.app --runs 3 --busy-tabs 2 --tabs 3 --out workloads.json
+```
+
+Each workload run starts with an isolated profile and records idle memory, input RPC-to-received-echo latency, output arrival, tab retention and workspace restoration. Repeated workload reports retain every run plus the median, minimum, maximum and valid sample count for each metric. Keep the JSON reports with the release evidence; compare distributions, not just the fastest run. Warm-profile startup is measured separately and cannot be combined with workload runs.
+
+`--busy-tabs` adds bounded output producers in separate local terminals, then measures foreground echo while their output is arriving. Echo samples match the active block and the sent character; unrelated background output cannot count as a successful echo. Missing echo samples or missing background activity fail the run. Producers finish before the settled-memory measurement. The busy tabs and the foreground probe remain in the restored workspace, in addition to `--tabs` extra idle tabs.
+
+These measurements use the default shared renderer. They measure received terminal data, not physical key-to-pixel latency or final paint. Local concurrent output is not evidence of SSH performance under latency or packet loss. Test remote transport separately with the deterministic link and legacy-window tests above, and use a disposable SSH host for network fault experiments. Do not apply uncalibrated latency thresholds to shared CI runners.
