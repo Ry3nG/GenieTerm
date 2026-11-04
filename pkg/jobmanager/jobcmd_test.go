@@ -108,6 +108,15 @@ func TestQueuedControlDoesNotWaitForInput(t *testing.T) {
 	if queued.TermSize == nil || queued.InputData64 != "eQ==" {
 		t.Fatalf("mixed input and control must retain ordering: %#v", queued)
 	}
+	for i := 0; i < 4; i++ {
+		if err := manager.InputQueue.QueueItem("", 0, wshrpc.CommandJobInputData{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data.InputData64 = ""
+	if err := manager.QueueInput(data); err != nil {
+		t.Fatalf("full data queue must not reject a completed control: %v", err)
+	}
 	terminal.Close()
 	<-writeDone
 	cmd.TerminateByClosingPtyMaster()

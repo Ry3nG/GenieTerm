@@ -156,18 +156,17 @@ func (jm *JobManager) QueueInput(data wshrpc.CommandJobInputData) error {
 	if cmd == nil {
 		return fmt.Errorf("job not started")
 	}
-	var controlErr error
 	if data.InputData64 == "" && (data.SigName != "" || data.TermSize != nil) {
 		// Explicit controls must remain available while the ordered input writer is blocked.
-		controlErr = cmd.handleInputControl(data)
+		controlErr := cmd.handleInputControl(data)
 		data.SigName = ""
 		data.TermSize = nil
+		// Keep the sequence position when possible. A full queue must not report a
+		// successful signal as failed; its existing reorder timeout skips the gap.
+		jm.InputQueue.QueueItem(data.InputSessionId, data.SeqNum, data)
+		return controlErr
 	}
-	// Keep the sequence position even when a control was handled out of band.
-	if err := jm.InputQueue.QueueItem(data.InputSessionId, data.SeqNum, data); err != nil {
-		return err
-	}
-	return controlErr
+	return jm.InputQueue.QueueItem(data.InputSessionId, data.SeqNum, data)
 }
 
 func (jm *JobManager) sendJobExited() {
