@@ -135,11 +135,24 @@ try {
         await ai.getByText("The build needs Node.js type definitions.").waitFor();
         await ai.getByRole("button", { name: "Explain", exact: true }).click();
         await ai.getByText("Shows the total disk space", { exact: false }).waitFor();
+        await ai.getByRole("button", { name: "Continue in AI terminal", exact: true }).click();
+        await ai.getByText("Continue in an AI terminal", { exact: true }).waitFor();
+        await ai.getByText("Command: du -sh ./logs", { exact: false }).waitFor();
+        assert.equal(
+          await ai.getByRole("button", { name: "Copy context & open Codex", exact: true }).isEnabled(),
+          true
+        );
+        assert.equal(
+          await ai.getByRole("button", { name: "Copy context & open Claude", exact: true }).isEnabled(),
+          true
+        );
         assert.equal(
           await ai.locator("html").evaluate((e) => e.scrollWidth > e.clientWidth + 1),
           false,
           name + ": AI overflow"
         );
+        await ai.getByRole("button", { name: "Back", exact: true }).click();
+        await ai.getByText("Shows the total disk space", { exact: false }).waitFor();
       }
       assert.equal(
         await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
@@ -161,7 +174,8 @@ try {
     await verifyDownloadLinks(page, ReleaseVersion);
     await page.locator("#download").screenshot({ path: Output + "/" + name + "-downloads.png" });
     console.log(
-      name + ": inline video, paired terminals, Host pages and forwarding, AI Write/Fix/Explain/Insert, layout passed"
+      name +
+        ": inline video, paired terminals, Host pages and forwarding, AI Write/Fix/Explain/Insert/Handoff, layout passed"
     );
     await context.close();
   }

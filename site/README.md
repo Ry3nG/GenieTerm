@@ -9,7 +9,7 @@ npm run site:build
 python3 -m http.server 58764 --bind 127.0.0.1 --directory site
 ```
 
-The film plays inline with native controls. Terminal shows two generated states side by side; Files is a fixed render. Host supports its native navigation, metrics, process table and ports. Command AI supports Write, Fix and Explain with local responses, then inserts the result into an xterm prompt.
+The film plays inline with native controls. Terminal shows two generated states side by side; Files is a fixed render. Host supports its native navigation, metrics, process table and ports. Command AI supports Write, Fix and Explain with local responses, then inserts the result into an xterm prompt. Its AI handoff preview copies only the sample context and simulates the new terminal; the website never launches a CLI or calls an AI service.
 
 ## Reproduce the interface renders
 

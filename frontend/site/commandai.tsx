@@ -232,6 +232,42 @@ export function CommandAiExperience() {
         copyText: (text) => {
             void navigator.clipboard.writeText(text);
         },
+        prepareHandoff: () =>
+            setSheet((s) => ({
+                ...s,
+                handoff: {
+                    loading: false,
+                    connection: "atlas",
+                    cwd: "~/project",
+                    redactions: 0,
+                    context: [
+                        s.input || s.exchanges.at(-1)?.prompt || "Help investigate this command.",
+                        s.target && `Command: ${s.target.command}`,
+                        s.includeOutput && s.target?.output,
+                    ]
+                        .filter(Boolean)
+                        .join("\n\n"),
+                },
+            })),
+        cancelHandoff: () => setSheet((s) => ({ ...s, handoff: undefined })),
+        openHandoff: (engine) => {
+            void navigator.clipboard
+                .writeText(sheet.handoff.context)
+                .then(() => {
+                    setOutput(
+                        Prompt +
+                            engine +
+                            "\r\n\r\nDemo: context copied. In GenieTerm, paste it into the new AI terminal.\r\n"
+                    );
+                    setOpen(false);
+                })
+                .catch(() =>
+                    setSheet((s) => ({
+                        ...s,
+                        handoff: { ...s.handoff, error: "Allow clipboard access to try the handoff demo." },
+                    }))
+                );
+        },
     };
     return (
         <div className="site-ai">

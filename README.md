@@ -18,12 +18,12 @@
 
 Terminal, remote files, host tools and your own AI, in one workspace.
 
-| In your workspace | What it does                                                          |
-| ----------------- | --------------------------------------------------------------------- |
-| **Terminal**      | Command blocks and durable SSH sessions for shells and coding agents. |
-| **Files**         | Browse, edit and transfer remote files.                               |
-| **Host**          | Inspect GPUs, processes and ports. Forward remote services.           |
-| **Command AI**    | Write, fix and explain commands with your AI. You decide what runs.   |
+| In your workspace | What it does                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| **Terminal**      | Command blocks and durable SSH sessions for shells and coding agents.                 |
+| **Files**         | Browse, edit and download remote folders over your existing connection.               |
+| **Host**          | Inspect GPUs, processes and ports. Forward remote services.                           |
+| **Command AI**    | Write, fix and explain commands, or carry reviewed context into Codex or Claude Code. |
 
 No account or telemetry. [How Command AI works](./docs/architecture/command-ai.md).
 

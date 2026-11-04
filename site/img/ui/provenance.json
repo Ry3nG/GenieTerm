@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
-  "baseCommit": "0f4be30806236135e8ab3d9775ab7e224f5a495a",
+  "version": "1.7.0",
+  "baseCommit": "636bc1927cfddbe9ce33f3fb108573bb03a951de",
   "data": "Illustrative fixtures rendered with product components; no live SSH or AI requests.",
   "renders": [
     {
@@ -17,7 +17,7 @@
         "height": 560
       },
       "sourceSha256": "e385c88c49a94e027cab543f10a692c285ee8f10d122ab03d4c0fe8b1d44504c",
-      "svgSha256": "006c4a4111bea2eae2ae27263cb758f3ca479c19d2ce5cbfd4a8769b5d053a22"
+      "svgSha256": "6bdbdbd7bcce7573e204eaeeec1d766ce4e28e6cc038fd4898943dc8265b1e2a"
     },
     {
       "name": "terminal",
@@ -33,7 +33,7 @@
         "height": 560
       },
       "sourceSha256": "e385c88c49a94e027cab543f10a692c285ee8f10d122ab03d4c0fe8b1d44504c",
-      "svgSha256": "5e9568e24524768e34decfdfd334c7c7ff8244ff96c74cad438f29bc6c421866"
+      "svgSha256": "8f14597328ad6792e5ea5fbbab6a92ad8e786b05173130f17c17f0e32d95b032"
     },
     {
       "name": "host",
@@ -47,8 +47,8 @@
         "width": 1158,
         "height": 700
       },
-      "sourceSha256": "82c7c6712a0af7f22165a77dba7561df52c99b61b3ab4f2c28eb64c86ff5979c",
-      "svgSha256": "7ef2eca2437e53fdee5c04cbf5e9577421ffff5ab0d2bbf00bfd8b6a36211d36"
+      "sourceSha256": "65beab40dacdc7566e46226fa5048ca718f76c2e6e50b2f80a740aac26df67b0",
+      "svgSha256": "279331b3a6fcb378e5d6caa7ea8ea4dc50cc09b488b381e3cff64b3808508e0d"
     },
     {
       "name": "files",
@@ -62,8 +62,8 @@
         "width": 1392,
         "height": 560
       },
-      "sourceSha256": "44e6ef890ba723505cf1e0212752a11625857593b7c6ec581eba420c4265aefa",
-      "svgSha256": "e729ee1d9ac524a6bbef475c0beed65081ae02692f6418126c1db836963d04b8"
+      "sourceSha256": "efab83783c854880bffc4d739eaaa20336099a023412a8238c8777480d696883",
+      "svgSha256": "69f744e618b0d18e958ca2b932421590cd0df6719a9a14ee36444eb8cd72be55"
     },
     {
       "name": "command-ai",
@@ -77,8 +77,8 @@
         "width": 734,
         "height": 334
       },
-      "sourceSha256": "28f9a8e6e1e98ecb2c221b31ac62ca64fb9bf207215be8648bb4828eb6e6a2ad",
-      "svgSha256": "1beb103cf42a5baf50394e7c7937fb13949d7c896be77b18b7703468572953f0"
+      "sourceSha256": "78b3d4b8a68d151965f81174c99ffbed335f477db63440726e5ed00b3ce9fefb",
+      "svgSha256": "44107bcaf4bc830b1db8e804dabeb03ff8fbbd31e5d1d2bced427eb09f19afce"
     }
   ]
 }
