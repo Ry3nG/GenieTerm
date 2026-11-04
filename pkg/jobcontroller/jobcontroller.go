@@ -182,6 +182,9 @@ func GetBlockJobStatus(ctx context.Context, blockId string) (*wshrpc.BlockJobSta
 	data.CmdExitTs = job.CmdExitTs
 	data.CmdExitCode = job.CmdExitCode
 	data.CmdExitSignal = job.CmdExitSignal
+	if output, err := filestore.WFS.Stat(ctx, job.OID, JobOutputFileName); err == nil {
+		data.OutputGap = getMetaInt64(output.Meta, MetaKey_TotalGap)
+	}
 
 	if job.JobManagerStatus == JobManagerStatus_Init {
 		data.Status = "init"
@@ -1235,6 +1238,22 @@ func restartStreaming(ctx context.Context, jobId string, knownConnected bool, rt
 		reader.Close()
 		return fmt.Errorf("failed to prepare connect: %w", err)
 	}
+	if rtnData.Seq > currentSeq {
+		gap := rtnData.Seq - currentSeq
+		totalGap += gap
+		log.Printf("[job:%s] detected gap: our seq=%d, server seq=%d, gap=%d, new totalGap=%d", jobId, currentSeq, rtnData.Seq, gap, totalGap)
+
+		metaErr := filestore.WFS.WriteMeta(ctx, jobId, JobOutputFileName, wshrpc.FileMeta{
+			MetaKey_TotalGap: totalGap,
+		}, true)
+		if metaErr != nil {
+			log.Printf("[job:%s] error updating totalgap metadata: %v", jobId, metaErr)
+		} else {
+			sendBlockJobStatusEventByJob(ctx, job)
+		}
+
+		reader.UpdateNextSeq(rtnData.Seq)
+	}
 
 	if rtnData.HasExited {
 		exitCodeStr := "nil"
@@ -1277,21 +1296,6 @@ func restartStreaming(ctx context.Context, jobId string, knownConnected bool, rt
 		reader.Close()
 		log.Printf("[job:%s] stream already done, no need to restart streaming", jobId)
 		return nil
-	}
-
-	if rtnData.Seq > currentSeq {
-		gap := rtnData.Seq - currentSeq
-		totalGap += gap
-		log.Printf("[job:%s] detected gap: our seq=%d, server seq=%d, gap=%d, new totalGap=%d", jobId, currentSeq, rtnData.Seq, gap, totalGap)
-
-		metaErr := filestore.WFS.WriteMeta(ctx, jobId, JobOutputFileName, wshrpc.FileMeta{
-			MetaKey_TotalGap: totalGap,
-		}, true)
-		if metaErr != nil {
-			log.Printf("[job:%s] error updating totalgap metadata: %v", jobId, metaErr)
-		}
-
-		reader.UpdateNextSeq(rtnData.Seq)
 	}
 
 	log.Printf("[job:%s] sending JobStartStreamCommand", jobId)

@@ -1044,6 +1044,7 @@ type BlockJobStatusData struct {
 	CmdExitTs     int64  `json:"cmdexitts,omitempty"`
 	CmdExitCode   *int   `json:"cmdexitcode,omitempty"`
 	CmdExitSignal string `json:"cmdexitsignal,omitempty"`
+	OutputGap     int64  `json:"outputgap,omitempty"`
 }
 
 // ProcessInfo holds per-process information for the process viewer.

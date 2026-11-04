@@ -20,6 +20,7 @@ import {
 import * as jotai from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { BlockEnv } from "./blockenv";
+import { DurableOutputGapNotice, getDurableOutputGapMessage } from "./durable-output-gap";
 
 function isTermViewModel(viewModel: ViewModel): viewModel is TermViewModel {
     return viewModel?.viewType === "term";
@@ -440,10 +441,18 @@ export function DurableSessionFlyover({
         return null;
     }
 
+    const outputGapMessage = getDurableOutputGapMessage(termDurableStatus);
+
     return (
         <>
-            <div ref={refs.setReference} {...getReferenceProps()} className={divClassName}>
+            <div
+                ref={refs.setReference}
+                {...getReferenceProps()}
+                className={divClassName}
+                title={outputGapMessage ?? undefined}
+            >
                 <i className={`fa-sharp ${durableIconType} fa-shield ${durableIconColor}`} />
+                {outputGapMessage && <span className="ml-1 text-[10px] text-warning">Output gap</span>}
             </div>
             {isOpen && (
                 <FloatingPortal>
@@ -463,6 +472,7 @@ export function DurableSessionFlyover({
                         onClick={(e) => e.stopPropagation()}
                     >
                         {content}
+                        <DurableOutputGapNotice status={termDurableStatus} />
                     </div>
                 </FloatingPortal>
             )}

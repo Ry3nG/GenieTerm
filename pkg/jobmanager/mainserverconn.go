@@ -125,10 +125,5 @@ func (msc *MainServerConn) JobInputCommand(ctx context.Context, data wshrpc.Comm
 	if !msc.PeerAuthenticated.Load() {
 		return fmt.Errorf("not authenticated")
 	}
-	if !WshCmdJobManager.IsJobStarted() {
-		return fmt.Errorf("job not started")
-	}
-
-	WshCmdJobManager.InputQueue.QueueItem(data.InputSessionId, data.SeqNum, data)
-	return nil
+	return WshCmdJobManager.QueueInput(data)
 }

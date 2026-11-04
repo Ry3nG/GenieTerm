@@ -151,6 +151,25 @@ func (jm *JobManager) GetCmd() *JobCmd {
 	return jm.Cmd
 }
 
+func (jm *JobManager) QueueInput(data wshrpc.CommandJobInputData) error {
+	cmd := jm.GetCmd()
+	if cmd == nil {
+		return fmt.Errorf("job not started")
+	}
+	var controlErr error
+	if data.InputData64 == "" && (data.SigName != "" || data.TermSize != nil) {
+		// Explicit controls must remain available while the ordered input writer is blocked.
+		controlErr = cmd.handleInputControl(data)
+		data.SigName = ""
+		data.TermSize = nil
+	}
+	// Keep the sequence position even when a control was handled out of band.
+	if err := jm.InputQueue.QueueItem(data.InputSessionId, data.SeqNum, data); err != nil {
+		return err
+	}
+	return controlErr
+}
+
 func (jm *JobManager) sendJobExited() {
 	jm.lock.Lock()
 	attachedClient := jm.attachedClient

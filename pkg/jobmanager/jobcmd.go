@@ -29,6 +29,7 @@ type CmdDef struct {
 type JobCmd struct {
 	jobId         string
 	lock          sync.Mutex
+	inputLock     sync.Mutex
 	cmd           *exec.Cmd
 	cmdPty        pty.Pty
 	ptsName       string
@@ -63,6 +64,12 @@ func MakeJobCmd(jobId string, cmdDef CmdDef) (*JobCmd, error) {
 	cmdPty, err := ptyutil.StartWithSize(ecmd, &pty.Winsize{Rows: uint16(cmdDef.TermSize.Rows), Cols: uint16(cmdDef.TermSize.Cols)})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start command: %w", err)
+	}
+	cmdPty, err = makeCancelablePty(cmdPty)
+	if err != nil {
+		ecmd.Process.Kill()
+		ecmd.Wait()
+		return nil, fmt.Errorf("failed to prepare job pty: %w", err)
 	}
 	unixutil.SetCloseOnExec(int(cmdPty.Fd()))
 	jm.cmd = ecmd
@@ -154,7 +161,7 @@ func (jm *JobCmd) GetExitInfo() (bool, *wshrpc.CommandJobCmdExitedData) {
 }
 
 func (jm *JobCmd) setTermSize_withlock(termSize waveobj.TermSize) error {
-	if jm.cmdPty == nil {
+	if jm.cmdPty == nil || jm.ptyClosed {
 		return fmt.Errorf("no active pty")
 	}
 	if jm.termSize.Rows == termSize.Rows && jm.termSize.Cols == termSize.Cols {
@@ -179,23 +186,50 @@ func (jm *JobCmd) SetTermSize(termSize waveobj.TermSize) error {
 
 // TODO set up a single input handler loop + queue so we dont need to hold the lock but still get synchronized in-order execution
 func (jm *JobCmd) HandleInput(data wshrpc.CommandJobInputData) error {
+	if data.InputData64 != "" {
+		if err := jm.writeInput(data.InputData64); err != nil {
+			return err
+		}
+	}
+	if data.SigName == "" && data.TermSize == nil {
+		return nil
+	}
+	return jm.handleInputControl(data)
+}
+
+func (jm *JobCmd) writeInput(data64 string) error {
+	inputBuf, err := base64.StdEncoding.DecodeString(data64)
+	if err != nil {
+		return fmt.Errorf("error decoding input data: %w", err)
+	}
+	jm.inputLock.Lock()
+	defer jm.inputLock.Unlock()
+	cmdPty, err := jm.inputPty()
+	if err != nil {
+		return err
+	}
+	// PTY backpressure must not prevent resize, signals or closing the session.
+	if _, err := cmdPty.Write(inputBuf); err != nil {
+		return fmt.Errorf("error writing to pty: %w", err)
+	}
+	return nil
+}
+
+func (jm *JobCmd) inputPty() (pty.Pty, error) {
+	jm.lock.Lock()
+	defer jm.lock.Unlock()
+	if jm.cmd == nil || jm.cmdPty == nil || jm.ptyClosed {
+		return nil, fmt.Errorf("no active process")
+	}
+	return jm.cmdPty, nil
+}
+
+func (jm *JobCmd) handleInputControl(data wshrpc.CommandJobInputData) error {
 	jm.lock.Lock()
 	defer jm.lock.Unlock()
 
-	if jm.cmd == nil || jm.cmdPty == nil {
+	if jm.cmd == nil || jm.cmdPty == nil || jm.ptyClosed {
 		return fmt.Errorf("no active process")
-	}
-
-	if len(data.InputData64) > 0 {
-		inputBuf := make([]byte, base64.StdEncoding.DecodedLen(len(data.InputData64)))
-		nw, err := base64.StdEncoding.Decode(inputBuf, []byte(data.InputData64))
-		if err != nil {
-			return fmt.Errorf("error decoding input data: %w", err)
-		}
-		_, err = jm.cmdPty.Write(inputBuf[:nw])
-		if err != nil {
-			return fmt.Errorf("error writing to pty: %w", err)
-		}
 	}
 
 	if data.SigName != "" {
