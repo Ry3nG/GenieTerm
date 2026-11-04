@@ -220,13 +220,14 @@ func startSiSession(t *testing.T, env []string, name string, args ...string) *si
 			nr, err := ptmx.Read(rbuf)
 			if nr > 0 {
 				s.appendOutput(rbuf[:nr])
-				if runtime.GOOS == "windows" {
-					cursorQuery = append(cursorQuery, rbuf[:nr]...)
-					if bytes.Contains(cursorQuery, []byte("\x1b[6n")) {
-						ptmx.Write([]byte("\x1b[1;1R"))
-					}
-					cursorQuery = append(cursorQuery[:0], cursorQuery[max(0, len(cursorQuery)-3):]...)
+				cursorQuery = append(cursorQuery, rbuf[:nr]...)
+				if bytes.Contains(cursorQuery, []byte("\x1b[6n")) {
+					ptmx.Write([]byte("\x1b[1;1R"))
 				}
+				if bytes.Contains(cursorQuery, []byte("\x1b[0c")) {
+					ptmx.Write([]byte("\x1b[?1;2c"))
+				}
+				cursorQuery = append(cursorQuery[:0], cursorQuery[max(0, len(cursorQuery)-3):]...)
 			}
 			if err != nil {
 				return
@@ -365,7 +366,8 @@ func TestZshIntegrationMarkers(t *testing.T) {
 	}
 	zdotDir := filepath.Join(waveHome, ZshIntegrationDir)
 	env := []string{"HOME=" + home, "PATH=/usr/bin:/bin", "TERM=xterm-256color", "ZDOTDIR=" + zdotDir}
-	s := startSiSession(t, env, zshPath, "-i")
+	// Distribution-wide completion setup can prompt before our isolated integration loads.
+	s := startSiSession(t, env, zshPath, "-d", "-i")
 	got := summarizeCommandMarkers(s.runCommands([]string{"echo one", "false", longTestCommand}))
 	want := []string{
 		"C echo one", "D 0",
@@ -405,7 +407,7 @@ func TestPromptReplacementKeymaps(t *testing.T) {
 						t.Fatal(err)
 					}
 					env = append(env, "ZDOTDIR="+filepath.Join(waveHome, ZshIntegrationDir))
-					session = startSiSession(t, env, shellPath, "-i")
+					session = startSiSession(t, env, shellPath, "-d", "-i")
 				} else {
 					keymap := "fish_default_key_bindings"
 					if mode != "emacs" {
@@ -413,19 +415,34 @@ func TestPromptReplacementKeymaps(t *testing.T) {
 					}
 					env = append(env, "XDG_CONFIG_HOME="+home)
 					script := filepath.Join(waveHome, FishIntegrationDir, "wave.fish")
-					session = startSiSession(t, env, shellPath, "-i", "-C", keymap, "-C", "source "+HardQuote(script))
+					modePrompt := "function fish_mode_prompt; printf 'GT_MODE_%s ' $fish_bind_mode; end"
+					session = startSiSession(t, env, shellPath, "-i", "-C", keymap, "-C", modePrompt, "-C", "source "+HardQuote(script))
 				}
 				session.waitForPrompts(1)
 				prefix := "echo should-not-run"
 				if strings.HasPrefix(mode, "vi-command") {
-					prefix += "\x1bh"
+					if shell == "fish" {
+						// ESC followed immediately by h is fish's Alt-h help shortcut, not two vi keys.
+						before := len(session.output())
+						session.ptmx.Write([]byte(prefix + "\x1b"))
+						deadline := time.Now().Add(15 * time.Second)
+						for !bytes.Contains(session.output()[before:], []byte("GT_MODE_default")) {
+							if time.Now().After(deadline) {
+								t.Fatalf("fish did not enter vi command mode; output: %q", session.output())
+							}
+							time.Sleep(10 * time.Millisecond)
+						}
+						prefix = "h"
+					} else {
+						prefix += "\x1bh"
+					}
 				} else {
 					prefix += "\x1b[D\x1b[D"
 				}
-				input := prefix + "\x1b[99~echo replaced"
+				input := prefix + "\x1b[24;8~echo replaced"
 				if strings.HasSuffix(mode, "chunked") {
 					session.ptmx.Write([]byte(prefix))
-					for _, char := range []byte("\x1b[99~") {
+					for _, char := range []byte("\x1b[24;8~") {
 						session.ptmx.Write([]byte{char})
 						time.Sleep(10 * time.Millisecond)
 					}

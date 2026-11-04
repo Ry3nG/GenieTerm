@@ -35,9 +35,9 @@ end
 function _waveterm_si_prompt --on-event fish_prompt
     set -l _waveterm_si_status $status
     _waveterm_si_blocked; and return
-    bind -M default \e\[99~ _waveterm_si_clear_prompt
+    bind -M default \e\[24\;8~ _waveterm_si_clear_prompt
     if contains -- insert (bind --list-modes)
-        bind -M insert \e\[99~ _waveterm_si_clear_prompt
+        bind -M insert \e\[24\;8~ _waveterm_si_clear_prompt
     end
     if test $_WAVETERM_SI_FIRSTPROMPT -eq 1
         set -l uname_info (uname -smr 2>/dev/null)

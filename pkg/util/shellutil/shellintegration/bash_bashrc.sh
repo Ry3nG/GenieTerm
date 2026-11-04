@@ -60,11 +60,11 @@ _WAVETERM_SI_HISTNUM_OUT=
 # Use named Readline functions, including on bash 3.2 where bind -x cannot replace READLINE_LINE.
 _WAVETERM_SI_PROMPTREPLACE=false
 if [[ -o emacs || -o vi ]]; then
-    bind -m emacs-standard '"\e[99~":kill-whole-line'
-    bind -m vi-insert '"\e[99~":kill-whole-line'
+    bind -m emacs-standard '"\e[24;8~":kill-whole-line'
+    bind -m vi-insert '"\e[24;8~":kill-whole-line'
     bind -m vi-command '"\e[98~":kill-whole-line'
     bind -m vi-command '"\e[97~":vi-insertion-mode'
-    bind -m vi-command '"\e[99~":"\e[98~\e[97~"'
+    bind -m vi-command '"\e[24;8~":"\e[98~\e[97~"'
     _WAVETERM_SI_PROMPTREPLACE=true
 fi
 

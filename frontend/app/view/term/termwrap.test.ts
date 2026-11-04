@@ -512,8 +512,8 @@ describe("TermWrap runCommand", () => {
 
         expect(termWrap.runCommand("npm test")).toBe(true);
 
-        expect(sent).toHaveBeenCalledWith("\x1b[99~npm test\r");
-        expect(termWrap.multiInputCallback).toHaveBeenCalledWith("\x1b[99~npm test\r");
+        expect(sent).toHaveBeenCalledWith("\x1b[24;8~npm test\r");
+        expect(termWrap.multiInputCallback).toHaveBeenCalledWith("\x1b[24;8~npm test\r");
         expect(globalStore.get(termWrap.currentInputBufferAtom)).toEqual({ text: "", cursorIndex: 0 });
     });
 
@@ -543,7 +543,7 @@ describe("TermWrap runCommand", () => {
 
         expect(termWrap.runCommand("echo one\necho two")).toBe(true);
 
-        expect(sent).toHaveBeenCalledWith("\x1b[99~\x1b[200~echo one\necho two\x1b[201~\r");
+        expect(sent).toHaveBeenCalledWith("\x1b[24;8~\x1b[200~echo one\necho two\x1b[201~\r");
     });
 
     it("never types into a running program or a full-screen app", () => {

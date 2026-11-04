@@ -123,9 +123,9 @@ _waveterm_si_clear_prompt() {
   fi
 }
 zle -N _waveterm_si_clear_prompt
-bindkey -M emacs '\e[99~' _waveterm_si_clear_prompt
-bindkey -M viins '\e[99~' _waveterm_si_clear_prompt
-bindkey -M vicmd '\e[99~' _waveterm_si_clear_prompt
+bindkey -M emacs '\e[24;8~' _waveterm_si_clear_prompt
+bindkey -M viins '\e[24;8~' _waveterm_si_clear_prompt
+bindkey -M vicmd '\e[24;8~' _waveterm_si_clear_prompt
 
 _waveterm_si_input() {
   _waveterm_si_blocked && return

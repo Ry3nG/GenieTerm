@@ -364,13 +364,13 @@ describe("TermViewModel completion key handling", () => {
                 altScreenActiveAtom: jotai.atom(false),
             };
             sameTab.termRef = { current: wrap } as any;
-            source.multiInputHandler("\x1b[99~echo safe\r");
+            source.multiInputHandler("\x1b[24;8~echo safe\r");
             expect(sameTab.sendDataToController).toHaveBeenCalledOnce();
             globalStore.set(wrap.promptReplaceSupportedAtom, true);
-            source.multiInputHandler("\x1b[99~echo safe\r");
+            source.multiInputHandler("\x1b[24;8~echo safe\r");
             expect(sameTab.sendDataToController).toHaveBeenCalledTimes(2);
             globalStore.set(wrap.shellIntegrationStatusAtom, "running-command");
-            source.multiInputHandler("\x1b[99~echo safe\r");
+            source.multiInputHandler("\x1b[24;8~echo safe\r");
             expect(sameTab.sendDataToController).toHaveBeenCalledTimes(2);
         } finally {
             models.forEach((_, index) => unregisterBlockComponentModel(`multi-${index}`));

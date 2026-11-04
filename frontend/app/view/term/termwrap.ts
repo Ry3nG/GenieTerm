@@ -791,8 +791,9 @@ export class TermWrap {
 
     // ctrl-e ctrl-u only clears the default emacs keymaps. The integration binding
     // clears the shell's own buffer and leaves vi command mode before inserting.
+    // Use a recognized modified function key: fish 4 discards unknown CSI key numbers.
     private makePromptLineData(command: string): string {
-        let clearLine = "\x1b[99~";
+        let clearLine = "\x1b[24;8~";
         if (globalStore.get(this.shellTypeAtom) === "pwsh") {
             const input = globalStore.get(this.currentInputBufferAtom);
             if (input == null || /[\r\n]/.test(input.text)) {

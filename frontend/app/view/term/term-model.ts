@@ -597,7 +597,7 @@ export class TermViewModel implements ViewModel {
         const tvms = getAllBasicTermModels(this.tabModel.tabId);
         for (const tvm of tvms) {
             if (tvm != this) {
-                if (data.startsWith("\x1b[99~")) {
+                if (data.startsWith("\x1b[24;8~")) {
                     const wrap = tvm.termRef.current;
                     if (
                         wrap == null ||
