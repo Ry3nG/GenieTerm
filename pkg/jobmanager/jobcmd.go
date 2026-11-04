@@ -89,6 +89,11 @@ func (jm *JobCmd) waitForProcess() {
 	defer jm.lock.Unlock()
 
 	jm.processExited = true
+	// Linux can leave a PTY write waiting after the slave exits. Cancel only
+	// writes so the output reader can still drain the child's final bytes.
+	if terminal, ok := jm.cmdPty.(interface{ SetWriteDeadline(time.Time) error }); ok {
+		terminal.SetWriteDeadline(time.Now())
+	}
 	jm.exitTs = time.Now().UnixMilli()
 	jm.exitErr = err
 	if err != nil {
@@ -218,7 +223,7 @@ func (jm *JobCmd) writeInput(data64 string) error {
 func (jm *JobCmd) inputPty() (pty.Pty, error) {
 	jm.lock.Lock()
 	defer jm.lock.Unlock()
-	if jm.cmd == nil || jm.cmdPty == nil || jm.ptyClosed {
+	if jm.cmd == nil || jm.cmdPty == nil || jm.ptyClosed || jm.processExited {
 		return nil, fmt.Errorf("no active process")
 	}
 	return jm.cmdPty, nil
