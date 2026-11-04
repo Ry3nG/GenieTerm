@@ -32,6 +32,7 @@ type Osc16162Command =
               shellversion?: string;
               uname?: string;
               integration?: boolean;
+              promptreplace?: boolean;
               omz?: boolean;
               comp?: string;
           };
@@ -288,13 +289,17 @@ export function decodeOsc16162CommandText(cmd64: string | null | undefined): str
     }
 }
 
-function handleShellIntegrationMetadata(termWrap: TermWrap, data: { shell?: string; integration?: boolean }) {
+function handleShellIntegrationMetadata(
+    termWrap: TermWrap,
+    data: { shell?: string; integration?: boolean; promptreplace?: boolean }
+) {
     if (data.shell) {
         globalStore.set(termWrap.shellTypeAtom, normalizeShellType(data.shell));
         globalStore.set(termWrap.shellNameAtom, normalizeShellName(data.shell));
     }
     if (data.integration != null) {
         globalStore.set(termWrap.shellIntegrationDisabledAtom, data.integration === false);
+        globalStore.set(termWrap.promptReplaceSupportedAtom, data.integration && data.promptreplace === true);
     }
 }
 
@@ -373,6 +378,7 @@ export function handleOsc16162Command(data: string, blockId: string, loaded: boo
             }
             if (cmd.data.integration != null) {
                 rtInfo["shell:integration"] = cmd.data.integration;
+                rtInfo["shell:promptreplace"] = cmd.data.integration && cmd.data.promptreplace === true;
             }
             if (cmd.data.omz != null) {
                 rtInfo["shell:omz"] = cmd.data.omz;

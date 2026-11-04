@@ -6,7 +6,6 @@ import { CommandAiClient, makeCommandAiRequestId } from "@/app/store/commandai";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
-import { getCommandRunBlockedReason } from "./cmdblockdisplay";
 import { getBlockOutputText, type CmdBlock } from "./cmdblocks";
 import {
     buildCommandAiContext,
@@ -42,6 +41,7 @@ export type CommandAiHost = {
     suppressCompletionFor(command: string): void;
     includeOutputByDefault(): boolean;
     inlineSuggestionsEnabled(): boolean;
+    openTerminal(blockDef: BlockDef): Promise<unknown>;
 };
 
 export type CommandAiOpenOptions = {
@@ -205,6 +205,71 @@ export class TermCommandAiModel {
         await this.runPrompt(sheet.input.trim(), { ...sheet, exchanges });
     }
 
+    async prepareHandoff(): Promise<void> {
+        const sheet = this.getSheet();
+        if (sheet == null || sheet.pending != null) {
+            return;
+        }
+        const last = sheet.exchanges[sheet.exchanges.length - 1];
+        const prompt = sheet.input.trim() || last?.prompt || "Help me investigate this terminal task.";
+        const request = this.buildRequest(sheet, prompt, "handoff-preview");
+        const handoff: CommandAiSheetState["handoff"] = {
+            loading: true,
+            connection: request.context.connection,
+            cwd: request.context.cwd,
+        };
+        this.setSheet({ handoff, disclosure: undefined });
+        try {
+            const preview = await this.runner.preview(request);
+            if (this.getSheet()?.handoff === handoff) {
+                this.setSheet({
+                    handoff: { ...handoff, loading: false, context: preview.message, redactions: preview.redactions },
+                });
+            }
+        } catch (error) {
+            if (this.getSheet()?.handoff === handoff) {
+                this.setSheet({ handoff: { ...handoff, loading: false, error: String(error) } });
+            }
+        }
+    }
+
+    cancelHandoff() {
+        this.setSheet({ handoff: undefined });
+    }
+
+    async openHandoff(engine: "codex" | "claude"): Promise<void> {
+        const handoff = this.getSheet()?.handoff;
+        if (!handoff?.context || handoff.opening) {
+            return;
+        }
+        const opening = { ...handoff, opening: true, error: undefined };
+        this.setSheet({ handoff: opening });
+        try {
+            await navigator.clipboard.writeText(handoff.context);
+            if (this.getSheet()?.handoff !== opening) {
+                return;
+            }
+            await this.host.openTerminal({
+                meta: {
+                    view: "term",
+                    controller: "cmd",
+                    cmd: engine,
+                    "cmd:cwd": handoff.cwd,
+                    connection: handoff.connection,
+                    "cmd:runonstart": true,
+                    "cmd:runonce": true,
+                },
+            });
+            if (this.getSheet()?.handoff === opening) {
+                globalStore.set(this.sheetAtom, null);
+            }
+        } catch (error) {
+            if (this.getSheet()?.handoff === opening) {
+                this.setSheet({ handoff: { ...handoff, opening: false, error: String(error) } });
+            }
+        }
+    }
+
     // Called after the person picks an engine on the setup screen. A request that already
     // came back "not configured" (Fix and Explain send one straight away) is asked again.
     async resumeAfterSetup(): Promise<void> {
@@ -322,10 +387,7 @@ export class TermCommandAiModel {
         if (termWrap == null) {
             return "The terminal isn't ready";
         }
-        return getCommandRunBlockedReason(command, {
-            shellIntegrationStatus: globalStore.get(termWrap.shellIntegrationStatusAtom),
-            altScreenActive: globalStore.get(termWrap.altScreenActiveAtom),
-        });
+        return termWrap.getRunBlockedReason(command);
     }
 
     async apply(proposalId: string, action: CommandAiApplyAction): Promise<void> {

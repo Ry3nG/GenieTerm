@@ -152,6 +152,7 @@ export class TermViewModel implements ViewModel {
             suppressCompletionFor: (command) => this.completionModel.suppressAutoFor(command),
             includeOutputByDefault: () => globalStore.get(getSettingsKeyAtom("commandai:includeoutput")) !== false,
             inlineSuggestionsEnabled: () => globalStore.get(getSettingsKeyAtom("commandai:inline")) !== false,
+            openTerminal: (blockDef) => createBlock(blockDef),
         });
         const forwardOfferAtom = getOverrideConfigAtom(blockId, "term:forwardoffer");
         this.forward = new TermForwardModel({
@@ -596,6 +597,17 @@ export class TermViewModel implements ViewModel {
         const tvms = getAllBasicTermModels(this.tabModel.tabId);
         for (const tvm of tvms) {
             if (tvm != this) {
+                if (data.startsWith("\x1b[99~")) {
+                    const wrap = tvm.termRef.current;
+                    if (
+                        wrap == null ||
+                        !globalStore.get(wrap.promptReplaceSupportedAtom) ||
+                        globalStore.get(wrap.shellIntegrationStatusAtom) !== "ready" ||
+                        globalStore.get(wrap.altScreenActiveAtom)
+                    ) {
+                        continue;
+                    }
+                }
                 tvm.sendDataToController(data);
             }
         }

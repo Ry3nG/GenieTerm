@@ -57,6 +57,17 @@ _WAVETERM_SI_FIRSTPROMPT=1
 _WAVETERM_SI_PROMPTHISTNUM=
 _WAVETERM_SI_HISTNUM_OUT=
 
+# Use named Readline functions, including on bash 3.2 where bind -x cannot replace READLINE_LINE.
+_WAVETERM_SI_PROMPTREPLACE=false
+if [[ -o emacs || -o vi ]]; then
+    bind -m emacs-standard '"\e[99~":kill-whole-line'
+    bind -m vi-insert '"\e[99~":kill-whole-line'
+    bind -m vi-command '"\e[98~":kill-whole-line'
+    bind -m vi-command '"\e[97~":vi-insertion-mode'
+    bind -m vi-command '"\e[99~":"\e[98~\e[97~"'
+    _WAVETERM_SI_PROMPTREPLACE=true
+fi
+
 # GenieTerm Shell Integration
 _waveterm_si_blocked() {
     [[ -n "${TMUX:-}" || -n "${STY:-}" || "${TERM:-}" == tmux* || "${TERM:-}" == screen* ]]
@@ -87,7 +98,7 @@ _waveterm_si_precmd() {
     if [ "$_WAVETERM_SI_FIRSTPROMPT" -eq 1 ]; then
         local uname_info
         uname_info=$(uname -smr 2>/dev/null)
-        printf '\033]16162;M;{"shell":"bash","shellversion":"%s","uname":"%s","integration":true}\007' "$BASH_VERSION" "$uname_info"
+        printf '\033]16162;M;{"shell":"bash","shellversion":"%s","uname":"%s","integration":true,"promptreplace":%s}\007' "$BASH_VERSION" "$uname_info" "$_WAVETERM_SI_PROMPTREPLACE"
     else
         printf '\033]16162;D;{"exitcode":%d}\007' "$_waveterm_si_status"
     fi

@@ -64,6 +64,15 @@ export type CommandAiSheetState = {
     includeOutput: boolean;
     disclosure?: CommandAiDisclosureState;
     notice?: string;
+    handoff?: {
+        loading: boolean;
+        opening?: boolean;
+        context?: string;
+        connection: string;
+        cwd: string;
+        redactions?: number;
+        error?: string;
+    };
 };
 
 export type CommandInlineAIStatus = "loading" | "ready" | "error";

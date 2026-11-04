@@ -145,6 +145,21 @@ const Cases: Case[] = [
             },
         },
     },
+    {
+        name: "AI terminal handoff",
+        context: "dev@build-host · bash · /srv/project",
+        sheet: {
+            ...Base,
+            handoff: {
+                loading: false,
+                connection: "dev@build-host",
+                cwd: "/srv/project",
+                redactions: 1,
+                context:
+                    "<command>npm run build</command>\n<terminal_output>\nCannot find module @types/node\nAPI_TOKEN=[REDACTED]\n</terminal_output>\n\nRequest: Investigate the build failure.",
+            },
+        },
+    },
 ];
 
 const NoopActions: CommandAiSheetActions = {

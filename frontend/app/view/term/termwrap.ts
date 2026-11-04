@@ -207,6 +207,7 @@ export class TermWrap {
     hoveredBlockIdAtom: jotai.PrimitiveAtom<number | null>;
     shellIntegrationStatusAtom: jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
     shellIntegrationDisabledAtom: jotai.PrimitiveAtom<boolean>;
+    promptReplaceSupportedAtom: jotai.PrimitiveAtom<boolean>;
     shellTypeAtom: jotai.PrimitiveAtom<ShellType>;
     shellNameAtom: jotai.PrimitiveAtom<ShellName>;
     lastCommandAtom: jotai.PrimitiveAtom<string | null>;
@@ -260,6 +261,7 @@ export class TermWrap {
         this.altScreenActiveAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
         this.shellIntegrationDisabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
+        this.promptReplaceSupportedAtom = jotai.atom(false);
         this.shellTypeAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellType>;
         this.shellNameAtom = jotai.atom("unknown") as jotai.PrimitiveAtom<ShellName>;
         this.lastCommandAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
@@ -623,6 +625,7 @@ export class TermWrap {
             });
             let shellState: ShellIntegrationStatus = null;
             globalStore.set(this.shellNameAtom, normalizeShellName(rtInfo?.["shell:type"] as string));
+            globalStore.set(this.promptReplaceSupportedAtom, rtInfo?.["shell:promptreplace"] === true);
 
             if (rtInfo && rtInfo["shell:integration"]) {
                 shellState = rtInfo["shell:state"] as ShellIntegrationStatus;
@@ -776,6 +779,8 @@ export class TermWrap {
             if (input == null || /[\r\n]/.test(input.text)) {
                 return "Clear the PowerShell prompt before running a command";
             }
+        } else if (!globalStore.get(this.promptReplaceSupportedAtom)) {
+            return "Restart this terminal to enable reliable command replacement";
         }
         return null;
     }
@@ -784,10 +789,10 @@ export class TermWrap {
         return this.terminal?.modes?.bracketedPasteMode === true && !this.terminal.options.ignoreBracketedPasteMode;
     }
 
-    // ctrl-e ctrl-u drops whatever is already typed at the prompt (works in the default
-    // emacs keymaps of bash, zsh and fish).
+    // ctrl-e ctrl-u only clears the default emacs keymaps. The integration binding
+    // clears the shell's own buffer and leaves vi command mode before inserting.
     private makePromptLineData(command: string): string {
-        let clearLine = "\x05\x15";
+        let clearLine = "\x1b[99~";
         if (globalStore.get(this.shellTypeAtom) === "pwsh") {
             const input = globalStore.get(this.currentInputBufferAtom);
             if (input == null || /[\r\n]/.test(input.text)) {
@@ -797,6 +802,8 @@ export class TermWrap {
             // Backspace work in both Windows and Emacs modes; surplus backspaces
             // at the start are harmless when a Unicode grapheme spans code units.
             clearLine = "\x1b[F" + "\x7f".repeat(input.text.length);
+        } else if (!globalStore.get(this.promptReplaceSupportedAtom)) {
+            return null;
         }
         // Newlines and tabs would act as keystrokes (run a line, trigger completion), so
         // they go through bracketed paste.
@@ -1584,6 +1591,7 @@ export class TermWrap {
     }
 
     onShellRestart(replaying = false) {
+        globalStore.set(this.promptReplaceSupportedAtom, false);
         this.finalizeInterruptedCmdBlock(this.pendingCmdBlock, replaying);
     }
 

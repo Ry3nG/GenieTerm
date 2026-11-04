@@ -377,3 +377,69 @@ func TestZshIntegrationMarkers(t *testing.T) {
 		t.Fatalf("unexpected zsh markers\ngot:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestPromptReplacementKeymaps(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh", "fish"} {
+		for _, mode := range []string{"emacs", "vi-insert", "vi-command", "vi-command-chunked"} {
+			t.Run(shell+"/"+mode, func(t *testing.T) {
+				shellPath := requireUnixShell(t, shell)
+				waveHome := renderRcFiles(t)
+				home := t.TempDir()
+				env := []string{"HOME=" + home, "PATH=/usr/bin:/bin", "TERM=xterm-256color"}
+				var session *siSession
+				if shell == "bash" {
+					keymap := "set -o emacs\n"
+					if mode != "emacs" {
+						keymap = "set -o vi\n"
+					}
+					if err := os.WriteFile(filepath.Join(home, ".bash_profile"), []byte(keymap), 0644); err != nil {
+						t.Fatal(err)
+					}
+					session = startSiSession(t, env, shellPath, "--noprofile", "--rcfile", filepath.Join(waveHome, BashIntegrationDir, ".bashrc"), "-i")
+				} else if shell == "zsh" {
+					keymap := "bindkey -e\n"
+					if mode != "emacs" {
+						keymap = "bindkey -v\n"
+					}
+					if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte(keymap), 0644); err != nil {
+						t.Fatal(err)
+					}
+					env = append(env, "ZDOTDIR="+filepath.Join(waveHome, ZshIntegrationDir))
+					session = startSiSession(t, env, shellPath, "-i")
+				} else {
+					keymap := "fish_default_key_bindings"
+					if mode != "emacs" {
+						keymap = "fish_vi_key_bindings"
+					}
+					env = append(env, "XDG_CONFIG_HOME="+home)
+					script := filepath.Join(waveHome, FishIntegrationDir, "wave.fish")
+					session = startSiSession(t, env, shellPath, "-i", "-C", keymap, "-C", "source "+HardQuote(script))
+				}
+				session.waitForPrompts(1)
+				prefix := "echo should-not-run"
+				if strings.HasPrefix(mode, "vi-command") {
+					prefix += "\x1bh"
+				} else {
+					prefix += "\x1b[D\x1b[D"
+				}
+				input := prefix + "\x1b[99~echo replaced"
+				if strings.HasSuffix(mode, "chunked") {
+					session.ptmx.Write([]byte(prefix))
+					for _, char := range []byte("\x1b[99~") {
+						session.ptmx.Write([]byte{char})
+						time.Sleep(10 * time.Millisecond)
+					}
+					input = "echo replaced"
+				}
+				markers := session.runCommands([]string{input})
+				got := strings.Join(summarizeCommandMarkers(markers), "\n")
+				if !strings.HasPrefix(got, "C echo replaced\nD 0\n") {
+					t.Fatalf("prompt replacement failed: %s\nterminal: %q", got, session.output())
+				}
+				if !bytes.Contains(session.output(), []byte(`"promptreplace":true`)) {
+					t.Fatal("shell did not advertise prompt replacement")
+				}
+			})
+		}
+	}
+}

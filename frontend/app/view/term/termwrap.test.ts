@@ -121,6 +121,7 @@ function makeTermWrap(status: ShellIntegrationStatus | null = "ready") {
         shellInputReportSeen: false,
         shellIntegrationStatusAtom: jotai.atom(status),
         shellIntegrationDisabledAtom: jotai.atom(false),
+        promptReplaceSupportedAtom: jotai.atom(true),
         shellTypeAtom: jotai.atom("unknown"),
         shellNameAtom: jotai.atom("unknown"),
         altScreenActiveAtom: jotai.atom(false),
@@ -511,9 +512,29 @@ describe("TermWrap runCommand", () => {
 
         expect(termWrap.runCommand("npm test")).toBe(true);
 
-        expect(sent).toHaveBeenCalledWith("\x05\x15npm test\r");
-        expect(termWrap.multiInputCallback).toHaveBeenCalledWith("\x05\x15npm test\r");
+        expect(sent).toHaveBeenCalledWith("\x1b[99~npm test\r");
+        expect(termWrap.multiInputCallback).toHaveBeenCalledWith("\x1b[99~npm test\r");
         expect(globalStore.get(termWrap.currentInputBufferAtom)).toEqual({ text: "", cursorIndex: 0 });
+    });
+
+    it("does not send a new replacement sequence to an older shell integration", () => {
+        const { termWrap, sent } = makeTermWrap();
+        globalStore.set(termWrap.promptReplaceSupportedAtom, false);
+        expect(termWrap.runCommand("echo replaced")).toBe(false);
+        expect(termWrap.insertCommand("echo replaced")).toBe(false);
+        expect(termWrap.getRunBlockedReason("echo replaced")).toContain("Restart this terminal");
+        expect(sent).not.toHaveBeenCalled();
+    });
+
+    it("uses live metadata to enable replacement and clears it when the shell restarts", () => {
+        const { termWrap } = makeTermWrap();
+        handleOsc16162Command('M;{"shell":"zsh","integration":true,"promptreplace":true}', "block", true, termWrap);
+        expect(globalStore.get(termWrap.promptReplaceSupportedAtom)).toBe(true);
+        handleOsc16162Command('M;{"shell":"bash","integration":true}', "block", true, termWrap);
+        expect(globalStore.get(termWrap.promptReplaceSupportedAtom)).toBe(false);
+        handleOsc16162Command('M;{"shell":"zsh","integration":true,"promptreplace":true}', "block", true, termWrap);
+        termWrap.onShellRestart();
+        expect(globalStore.get(termWrap.promptReplaceSupportedAtom)).toBe(false);
     });
 
     it("wraps multi-line commands in bracketed paste when the shell enabled it", () => {
@@ -522,7 +543,7 @@ describe("TermWrap runCommand", () => {
 
         expect(termWrap.runCommand("echo one\necho two")).toBe(true);
 
-        expect(sent).toHaveBeenCalledWith("\x05\x15\x1b[200~echo one\necho two\x1b[201~\r");
+        expect(sent).toHaveBeenCalledWith("\x1b[99~\x1b[200~echo one\necho two\x1b[201~\r");
     });
 
     it("never types into a running program or a full-screen app", () => {

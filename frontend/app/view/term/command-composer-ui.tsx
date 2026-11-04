@@ -32,6 +32,9 @@ export type CommandAiSheetActions = {
     chooseEngine: (engine: string) => void;
     openSettings: () => void;
     copyText: (text: string) => void;
+    prepareHandoff?: () => void;
+    cancelHandoff?: () => void;
+    openHandoff?: (engine: "codex" | "claude") => void;
 };
 
 export type CommandAiSheetProps = {
@@ -632,6 +635,53 @@ function inputPlaceholder(sheet: CommandAiSheetState): string {
     return sheet.task === "compose" ? "Refine it, like “only in src”" : "Ask a follow-up";
 }
 
+function HandoffView({ sheet }: { sheet: CommandAiSheetState }) {
+    const handoff = sheet.handoff;
+    const host = handoff.connection && handoff.connection !== "local" ? handoff.connection : "this computer";
+    return (
+        <div className="space-y-3 p-3.5">
+            <div className="font-semibold">Continue in an AI terminal</div>
+            <p className="text-[12px] text-secondary">
+                Opens {host} at {handoff.cwd || "the home folder"}. The selected CLI must be available in that
+                terminal’s PATH. This replaces your clipboard with the context below; paste it into the CLI when ready.
+            </p>
+            {handoff.loading && <p className="text-secondary">Preparing context…</p>}
+            {handoff.context && (
+                <pre className="max-h-64 overflow-auto rounded bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap select-text">
+                    {handoff.context}
+                </pre>
+            )}
+            {!!handoff.redactions && (
+                <p className="text-[11px] text-muted">
+                    {handoff.redactions} sensitive values redacted. Review before copying.
+                </p>
+            )}
+            {handoff.error && (
+                <p role="alert" className="text-error">
+                    {handoff.error}
+                </p>
+            )}
+        </div>
+    );
+}
+
+function HandoffActions({ sheet, actions }: { sheet: CommandAiSheetState; actions: CommandAiSheetActions }) {
+    const handoff = sheet.handoff;
+    return (
+        <div className="flex shrink-0 flex-wrap gap-2 border-t border-white/[0.06] px-3.5 py-2">
+            <SheetButton disabled={!handoff.context || handoff.opening} onClick={() => actions.openHandoff("codex")}>
+                Copy context &amp; open Codex
+            </SheetButton>
+            <SheetButton disabled={!handoff.context || handoff.opening} onClick={() => actions.openHandoff("claude")}>
+                Copy context &amp; open Claude
+            </SheetButton>
+            <SheetButton disabled={handoff.opening} onClick={actions.cancelHandoff}>
+                Back
+            </SheetButton>
+        </div>
+    );
+}
+
 function SheetFooter({
     sheet,
     contextLabel,
@@ -654,7 +704,7 @@ function SheetFooter({
             <span className="min-w-0 truncate" title={contextLabel}>
                 {contextLabel}
             </span>
-            {sheet.target != null && outputLines > 0 && (
+            {sheet.handoff == null && sheet.target != null && outputLines > 0 && (
                 <label className="flex shrink-0 items-center gap-1.5 hover:text-primary cursor-pointer">
                     <input
                         type="checkbox"
@@ -667,12 +717,21 @@ function SheetFooter({
             )}
             {sheet.selection && <span className="shrink-0">Selected text included</span>}
             <span className="flex-1" />
+            {actions.prepareHandoff && sheet.handoff == null && sheet.pending == null && (
+                <button
+                    type="button"
+                    onClick={actions.prepareHandoff}
+                    className="shrink-0 hover:text-primary cursor-pointer"
+                >
+                    Continue in AI terminal
+                </button>
+            )}
             {hasProposals && (
                 <span className="hidden shrink-0 whitespace-nowrap @[600px]/cai:inline">
                     ↵ insert · {mod}↵ run · esc close
                 </span>
             )}
-            {showDisclosure && (
+            {showDisclosure && sheet.handoff == null && (
                 <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
@@ -738,7 +797,9 @@ export function CommandAiSheet({
         if (e.key === "Escape") {
             e.preventDefault();
             e.stopPropagation();
-            if (sheet.confirmId) {
+            if (sheet.handoff != null) {
+                if (!sheet.handoff.opening) actions.cancelHandoff();
+            } else if (sheet.confirmId) {
                 actions.cancelConfirm();
             } else if (sheet.disclosure != null) {
                 actions.toggleDisclosure();
@@ -749,7 +810,7 @@ export function CommandAiSheet({
             }
             return;
         }
-        if (e.target !== inputRef.current && e.target !== rootRef.current) {
+        if (sheet.handoff != null || (e.target !== inputRef.current && e.target !== rootRef.current)) {
             return;
         }
         if ((e.key === "ArrowDown" || e.key === "ArrowUp") && proposals.length > 0 && !sheet.input.includes("\n")) {
@@ -777,7 +838,9 @@ export function CommandAiSheet({
     };
 
     let body: React.ReactNode = null;
-    if (needsSetup) {
+    if (sheet.handoff != null) {
+        body = <HandoffView sheet={sheet} />;
+    } else if (needsSetup) {
         body = <SetupView status={status} actions={actions} />;
     } else if (sheet.disclosure != null) {
         body = <DisclosureView sheet={sheet} actions={actions} />;
@@ -832,6 +895,7 @@ export function CommandAiSheet({
         >
             <SheetHeader sheet={sheet} status={status} actions={actions} />
             {body != null && <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>}
+            {sheet.handoff != null && <HandoffActions sheet={sheet} actions={actions} />}
             {sheet.notice && (
                 <div
                     className="flex items-center gap-2 border-t border-white/[0.04] px-3.5 py-2 text-[12px] text-secondary"
@@ -841,7 +905,7 @@ export function CommandAiSheet({
                     {sheet.notice}
                 </div>
             )}
-            {!needsSetup && (
+            {!needsSetup && sheet.handoff == null && (
                 <form
                     className="flex shrink-0 items-end gap-2 border-t border-white/[0.06] py-2 pr-2 pl-3.5"
                     onSubmit={(e) => {
@@ -904,10 +968,11 @@ const TermCommandComposer = React.memo(({ model, termWrap, contextLabel, isMac }
     const status = jotai.useAtomValue(client.statusAtom);
     const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
     const altScreenActive = useAtomValueSafe<boolean>(termWrap?.altScreenActiveAtom) ?? false;
+    const promptReplaceSupported = useAtomValueSafe<boolean>(termWrap?.promptReplaceSupportedAtom) ?? false;
 
     const runBlockedReason = React.useCallback(
         (command: string) => commandAi.getRunBlockedReason(command),
-        [commandAi, shellIntegrationStatus, altScreenActive]
+        [commandAi, shellIntegrationStatus, altScreenActive, promptReplaceSupported]
     );
 
     const actions = React.useMemo<CommandAiSheetActions>(
@@ -933,6 +998,9 @@ const TermCommandComposer = React.memo(({ model, termWrap, contextLabel, isMac }
                 openCommandAiSettings();
             },
             copyText: (text) => fireAndForget(async () => navigator.clipboard?.writeText(text)),
+            prepareHandoff: () => fireAndForget(() => commandAi.prepareHandoff()),
+            cancelHandoff: () => commandAi.cancelHandoff(),
+            openHandoff: (engine) => fireAndForget(() => commandAi.openHandoff(engine)),
         }),
         [client, commandAi]
     );

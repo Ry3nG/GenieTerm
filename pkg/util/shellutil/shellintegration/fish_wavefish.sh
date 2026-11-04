@@ -11,6 +11,14 @@ set -e WAVETERM_SWAPTOKEN
 
 set -g _WAVETERM_SI_FIRSTPROMPT 1
 
+function _waveterm_si_clear_prompt
+    commandline --replace ''
+    if contains -- insert (bind --list-modes)
+        set -g fish_bind_mode insert
+    end
+    commandline -f repaint
+end
+
 # shell integration
 function _waveterm_si_blocked
     # Check if we're in tmux or screen (using fish-native checks)
@@ -27,9 +35,13 @@ end
 function _waveterm_si_prompt --on-event fish_prompt
     set -l _waveterm_si_status $status
     _waveterm_si_blocked; and return
+    bind -M default \e\[99~ _waveterm_si_clear_prompt
+    if contains -- insert (bind --list-modes)
+        bind -M insert \e\[99~ _waveterm_si_clear_prompt
+    end
     if test $_WAVETERM_SI_FIRSTPROMPT -eq 1
         set -l uname_info (uname -smr 2>/dev/null)
-        printf '\033]16162;M;{"shell":"fish","shellversion":"%s","uname":"%s","integration":true}\007' $FISH_VERSION "$uname_info"
+        printf '\033]16162;M;{"shell":"fish","shellversion":"%s","uname":"%s","integration":true,"promptreplace":true}\007' $FISH_VERSION "$uname_info"
         # OSC 7 only sent on first prompt - chpwd hook handles directory changes
         _waveterm_si_osc7
     else

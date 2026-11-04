@@ -105,6 +105,11 @@ export function emptyPromptInputBuffer(): TermInputBuffer {
 export function applyPromptInputData(buffer: TermInputBuffer, data: string): TermInputBuffer | null {
     let next = buffer;
     for (let idx = 0; idx < data.length; ) {
+        if (data.startsWith("\x1b[99~", idx)) {
+            next = emptyPromptInputBuffer();
+            idx += 5;
+            continue;
+        }
         if (data.startsWith(BracketedPasteStart, idx)) {
             const pasteStart = idx + BracketedPasteStart.length;
             const pasteEnd = data.indexOf(BracketedPasteEnd, pasteStart);

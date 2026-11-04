@@ -45,6 +45,7 @@ type FakeTermWrap = {
     insertCommand: ReturnType<typeof vi.fn>;
     hasBracketedPaste: () => boolean;
     scheduleCmdDecorationSync: () => void;
+    getRunBlockedReason: (command: string) => string;
 };
 
 function makeTermWrap(): FakeTermWrap {
@@ -58,6 +59,7 @@ function makeTermWrap(): FakeTermWrap {
         insertCommand: vi.fn(() => true),
         hasBracketedPaste: () => true,
         scheduleCmdDecorationSync: () => {},
+        getRunBlockedReason: () => null,
     };
 }
 
@@ -73,6 +75,7 @@ function makeModel(runner = makeRunner(), hostOverrides: Partial<CommandAiHost> 
         suppressCompletionFor: vi.fn(),
         includeOutputByDefault: () => true,
         inlineSuggestionsEnabled: () => true,
+        openTerminal: vi.fn(async () => "handoff-block"),
         ...hostOverrides,
     };
     return { model: new TermCommandAiModel(host, runner), runner, termWrap, host };
@@ -114,6 +117,65 @@ describe("TermCommandAiModel", () => {
         expect(model.getSheet().pending).toBeUndefined();
         expect(runner.calls).toHaveLength(0);
         expect(events).toEqual([{ type: "commandai-opened", blockId: "block-1" }]);
+    });
+
+    it("hands off only reviewed server-sanitized context without putting it in the terminal metadata", async () => {
+        const { model, runner, host } = makeModel();
+        runner.preview = vi.fn(async () => ({ system: "not handed off", message: "Token: [REDACTED]", redactions: 1 }));
+        model.open({ prompt: "investigate secret-value" });
+        await model.prepareHandoff();
+        expect(model.getSheet().handoff).toMatchObject({
+            context: "Token: [REDACTED]",
+            connection: "prod",
+            cwd: "/srv/app",
+            redactions: 1,
+        });
+        expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+        expect(host.openTerminal).not.toHaveBeenCalled();
+        await model.openHandoff("codex");
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Token: [REDACTED]");
+        expect(host.openTerminal).toHaveBeenCalledWith({
+            meta: {
+                view: "term",
+                controller: "cmd",
+                cmd: "codex",
+                connection: "prod",
+                "cmd:cwd": "/srv/app",
+                "cmd:runonce": true,
+                "cmd:runonstart": true,
+            },
+        });
+        expect(model.getSheet()).toBeNull();
+        expect(runner.calls).toHaveLength(0);
+    });
+
+    it("keeps handoff failures visible and does not open a terminal when clipboard copying fails", async () => {
+        const { model, host } = makeModel();
+        model.open({ prompt: "investigate" });
+        await model.prepareHandoff();
+        vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("Clipboard unavailable"));
+        await model.openHandoff("claude");
+        expect(host.openTerminal).not.toHaveBeenCalled();
+        expect(model.getSheet().handoff.error).toContain("Clipboard unavailable");
+        vi.mocked(host.openTerminal).mockRejectedValueOnce(new Error("Connection unavailable"));
+        await model.openHandoff("claude");
+        expect(model.getSheet().handoff.error).toContain("Connection unavailable");
+        expect(model.getSheet().handoff.opening).toBe(false);
+    });
+
+    it("ignores a handoff preview after it is canceled", async () => {
+        const { model, runner } = makeModel();
+        let resolve: (preview: CommandAiPreview) => void;
+        runner.preview = () =>
+            new Promise((done) => {
+                resolve = done;
+            });
+        model.open({ prompt: "investigate" });
+        const pending = model.prepareHandoff();
+        model.cancelHandoff();
+        resolve({ system: "", message: "late result" });
+        await pending;
+        expect(model.getSheet().handoff).toBeUndefined();
     });
 
     it("composes, then refines with the earlier turn", async () => {

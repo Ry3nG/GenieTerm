@@ -358,6 +358,20 @@ describe("TermViewModel completion key handling", () => {
             otherTab.multiInputHandler("hidden");
             expect(source.sendDataToController).not.toHaveBeenCalled();
             expect(sameTab.sendDataToController).toHaveBeenCalledOnce();
+            const wrap = {
+                promptReplaceSupportedAtom: jotai.atom(false),
+                shellIntegrationStatusAtom: jotai.atom("ready"),
+                altScreenActiveAtom: jotai.atom(false),
+            };
+            sameTab.termRef = { current: wrap } as any;
+            source.multiInputHandler("\x1b[99~echo safe\r");
+            expect(sameTab.sendDataToController).toHaveBeenCalledOnce();
+            globalStore.set(wrap.promptReplaceSupportedAtom, true);
+            source.multiInputHandler("\x1b[99~echo safe\r");
+            expect(sameTab.sendDataToController).toHaveBeenCalledTimes(2);
+            globalStore.set(wrap.shellIntegrationStatusAtom, "running-command");
+            source.multiInputHandler("\x1b[99~echo safe\r");
+            expect(sameTab.sendDataToController).toHaveBeenCalledTimes(2);
         } finally {
             models.forEach((_, index) => unregisterBlockComponentModel(`multi-${index}`));
         }

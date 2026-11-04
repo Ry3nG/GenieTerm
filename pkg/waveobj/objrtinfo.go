@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package waveobj
@@ -10,6 +10,7 @@ type ObjRTInfo struct {
 	ShellVersion         string `json:"shell:version,omitempty"`
 	ShellUname           string `json:"shell:uname,omitempty"`
 	ShellIntegration     bool   `json:"shell:integration,omitempty"`
+	ShellPromptReplace   bool   `json:"shell:promptreplace,omitempty"`
 	ShellOmz             bool   `json:"shell:omz,omitempty"`
 	ShellComp            string `json:"shell:comp,omitempty"`
 	ShellInputEmpty      bool   `json:"shell:inputempty,omitempty"`

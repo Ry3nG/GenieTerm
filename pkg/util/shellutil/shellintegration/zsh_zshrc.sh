@@ -86,7 +86,7 @@ _waveterm_si_precmd() {
     local omz=false
     local comp=$(_waveterm_si_compmode)
     [[ -n "${ZSH:-}" && -r "${ZSH:-}/oh-my-zsh.sh" ]] && omz=true
-    printf '\033]16162;M;{"shell":"zsh","shellversion":"%s","uname":"%s","integration":true,"omz":%s,"comp":"%s"}\007' "$ZSH_VERSION" "$uname_info" "$omz" "$comp"
+    printf '\033]16162;M;{"shell":"zsh","shellversion":"%s","uname":"%s","integration":true,"promptreplace":true,"omz":%s,"comp":"%s"}\007' "$ZSH_VERSION" "$uname_info" "$omz" "$comp"
     # OSC 7 only sent on first prompt - chpwd hook handles directory changes
     _waveterm_si_osc7
   fi
@@ -114,6 +114,18 @@ typeset -g WAVETERM_SI_INPUTEMPTY=1
 typeset -g _WAVETERM_SI_LASTINPUT=""
 typeset -g _WAVETERM_SI_LASTCUR=-1
 typeset -g _WAVETERM_SI_ISEARCH=0
+
+_waveterm_si_clear_prompt() {
+  BUFFER=""
+  CURSOR=0
+  if [[ "$KEYMAP" == vicmd ]]; then
+    zle -K viins
+  fi
+}
+zle -N _waveterm_si_clear_prompt
+bindkey -M emacs '\e[99~' _waveterm_si_clear_prompt
+bindkey -M viins '\e[99~' _waveterm_si_clear_prompt
+bindkey -M vicmd '\e[99~' _waveterm_si_clear_prompt
 
 _waveterm_si_input() {
   _waveterm_si_blocked && return
