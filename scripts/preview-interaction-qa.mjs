@@ -293,7 +293,7 @@ async function runWorkflowToolsInteractions(browser, baseUrl) {
 
 async function runFeatureTourInteractions(browser, baseUrl) {
   const { page, assertClean } = await newCheckedPage(browser, baseUrl, "feature-tour", { width: 390, height: 740 });
-  const tour = page.getByRole("dialog", { name: "What's new in GenieTerm 1.6", exact: true });
+  const tour = page.getByRole("dialog", { name: "GenieTerm feature tour", exact: true });
   const actions = ["Open command history", "Inspect last output", "Open Host", "Open Files"];
   for (let index = 0; index < actions.length; index++) {
     await assertVisible(tour.getByLabel(`Step ${index + 1} of 4`), "tour progress");

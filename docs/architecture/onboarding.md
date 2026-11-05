@@ -8,9 +8,9 @@ GenieTerm teaches by having the user do things in their own terminal. There are 
 
 `ModalsRenderer` opens the welcome modal (`onboarding.tsx`) until the client has agreed to the terms. **Get Started** agrees, records `onboarding:lastversion`, closes the modal and starts Quick Start. **Skip** records `onboarding:quickstart = "dismissed"` instead.
 
-Upgrades do not open a modal or a feature walkthrough at startup. **What's New in GenieTerm 1.6** in the command palette opens the release introduction (`onboarding-upgrade.tsx`) on request. It lists unseen releases, or the current release when the client is already up to date, and offers **Try new features** or **Close**.
+On startup, the primary window opens What's New when the client has already agreed to the terms and its saved `onboarding:lastversion` is older than the newest entry in `whatsnew.ts`. The modal shows the exact installed release and the highlights since the saved version. **Close** or **Explore features** records the version. **What's New in GenieTerm** in the command palette reopens the introduction. Each release, including a patch, has its own entry checked against the package version in the release gate.
 
-**Try new features** opens the four-step feature walkthrough (history, output, Host and Files) (`feature-tour.tsx`). Each step can open its real tool without running commands or transfers. Client meta stores `onboarding:featuretour`, `onboarding:featurestep`, and `onboarding:featureversion`. Progress resumes only when the user requests the walkthrough again, even if it was active when the app closed. Completed walkthroughs can be replayed. Client-state subscriptions start when the walkthrough is requested, not when the workspace mounts.
+**Explore features** opens the four-step feature walkthrough (history, output, Host and Files) (`feature-tour.tsx`). Each step can open its real tool without running commands or transfers. Client meta stores `onboarding:featuretour`, `onboarding:featurestep`, and `onboarding:featureversion`. Progress resumes only when the user requests the walkthrough again, even if it was active when the app closed. Completed walkthroughs can be replayed. Client-state subscriptions start when the walkthrough is requested, not when the workspace mounts.
 
 ## Quick Start
 

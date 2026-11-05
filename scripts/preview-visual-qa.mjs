@@ -23,7 +23,7 @@ const PreviewCases = [
   {
     name: "feature-tour",
     path: "/?preview=feature-tour",
-    checks: ["New in GenieTerm 1.6", "Find a command you already ran", "Open command history", "Skip"],
+    checks: ["GenieTerm feature tour", "Find a command you already ran", "Open command history", "Skip"],
     viewports: [
       { name: "desktop", width: 1240, height: 900 },
       { name: "narrow", width: 390, height: 700 },
@@ -122,7 +122,7 @@ const PreviewCases = [
       "You're all set",
       "That didn't work",
       "Connected to gpu-01",
-      "GenieTerm 1.6",
+      `GenieTerm ${JSON.parse(readFileSync(path.join(RepoRoot, "package.json"), "utf8")).version}`,
       "Command history",
       "Open remote servers here",
       "Quick Start",

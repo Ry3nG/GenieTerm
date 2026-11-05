@@ -13,8 +13,10 @@ import {
 } from "@/app/store/global";
 import type { TermViewModel } from "@/app/view/term/term-model";
 import { atom, PrimitiveAtom } from "jotai";
-import { CurrentOnboardingVersion } from "./onboarding-common";
+
 import { OnboardingModel, setClientMeta } from "./onboarding-model";
+
+const FeatureTourVersion = "v1.6.0";
 
 export const FeatureTourSteps = ["history", "output", "host", "files"] as const;
 export type FeatureTourStep = (typeof FeatureTourSteps)[number];
@@ -24,7 +26,7 @@ export function isFeatureTourStep(value: unknown): value is FeatureTourStep {
 }
 
 export function savedFeatureStep(meta: MetaType): FeatureTourStep {
-    if (meta["onboarding:featureversion"] !== CurrentOnboardingVersion || meta["onboarding:featuretour"] === "done") {
+    if (meta["onboarding:featureversion"] !== FeatureTourVersion || meta["onboarding:featuretour"] === "done") {
         return "history";
     }
     return isFeatureTourStep(meta["onboarding:featurestep"]) ? meta["onboarding:featurestep"] : "history";
@@ -102,7 +104,7 @@ export class FeatureTourModel {
             const meta = clientMeta();
             if (
                 meta["onboarding:featuretour"] !== "active" ||
-                meta["onboarding:featureversion"] !== CurrentOnboardingVersion
+                meta["onboarding:featureversion"] !== FeatureTourVersion
             ) {
                 globalStore.set(this.stepAtom, null);
             }
@@ -112,10 +114,9 @@ export class FeatureTourModel {
     persist(status: "active" | "dismissed" | "done", step: FeatureTourStep) {
         this.pendingWrites++;
         return setClientMeta({
-            "onboarding:lastversion": CurrentOnboardingVersion,
             "onboarding:featuretour": status,
             "onboarding:featurestep": step,
-            "onboarding:featureversion": CurrentOnboardingVersion,
+            "onboarding:featureversion": FeatureTourVersion,
         }).finally(() => this.pendingWrites--);
     }
 

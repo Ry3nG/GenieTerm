@@ -87,6 +87,7 @@ The full API is defined in custom.d.ts as type ElectronApi.
 - **No lengthy pre-completion summaries** - Do not provide detailed explanations of implementation before using attempt_completion
 - **No recaps of changes** - Skip explaining what was done before completion
 - **Go directly to completion** - After making changes, proceed directly to attempt_completion without summarizing
+- For every release, including patches, follow `docs/releasing.md`: add version-matched in-app What's New highlights and verify the post-update launch using an existing profile.
 - GenieTerm ships auto-updates to existing installs. Keep settings, the database, saved workspaces, and the remote helper/job-manager protocol compatible across versions (a running remote job manager keeps its old binary after an update).
 - With React hooks, always complete all hook calls at the top level before any conditional returns (including jotai hook calls useAtom and useAtomValue); when a user explicitly tells you a function handles null inputs, trust them and stop trying to "protect" it with unnecessary checks or workarounds.
 - **Match response length to question complexity** - For simple, direct questions in Ask mode (especially those that can be answered in 1-2 sentences), provide equally brief answers. Save detailed explanations for complex topics or when explicitly requested.

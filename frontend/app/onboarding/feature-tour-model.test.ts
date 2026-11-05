@@ -6,7 +6,7 @@ import { atoms, createBlock, getBlockComponentModel, getFocusedBlockId, globalSt
 import { atom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureTourModel, openFeatureTourTarget, savedFeatureStep } from "./feature-tour-model";
-import { CurrentOnboardingVersion } from "./onboarding-common";
+
 import { setClientMeta } from "./onboarding-model";
 
 vi.mock("@/app/store/global", async () => {
@@ -33,7 +33,7 @@ vi.mock("./onboarding-model", () => ({
 }));
 
 const Meta = {
-    "onboarding:featureversion": CurrentOnboardingVersion,
+    "onboarding:featureversion": "v1.6.0",
     "onboarding:featuretour": "active",
     "onboarding:featurestep": "output",
 };

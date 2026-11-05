@@ -37,7 +37,7 @@ export const FeatureTourContent: Record<
         body: "Queue multiple files and folders, then follow progress, cancel or retry from the transfer queue.",
         action: "Open Files",
         instruction:
-            "Cmd-click (Mac) or Ctrl-click (Windows/Linux) to select files; Shift-click selects a range. Choose Copy to… or Download. Downloads ask for one local destination and let you keep both names or skip existing files. Reopen this tour from the command palette: What's New in GenieTerm 1.6.",
+            "Cmd-click (Mac) or Ctrl-click (Windows/Linux) to select files; Shift-click selects a range. Choose Copy to… or Download. Downloads ask for one local destination and let you keep both names or skip existing files. Reopen this tour from the command palette: What's New in GenieTerm.",
     },
 };
 
@@ -65,12 +65,12 @@ export function FeatureTourCard({
     return (
         <section
             role="dialog"
-            aria-label="What's new in GenieTerm 1.6"
+            aria-label="GenieTerm feature tour"
             className="w-[360px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-48px)] overflow-y-auto rounded-xl border border-border bg-modalbg p-4 text-foreground shadow-xl"
         >
             <header className="flex items-center gap-2 text-xs">
                 <i className="fa-solid fa-compass text-accent" aria-hidden="true" />
-                <span className="font-semibold text-accent">New in GenieTerm 1.6</span>
+                <span className="font-semibold text-accent">GenieTerm feature tour</span>
                 <span className="ml-auto text-muted" aria-label={`Step ${index + 1} of ${FeatureTourSteps.length}`}>
                     {index + 1} / {FeatureTourSteps.length}
                 </span>

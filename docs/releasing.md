@@ -21,8 +21,9 @@ Update payload integrity is covered by the update manifests (`latest-mac.yml`, `
    - Start with `# GenieTerm X.Y`, then one short paragraph that sums up the release. The in-app update prompt shows that paragraph, with a What's New link to the rest.
    - Follow with sections for what changed.
    - The notes become the GitHub Release body and travel in the update metadata.
-4. Bump the version with `npm version X.Y.Z --no-git-tag-version` and commit.
-5. Use the one-pass publication below once the release commit is ready. For testing packaging changes independently, `gh workflow run release.yml --ref <branch>` still builds and verifies every platform without publishing. A separate dry run is optional: publication runs the same checks before exposing any assets.
+4. For every release, including patches and prereleases, prepend that exact tag and at least one user-facing highlight to `UpgradeReleases` in `frontend/app/onboarding/whatsnew.ts`. The standard gate compares the entry with `package.json`. The packaged upgrade check must show the new version automatically on an existing profile and keep it dismissed on the next launch.
+5. Bump the version with `npm version X.Y.Z --no-git-tag-version` and commit.
+6. Use the one-pass publication below once the release commit is ready. For testing packaging changes independently, `gh workflow run release.yml --ref <branch>` still builds and verifies every platform without publishing. A separate dry run is optional: publication runs the same checks before exposing any assets.
 
 Before a major release, also try these by hand in the installed app:
 

@@ -4,7 +4,7 @@
 import Logo from "@/app/asset/logo";
 import { Button } from "@/app/element/button";
 import { FlexiModal } from "@/app/modals/modal";
-import { CurrentOnboardingVersion, OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
+import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { OnboardingModel, setClientMeta } from "@/app/onboarding/onboarding-model";
 import { FeatureItem, FeatureRow } from "@/app/onboarding/onboarding-tour";
 import { ClientModel } from "@/app/store/client-model";
@@ -16,6 +16,8 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useEffect, useRef, useState } from "react";
 import { debounce } from "throttle-debounce";
+
+import { CurrentOnboardingVersion } from "./whatsnew";
 
 const WelcomePillars: FeatureItem[] = [
     {
@@ -40,7 +42,7 @@ const InitPage = ({ isCompact }: { isCompact: boolean }) => {
     const setNewInstallOnboardingOpen = useSetAtom(modalsModel.newInstallOnboardingOpen);
 
     const finishWelcome = async (startQuickStart: boolean) => {
-        // the renderer reopens this modal on any client update until tosagreed lands
+        // Store acceptance before marking this install as having seen the release.
         if (!clientData?.tosagreed) {
             await services.ClientService.AgreeTos();
         }

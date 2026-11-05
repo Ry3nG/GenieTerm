@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { WhatsNewTitle } from "@/app/onboarding/whatsnew";
 import {
     atoms,
     createBlock,
@@ -694,7 +695,7 @@ function getAppCommands(): CommandPaletteCommand[] {
                 OnboardingModel.getInstance().startFromPalette();
             })
         ),
-        makePaletteCommand("app:whats-new", "What's New in GenieTerm 1.6", () =>
+        makePaletteCommand("app:whats-new", `What's New in ${WhatsNewTitle}`, () =>
             globalStore.set(modalsModel.upgradeOnboardingOpen, true)
         ),
         makePaletteCommand("app:about", "About GenieTerm", () => modalsModel.pushModal("AboutModal")),
