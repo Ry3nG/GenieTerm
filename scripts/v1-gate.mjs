@@ -113,7 +113,7 @@ if (shouldVerifyInstalled) {
     fail("--installed is currently implemented for macOS only");
   }
   const installedArgs = packagedAppPath
-    ? ["installed:verify", "--", "--window-smoke", packagedAppPath]
+    ? ["installed:verify", "--", "--window-smoke", "--upgrade-smoke", packagedAppPath]
     : ["installed:verify", "--", "--window-smoke"];
   run("Installed app verification", "task", installedArgs);
 }

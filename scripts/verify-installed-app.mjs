@@ -1,19 +1,23 @@
 #!/usr/bin/env node
 
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { chromium } from "playwright";
+import { expect } from "playwright/test";
 import { PNG } from "pngjs";
+import semver from "semver";
 import { MacAppExpectations, run, verifyDirectory, verifyMacAppBundle } from "./macos-app-verifier.mjs";
 import { extractAppImage, verifyLinuxTree } from "./verify-linux-package.mjs";
 
 const Scope = "verify-installed-app";
 const DefaultAppPath = `/Applications/${MacAppExpectations.productName}.app`;
 const shouldLaunchSmoke = process.argv.includes("--launch-smoke");
-const shouldWindowSmoke = process.argv.includes("--window-smoke");
+const shouldUpgradeSmoke = process.argv.includes("--upgrade-smoke");
+const shouldWindowSmoke = process.argv.includes("--window-smoke") || shouldUpgradeSmoke;
 const appPathArg = process.argv.find((arg) => arg.endsWith(".app"));
 const AppPath = path.resolve(appPathArg || DefaultAppPath);
 
@@ -97,50 +101,106 @@ async function assertWindowRendersContent(window, timeoutMs) {
   fail(Scope, problem);
 }
 
-async function windowSmoke(appPath) {
+async function withPackagedWindow(appPath, userDataDir, check) {
   const executablePath =
     process.platform === "linux"
       ? path.join(appPath, "genieterm")
       : path.join(appPath, "Contents", "MacOS", MacAppExpectations.productName);
-  const userDataDir = mkdtempSync(path.join(tmpdir(), "genieterm-window-smoke-"));
-  let browser = null;
-  let appProcess = null;
+  const { child, wsUrl } = await launchPackagedAppForCdp(executablePath, userDataDir);
+  let browser;
   try {
-    const { child, wsUrl } = await launchPackagedAppForCdp(executablePath, userDataDir);
-    appProcess = child;
     browser = await chromium.connectOverCDP(wsUrl);
     const window = await waitForVisibleAppPage(browser, 20000);
-    const consoleErrors = [];
-    window.on("console", (message) => {
-      if (message.type() === "error") {
-        consoleErrors.push(message.text());
+    await check(window);
+  } finally {
+    await browser?.close().catch(() => {});
+    const closed =
+      shouldUpgradeSmoke && child.exitCode == null && child.signalCode == null
+        ? once(child, "exit", { signal: AbortSignal.timeout(15000) })
+        : null;
+    stopAppProcesses(child, userDataDir);
+    await closed;
+  }
+}
+
+async function checkWindowContent(window) {
+  const consoleErrors = [];
+  window.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
+    }
+  });
+  window.on("pageerror", (error) => {
+    consoleErrors.push(error.message);
+  });
+  await window.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
+  const title = await window.title();
+  if (title !== MacAppExpectations.productName && !title.startsWith(`${MacAppExpectations.productName} - `)) {
+    fail(Scope, `window title expected ${MacAppExpectations.productName}, got ${title}`);
+  }
+  if (!window.url().includes("app.asar")) {
+    fail(Scope, `window URL does not point at packaged app content: ${window.url()}`);
+  }
+  await assertWindowRendersContent(window, 15000);
+  const errorBoundaryCount = await window.getByText("Something went wrong", { exact: false }).count();
+  if (errorBoundaryCount > 0) {
+    fail(Scope, "window rendered the React error boundary");
+  }
+  if (consoleErrors.length > 0) {
+    fail(Scope, `window console errors: ${consoleErrors.join("\n")}`);
+  }
+}
+
+async function windowSmoke(appPath) {
+  const profile = mkdtempSync(path.join(tmpdir(), "genieterm-window-smoke-"));
+  const launch = (check) => withPackagedWindow(appPath, profile, check);
+  try {
+    await launch(async (page) => {
+      await checkWindowContent(page);
+      if (shouldUpgradeSmoke) {
+        await page.getByText("Welcome to GenieTerm", { exact: true }).waitFor();
+        await page.getByRole("button", { name: "Skip", exact: true }).click();
+        await page.getByText("Welcome to GenieTerm", { exact: true }).waitFor({ state: "hidden" });
       }
     });
-    window.on("pageerror", (error) => {
-      consoleErrors.push(error.message);
+    if (!shouldUpgradeSmoke) return;
+
+    // The profile was created and accepted by the packaged app. Change just its saved
+    // release marker offline to reproduce a user updating from the previous release.
+    const version = MacAppExpectations.version;
+    const releases = readdirSync(new URL("../docs/releases/", import.meta.url)).map((name) =>
+      name.replace(/\.md$/, "")
+    );
+    const previous = semver.maxSatisfying(releases, `<${version}`);
+    if (!previous) fail(Scope, `no release prior to ${version}`);
+    const db = path.join(profile, "data", "db", "waveterm.db");
+    const sql = (query) => execFileSync("sqlite3", ["-batch", db, query], { encoding: "utf8" }).trim();
+    const rows = sql(`UPDATE db_client SET data = json_set(data, '$.meta."onboarding:lastversion"', '${previous}')
+      WHERE json_extract(data, '$.tosagreed') > 0; SELECT changes();`);
+    if (rows !== "1") fail(Scope, "expected one accepted client in the isolated profile");
+
+    const heading = `GenieTerm ${version}`;
+    await launch(async (page) => {
+      const modal = page.locator(".modal").filter({ has: page.getByText(heading, { exact: true }) });
+      await modal.getByText("What's new since your last update.", { exact: true }).waitFor();
+      await modal.getByRole("button", { name: "Close", exact: true }).click();
+      await modal.waitFor({ state: "hidden" });
+      await expect
+        .poll(() => sql(`SELECT json_extract(data, '$.meta."onboarding:lastversion"') FROM db_client;`))
+        .toBe(`v${version}`);
     });
-    await window.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
-    const title = await window.title();
-    if (title !== MacAppExpectations.productName && !title.startsWith(`${MacAppExpectations.productName} - `)) {
-      fail(Scope, `window title expected ${MacAppExpectations.productName}, got ${title}`);
-    }
-    if (!window.url().includes("app.asar")) {
-      fail(Scope, `window URL does not point at packaged app content: ${window.url()}`);
-    }
-    await assertWindowRendersContent(window, 15000);
-    const errorBoundaryCount = await window.getByText("Something went wrong", { exact: false }).count();
-    if (errorBoundaryCount > 0) {
-      fail(Scope, "window rendered the React error boundary");
-    }
-    if (consoleErrors.length > 0) {
-      fail(Scope, `window console errors: ${consoleErrors.join("\n")}`);
-    }
+    await launch(async (page) => {
+      // Opening the palette exercises a user action that an upgrade modal would block.
+      await page.keyboard.press("Meta+Shift+p");
+      const search = page.getByPlaceholder("Search commands…");
+      await search.fill("What's New");
+      await expect(page.getByText(heading, { exact: true })).toBeHidden();
+      await page.getByText(`What's New in ${heading}`, { exact: true }).click();
+      await page.getByText(heading, { exact: true }).waitFor();
+    });
+    log(`upgrade from ${previous} to ${version}, dismissal and same-version restart passed`);
   } finally {
-    if (browser) {
-      await browser.close().catch(() => {});
-    }
-    stopAppProcesses(appProcess, userDataDir);
-    rmSync(userDataDir, { recursive: true, force: true });
+    rmSync(profile, { recursive: true, force: true });
   }
 }
 
@@ -161,6 +221,8 @@ async function launchPackagedAppForCdp(executablePath, userDataDir, withoutSandb
       env: {
         ...process.env,
         GENIETERM_SKIP_SINGLE_INSTANCE: "1",
+        WAVETERM_NOCONFIRMQUIT: "1",
+        WAVETERM_HOME: path.join(userDataDir, "unused-legacy-home"),
         WAVETERM_CONFIG_HOME: path.join(userDataDir, "config"),
         WAVETERM_DATA_HOME: path.join(userDataDir, "data"),
       },
@@ -222,7 +284,7 @@ async function waitForVisibleAppPage(browser, timeoutMs) {
         const visible = await page
           .evaluate(() => window.innerWidth > 0 && window.innerHeight > 0 && document.visibilityState === "visible")
           .catch(() => false);
-        if (visible) {
+        if (visible && (!shouldUpgradeSmoke || (await page.locator("[data-panel-group]").count()) > 0)) {
           return page;
         }
       }

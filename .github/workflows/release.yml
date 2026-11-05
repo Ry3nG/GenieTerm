@@ -135,7 +135,7 @@ jobs:
               run: task package:verify -- make --require-arch arm64,x64
 
             - name: Launch packaged arm64 app (window smoke)
-              run: node scripts/verify-installed-app.mjs --window-smoke make/mac-arm64/GenieTerm.app
+              run: node scripts/verify-installed-app.mjs --window-smoke --upgrade-smoke make/mac-arm64/GenieTerm.app
 
             - name: Verify packaging left the checkout unchanged
               run: |

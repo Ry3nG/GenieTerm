@@ -278,7 +278,11 @@ async function windowSmoke(executablePath, { profileDir, longHomes = false, onRe
             .isVisible()
             .catch(() => false)
         ) {
-          await candidate.getByRole("button", { name: "Not Now", exact: true }).click();
+          await candidate
+            .locator(".modal")
+            .filter({ hasText: "What's new since your last update." })
+            .getByRole("button", { name: "Close", exact: true })
+            .click();
         }
         if ((await candidate.locator(".term-connectelem").count()) > 0) {
           page = candidate;

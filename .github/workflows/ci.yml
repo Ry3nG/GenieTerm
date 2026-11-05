@@ -383,7 +383,7 @@ jobs:
               run: task package:verify -- make --require-arch arm64
 
             - name: Launch packaged app (window smoke)
-              run: node scripts/verify-installed-app.mjs --window-smoke make/mac-arm64/GenieTerm.app
+              run: node scripts/verify-installed-app.mjs --window-smoke --upgrade-smoke make/mac-arm64/GenieTerm.app
 
             - name: Record packaged performance samples
               timeout-minutes: 15
