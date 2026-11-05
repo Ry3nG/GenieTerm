@@ -113,6 +113,11 @@ async function withPackagedWindow(appPath, userDataDir, check) {
     const window = await waitForVisibleAppPage(browser, 20000);
     await check(window);
   } finally {
+    // wavesrv owns wave.lock and can outlive Electron while it flushes the profile.
+    // Capture it before teardown reparents it, then wait before relaunching on the same data.
+    const serverPid = shouldUpgradeSmoke
+      ? spawnSync("pgrep", ["-P", String(child.pid), "-f", "/wavesrv\\."], { encoding: "utf8" }).stdout.trim()
+      : "";
     await browser?.close().catch(() => {});
     const closed =
       shouldUpgradeSmoke && child.exitCode == null && child.signalCode == null
@@ -120,6 +125,9 @@ async function withPackagedWindow(appPath, userDataDir, check) {
         : null;
     stopAppProcesses(child, userDataDir);
     await closed;
+    if (serverPid) {
+      await expect.poll(() => spawnSync("ps", ["-p", serverPid]).status, { timeout: 15000 }).toBe(1);
+    }
   }
 }
 
