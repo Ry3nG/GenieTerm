@@ -10,6 +10,17 @@ type UpgradeRelease = { version: string; items: FeatureItem[] };
 
 export const UpgradeReleases: UpgradeRelease[] = [
     {
+        version: "v1.7.2",
+        items: [
+            {
+                icon: "fa-clock-rotate-left",
+                title: "Open command output from history",
+                description:
+                    "In the Command History search field, use the arrow keys to select a result and press Enter to view its output in the original terminal.",
+            },
+        ],
+    },
+    {
         version: "v1.7.1",
         items: [
             {
