@@ -223,7 +223,7 @@ async function connect(session) {
     record({ event: "page-open", id, url: page.url() });
     page.on("close", () => record({ event: "page-close", id }));
     page.on("crash", () => record({ event: "page-crash", id }));
-    page.on("pageerror", (error) => record({ event: "page-error", id, message: error.message }));
+    page.on("pageerror", (error) => record({ event: "page-error", id, stack: error.stack }));
   };
   for (const context of session.browser.contexts()) {
     context.pages().forEach(watchPage);
@@ -400,6 +400,9 @@ async function measureSession(opts, dataDir, report) {
     report.extraTabs = opts.tabs;
     report.rendererPagesAdded = browser.contexts().flatMap((context) => context.pages()).length - pagesBefore;
     report.withTabs = await sampleProcesses(session.app.pid, 5000);
+    if (session.lifecycle.some((entry) => entry.event === "page-error")) {
+      throw new Error("Renderer error during terminal workload");
+    }
     // an attached DevTools client keeps every page "visible", so detach before measuring background tabs; they
     // stop rendering and release their WebGL renderers after a delay
     await browser.close().catch(() => {});

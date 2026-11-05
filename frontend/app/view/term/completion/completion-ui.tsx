@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget, useAtomValueSafe } from "@/util/util";
@@ -165,6 +166,28 @@ interface TermCompletionProps {
     termWrap: TermWrap | null;
 }
 
+function useCompletionInput(termWrap: TermWrap | null): TermInputBuffer | null {
+    const input = termWrap?.currentInputBufferAtom;
+    const getSnapshot = React.useCallback(() => (input ? globalStore.get(input) : null), [input]);
+    const subscribe = React.useCallback((notify: () => void) => {
+        if (!input) return () => {};
+        let frame: number = null;
+        // The prompt mirror must consume every keystroke, but suggestions only need the latest input per frame.
+        const unsubscribe = globalStore.sub(input, () => {
+            if (frame != null) return;
+            frame = requestAnimationFrame(() => {
+                frame = null;
+                notify();
+            });
+        });
+        return () => {
+            unsubscribe();
+            if (frame != null) cancelAnimationFrame(frame);
+        };
+    }, [input]);
+    return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
 export function TermCompletion({ model, blockData, termWrap }: TermCompletionProps) {
     const completionModel = model.completionModel;
     const open = useAtomValue(completionModel.openAtom);
@@ -173,7 +196,7 @@ export function TermCompletion({ model, blockData, termWrap }: TermCompletionPro
     const selectionExplicit = useAtomValue(completionModel.selectionExplicitAtom);
     const status = useAtomValue(completionModel.statusAtom);
     const manualRequestVersion = useAtomValue(completionModel.manualRequestVersionAtom);
-    const inputBuffer = useAtomValueSafe<TermInputBuffer>(termWrap?.currentInputBufferAtom);
+    const inputBuffer = useCompletionInput(termWrap);
     const cmdBlocks = useAtomValueSafe<CmdBlock[]>(termWrap?.cmdBlocksAtom) ?? [];
     const shellIntegrationStatus = useAtomValueSafe(termWrap?.shellIntegrationStatusAtom);
     const shellType = useAtomValueSafe<ShellType>(termWrap?.shellTypeAtom) ?? "unknown";
