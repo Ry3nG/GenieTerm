@@ -30,6 +30,19 @@ export function WorkflowToolsPreview() {
             type: "record",
             entry: {
                 ...Context,
+                id: "history-failed",
+                commandblockid: 2,
+                command: "npm test",
+                startts: 800,
+                donets: 900,
+                exitcode: 1,
+                status: "failed",
+            },
+        });
+        library = applyCommandLibraryChange(library, {
+            type: "record",
+            entry: {
+                ...Context,
                 id: "history-one",
                 commandblockid: 1,
                 command: "printf 'hello world'",
@@ -77,8 +90,8 @@ export function WorkflowToolsPreview() {
                         setInserted(command);
                         return true;
                     }}
-                    onJump={() => false}
-                    hasOutput={() => false}
+                    onJump={(entry) => entry.id === "history-failed"}
+                    hasOutput={(entry) => entry.id === "history-failed"}
                 />
             </div>
         </div>

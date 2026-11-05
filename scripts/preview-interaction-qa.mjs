@@ -286,6 +286,21 @@ async function runWorkflowToolsInteractions(browser, baseUrl) {
   );
   await page.getByRole("button", { name: "Open command history", exact: true }).click();
   await assertCount(dialog.getByRole("tab"), 0, "history has no recipe subsystem");
+  const search = dialog.getByRole("searchbox");
+  const failed = dialog.getByRole("button", { name: /npm test/ });
+  await search.press("ArrowDown");
+  await failed.and(dialog.locator('[aria-pressed="true"]')).waitFor();
+  await search.press("ArrowUp");
+  await search.press("Enter");
+  await assertVisible(dialog, "expired output keeps history open");
+  await search.fill("npm test");
+  await dialog.getByRole("button", { name: /printf/ }).waitFor({ state: "hidden" });
+  await search.press("Enter");
+  await dialog.waitFor({ state: "hidden" });
+  await assertVisible(
+    page.getByLabel("Inserted command").filter({ hasText: "printf 'hello world'" }),
+    "viewing output preserves input"
+  );
   await assertClean();
   await page.close();
   log("workflow tools interactions passed");
