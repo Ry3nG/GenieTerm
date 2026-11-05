@@ -80,6 +80,8 @@ function CommandLibraryContent({ context, onInsert, onJump, hasOutput }: Command
     const [confirmClear, setConfirmClear] = useState(false);
     const [error, setError] = useState("");
     const rootRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
+    const selectedRowRef = useRef<HTMLButtonElement>(null);
     const [expiredIds, setExpiredIds] = useState<string[]>([]);
     const hosts = useMemo(
         () => [...new Set(library.history.map((entry) => entry.connection))].sort(),
@@ -99,8 +101,13 @@ function CommandLibraryContent({ context, onInsert, onJump, hasOutput }: Command
     const outputAvailable = selected == null || expiredIds.includes(selected.id) ? false : hasOutput(selected);
     useEffect(() => setVisibleCount(60), [deferredQuery, connection, cwd, status]);
     useEffect(() => {
-        rootRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+        searchRef.current?.focus();
     }, []);
+    useEffect(() => {
+        if (selectedId && document.activeElement === searchRef.current) {
+            selectedRowRef.current?.scrollIntoView({ block: "nearest" });
+        }
+    }, [selectedId]);
     const insert = (command: string) => {
         if (!onInsert(command)) {
             setError(
@@ -183,10 +190,41 @@ function CommandLibraryContent({ context, onInsert, onJump, hasOutput }: Command
                 <>
                     <div className="flex flex-col gap-2 border-b border-border p-3">
                         <input
+                            ref={searchRef}
                             className={FieldClass}
                             type="search"
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (
+                                    !selected ||
+                                    deferredQuery !== query ||
+                                    event.nativeEvent.isComposing ||
+                                    event.keyCode === 229 ||
+                                    event.altKey ||
+                                    event.ctrlKey ||
+                                    event.metaKey ||
+                                    event.shiftKey
+                                ) {
+                                    return;
+                                }
+                                if (event.key === "Enter" && outputAvailable !== false) {
+                                    event.preventDefault();
+                                    if (!event.repeat) void openOutput();
+                                    return;
+                                }
+                                if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+                                    return;
+                                }
+                                event.preventDefault();
+                                const index = history.indexOf(selected) + (event.key === "ArrowDown" ? 1 : -1);
+                                if (index >= 0 && index < history.length) {
+                                    setVisibleCount((count) => Math.max(count, index + 1));
+                                    setSelectedId(history[index].id);
+                                    setError("");
+                                }
+                            }}
+                            title="Use ↑ and ↓ to select a command, then Enter to view its original output"
                             placeholder={"Search commands, folders or hosts…"}
                             aria-label={"Search command history"}
                         />
@@ -242,6 +280,7 @@ function CommandLibraryContent({ context, onInsert, onJump, hasOutput }: Command
                                     {history.slice(0, visibleCount).map((entry) => (
                                         <button
                                             key={entry.id}
+                                            ref={selected?.id === entry.id ? selectedRowRef : null}
                                             onClick={() => {
                                                 setSelectedId(entry.id);
                                                 setError("");
