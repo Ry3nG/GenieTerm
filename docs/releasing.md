@@ -15,15 +15,17 @@ Update payload integrity is covered by the update manifests (`latest-mac.yml`, `
 
 ## Before publishing
 
-1. Land everything on `main` and make sure CI is green there. CI runs the merge gate (`scripts/v1-gate.mjs`), and it packages and launch-tests Linux x64 (including a `.deb` install on Ubuntu 24.04), Windows x64 and macOS arm64. Pull requests run the gate, Linux packaging and the Windows tests; Windows and macOS packaging run on pushes to `main`.
-2. On a Mac, run `task check:release`. It runs the merge gate, packages arm64, verifies the bundle, and launches it.
-3. Write `docs/releases/vX.Y.Z.md`:
+1. Prepare the fix and write `docs/releases/vX.Y.Z.md`:
    - Start with `# GenieTerm X.Y`, then one short paragraph that sums up the release. The in-app update prompt shows that paragraph, with a What's New link to the rest.
    - Follow with sections for what changed.
    - The notes become the GitHub Release body and travel in the update metadata.
-4. For every release, including patches and prereleases, prepend that exact tag and at least one user-facing highlight to `UpgradeReleases` in `frontend/app/onboarding/whatsnew.ts`. The standard gate compares the entry with `package.json`. The packaged upgrade check must show the new version automatically on an existing profile and keep it dismissed on the next launch.
-5. Bump the version with `npm version X.Y.Z --no-git-tag-version` and commit.
-6. Use the one-pass publication below once the release commit is ready. For testing packaging changes independently, `gh workflow run release.yml --ref <branch>` still builds and verifies every platform without publishing. A separate dry run is optional: publication runs the same checks before exposing any assets.
+2. For every release, including patches and prereleases, prepend that exact tag and at least one user-facing highlight to `UpgradeReleases` in `frontend/app/onboarding/whatsnew.ts`. The standard gate compares the entry with `package.json`. The packaged upgrade check must show the new version automatically on an existing profile and keep it dismissed on the next launch.
+3. Bump the version with `npm version X.Y.Z --no-git-tag-version`. Prepare these changes together before pushing the release candidate, so a small fix does not need two consecutive full main CI runs.
+4. On a Mac, run `task check:release` on the final candidate. It runs the merge gate, packages arm64, verifies the bundle, and launches it. Reuse a successful check while the candidate source, version and build inputs remain unchanged.
+5. Commit and push the candidate to `main` and require green CI for that exact SHA, not its parent. Local checks and CI may run concurrently. CI runs the merge gate (`scripts/v1-gate.mjs`), Windows tests, and packaging and launch checks on Linux x64 (including a `.deb` install on Ubuntu 24.04), Windows x64 and macOS arm64, plus packaged performance samples. Pull requests run the gate, Linux packaging and Windows tests; Windows and macOS packaging run on pushes to `main`.
+6. Use the one-pass publication below after both checks pass. For testing packaging changes independently, `gh workflow run release.yml --ref <branch>` still builds and verifies every platform without publishing. A separate dry run is optional: publication runs the same checks before exposing any assets.
+
+The project [release skill](../.kilocode/skills/release/SKILL.md) tracks these steps through publication and public verification. Keep the candidate SHA and run links with the release result; a push to `main` alone does not deliver an update.
 
 Before a major release, also try these by hand in the installed app:
 
@@ -42,6 +44,8 @@ gh workflow run release.yml --ref main -f publish=true -f tag=vX.Y.Z
 ```
 
 The explicit tag must match `package.json`. Manual publication is restricted to `main`; omitting `publish=true` always performs a dry run. Preflight and the platform builds run in parallel. Once every gate and the combined artifact verification pass, the workflow creates an annotated tag at the exact commit it built and publishes those same artifacts. There is no second build after verification. An existing tag must resolve to that commit; it is never moved. The repository's `GITHUB_TOKEN` creates the tag, so its push does not trigger a duplicate workflow.
+
+Confirm the dispatched run's `headSha` matches the checked candidate. Follow that run with `gh run watch <run-id> --exit-status --interval 30`; a failed run is not a published release. Inspect the failing job before retrying. For an unchanged candidate, re-run failed jobs in the existing run instead of dispatching another full build.
 
 Tag-triggered publication is also supported:
 
@@ -70,8 +74,20 @@ If publishing fails after the draft exists, fix the cause and re-run the workflo
 Check the published files themselves:
 
 - Confirm `latest-mac.yml`, both Linux manifests and Windows `latest.yml` on `releases/latest/download/` report the new version. Windows `beta.yml` and `alpha.yml` must point to the same stable installer.
-- Download the macOS zip and match its SHA-512 to `latest-mac.yml`. Run `node scripts/verify-installed-app.mjs --window-smoke <path/to/GenieTerm.app>`.
+- Download the macOS zip and match its SHA-512 to `latest-mac.yml`. Run `node scripts/verify-installed-app.mjs --window-smoke --upgrade-smoke <path/to/GenieTerm.app>`.
 - Run the Linux AppImage once from a fresh profile.
+
+For a stable release, update the version and download links in `site/index.html` only after its assets are public. Match every link to an uploaded asset, deploy the Site workflow and verify the live website. A site-only sync can use a `[skip ci]` commit followed by `gh workflow run site.yml --ref main`, avoiding another full application CI run. Do not use this shortcut for application changes, or point stable downloads at a prerelease.
+
+The macOS `--upgrade-smoke` creates an isolated profile with the candidate, sets its previous-version marker, then verifies What's New, dismissal and relaunch. It does not exercise migration from an actual older database or the updater's download, bundle swap and rollback. Keep real previous-version upgrade checks for migration/updater changes and major releases; Windows supports the `--upgrade-from` check below. Do not report the marker smoke as a full installation upgrade.
+
+## Build timings and caches
+
+CI installs dependencies once with `npm ci`. `GENIETERM_DEPS_INSTALLED=1` tells Task to reuse that installation when `node_modules/.package-lock.json` exists, including after `task clean` resets `.task`. Local Task commands still install dependencies normally. Keep the explicit runtime dependency audit in the merge gate.
+
+The shared Go setup action separates test and package caches by runner image, architecture, Go version and build configuration. Its source fingerprint refreshes compiled packages when `cmd/` or `pkg/` changes, with a compatible cache as the restore fallback. A frontend-only edit can reuse the same compiled packages. CI and Release packaging share the package cache; Windows tests cannot claim it first. Go still validates its cached compilation inputs, and packaging still rebuilds the candidate's versioned binaries after cleaning output directories.
+
+Installation, server/generation, cross-platform helper, frontend and Electron packaging durations appear as `[timing]` entries in logs and in the job summary. Compare cold and warm runs separately, using job start/finish times to identify the longest dependency path. A cache hit or a faster noncritical job alone does not establish a faster release. All security, packaging, installation, upgrade-prompt and performance checks remain enabled.
 
 ## How updates reach users
 

@@ -32,7 +32,8 @@ concurrency:
 
 env:
     NODE_VERSION: 22
-    GO_VERSION_FILE: go.mod
+    # Every job installs with npm ci before invoking Task.
+    GENIETERM_DEPS_INSTALLED: "1"
 
 jobs:
     preflight:
@@ -52,10 +53,9 @@ jobs:
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+            - uses: ./.github/actions/setup-go
               with:
-                  go-version-file: ${{ env.GO_VERSION_FILE }}
-                  cache-dependency-path: go.sum
+                  workload: test
 
             - name: Validate release plan
               id: plan
@@ -70,7 +70,7 @@ jobs:
                   git config --global url.https://github.com/.insteadof git@github.com:
 
             - name: Install dependencies
-              run: npm ci --no-audit --no-fund
+              run: node scripts/run-timed.mjs "Dependency installation" npm ci --no-audit --no-fund
               env:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
@@ -95,10 +95,9 @@ jobs:
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+            - uses: ./.github/actions/setup-go
               with:
-                  go-version-file: ${{ env.GO_VERSION_FILE }}
-                  cache-dependency-path: go.sum
+                  workload: package
 
             - name: Install Task
               uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
@@ -112,7 +111,7 @@ jobs:
                   git config --global url.https://github.com/.insteadof git@github.com:
 
             - name: Install dependencies
-              run: npm ci --no-audit --no-fund
+              run: node scripts/run-timed.mjs "Dependency installation" npm ci --no-audit --no-fund
               env:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
@@ -179,10 +178,9 @@ jobs:
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+            - uses: ./.github/actions/setup-go
               with:
-                  go-version-file: ${{ env.GO_VERSION_FILE }}
-                  cache-dependency-path: go.sum
+                  workload: package
 
             - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
               with:
@@ -205,7 +203,7 @@ jobs:
                   git config --global url.https://github.com/.insteadof git@github.com:
 
             - name: Install dependencies
-              run: npm ci --no-audit --no-fund
+              run: node scripts/run-timed.mjs "Dependency installation" npm ci --no-audit --no-fund
               env:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
@@ -262,10 +260,9 @@ jobs:
                   cache: npm
                   cache-dependency-path: package-lock.json
 
-            - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+            - uses: ./.github/actions/setup-go
               with:
-                  go-version-file: ${{ env.GO_VERSION_FILE }}
-                  cache-dependency-path: go.sum
+                  workload: package
 
             - name: Install Task
               uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
@@ -286,7 +283,7 @@ jobs:
                   git config --global url.https://github.com/.insteadof git@github.com:
 
             - name: Install dependencies
-              run: npm ci --no-audit --no-fund
+              run: node scripts/run-timed.mjs "Dependency installation" npm ci --no-audit --no-fund
               env:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
@@ -373,7 +370,7 @@ jobs:
                   git config --global url.https://github.com/.insteadof git@github.com:
 
             - name: Install dependencies
-              run: npm ci --no-audit --no-fund
+              run: node scripts/run-timed.mjs "Dependency installation" npm ci --no-audit --no-fund
               env:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"
@@ -440,7 +437,7 @@ jobs:
                   git config --global url.https://github.com/.insteadof git@github.com:
 
             - name: Install verification dependencies
-              run: npm ci --ignore-scripts --no-audit --no-fund
+              run: node scripts/run-timed.mjs "Verification dependencies" npm ci --ignore-scripts --no-audit --no-fund
               env:
                   GIT_ASKPASS: "echo"
                   GIT_TERMINAL_PROMPT: "0"

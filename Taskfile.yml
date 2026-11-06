@@ -86,7 +86,9 @@ tasks:
             - task: clean
             - task: npm:install
             - task: build:backend
-            - npm run build:prod && npm exec electron-builder -- -c electron-builder.config.cjs -p never {{.CLI_ARGS}} && node scripts/normalize-update-metadata.mjs
+            - node scripts/run-timed.mjs "Production build" npm run build:prod
+            - node scripts/run-timed.mjs "Electron packaging" npm exec electron-builder -- -c electron-builder.config.cjs -p never {{.CLI_ARGS}}
+            - node scripts/normalize-update-metadata.mjs
 
     package:verify:
         desc: Verify macOS or Linux packages, identity, version, helpers, and update metadata.
@@ -132,7 +134,7 @@ tasks:
         generates:
             - "dist/schema/**/*"
         cmds:
-            - go run cmd/generateschema/main-generateschema.go
+            - node scripts/run-timed.mjs "Schema generation" go run cmd/generateschema/main-generateschema.go
             - cmd: '{{.RMRF}} "dist/schema"'
               ignore_error: true
             - task: copyfiles:'schema':'dist/schema'
@@ -231,7 +233,7 @@ tasks:
             vars:
                 - ARCHS
         cmd:
-            cmd: CGO_ENABLED=1 GOARCH={{.GOARCH}} {{.GO_ENV_VARS}} go build -tags "osusergo,sqlite_omit_load_extension" -ldflags "{{.GO_LDFLAGS}} -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/wavesrv.{{if eq .GOARCH "amd64"}}x64{{else}}{{.GOARCH}}{{end}}{{exeExt}} cmd/server/main-server.go
+            cmd: CGO_ENABLED=1 GOARCH={{.GOARCH}} {{.GO_ENV_VARS}} node scripts/run-timed.mjs "Server {{.GOARCH}}" go build -tags "osusergo,sqlite_omit_load_extension" -ldflags "{{.GO_LDFLAGS}} -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/wavesrv.{{if eq .GOARCH "amd64"}}x64{{else}}{{.GOARCH}}{{end}}{{exeExt}} cmd/server/main-server.go
             for:
                 var: ARCHS
                 split: ","
@@ -312,15 +314,15 @@ tasks:
                 - GOARCH
                 - VERSION
         cmds:
-            - CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -ldflags="-s -w -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/genie-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}}{{.EXT}} cmd/wsh/main-wsh.go
-            - CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -ldflags="-s -w -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/wsh-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}}{{.EXT}} cmd/wsh/main-wsh.go
+            - CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} node scripts/run-timed.mjs "genie {{.GOOS}}/{{.GOARCH}}" go build -ldflags="-s -w -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/genie-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}}{{.EXT}} cmd/wsh/main-wsh.go
+            - CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} node scripts/run-timed.mjs "wsh {{.GOOS}}/{{.GOARCH}}" go build -ldflags="-s -w -X main.BuildTime=$({{.DATE}} +'%Y%m%d%H%M') -X main.WaveVersion={{.VERSION}}" -o dist/bin/wsh-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}}{{.EXT}} cmd/wsh/main-wsh.go
         internal: true
 
     generate:
         desc: Generate Typescript bindings for the Go backend.
         cmds:
-            - go run cmd/generatets/main-generatets.go
-            - go run cmd/generatego/main-generatego.go
+            - node scripts/run-timed.mjs "TypeScript binding generation" go run cmd/generatets/main-generatets.go
+            - node scripts/run-timed.mjs "Go binding generation" go run cmd/generatego/main-generatego.go
         deps:
             - build:schema
         sources:
@@ -417,7 +419,13 @@ tasks:
         sources:
             - package-lock.json
             - package.json
-        cmd: npm install
+        # CI has already run npm ci; clean removes Task's checksum state, not node_modules.
+        cmd: |
+            if [ "$GENIETERM_DEPS_INSTALLED" = "1" ] && [ -f node_modules/.package-lock.json ]; then
+                echo "[npm:install] reusing dependencies installed by npm ci"
+            else
+                node scripts/run-timed.mjs "Dependency installation" npm install
+            fi
 
     go:mod:tidy:
         desc: Runs `go mod tidy`
