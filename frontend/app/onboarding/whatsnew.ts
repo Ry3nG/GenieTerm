@@ -10,6 +10,17 @@ type UpgradeRelease = { version: string; items: FeatureItem[] };
 
 export const UpgradeReleases: UpgradeRelease[] = [
     {
+        version: "v1.7.3",
+        items: [
+            {
+                icon: "fa-microchip",
+                title: "Clearer CPU usage in Processes",
+                description:
+                    "Process CPU usage now clearly uses 100% per core, while Total CPU shows usage across all cores. Hover over either label for details.",
+            },
+        ],
+    },
+    {
         version: "v1.7.2",
         items: [
             {
