@@ -566,7 +566,14 @@ const Columns: ColDef[] = [
         hideOnPlatform: ["windows"],
         minTableWidth: 580,
     },
-    { key: "cpu", label: "CPU%", width: "70px", minWidth: 60, align: "right" },
+    {
+        key: "cpu",
+        label: "CPU% (1 core)",
+        tooltip: "100% means one fully used CPU core. Multithreaded processes can exceed 100%.",
+        width: "120px",
+        minWidth: 110,
+        align: "right",
+    },
     { key: "mem", label: "Memory", width: "90px", minWidth: 75, align: "right" },
 ];
 
@@ -903,6 +910,7 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
     const hasSummaryLoad = summary != null && summary.load1 != null;
     const hasSummaryMem = summary != null && memUsedFmt != null;
     const hasSummaryCpu = summary != null && cpuPct != null;
+    const cpuTooltip = `Total process CPU usage divided by ${summary?.numcpu} ${summary?.numcpu === 1 ? "core" : "cores"}. 100% means all CPU cores are fully used (0–100% scale).`;
 
     const searchTooltip = isMacOS() ? "Search (Cmd-F)" : "Search (Alt-F)";
 
@@ -934,12 +942,9 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                 {hasSummaryCpu && (
                     <>
                         <div className="w-px self-stretch bg-white/10 shrink-0" />
-                        <Tooltip
-                            content={`100% per core · ${summary.numcpu} ${summary.numcpu === 1 ? "core" : "cores"} = ${summary.numcpu * 100}% max`}
-                            placement="bottom"
-                        >
+                        <Tooltip content={cpuTooltip} placement="bottom">
                             <span className="shrink-0 cursor-default whitespace-pre">
-                                CPU<span className="font-mono text-[11px]">x{summary.numcpu}</span>{" "}
+                                Total CPU<span className="font-mono text-[11px]">x{summary.numcpu}</span>{" "}
                                 <span className="font-mono text-[11px]">{cpuPct}%</span>
                             </span>
                         </Tooltip>
@@ -986,13 +991,10 @@ const StatusBar = React.memo(function StatusBar({ model, data, loading, error, w
                 )}
                 {hasSummaryMem && <div className="flex-1 max-w-3" />}
                 {hasSummaryCpu && (
-                    <div className="flex flex-col shrink-0 w-[55px] mr-1">
-                        <Tooltip
-                            content={`100% per core · ${summary.numcpu} ${summary.numcpu === 1 ? "core" : "cores"} = ${summary.numcpu * 100}% max`}
-                            placement="bottom"
-                        >
+                    <div className="flex flex-col shrink-0 w-[90px] mr-1">
+                        <Tooltip content={cpuTooltip} placement="bottom">
                             <div className="cursor-default">
-                                CPU<span className="font-mono text-[11px]">x{summary.numcpu}</span>
+                                Total CPU<span className="font-mono text-[11px]">x{summary.numcpu}</span>
                             </div>
                         </Tooltip>
                         <div className="font-mono text-[11px] whitespace-pre">{cpuPct}%</div>
